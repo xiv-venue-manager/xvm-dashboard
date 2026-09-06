@@ -29,6 +29,10 @@ function parseRaffleId(raffleId: string) {
   return Number.isInteger(id) ? id : null
 }
 
+function isValidDiscordUserId(discordUserId: string) {
+  return /^\d{15,25}$/.test(discordUserId)
+}
+
 export const PUT = withRateLimit<{ params: Promise<{ venueId: string; raffleId: string; discordUserId: string }> }>(
   async (request, context) => {
     if (!context?.params) {
@@ -49,6 +53,10 @@ export const PUT = withRateLimit<{ params: Promise<{ venueId: string; raffleId: 
     const id = parseRaffleId(raffleId)
     if (id === null) {
       return NextResponse.json({ error: "Invalid raffle id" }, { status: 400 })
+    }
+
+    if (!isValidDiscordUserId(discordUserId)) {
+      return NextResponse.json({ error: "Invalid discord user id" }, { status: 400 })
     }
 
     const gate = await requireXvmVenueId(venueId)
@@ -94,6 +102,10 @@ export const DELETE = withRateLimit<{ params: Promise<{ venueId: string; raffleI
     const id = parseRaffleId(raffleId)
     if (id === null) {
       return NextResponse.json({ error: "Invalid raffle id" }, { status: 400 })
+    }
+
+    if (!isValidDiscordUserId(discordUserId)) {
+      return NextResponse.json({ error: "Invalid discord user id" }, { status: 400 })
     }
 
     const gate = await requireXvmVenueId(venueId)

@@ -11,8 +11,24 @@ import {
   getPublicHoursBatch,
   getPublicHoursForVenues,
   PUBLIC_HOURS_BATCH_MAX,
+  listGiveaways,
+  createGiveaway,
+  updateGiveaway,
+  deleteGiveaway,
+  listGiveawayEntries,
+  rollGiveaway,
+  listRaffles,
+  createRaffle,
+  updateRaffle,
+  deleteRaffle,
+  listRaffleEntries,
+  creditTickets,
+  refundTickets,
+  rollRaffle,
   type TaskRow,
   type PublicHours,
+  type GiveawayRow,
+  type RaffleRow,
 } from "./xvm-api"
 
 function mockFetchOnce({ ok, status, body }: { ok: boolean; status: number; body: unknown }) {
@@ -150,5 +166,168 @@ describe("Public hours batch", () => {
     expect(result.vn_0).toEqual(publicHours(true))
     expect(result.vn_1).toEqual(publicHours(false))
     expect(result[`vn_${ids.length - 1}`]).toEqual(publicHours((ids.length - 1) % 2 === 0))
+  })
+})
+
+describe("Giveaways API", () => {
+  const sampleGiveaway: GiveawayRow = {
+    id: 1,
+    name: "Weekend VIP Pass",
+    description: null,
+    prize: "1x VIP Pass",
+    thumbnail_url: null,
+    color: null,
+    emoji: null,
+    end_at: null,
+    num_winners: 1,
+    auto_notify: true,
+    entry_count: 0,
+    rolled_at: null,
+    rolled_by_person_id: null,
+    created_at: "2026-09-06T00:00:00Z",
+  }
+
+  it("listGiveaways GETs the venue's giveaways", async () => {
+    mockFetchOnce({ ok: true, status: 200, body: [sampleGiveaway] })
+    const result = await listGiveaways("token", "venue-1")
+    expect(result).toEqual([sampleGiveaway])
+    const [url] = (fetch as ReturnType<typeof vi.fn>).mock.calls[0]
+    expect(url).toContain("/venues/venue-1/giveaways")
+  })
+
+  it("listGiveaways forwards includeRolled and limit as query params", async () => {
+    mockFetchOnce({ ok: true, status: 200, body: [] })
+    await listGiveaways("token", "venue-1", { includeRolled: true, limit: 10 })
+    const [url] = (fetch as ReturnType<typeof vi.fn>).mock.calls[0]
+    expect(url).toContain("include_rolled=true")
+    expect(url).toContain("limit=10")
+  })
+
+  it("createGiveaway POSTs to /venues/{venueId}/giveaways", async () => {
+    mockFetchOnce({ ok: true, status: 201, body: sampleGiveaway })
+    const result = await createGiveaway("token", "venue-1", { name: "Weekend VIP Pass", prize: "1x VIP Pass" })
+    expect(result).toEqual(sampleGiveaway)
+  })
+
+  it("updateGiveaway PATCHes /giveaways/{id}", async () => {
+    mockFetchOnce({ ok: true, status: 200, body: sampleGiveaway })
+    const result = await updateGiveaway("token", "venue-1", 1, { name: "Updated" })
+    expect(result).toEqual(sampleGiveaway)
+    const [url, options] = (fetch as ReturnType<typeof vi.fn>).mock.calls[0]
+    expect(url).toContain("/giveaways/1")
+    expect(options.method).toBe("PATCH")
+  })
+
+  it("deleteGiveaway DELETEs /giveaways/{id}", async () => {
+    mockFetchOnce({ ok: true, status: 204, body: null })
+    await deleteGiveaway("token", "venue-1", 1)
+    const [url, options] = (fetch as ReturnType<typeof vi.fn>).mock.calls[0]
+    expect(url).toContain("/giveaways/1")
+    expect(options.method).toBe("DELETE")
+  })
+
+  it("listGiveawayEntries GETs /giveaways/{id}/entries", async () => {
+    mockFetchOnce({ ok: true, status: 200, body: [] })
+    await listGiveawayEntries("token", "venue-1", 1)
+    const [url] = (fetch as ReturnType<typeof vi.fn>).mock.calls[0]
+    expect(url).toContain("/giveaways/1/entries")
+  })
+
+  it("rollGiveaway POSTs /giveaways/{id}/roll", async () => {
+    mockFetchOnce({ ok: true, status: 200, body: { winners: [{ discord_user_id: "123", winner_rank: 1 }] } })
+    const result = await rollGiveaway("token", "venue-1", 1)
+    expect(result.winners).toHaveLength(1)
+    const [url, options] = (fetch as ReturnType<typeof vi.fn>).mock.calls[0]
+    expect(url).toContain("/giveaways/1/roll")
+    expect(options.method).toBe("POST")
+  })
+})
+
+describe("Raffles API", () => {
+  const sampleRaffle: RaffleRow = {
+    id: 1,
+    name: "Anniversary Draw",
+    cost_per_ticket: 100_000,
+    winner_basis_points: 5_000,
+    num_winners: 1,
+    auto_notify: true,
+    entry_count: 0,
+    ticket_count: 0,
+    pot: 0,
+    rolled_at: null,
+    rolled_by_person_id: null,
+    created_at: "2026-09-06T00:00:00Z",
+  }
+
+  it("listRaffles GETs the venue's raffles", async () => {
+    mockFetchOnce({ ok: true, status: 200, body: [sampleRaffle] })
+    const result = await listRaffles("token", "venue-1")
+    expect(result).toEqual([sampleRaffle])
+    const [url] = (fetch as ReturnType<typeof vi.fn>).mock.calls[0]
+    expect(url).toContain("/venues/venue-1/raffles")
+  })
+
+  it("createRaffle POSTs to /venues/{venueId}/raffles", async () => {
+    mockFetchOnce({ ok: true, status: 201, body: sampleRaffle })
+    const result = await createRaffle("token", "venue-1", { name: "Anniversary Draw" })
+    expect(result).toEqual(sampleRaffle)
+  })
+
+  it("updateRaffle PATCHes /raffles/{id}", async () => {
+    mockFetchOnce({ ok: true, status: 200, body: sampleRaffle })
+    const result = await updateRaffle("token", "venue-1", 1, { name: "Updated" })
+    expect(result).toEqual(sampleRaffle)
+    const [url, options] = (fetch as ReturnType<typeof vi.fn>).mock.calls[0]
+    expect(url).toContain("/raffles/1")
+    expect(options.method).toBe("PATCH")
+  })
+
+  it("deleteRaffle DELETEs /raffles/{id}", async () => {
+    mockFetchOnce({ ok: true, status: 204, body: null })
+    await deleteRaffle("token", "venue-1", 1)
+    const [url, options] = (fetch as ReturnType<typeof vi.fn>).mock.calls[0]
+    expect(url).toContain("/raffles/1")
+    expect(options.method).toBe("DELETE")
+  })
+
+  it("listRaffleEntries GETs /raffles/{id}/entries", async () => {
+    mockFetchOnce({ ok: true, status: 200, body: [] })
+    await listRaffleEntries("token", "venue-1", 1)
+    const [url] = (fetch as ReturnType<typeof vi.fn>).mock.calls[0]
+    expect(url).toContain("/raffles/1/entries")
+  })
+
+  it("creditTickets PUTs /raffles/{id}/entries/{discordUserId}", async () => {
+    mockFetchOnce({
+      ok: true,
+      status: 200,
+      body: { discord_user_id: "555", quantity: 3, entered_at: "2026-09-06T00:00:00Z", won_at: null, winner_rank: null },
+    })
+    await creditTickets("token", "venue-1", 1, "555", { quantity: 3 })
+    const [url, options] = (fetch as ReturnType<typeof vi.fn>).mock.calls[0]
+    expect(url).toContain("/raffles/1/entries/555")
+    expect(options.method).toBe("PUT")
+    expect(JSON.parse(options.body)).toEqual({ quantity: 3 })
+  })
+
+  it("refundTickets DELETEs /raffles/{id}/entries/{discordUserId}", async () => {
+    mockFetchOnce({ ok: true, status: 204, body: null })
+    await refundTickets("token", "venue-1", 1, "555")
+    const [url, options] = (fetch as ReturnType<typeof vi.fn>).mock.calls[0]
+    expect(url).toContain("/raffles/1/entries/555")
+    expect(options.method).toBe("DELETE")
+  })
+
+  it("rollRaffle POSTs /raffles/{id}/roll", async () => {
+    mockFetchOnce({
+      ok: true,
+      status: 200,
+      body: { winners: [{ discord_user_id: "555", winner_rank: 1 }], ticket_count: 10, pot: 1_000_000, winners_take: 500_000, venue_take: 500_000 },
+    })
+    const result = await rollRaffle("token", "venue-1", 1)
+    expect(result.pot).toBe(1_000_000)
+    const [url, options] = (fetch as ReturnType<typeof vi.fn>).mock.calls[0]
+    expect(url).toContain("/raffles/1/roll")
+    expect(options.method).toBe("POST")
   })
 })

@@ -1251,3 +1251,232 @@ export async function cancelTask(personToken: string, venueId: string, taskId: n
     personToken
   )
 }
+
+// ── Contests API ───────────────────────────────────────────────
+//
+// discord_user_id is xvm-api's Snowflake type, serialized as a JSON string -
+// never parse it to a JS number, real Discord ids exceed Number.MAX_SAFE_INTEGER.
+
+export interface GiveawayRow {
+  id: number
+  name: string | null
+  description: string | null
+  prize: string | null
+  thumbnail_url: string | null
+  color: number | null
+  emoji: string | null
+  end_at: string | null
+  num_winners: number
+  auto_notify: boolean
+  entry_count: number
+  rolled_at: string | null
+  rolled_by_person_id: number | null
+  created_at: string
+}
+
+export interface GiveawayCreate {
+  name?: string | null
+  description?: string | null
+  prize?: string | null
+  thumbnail_url?: string | null
+  color?: number | null
+  emoji?: string | null
+  end_at?: string | null
+  num_winners?: number
+  auto_notify?: boolean
+}
+
+export interface GiveawayUpdate {
+  name?: string | null
+  description?: string | null
+  prize?: string | null
+  thumbnail_url?: string | null
+  color?: number | null
+  emoji?: string | null
+  end_at?: string | null
+  num_winners?: number | null
+  auto_notify?: boolean | null
+}
+
+export interface EntryRow {
+  discord_user_id: string
+  quantity: number
+  entered_at: string
+  won_at: string | null
+  winner_rank: number | null
+}
+
+export interface Winner {
+  discord_user_id: string
+  winner_rank: number
+}
+
+export interface GiveawayRoll {
+  winners: Winner[]
+}
+
+export async function listGiveaways(
+  personToken: string,
+  venueId: string,
+  options: { includeRolled?: boolean; limit?: number } = {}
+): Promise<GiveawayRow[]> {
+  if (!process.env.XVM_API_BASE_URL) throw new Error("XVM_API_BASE_URL is not set")
+  const params = new URLSearchParams()
+  if (options.includeRolled) params.set("include_rolled", "true")
+  if (options.limit !== undefined) params.set("limit", String(options.limit))
+  const query = params.toString() ? `?${params}` : ""
+  return xvmFetch<GiveawayRow[]>(`/venues/${venueId}/giveaways${query}`, {}, personToken)
+}
+
+export async function createGiveaway(personToken: string, venueId: string, data: GiveawayCreate): Promise<GiveawayRow> {
+  if (!process.env.XVM_API_BASE_URL) throw new Error("XVM_API_BASE_URL is not set")
+  return xvmFetch<GiveawayRow>(`/venues/${venueId}/giveaways`, { method: "POST", body: JSON.stringify(data) }, personToken)
+}
+
+export async function updateGiveaway(
+  personToken: string,
+  venueId: string,
+  giveawayId: number,
+  data: GiveawayUpdate
+): Promise<GiveawayRow> {
+  if (!process.env.XVM_API_BASE_URL) throw new Error("XVM_API_BASE_URL is not set")
+  return xvmFetch<GiveawayRow>(
+    `/venues/${venueId}/giveaways/${giveawayId}`,
+    { method: "PATCH", body: JSON.stringify(data) },
+    personToken
+  )
+}
+
+export async function deleteGiveaway(personToken: string, venueId: string, giveawayId: number): Promise<void> {
+  if (!process.env.XVM_API_BASE_URL) throw new Error("XVM_API_BASE_URL is not set")
+  return xvmFetch<void>(`/venues/${venueId}/giveaways/${giveawayId}`, { method: "DELETE" }, personToken)
+}
+
+export async function listGiveawayEntries(personToken: string, venueId: string, giveawayId: number): Promise<EntryRow[]> {
+  if (!process.env.XVM_API_BASE_URL) throw new Error("XVM_API_BASE_URL is not set")
+  return xvmFetch<EntryRow[]>(`/venues/${venueId}/giveaways/${giveawayId}/entries`, {}, personToken)
+}
+
+export async function rollGiveaway(personToken: string, venueId: string, giveawayId: number): Promise<GiveawayRoll> {
+  if (!process.env.XVM_API_BASE_URL) throw new Error("XVM_API_BASE_URL is not set")
+  return xvmFetch<GiveawayRoll>(`/venues/${venueId}/giveaways/${giveawayId}/roll`, { method: "POST" }, personToken)
+}
+
+export interface RaffleRow {
+  id: number
+  name: string | null
+  cost_per_ticket: number
+  winner_basis_points: number
+  num_winners: number
+  auto_notify: boolean
+  entry_count: number
+  ticket_count: number
+  pot: number
+  rolled_at: string | null
+  rolled_by_person_id: number | null
+  created_at: string
+}
+
+export interface RaffleCreate {
+  name?: string | null
+  cost_per_ticket?: number
+  winner_basis_points?: number
+  num_winners?: number
+  auto_notify?: boolean
+}
+
+export interface RaffleUpdate {
+  name?: string | null
+  cost_per_ticket?: number | null
+  winner_basis_points?: number | null
+  num_winners?: number | null
+  auto_notify?: boolean | null
+}
+
+export interface TicketCredit {
+  quantity?: number
+}
+
+export interface RaffleRoll {
+  winners: Winner[]
+  ticket_count: number
+  pot: number
+  winners_take: number
+  venue_take: number
+}
+
+export async function listRaffles(
+  personToken: string,
+  venueId: string,
+  options: { includeRolled?: boolean; limit?: number } = {}
+): Promise<RaffleRow[]> {
+  if (!process.env.XVM_API_BASE_URL) throw new Error("XVM_API_BASE_URL is not set")
+  const params = new URLSearchParams()
+  if (options.includeRolled) params.set("include_rolled", "true")
+  if (options.limit !== undefined) params.set("limit", String(options.limit))
+  const query = params.toString() ? `?${params}` : ""
+  return xvmFetch<RaffleRow[]>(`/venues/${venueId}/raffles${query}`, {}, personToken)
+}
+
+export async function createRaffle(personToken: string, venueId: string, data: RaffleCreate): Promise<RaffleRow> {
+  if (!process.env.XVM_API_BASE_URL) throw new Error("XVM_API_BASE_URL is not set")
+  return xvmFetch<RaffleRow>(`/venues/${venueId}/raffles`, { method: "POST", body: JSON.stringify(data) }, personToken)
+}
+
+export async function updateRaffle(
+  personToken: string,
+  venueId: string,
+  raffleId: number,
+  data: RaffleUpdate
+): Promise<RaffleRow> {
+  if (!process.env.XVM_API_BASE_URL) throw new Error("XVM_API_BASE_URL is not set")
+  return xvmFetch<RaffleRow>(
+    `/venues/${venueId}/raffles/${raffleId}`,
+    { method: "PATCH", body: JSON.stringify(data) },
+    personToken
+  )
+}
+
+export async function deleteRaffle(personToken: string, venueId: string, raffleId: number): Promise<void> {
+  if (!process.env.XVM_API_BASE_URL) throw new Error("XVM_API_BASE_URL is not set")
+  return xvmFetch<void>(`/venues/${venueId}/raffles/${raffleId}`, { method: "DELETE" }, personToken)
+}
+
+export async function listRaffleEntries(personToken: string, venueId: string, raffleId: number): Promise<EntryRow[]> {
+  if (!process.env.XVM_API_BASE_URL) throw new Error("XVM_API_BASE_URL is not set")
+  return xvmFetch<EntryRow[]>(`/venues/${venueId}/raffles/${raffleId}/entries`, {}, personToken)
+}
+
+export async function creditTickets(
+  personToken: string,
+  venueId: string,
+  raffleId: number,
+  discordUserId: string,
+  data: TicketCredit
+): Promise<EntryRow> {
+  if (!process.env.XVM_API_BASE_URL) throw new Error("XVM_API_BASE_URL is not set")
+  return xvmFetch<EntryRow>(
+    `/venues/${venueId}/raffles/${raffleId}/entries/${discordUserId}`,
+    { method: "PUT", body: JSON.stringify(data) },
+    personToken
+  )
+}
+
+export async function refundTickets(
+  personToken: string,
+  venueId: string,
+  raffleId: number,
+  discordUserId: string
+): Promise<void> {
+  if (!process.env.XVM_API_BASE_URL) throw new Error("XVM_API_BASE_URL is not set")
+  return xvmFetch<void>(
+    `/venues/${venueId}/raffles/${raffleId}/entries/${discordUserId}`,
+    { method: "DELETE" },
+    personToken
+  )
+}
+
+export async function rollRaffle(personToken: string, venueId: string, raffleId: number): Promise<RaffleRoll> {
+  if (!process.env.XVM_API_BASE_URL) throw new Error("XVM_API_BASE_URL is not set")
+  return xvmFetch<RaffleRoll>(`/venues/${venueId}/raffles/${raffleId}/roll`, { method: "POST" }, personToken)
+}

@@ -8,15 +8,7 @@ import { Input } from "@/components/ui/input"
 import { Copy } from "lucide-react"
 import { toast } from "sonner"
 import { apiFetch, ApiError } from "@/lib/api-fetch"
-
-interface ResolvedEntry {
-  discord_user_id: string
-  quantity: number
-  entered_at: string
-  won_at: string | null
-  winner_rank: number | null
-  display_name: string | null
-}
+import type { ResolvedEntry } from "@/lib/api/resolve-entry-names"
 
 interface ContestEntriesDrawerProps {
   venueId: string
@@ -55,15 +47,26 @@ export function ContestEntriesDrawer({
 
   useEffect(() => {
     if (contestId === null) return
+    let cancelled = false
     setLoading(true)
+    setEntries([])
     apiFetch<ResolvedEntry[]>(entriesPath(venueId, contestType, contestId))
-      .then(setEntries)
-      .catch((e) => toast.error(e instanceof ApiError ? e.message : "Failed to load entries."))
-      .finally(() => setLoading(false))
+      .then((data) => {
+        if (!cancelled) setEntries(data)
+      })
+      .catch((e) => {
+        if (!cancelled) toast.error(e instanceof ApiError ? e.message : "Failed to load entries.")
+      })
+      .finally(() => {
+        if (!cancelled) setLoading(false)
+      })
+    return () => {
+      cancelled = true
+    }
   }, [venueId, contestType, contestId])
 
   async function submitCredit(discordUserId: string) {
-    if (contestId === null) return
+    if (contestId === null || contestType !== "raffle") return
     const quantity = Number(creditAmount)
     if (!Number.isInteger(quantity) || quantity < 1) {
       toast.error("Quantity must be a positive whole number")
@@ -84,7 +87,7 @@ export function ContestEntriesDrawer({
   }
 
   async function removeEntry(discordUserId: string) {
-    if (contestId === null) return
+    if (contestId === null || contestType !== "raffle") return
     try {
       await apiFetch(`/api/venues/${venueId}/contests/raffles/${contestId}/entries/${discordUserId}`, {
         method: "DELETE",
@@ -134,9 +137,12 @@ export function ContestEntriesDrawer({
                         <button
                           type="button"
                           title="Copy Discord ID"
+                          aria-label="Copy Discord ID"
                           onClick={() => {
-                            navigator.clipboard.writeText(entry.discord_user_id)
-                            toast.success("Discord ID copied")
+                            navigator.clipboard
+                              .writeText(entry.discord_user_id)
+                              .then(() => toast.success("Discord ID copied"))
+                              .catch(() => toast.error("Failed to copy Discord ID"))
                           }}
                         >
                           <Copy className="h-3 w-3 text-muted-foreground" />

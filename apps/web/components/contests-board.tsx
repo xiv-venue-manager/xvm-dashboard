@@ -43,6 +43,17 @@ function rollPath(venueId: string, kind: "giveaway" | "raffle", id: number): str
     : `/api/venues/${venueId}/contests/raffles/${id}/roll`
 }
 
+async function fetchContests(venueId: string): Promise<Contest[]> {
+  const [giveaways, raffles] = await Promise.all([
+    apiFetch<GiveawayRow[]>(`/api/venues/${venueId}/contests/giveaways`),
+    apiFetch<RaffleRow[]>(`/api/venues/${venueId}/contests/raffles`),
+  ])
+  return [
+    ...giveaways.map((g) => ({ kind: "giveaway" as const, ...g })),
+    ...raffles.map((r) => ({ kind: "raffle" as const, ...r })),
+  ]
+}
+
 export function ContestsBoard({ venueId, canManage, giveaways, raffles, notConnected }: ContestsBoardProps) {
   const [contests, setContests] = useState<Contest[]>([
     ...giveaways.map((g) => ({ kind: "giveaway" as const, ...g })),
@@ -78,9 +89,11 @@ export function ContestsBoard({ venueId, canManage, giveaways, raffles, notConne
     } catch (e) {
       if (e instanceof ApiError && e.status === 409) {
         toast.error("This draw was already rolled by someone else.")
-        setContests((prev) =>
-          prev.map((c) => (contestKey(c) === contestKey(rollTarget) ? { ...c, rolled_at: new Date().toISOString() } : c))
-        )
+        fetchContests(venueId)
+          .then(setContests)
+          .catch(() => {
+            /* keep stale data over crashing; card will just look pre-roll until next load */
+          })
       } else {
         toast.error(e instanceof ApiError ? e.message : "Failed to roll winner.")
       }

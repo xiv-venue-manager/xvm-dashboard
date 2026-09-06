@@ -1,6 +1,6 @@
 "use client"
 
-import { useEffect, useState } from "react"
+import { useEffect, useRef, useState } from "react"
 import { Sheet, SheetContent, SheetDescription, SheetHeader, SheetTitle } from "@/components/ui/sheet"
 import { Table, TableBody, TableCell, TableHead, TableHeader, TableRow } from "@/components/ui/table"
 import { Button } from "@/components/ui/button"
@@ -45,11 +45,21 @@ export function ContestEntriesDrawer({
   const [creditTarget, setCreditTarget] = useState<string | null>(null)
   const [creditAmount, setCreditAmount] = useState("1")
 
+  // Reset entries/loading during render (not in the effect) when the open
+  // contest changes, so opening a new contest never flashes stale entries.
+  const contestKey = contestId === null ? null : `${contestType}:${contestId}`
+  const prevContestKeyRef = useRef(contestKey)
+  if (contestKey !== prevContestKeyRef.current) {
+    prevContestKeyRef.current = contestKey
+    if (contestKey !== null) {
+      setEntries([])
+      setLoading(true)
+    }
+  }
+
   useEffect(() => {
     if (contestId === null) return
     let cancelled = false
-    setLoading(true)
-    setEntries([])
     apiFetch<ResolvedEntry[]>(entriesPath(venueId, contestType, contestId))
       .then((data) => {
         if (!cancelled) setEntries(data)

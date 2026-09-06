@@ -74,6 +74,24 @@ interface NavContentProps {
 }
 
 function NavContent({ venueSlug, venues, navGroups, pathname, userRole, onNavigate }: NavContentProps) {
+  const computeActiveHref = () => {
+    const allItems: string[] = []
+    navGroups.forEach((group) => {
+      filterItems(group.items, userRole).forEach((item) => {
+        if (isActiveHref(pathname, venueSlug, item.href)) {
+          allItems.push(item.href)
+        }
+      })
+    })
+    const settingsHref = `/dashboard/${venueSlug}/settings`
+    if (isActiveHref(pathname, venueSlug, settingsHref)) {
+      allItems.push(settingsHref)
+    }
+    return allItems.length > 0 ? allItems.reduce((a, b) => (a.length > b.length ? a : b)) : null
+  }
+
+  const activeHref = computeActiveHref()
+
   return (
     <div className="flex flex-col h-full">
       {/* Venue switcher */}
@@ -93,7 +111,7 @@ function NavContent({ venueSlug, venues, navGroups, pathname, userRole, onNaviga
                 <p className="grp-label px-3 mb-[8px]">{group.label}</p>
                 <div className="space-y-0.5">
                   {filtered.map((item) => {
-                    const active = isActiveHref(pathname, venueSlug, item.href)
+                    const active = item.href === activeHref
                     return (
                       <Link
                         key={item.href}
@@ -142,7 +160,7 @@ function NavContent({ venueSlug, venues, navGroups, pathname, userRole, onNaviga
           onClick={onNavigate}
           className={cn(
             "flex items-center gap-3 px-3 py-[9px] rounded-lg text-[0.875rem] font-medium transition-colors border-l-2",
-            isActiveHref(pathname, venueSlug, `/dashboard/${venueSlug}/settings`)
+            activeHref === `/dashboard/${venueSlug}/settings`
               ? "bg-[var(--xiv-blue)] text-[var(--xiv-navy)] font-semibold border-[var(--xiv-blue)]"
               : "text-foreground hover:bg-[var(--blue-007)] border-transparent"
           )}
@@ -150,7 +168,7 @@ function NavContent({ venueSlug, venues, navGroups, pathname, userRole, onNaviga
           <Settings
             className={cn(
               "h-[18px] w-[18px] shrink-0",
-              isActiveHref(pathname, venueSlug, `/dashboard/${venueSlug}/settings`)
+              activeHref === `/dashboard/${venueSlug}/settings`
                 ? "text-[var(--xiv-navy)]"
                 : "text-muted-foreground"
             )}

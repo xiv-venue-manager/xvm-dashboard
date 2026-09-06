@@ -88,7 +88,7 @@ export function ContestsBoard({ venueId, canManage, giveaways, raffles, notConne
       setRollTarget(null)
     } catch (e) {
       if (e instanceof ApiError && e.status === 409) {
-        toast.error("This draw was already rolled by someone else.")
+        toast.error(e.message || "This draw was already rolled by someone else.")
         fetchContests(venueId)
           .then(setContests)
           .catch(() => {

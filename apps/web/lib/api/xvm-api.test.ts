@@ -11,8 +11,15 @@ import {
   getPublicHoursBatch,
   getPublicHoursForVenues,
   PUBLIC_HOURS_BATCH_MAX,
+  listGiveaways,
+  createGiveaway,
+  updateGiveaway,
+  deleteGiveaway,
+  listGiveawayEntries,
+  rollGiveaway,
   type TaskRow,
   type PublicHours,
+  type GiveawayRow,
 } from "./xvm-api"
 
 function mockFetchOnce({ ok, status, body }: { ok: boolean; status: number; body: unknown }) {
@@ -150,5 +157,79 @@ describe("Public hours batch", () => {
     expect(result.vn_0).toEqual(publicHours(true))
     expect(result.vn_1).toEqual(publicHours(false))
     expect(result[`vn_${ids.length - 1}`]).toEqual(publicHours((ids.length - 1) % 2 === 0))
+  })
+})
+
+describe("Giveaways API", () => {
+  const sampleGiveaway: GiveawayRow = {
+    id: 1,
+    name: "Weekend VIP Pass",
+    description: null,
+    prize: "1x VIP Pass",
+    thumbnail_url: null,
+    color: null,
+    emoji: null,
+    end_at: null,
+    num_winners: 1,
+    auto_notify: true,
+    entry_count: 0,
+    rolled_at: null,
+    rolled_by_person_id: null,
+    created_at: "2026-09-06T00:00:00Z",
+  }
+
+  it("listGiveaways GETs the venue's giveaways", async () => {
+    mockFetchOnce({ ok: true, status: 200, body: [sampleGiveaway] })
+    const result = await listGiveaways("token", "venue-1")
+    expect(result).toEqual([sampleGiveaway])
+    const [url] = (fetch as ReturnType<typeof vi.fn>).mock.calls[0]
+    expect(url).toContain("/venues/venue-1/giveaways")
+  })
+
+  it("listGiveaways forwards includeRolled and limit as query params", async () => {
+    mockFetchOnce({ ok: true, status: 200, body: [] })
+    await listGiveaways("token", "venue-1", { includeRolled: true, limit: 10 })
+    const [url] = (fetch as ReturnType<typeof vi.fn>).mock.calls[0]
+    expect(url).toContain("include_rolled=true")
+    expect(url).toContain("limit=10")
+  })
+
+  it("createGiveaway POSTs to /venues/{venueId}/giveaways", async () => {
+    mockFetchOnce({ ok: true, status: 201, body: sampleGiveaway })
+    const result = await createGiveaway("token", "venue-1", { name: "Weekend VIP Pass", prize: "1x VIP Pass" })
+    expect(result).toEqual(sampleGiveaway)
+  })
+
+  it("updateGiveaway PATCHes /giveaways/{id}", async () => {
+    mockFetchOnce({ ok: true, status: 200, body: sampleGiveaway })
+    const result = await updateGiveaway("token", "venue-1", 1, { name: "Updated" })
+    expect(result).toEqual(sampleGiveaway)
+    const [url, options] = (fetch as ReturnType<typeof vi.fn>).mock.calls[0]
+    expect(url).toContain("/giveaways/1")
+    expect(options.method).toBe("PATCH")
+  })
+
+  it("deleteGiveaway DELETEs /giveaways/{id}", async () => {
+    mockFetchOnce({ ok: true, status: 204, body: null })
+    await deleteGiveaway("token", "venue-1", 1)
+    const [url, options] = (fetch as ReturnType<typeof vi.fn>).mock.calls[0]
+    expect(url).toContain("/giveaways/1")
+    expect(options.method).toBe("DELETE")
+  })
+
+  it("listGiveawayEntries GETs /giveaways/{id}/entries", async () => {
+    mockFetchOnce({ ok: true, status: 200, body: [] })
+    await listGiveawayEntries("token", "venue-1", 1)
+    const [url] = (fetch as ReturnType<typeof vi.fn>).mock.calls[0]
+    expect(url).toContain("/giveaways/1/entries")
+  })
+
+  it("rollGiveaway POSTs /giveaways/{id}/roll", async () => {
+    mockFetchOnce({ ok: true, status: 200, body: { winners: [{ discord_user_id: "123", winner_rank: 1 }] } })
+    const result = await rollGiveaway("token", "venue-1", 1)
+    expect(result.winners).toHaveLength(1)
+    const [url, options] = (fetch as ReturnType<typeof vi.fn>).mock.calls[0]
+    expect(url).toContain("/giveaways/1/roll")
+    expect(options.method).toBe("POST")
   })
 })

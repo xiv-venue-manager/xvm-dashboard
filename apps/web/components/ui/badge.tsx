@@ -19,6 +19,8 @@ const badgeVariants = cva(
         "status-closed": "border-[rgba(243,139,168,0.20)] bg-[rgba(243,139,168,0.10)] text-[var(--destructive)]",
         "status-soon": "border-[rgba(249,226,175,0.20)] bg-[rgba(249,226,175,0.10)] text-[var(--warning)]",
         live: "border-[rgba(16,185,129,0.30)] bg-[rgba(16,185,129,0.15)] text-[var(--success-text)] animate-pulse",
+        "type-giveaway": "border-[var(--blue-018)] bg-[var(--blue-010)] text-[var(--xiv-blue)]",
+        "type-raffle": "border-[rgba(249,226,175,0.20)] bg-[rgba(249,226,175,0.10)] text-[var(--warning)]",
       },
     },
     defaultVariants: {

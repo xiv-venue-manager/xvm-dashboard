@@ -45,8 +45,8 @@ function rollPath(venueId: string, kind: "giveaway" | "raffle", id: number): str
 
 async function fetchContests(venueId: string): Promise<Contest[]> {
   const [giveaways, raffles] = await Promise.all([
-    apiFetch<GiveawayRow[]>(`/api/venues/${venueId}/contests/giveaways`),
-    apiFetch<RaffleRow[]>(`/api/venues/${venueId}/contests/raffles`),
+    apiFetch<GiveawayRow[]>(`/api/venues/${venueId}/contests/giveaways?include_rolled=true`),
+    apiFetch<RaffleRow[]>(`/api/venues/${venueId}/contests/raffles?include_rolled=true`),
   ])
   return [
     ...giveaways.map((g) => ({ kind: "giveaway" as const, ...g })),

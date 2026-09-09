@@ -1,5 +1,12 @@
 import { describe, it, expect } from "vitest"
-import { hexColorToInt, intColorToHex, dollarsToMinorUnits, minorUnitsToDollars } from "./position-convert"
+import {
+  hexColorToInt,
+  intColorToHex,
+  dollarsToMinorUnits,
+  minorUnitsToDollars,
+  hoursToMinutes,
+  minutesToHours,
+} from "./position-convert"
 
 describe("hexColorToInt", () => {
   it("converts a 6-digit hex string to its integer value", () => {
@@ -47,5 +54,22 @@ describe("dollarsToMinorUnits / minorUnitsToDollars round-trip", () => {
 
   it("rounds to the nearest cent instead of truncating", () => {
     expect(dollarsToMinorUnits(12.505)).toBe(1251)
+  })
+})
+
+describe("hoursToMinutes / minutesToHours round-trip", () => {
+  it("converts decimal hours to whole minutes and back", () => {
+    expect(hoursToMinutes(1.5)).toBe(90)
+    expect(minutesToHours(90)).toBe(1.5)
+  })
+
+  it("returns null for null input on both directions", () => {
+    expect(hoursToMinutes(null)).toBeNull()
+    expect(minutesToHours(null)).toBeNull()
+  })
+
+  it("rounds to the nearest minute instead of truncating", () => {
+    expect(hoursToMinutes(1.008)).toBe(60) // 1.008h = 60.48min -> rounds to 60
+    expect(hoursToMinutes(1.01)).toBe(61) // 1.01h = 60.6min -> rounds to 61
   })
 })

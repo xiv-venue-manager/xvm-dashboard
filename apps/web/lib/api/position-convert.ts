@@ -26,3 +26,17 @@ export function minorUnitsToDollars(minor: number | null): number | null {
   if (minor === null) return null
   return minor / 100
 }
+
+// xvm-api's minutes_worked is an int; the dashboard's hoursWorked (and the shift-duration
+// math it comes from) is decimal hours. Round rather than truncate, same reasoning as the
+// other minor-unit conversions here — a fractional minute from float math shouldn't
+// silently shave time off someone's paid hours.
+export function hoursToMinutes(hours: number | null): number | null {
+  if (hours === null) return null
+  return Math.round(hours * 60)
+}
+
+export function minutesToHours(minutes: number | null): number | null {
+  if (minutes === null) return null
+  return minutes / 60
+}

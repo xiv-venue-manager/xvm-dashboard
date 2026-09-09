@@ -9,6 +9,7 @@ import { VenueEyebrow } from "@/components/venue-eyebrow"
 import { Label } from "@/components/ui/label"
 import { Input } from "@/components/ui/input"
 import { GalleryManager } from "@/components/gallery-manager"
+import { FinanceCategoriesSettings } from "@/components/finance-categories-settings"
 import { BannerUpload } from "@/components/banner-upload"
 import { LogoUpload } from "@/components/logo-upload"
 import type { VenueImage } from "@/lib/api/xvm-api"
@@ -1576,6 +1577,17 @@ export default function SettingsPage({ params }: { params: Promise<{ slug: strin
                       <span className="text-sm">Default new staff to pooling their tips</span>
                     </label>
                   </div>
+              </div>
+
+              {/* Finance Categories */}
+              <div className="introw" style={{ flexWrap: "wrap", gap: 14 }}>
+                <div className="iinfo w-full">
+                  <div className="iname">Finance Categories</div>
+                  <div className="idesc">Group transactions for reporting — optional, sales work without one</div>
+                </div>
+                <div className="w-full">
+                  <FinanceCategoriesSettings venueId={venueId} />
+                </div>
               </div>
 
               {/* Bar Inventory */}

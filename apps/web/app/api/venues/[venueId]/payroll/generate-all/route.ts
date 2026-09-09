@@ -208,7 +208,7 @@ export const POST = withRateLimit<{ params: Promise<{ venueId: string }> }>(
       const perMemberEntries = await Promise.all(
         eligible.map(async (r) => {
           const groups = [...groupByRate(r.resolved).entries()]
-          const entries = await Promise.all(
+          const createdTotalsMinor = await Promise.all(
             groups.map(async ([rateMinorPerHour, shifts]) => {
               const groupHours = shifts.reduce((sum, s) => sum + s.hours, 0)
               const { start, end } = groupPeriod(shifts)
@@ -220,14 +220,14 @@ export const POST = withRateLimit<{ params: Promise<{ venueId: string }> }>(
                 period_start: start,
                 period_end: end,
               })
-              return { totalAmount: minorUnitsToDollars(row.total_amount_minor) }
+              return row.total_amount_minor
             })
           )
           return {
             membershipId: r.member.id,
-            entryCount: entries.length,
+            entryCount: createdTotalsMinor.length,
             totalHours: r.totalHours,
-            totalAmount: minorUnitsToDollars(r.totalAmountMinor),
+            totalAmount: minorUnitsToDollars(createdTotalsMinor.reduce((sum, m) => sum + m, 0)),
           }
         })
       )

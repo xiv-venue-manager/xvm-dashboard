@@ -104,7 +104,6 @@ export default function SettingsPage({ params }: { params: Promise<{ slug: strin
   const [shiftBotChannelId, setShiftBotChannelId] = useState("")
   const [shiftBotDaysBefore, setShiftBotDaysBefore] = useState(3)
   const [shiftBotThumbnailUrl, setShiftBotThumbnailUrl] = useState("")
-  const [potEnabled, setPotEnabled] = useState(false)
   const [potTaxPercent, setPotTaxPercent] = useState(0)
   const [potIncludeSalesInPot, setPotIncludeSalesInPot] = useState(false)
   const [potDefaultTipPooled, setPotDefaultTipPooled] = useState(false)
@@ -206,7 +205,6 @@ export default function SettingsPage({ params }: { params: Promise<{ slug: strin
           .then((r) => (r.ok ? r.json() : null))
           .then((data) => {
             if (!data) return
-            setPotEnabled(data.settings.enabled)
             setPotTaxPercent(data.settings.taxPercent)
             setPotIncludeSalesInPot(data.settings.includeSalesInPot)
             setPotDefaultTipPooled(data.settings.defaultTipPooled)
@@ -254,7 +252,6 @@ export default function SettingsPage({ params }: { params: Promise<{ slug: strin
     shiftBotDaysBefore,
     shiftBotThumbnailUrl,
     shiftBotTemplates,
-    potEnabled,
     potTaxPercent,
     potIncludeSalesInPot,
     potDefaultTipPooled,
@@ -312,7 +309,6 @@ export default function SettingsPage({ params }: { params: Promise<{ slug: strin
         method: "PUT",
         headers: { "Content-Type": "application/json" },
         body: JSON.stringify({
-          enabled: potEnabled,
           taxPercent: potTaxPercent,
           includeSalesInPot: potIncludeSalesInPot,
           defaultTipPooled: potDefaultTipPooled,
@@ -1548,17 +1544,7 @@ export default function SettingsPage({ params }: { params: Promise<{ slug: strin
                   <div className="iname">Pot Payroll</div>
                   <div className="idesc">Nightly revenue/tip pooling instead of (or alongside) hourly pay</div>
                 </div>
-                <label className="flex items-center gap-2 cursor-pointer ml-auto shrink-0">
-                  <input
-                    type="checkbox"
-                    checked={potEnabled}
-                    onChange={(e) => setPotEnabled(e.target.checked)}
-                    className="rounded"
-                  />
-                  <span className="text-sm">{potEnabled ? "Enabled" : "Disabled"}</span>
-                </label>
-                {potEnabled && (
-                  <div className="w-full pl-[54px] space-y-4">
+                <div className="w-full pl-[54px] space-y-4">
                     <div>
                       <label className="block text-sm font-medium mb-1">Tax percent</label>
                       <input
@@ -1590,7 +1576,6 @@ export default function SettingsPage({ params }: { params: Promise<{ slug: strin
                       <span className="text-sm">Default new staff to pooling their tips</span>
                     </label>
                   </div>
-                )}
               </div>
 
               {/* Bar Inventory */}

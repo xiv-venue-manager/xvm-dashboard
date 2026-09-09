@@ -77,11 +77,16 @@ async function computeAllMembers(
   periodStart: string,
   periodEnd: string
 ): Promise<MemberResult[]> {
+  const fromIso = new Date(periodStart).toISOString()
+  const toDate = new Date(periodEnd)
+  toDate.setUTCHours(23, 59, 59, 999)
+  const toIso = toDate.toISOString()
+
   const [members, shifts, positions, existingEntries] = await Promise.all([
     listMemberships(token, xvmApiVenueId),
-    listShiftsChunked(token, xvmApiVenueId, { from: periodStart, to: periodEnd }),
+    listShiftsChunked(token, xvmApiVenueId, { from: fromIso, to: toIso }),
     listPositions(token, xvmApiVenueId),
-    listPayroll(token, xvmApiVenueId, { from: periodStart, to: periodEnd }),
+    listPayroll(token, xvmApiVenueId, { from: fromIso, to: toIso }),
   ])
 
   const positionById = new Map<number, PositionRow>(positions.map((p) => [p.id, p]))

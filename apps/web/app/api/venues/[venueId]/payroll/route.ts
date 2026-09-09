@@ -88,10 +88,13 @@ export const GET = withRateLimit<{ params: Promise<{ venueId: string }> }>(
     const to = searchParams.get("to")
     if (!from || !to) return NextResponse.json({ error: "from and to are required" }, { status: 400 })
 
+    const toDate = new Date(to)
+    toDate.setUTCHours(23, 59, 59, 999)
+
     try {
       const rows = await listPayroll(token, gate.xvmApiVenueId!, {
-        from,
-        to,
+        from: new Date(from).toISOString(),
+        to: toDate.toISOString(),
         isPaid: isPaidFilter !== null ? isPaidFilter === "true" : undefined,
         membershipId: membershipIdParam ? Number(membershipIdParam) : undefined,
       })

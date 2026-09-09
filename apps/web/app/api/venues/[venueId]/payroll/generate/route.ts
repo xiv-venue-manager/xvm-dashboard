@@ -50,9 +50,14 @@ async function findEligibleShifts(
   from: string,
   to: string
 ): Promise<ShiftRow[]> {
+  const fromIso = new Date(from).toISOString()
+  const toDate = new Date(to)
+  toDate.setUTCHours(23, 59, 59, 999)
+  const toIso = toDate.toISOString()
+
   const [shifts, existingEntries] = await Promise.all([
-    listShiftsChunked(token, xvmApiVenueId, { from, to }),
-    listPayroll(token, xvmApiVenueId, { from, to, membershipId }),
+    listShiftsChunked(token, xvmApiVenueId, { from: fromIso, to: toIso }),
+    listPayroll(token, xvmApiVenueId, { from: fromIso, to: toIso, membershipId }),
   ])
 
   const completed = shifts.filter(

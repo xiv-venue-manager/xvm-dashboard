@@ -44,7 +44,7 @@ export const PATCH = withRateLimit<{ params: Promise<{ venueId: string; category
 
     const { venueId, categoryId } = await context.params
     const categoryIdNum = Number(categoryId)
-    if (!Number.isInteger(categoryIdNum)) {
+    if (!Number.isInteger(categoryIdNum) || categoryIdNum <= 0) {
       return NextResponse.json({ error: "Invalid category id" }, { status: 400 })
     }
 
@@ -87,7 +87,7 @@ export const DELETE = withRateLimit<{ params: Promise<{ venueId: string; categor
 
     const { venueId, categoryId } = await context.params
     const categoryIdNum = Number(categoryId)
-    if (!Number.isInteger(categoryIdNum)) {
+    if (!Number.isInteger(categoryIdNum) || categoryIdNum <= 0) {
       return NextResponse.json({ error: "Invalid category id" }, { status: 400 })
     }
 

@@ -41,6 +41,7 @@ import {
 
 interface PayrollEntry {
   id: string
+  membershipId: number | null
   paymentType: "FIXED_SALARY" | "HOURLY" | "POT_SHARE" | "CONTRACTOR_PAYOUT"
   baseRate: string
   hoursWorked: string | null
@@ -51,28 +52,6 @@ interface PayrollEntry {
   isPaid: boolean
   paidAt: string | null
   notes: string | null
-  membership: {
-    id: string
-    role: string
-    nickname: string | null
-    user: {
-      id: string
-      name: string | null
-      displayName: string | null
-      characters: { characterName: string }[]
-      image: string | null
-    } | null
-    customRole: {
-      id: string
-      name: string
-      color: string | null
-    } | null
-  } | null
-  paidByUser: {
-    id: string
-    name: string | null
-    displayName: string | null
-  } | null
   potDistribution: {
     eventId: string
     regularSales: string
@@ -1181,12 +1160,9 @@ export default function PayrollPage() {
               </thead>
               <tbody>
                 {filteredEntries.map((entry) => {
-                  const name = resolveDisplayName({
-                    characterName: entry.membership?.user?.characters?.[0]?.characterName,
-                    nickname: entry.membership?.nickname,
-                    displayName: entry.membership?.user?.displayName,
-                    discordName: entry.membership?.user?.name,
-                  })
+                  const name =
+                    entry.membershipId !== null ? displayNameForMembership(entry.membershipId) : "Unknown"
+                  const image = entry.membershipId !== null ? staffForMembership(entry.membershipId)?.user?.image : null
                   const initials = name.charAt(0).toUpperCase()
                   const total = Math.round(parseFloat(entry.totalAmount))
                   return (
@@ -1196,7 +1172,7 @@ export default function PayrollPage() {
                         <td className="xiv-td">
                           <div className="flex items-center gap-3">
                             <Avatar className="w-8 h-8">
-                              <AvatarImage src={entry.membership?.user?.image || undefined} />
+                              <AvatarImage src={image || undefined} />
                               <AvatarFallback className="text-[0.65rem] font-bold bg-gradient-to-br from-[var(--xiv-blue)] to-blue-700 text-white">
                                 {initials}
                               </AvatarFallback>

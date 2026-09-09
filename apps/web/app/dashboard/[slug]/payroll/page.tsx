@@ -21,7 +21,6 @@ import { Select, SelectContent, SelectItem, SelectTrigger, SelectValue } from "@
 import { Input } from "@/components/ui/input"
 import { Label } from "@/components/ui/label"
 import { Textarea } from "@/components/ui/textarea"
-import { Checkbox } from "@/components/ui/checkbox"
 import { Badge } from "@/components/ui/badge"
 import { Avatar, AvatarFallback, AvatarImage } from "@/components/ui/avatar"
 import { format } from "date-fns"
@@ -52,8 +51,6 @@ interface PayrollEntry {
   isPaid: boolean
   paidAt: string | null
   notes: string | null
-  isManualEntry: boolean
-  manualEntryName: string | null
   membership: {
     id: string
     role: string
@@ -131,6 +128,16 @@ interface GeneratePreview {
   }
 }
 
+function defaultDateFrom() {
+  const d = new Date()
+  d.setMonth(d.getMonth() - 12)
+  return d.toISOString().slice(0, 10)
+}
+
+function defaultDateTo() {
+  return new Date().toISOString().slice(0, 10)
+}
+
 export default function PayrollPage() {
   const { data: session, status } = useSession()
   const params = useParams()
@@ -143,8 +150,8 @@ export default function PayrollPage() {
   const [loading, setLoading] = useState(true)
   const [isDialogOpen, setIsDialogOpen] = useState(false)
   const [filter, setFilter] = useState<"all" | "paid" | "unpaid">("all")
-  const [dateFrom, setDateFrom] = useState("")
-  const [dateTo, setDateTo] = useState("")
+  const [dateFrom, setDateFrom] = useState(() => defaultDateFrom())
+  const [dateTo, setDateTo] = useState(() => defaultDateTo())
   const [isCreating, setIsCreating] = useState(false)
   const [updatingId, setUpdatingId] = useState<string | null>(null)
   const [expandedEntryIds, setExpandedEntryIds] = useState<Set<string>>(new Set())
@@ -159,8 +166,6 @@ export default function PayrollPage() {
   }
 
   // Form state
-  const [isManualEntry, setIsManualEntry] = useState(false)
-  const [manualEntryName, setManualEntryName] = useState("")
   const [selectedStaff, setSelectedStaff] = useState("")
   const [paymentType, setPaymentType] = useState<"FIXED_SALARY" | "HOURLY">("FIXED_SALARY")
   const [baseRate, setBaseRate] = useState("")
@@ -208,11 +213,9 @@ export default function PayrollPage() {
   const fetchPayrollEntries = async () => {
     try {
       const isPaidQuery = filter === "paid" ? "true" : filter === "unpaid" ? "false" : ""
-      const qs = new URLSearchParams()
+      const qs = new URLSearchParams({ from: dateFrom, to: dateTo })
       if (isPaidQuery) qs.set("isPaid", isPaidQuery)
-      if (dateFrom) qs.set("from", dateFrom)
-      if (dateTo) qs.set("to", dateTo)
-      const response = await fetch(`/api/venues/${slug}/payroll${qs.toString() ? `?${qs}` : ""}`)
+      const response = await fetch(`/api/venues/${slug}/payroll?${qs}`)
 
       if (!response.ok) {
         if (response.status === 403) {
@@ -290,9 +293,7 @@ export default function PayrollPage() {
           "Content-Type": "application/json",
         },
         body: JSON.stringify({
-          isManualEntry,
-          manualEntryName: isManualEntry ? manualEntryName : null,
-          membershipId: isManualEntry ? null : selectedStaff,
+          membershipId: selectedStaff,
           paymentType,
           baseRate: parseFloat(baseRate),
           hoursWorked: paymentType === "HOURLY" && hoursWorked ? parseFloat(hoursWorked) : null,
@@ -309,8 +310,6 @@ export default function PayrollPage() {
       }
 
       // Reset form
-      setIsManualEntry(false)
-      setManualEntryName("")
       setSelectedStaff("")
       setPaymentType("FIXED_SALARY")
       setBaseRate("")
@@ -911,61 +910,27 @@ export default function PayrollPage() {
                 </DialogHeader>
 
                 <div className="space-y-4">
-                  {/* Manual Entry Toggle */}
-                  <div className="flex items-center space-x-2 p-4 bg-muted rounded-lg border-2 border-border">
-                    <Checkbox
-                      id="manual-entry"
-                      checked={isManualEntry}
-                      onCheckedChange={(checked) => {
-                        setIsManualEntry(checked as boolean)
-                        // Clear staff selection when switching to manual entry
-                        if (checked) setSelectedStaff("")
-                        // Clear manual name when switching to staff selection
-                        else setManualEntryName("")
-                      }}
-                    />
-                    <Label
-                      htmlFor="manual-entry"
-                      className="text-sm font-medium leading-none peer-disabled:cursor-not-allowed peer-disabled:opacity-70 cursor-pointer"
-                    >
-                      Manual Entry (for temp DJs, contractors, etc.)
-                    </Label>
+                  {/* Staff Selection */}
+                  <div className="space-y-2">
+                    <Label>Staff Member</Label>
+                    <Select value={selectedStaff} onValueChange={setSelectedStaff}>
+                      <SelectTrigger>
+                        <SelectValue placeholder="Select staff member" />
+                      </SelectTrigger>
+                      <SelectContent>
+                        {staff.map((member) => (
+                          <SelectItem key={member.id} value={member.id}>
+                            {resolveDisplayName({
+                              characterName: member.user?.characters?.[0]?.characterName,
+                              nickname: member.nickname,
+                              displayName: member.user?.displayName,
+                              discordName: member.user?.name,
+                            })}
+                          </SelectItem>
+                        ))}
+                      </SelectContent>
+                    </Select>
                   </div>
-
-                  {/* Conditional: Staff Selection OR Manual Name Input */}
-                  {!isManualEntry ? (
-                    <div className="space-y-2">
-                      <Label>Staff Member</Label>
-                      <Select value={selectedStaff} onValueChange={setSelectedStaff}>
-                        <SelectTrigger>
-                          <SelectValue placeholder="Select staff member" />
-                        </SelectTrigger>
-                        <SelectContent>
-                          {staff.map((member) => (
-                            <SelectItem key={member.id} value={member.id}>
-                              {resolveDisplayName({
-                                characterName: member.user?.characters?.[0]?.characterName,
-                                nickname: member.nickname,
-                                displayName: member.user?.displayName,
-                                discordName: member.user?.name,
-                              })}
-                            </SelectItem>
-                          ))}
-                        </SelectContent>
-                      </Select>
-                    </div>
-                  ) : (
-                    <div className="space-y-2">
-                      <Label>Name</Label>
-                      <Input
-                        type="text"
-                        placeholder="Enter name (e.g., John Doe)"
-                        value={manualEntryName}
-                        onChange={(e) => setManualEntryName(e.target.value)}
-                      />
-                      <p className="text-sm text-muted-foreground">Enter the name of the temporary DJ or contractor</p>
-                    </div>
-                  )}
 
                   {/* Payment Type */}
                   <div className="space-y-2">
@@ -1059,14 +1024,7 @@ export default function PayrollPage() {
                   </Button>
                   <Button
                     onClick={handleCreatePayroll}
-                    disabled={
-                      (!isManualEntry && !selectedStaff) ||
-                      (isManualEntry && !manualEntryName.trim()) ||
-                      !baseRate ||
-                      !periodStart ||
-                      !periodEnd ||
-                      isCreating
-                    }
+                    disabled={!selectedStaff || !baseRate || !periodStart || !periodEnd || isCreating}
                   >
                     {isCreating ? "Creating..." : "Create Entry"}
                   </Button>
@@ -1203,11 +1161,11 @@ export default function PayrollPage() {
               className="w-36 h-8 text-xs"
               placeholder="To"
             />
-            {(dateFrom || dateTo) && (
+            {(dateFrom !== defaultDateFrom() || dateTo !== defaultDateTo()) && (
               <button
                 onClick={() => {
-                  setDateFrom("")
-                  setDateTo("")
+                  setDateFrom(defaultDateFrom())
+                  setDateTo(defaultDateTo())
                 }}
                 className="text-xs text-[var(--fg-faint)] hover:text-foreground transition-colors"
               >
@@ -1239,14 +1197,12 @@ export default function PayrollPage() {
               </thead>
               <tbody>
                 {filteredEntries.map((entry) => {
-                  const name = entry.isManualEntry
-                    ? entry.manualEntryName || "Unknown"
-                    : resolveDisplayName({
-                        characterName: entry.membership?.user?.characters?.[0]?.characterName,
-                        nickname: entry.membership?.nickname,
-                        displayName: entry.membership?.user?.displayName,
-                        discordName: entry.membership?.user?.name,
-                      })
+                  const name = resolveDisplayName({
+                    characterName: entry.membership?.user?.characters?.[0]?.characterName,
+                    nickname: entry.membership?.nickname,
+                    displayName: entry.membership?.user?.displayName,
+                    discordName: entry.membership?.user?.name,
+                  })
                   const initials = name.charAt(0).toUpperCase()
                   const total = Math.round(parseFloat(entry.totalAmount))
                   return (
@@ -1263,7 +1219,6 @@ export default function PayrollPage() {
                             </Avatar>
                             <div>
                               <p className="text-sm font-medium">{name}</p>
-                              {entry.isManualEntry && <p className="text-[0.68rem] text-[var(--fg-faint)]">Manual</p>}
                             </div>
                           </div>
                         </td>

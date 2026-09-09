@@ -53,7 +53,11 @@ async function findEligibleShifts(
   ])
 
   const completed = shifts.filter(
-    (s) => s.status === "completed" && s.membership_id === membershipId && s.actual_end !== null
+    (s) =>
+      s.status === "completed" &&
+      s.membership_id === membershipId &&
+      s.actual_start !== null &&
+      s.actual_end !== null
   )
 
   return completed.filter((shift) => {

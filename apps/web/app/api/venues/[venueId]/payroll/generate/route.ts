@@ -103,6 +103,15 @@ function groupByRate(resolved: ResolvedShift[]): Map<number, ResolvedShift[]> {
   return groups
 }
 
+function groupPeriod(group: ResolvedShift[]): { start: string; end: string } {
+  const starts = group.map((r) => new Date(r.shift.actual_start!).getTime())
+  const ends = group.map((r) => new Date(r.shift.actual_end!).getTime())
+  return {
+    start: new Date(Math.min(...starts)).toISOString(),
+    end: new Date(Math.max(...ends)).toISOString(),
+  }
+}
+
 const generateSchema = z
   .object({
     membershipId: z.number().int(),
@@ -228,6 +237,7 @@ export const POST = withRateLimit<{ params: Promise<{ venueId: string }> }>(
       const entries = await Promise.all(
         groups.map(async ([rateMinorPerHour, shifts], index) => {
           const groupHours = shifts.reduce((sum, r) => sum + r.hours, 0)
+          const { start, end } = groupPeriod(shifts)
           const row = await createPayrollEntry(token, gate.xvmApiVenueId!, {
             membership_id: data.membershipId,
             payment_type: "hourly",
@@ -237,8 +247,8 @@ export const POST = withRateLimit<{ params: Promise<{ venueId: string }> }>(
               index === bonusGroupIndex && data.bonusAmount !== undefined
                 ? (dollarsToMinorUnits(data.bonusAmount) ?? undefined)
                 : undefined,
-            period_start: new Date(data.periodStart).toISOString(),
-            period_end: new Date(data.periodEnd).toISOString(),
+            period_start: start,
+            period_end: end,
             notes: data.notes,
           })
           return {

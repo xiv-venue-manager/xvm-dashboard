@@ -202,15 +202,7 @@ export default function SettingsPage({ params }: { params: Promise<{ slug: strin
           setShiftBotTemplates(settingsData.shiftBot?.templates ?? [])
         }
 
-        fetch(`/api/venues/${venue.id}/pot-settings`)
-          .then((r) => (r.ok ? r.json() : null))
-          .then((data) => {
-            if (!data) return
-            setPotTaxPercent(data.settings.taxPercent)
-            setPotIncludeSalesInPot(data.settings.includeSalesInPot)
-            setPotDefaultTipPooled(data.settings.defaultTipPooled)
-          })
-          .catch(() => {})
+        loadPotSettings(venue.id)
 
         fetch(`/api/venues/${venue.id}/inventory-settings`)
           .then((r) => (r.ok ? r.json() : null))
@@ -448,6 +440,15 @@ export default function SettingsPage({ params }: { params: Promise<{ slug: strin
     }
   }
 
+  async function loadPotSettings(id: string) {
+    const r = await fetch(`/api/venues/${id}/pot-settings`)
+    if (!r.ok) return
+    const data = await r.json()
+    setPotTaxPercent(data.settings.taxPercent)
+    setPotIncludeSalesInPot(data.settings.includeSalesInPot)
+    setPotDefaultTipPooled(data.settings.defaultTipPooled)
+  }
+
   async function handleXvmConnect() {
     setXvmConnecting(true)
     setXvmConnectError(null)
@@ -460,6 +461,7 @@ export default function SettingsPage({ params }: { params: Promise<{ slug: strin
       const result = await res.json()
       setXvmApiVenueId(result.id)
       setXvmApiVenueLinkedAt(new Date().toISOString())
+      loadPotSettings(venueId).catch(() => {})
     } catch (e) {
       setXvmConnectError(e instanceof Error ? e.message : "Failed to connect")
     } finally {
@@ -1587,7 +1589,7 @@ export default function SettingsPage({ params }: { params: Promise<{ slug: strin
                     <div className="idesc">Group transactions for reporting — optional, sales work without one</div>
                   </div>
                   <div className="w-full">
-                    <FinanceCategoriesSettings venueId={venueId} />
+                    <FinanceCategoriesSettings key={xvmApiVenueId ?? "disconnected"} venueId={venueId} />
                   </div>
                 </div>
               )}

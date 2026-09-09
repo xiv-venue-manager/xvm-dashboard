@@ -1580,15 +1580,17 @@ export default function SettingsPage({ params }: { params: Promise<{ slug: strin
               </div>
 
               {/* Finance Categories */}
-              <div className="introw" style={{ flexWrap: "wrap", gap: 14 }}>
-                <div className="iinfo w-full">
-                  <div className="iname">Finance Categories</div>
-                  <div className="idesc">Group transactions for reporting — optional, sales work without one</div>
+              {venueId && (
+                <div className="introw" style={{ flexWrap: "wrap", gap: 14 }}>
+                  <div className="iinfo w-full">
+                    <div className="iname">Finance Categories</div>
+                    <div className="idesc">Group transactions for reporting — optional, sales work without one</div>
+                  </div>
+                  <div className="w-full">
+                    <FinanceCategoriesSettings venueId={venueId} />
+                  </div>
                 </div>
-                <div className="w-full">
-                  <FinanceCategoriesSettings venueId={venueId} />
-                </div>
-              </div>
+              )}
 
               {/* Bar Inventory */}
               <div className="introw" style={{ flexWrap: "wrap", gap: 14 }}>

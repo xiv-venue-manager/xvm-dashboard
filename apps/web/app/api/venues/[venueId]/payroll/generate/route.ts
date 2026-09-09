@@ -89,6 +89,20 @@ function summarize(resolved: ResolvedShift[]) {
   return { unresolved, totalHours, totalAmountMinor }
 }
 
+function groupByRate(resolved: ResolvedShift[]): Map<number, ResolvedShift[]> {
+  const groups = new Map<number, ResolvedShift[]>()
+  for (const r of resolved) {
+    const rate = r.rateMinorPerHour!
+    const existing = groups.get(rate)
+    if (existing) {
+      existing.push(r)
+    } else {
+      groups.set(rate, [r])
+    }
+  }
+  return groups
+}
+
 const generateSchema = z
   .object({
     membershipId: z.number().int(),
@@ -130,6 +144,7 @@ export const GET = withRateLimit<{ params: Promise<{ venueId: string }> }>(
       const eligible = await findEligibleShifts(token, gate.xvmApiVenueId!, membershipId, periodStart, periodEnd)
       const resolved = await resolveRates(token, gate.xvmApiVenueId!, eligible)
       const { unresolved, totalHours, totalAmountMinor } = summarize(resolved)
+      const entryCount = groupByRate(resolved.filter((r) => r.rateMinorPerHour !== null)).size
 
       return NextResponse.json({
         shifts: resolved.map((r) => ({
@@ -144,6 +159,7 @@ export const GET = withRateLimit<{ params: Promise<{ venueId: string }> }>(
           totalHours,
           estimatedTotal: unresolved.length === 0 ? minorUnitsToDollars(totalAmountMinor) : null,
           unresolvedShiftCount: unresolved.length,
+          entryCount,
         },
       })
     } catch (err) {
@@ -190,7 +206,7 @@ export const POST = withRateLimit<{ params: Promise<{ venueId: string }> }>(
       }
 
       const resolved = await resolveRates(token, gate.xvmApiVenueId!, eligible)
-      const { unresolved, totalHours, totalAmountMinor } = summarize(resolved)
+      const { unresolved } = summarize(resolved)
 
       if (unresolved.length > 0) {
         return NextResponse.json(
@@ -202,26 +218,38 @@ export const POST = withRateLimit<{ params: Promise<{ venueId: string }> }>(
         )
       }
 
-      const row = await createPayrollEntry(token, gate.xvmApiVenueId!, {
-        membership_id: data.membershipId,
-        payment_type: "hourly",
-        base_rate_minor: totalHours > 0 ? Math.round(totalAmountMinor / totalHours) : 0,
-        minutes_worked: hoursToMinutes(totalHours)!,
-        bonus_amount_minor: data.bonusAmount !== undefined ? (dollarsToMinorUnits(data.bonusAmount) ?? undefined) : undefined,
-        period_start: new Date(data.periodStart).toISOString(),
-        period_end: new Date(data.periodEnd).toISOString(),
-        notes: data.notes,
-      })
+      const groups = [...groupByRate(resolved).entries()]
+      const bonusGroupIndex = groups.reduce((bestIndex, [, shifts], index) => {
+        const bestHours = groups[bestIndex][1].reduce((sum, r) => sum + r.hours, 0)
+        const hours = shifts.reduce((sum, r) => sum + r.hours, 0)
+        return hours > bestHours ? index : bestIndex
+      }, 0)
 
-      return NextResponse.json(
-        {
-          id: row.id,
-          totalAmount: minorUnitsToDollars(row.total_amount_minor),
-          hoursWorked: minutesToHours(row.minutes_worked),
-          shiftsLinked: eligible.length,
-        },
-        { status: 201 }
+      const entries = await Promise.all(
+        groups.map(async ([rateMinorPerHour, shifts], index) => {
+          const groupHours = shifts.reduce((sum, r) => sum + r.hours, 0)
+          const row = await createPayrollEntry(token, gate.xvmApiVenueId!, {
+            membership_id: data.membershipId,
+            payment_type: "hourly",
+            base_rate_minor: rateMinorPerHour,
+            minutes_worked: hoursToMinutes(groupHours)!,
+            bonus_amount_minor:
+              index === bonusGroupIndex && data.bonusAmount !== undefined
+                ? (dollarsToMinorUnits(data.bonusAmount) ?? undefined)
+                : undefined,
+            period_start: new Date(data.periodStart).toISOString(),
+            period_end: new Date(data.periodEnd).toISOString(),
+            notes: data.notes,
+          })
+          return {
+            id: row.id,
+            totalAmount: minorUnitsToDollars(row.total_amount_minor),
+            hoursWorked: minutesToHours(row.minutes_worked),
+          }
+        })
       )
+
+      return NextResponse.json({ entries, shiftsLinked: eligible.length }, { status: 201 })
     } catch (err) {
       return xvmApiErrorResponse(err, session.user.id, "[payroll/generate] POST error")
     }

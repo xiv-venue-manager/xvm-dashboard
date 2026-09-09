@@ -16,7 +16,10 @@ import {
 import { dollarsToMinorUnits, minorUnitsToDollars, hoursToMinutes, minutesToHours } from "@/lib/api/position-convert"
 
 async function requireXvmVenueId(venueId: string) {
-  const venue = await prisma.venue.findUnique({ where: { id: venueId }, select: { xvmApiVenueId: true } })
+  const venue = await prisma.venue.findFirst({
+    where: { OR: [{ id: venueId }, { slug: venueId }] },
+    select: { xvmApiVenueId: true },
+  })
   if (!venue?.xvmApiVenueId) {
     return {
       error: NextResponse.json(

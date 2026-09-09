@@ -113,18 +113,13 @@ interface ShiftPreview {
 }
 
 interface GeneratePreview {
-  staff: {
-    membershipId: string
-    name: string
-    image: string | null
-    defaultHourlyRate: number | null
-  }
   shifts: ShiftPreview[]
   summary: {
     shiftCount: number
     totalHours: number
     estimatedTotal: number | null
     unresolvedShiftCount: number
+    entryCount: number
   }
 }
 
@@ -180,7 +175,6 @@ export default function PayrollPage() {
   const [genStaff, setGenStaff] = useState("")
   const [genPeriodStart, setGenPeriodStart] = useState("")
   const [genPeriodEnd, setGenPeriodEnd] = useState("")
-  const [genRateOverride, setGenRateOverride] = useState("")
   const [genBonus, setGenBonus] = useState("")
   const [genNotes, setGenNotes] = useState("")
   const [genPreview, setGenPreview] = useState<GeneratePreview | null>(null)
@@ -193,15 +187,13 @@ export default function PayrollPage() {
   const [genAllEnd, setGenAllEnd] = useState("")
   const [genAllPreview, setGenAllPreview] = useState<
     | {
-        membershipId: string
-        name: string
-        image: string | null
+        membershipId: number
         shiftCount: number
         totalHours: number
         estimatedTotal: number | null
+        entryCount: number
         skipped: boolean
-        skipReason: string | null
-        unresolvedShiftCount: number
+        skipReason: "no_shifts" | "unresolved_rate" | null
       }[]
     | null
   >(null)
@@ -395,9 +387,6 @@ export default function PayrollPage() {
       }
       const data = await response.json()
       setGenPreview(data)
-      // Deliberately not auto-filling genRateOverride from the staff default anymore.
-      // Leaving it empty means the manager gets real per-shift resolution by default;
-      // typing a value here is now an explicit opt-in to bypass that with a flat rate.
     } catch (error) {
       console.error("Error fetching generate preview:", error)
       const msg = error instanceof Error ? error.message : "Failed to fetch preview"
@@ -418,20 +407,22 @@ export default function PayrollPage() {
           membershipId: genStaff,
           periodStart: genPeriodStart,
           periodEnd: genPeriodEnd,
-          baseRate: genRateOverride ? parseFloat(genRateOverride) : undefined,
           bonusAmount: genBonus ? parseFloat(genBonus) : undefined,
           notes: genNotes || undefined,
         }),
       })
       if (!response.ok) {
         const err = await response.json()
+        if (response.status === 409 && Array.isArray(err.unresolvedShiftIds)) {
+          const count = err.unresolvedShiftIds.length
+          throw new Error(`${err.error} (${count} shift${count !== 1 ? "s" : ""} blocking generation)`)
+        }
         throw new Error(err.error || "Failed to generate payroll")
       }
       // Reset and close
       setGenStaff("")
       setGenPeriodStart("")
       setGenPeriodEnd("")
-      setGenRateOverride("")
       setGenBonus("")
       setGenNotes("")
       setGenPreview(null)
@@ -491,16 +482,22 @@ export default function PayrollPage() {
     }
   }
 
-  // With no override, trust the server's real per-shift resolution (genPreview.summary.estimatedTotal)
-  // instead of recomputing a flat number client-side — that's the whole point of per-shift rates.
-  // An override, when the manager explicitly types one, still applies flat to every eligible hour,
-  // same as before this feature existed.
-  const genEffectiveRate = genRateOverride ? parseFloat(genRateOverride) : null
   const genEstimatedTotal = genPreview
-    ? (genRateOverride && genEffectiveRate !== null
-        ? Math.round(genEffectiveRate * genPreview.summary.totalHours)
-        : (genPreview.summary.estimatedTotal ?? 0)) + (genBonus ? parseFloat(genBonus) || 0 : 0)
+    ? (genPreview.summary.estimatedTotal ?? 0) + (genBonus ? parseFloat(genBonus) || 0 : 0)
     : 0
+
+  const staffForMembership = (membershipId: number) => staff.find((s) => String(s.id) === String(membershipId))
+  const displayNameForMembership = (membershipId: number) => {
+    const s = staffForMembership(membershipId)
+    return s
+      ? resolveDisplayName({
+          characterName: s.user?.characters?.[0]?.characterName,
+          nickname: s.nickname,
+          displayName: s.user?.displayName,
+          discordName: s.user?.name,
+        })
+      : `Member #${membershipId}`
+  }
 
   const calculateTotal = () => {
     let total = parseFloat(baseRate) || 0
@@ -614,29 +611,31 @@ export default function PayrollPage() {
                       )}
                       {genAllPreview
                         .filter((m) => !m.skipped)
-                        .map((m) => (
-                          <div
-                            key={m.membershipId}
-                            className="flex items-center justify-between p-3 bg-muted rounded-lg text-sm"
-                          >
-                            <div className="flex items-center gap-2">
-                              <Avatar className="w-6 h-6">
-                                <AvatarImage src={m.image || undefined} />
-                                <AvatarFallback className="text-[0.6rem]">{m.name[0]}</AvatarFallback>
-                              </Avatar>
-                              <span className="font-medium">{m.name}</span>
-                              <span className="text-muted-foreground">
-                                {m.shiftCount} shift{m.shiftCount !== 1 ? "s" : ""} · {m.totalHours}h
-                                {m.unresolvedShiftCount > 0 && (
-                                  <span className="text-amber-500"> · {m.unresolvedShiftCount} unresolved</span>
-                                )}
+                        .map((m) => {
+                          const name = displayNameForMembership(m.membershipId)
+                          const image = staffForMembership(m.membershipId)?.user?.image ?? null
+                          return (
+                            <div
+                              key={m.membershipId}
+                              className="flex items-center justify-between p-3 bg-muted rounded-lg text-sm"
+                            >
+                              <div className="flex items-center gap-2">
+                                <Avatar className="w-6 h-6">
+                                  <AvatarImage src={image || undefined} />
+                                  <AvatarFallback className="text-[0.6rem]">{name[0]}</AvatarFallback>
+                                </Avatar>
+                                <span className="font-medium">{name}</span>
+                                <span className="text-muted-foreground">
+                                  {m.shiftCount} shift{m.shiftCount !== 1 ? "s" : ""} · {m.totalHours}h
+                                  {m.entryCount > 1 && <span> · {m.entryCount} entries</span>}
+                                </span>
+                              </div>
+                              <span className="font-semibold text-[var(--xiv-blue)]">
+                                {m.estimatedTotal?.toLocaleString()} gil
                               </span>
                             </div>
-                            <span className="font-semibold text-[var(--xiv-blue)]">
-                              {m.estimatedTotal?.toLocaleString()} gil
-                            </span>
-                          </div>
-                        ))}
+                          )
+                        })}
                       {genAllPreview.filter((m) => m.skipped).length > 0 && (
                         <div className="pt-2 border-t border-border">
                           <p className="text-xs text-muted-foreground mb-1">Skipped</p>
@@ -647,7 +646,7 @@ export default function PayrollPage() {
                                 key={m.membershipId}
                                 className="flex items-center justify-between p-2 text-xs text-muted-foreground"
                               >
-                                <span>{m.name}</span>
+                                <span>{displayNameForMembership(m.membershipId)}</span>
                                 <span>{m.skipReason === "no_shifts" ? "No shifts" : "No rate set"}</span>
                               </div>
                             ))}
@@ -682,7 +681,6 @@ export default function PayrollPage() {
                   setGenStaff("")
                   setGenPeriodStart("")
                   setGenPeriodEnd("")
-                  setGenRateOverride("")
                   setGenBonus("")
                   setGenNotes("")
                 }
@@ -797,23 +795,6 @@ export default function PayrollPage() {
                             </div>
                           </div>
 
-                          {/* Rate Override */}
-                          <div className="space-y-2">
-                            <Label>Hourly Rate Override (Optional)</Label>
-                            <Input
-                              type="number"
-                              step="0.01"
-                              placeholder="Leave blank to use per-shift resolved rates"
-                              value={genRateOverride}
-                              onChange={(e) => setGenRateOverride(e.target.value)}
-                            />
-                            <p className="text-xs text-muted-foreground">
-                              By default, pay is resolved per shift (a shift&apos;s tagged role rate, then the staff member&apos;s
-                              own rate, then their primary role&apos;s rate). Setting a value here overrides all of that and
-                              pays every hour in this period at this one flat rate.
-                            </p>
-                          </div>
-
                           {/* Bonus */}
                           <div className="space-y-2">
                             <Label>Bonus (Optional)</Label>
@@ -844,12 +825,16 @@ export default function PayrollPage() {
                             </div>
                             <div className="flex justify-between text-sm">
                               <span>Rate</span>
-                              <span className="font-mono">
-                                {genRateOverride && genEffectiveRate !== null
-                                  ? `${genEffectiveRate} Gil/hr (override)`
-                                  : "Resolved per shift"}
-                              </span>
+                              <span className="font-mono">Resolved per shift</span>
                             </div>
+                            {genPreview.summary.entryCount > 1 && (
+                              <div className="flex justify-between text-sm text-muted-foreground">
+                                <span>Entries</span>
+                                <span className="font-mono">
+                                  {genPreview.summary.entryCount} (different rates in this period)
+                                </span>
+                              </div>
+                            )}
                             {genBonus && parseFloat(genBonus) > 0 && (
                               <div className="flex justify-between text-sm">
                                 <span>Bonus</span>
@@ -861,12 +846,13 @@ export default function PayrollPage() {
                               <span className="text-lg">{Math.round(genEstimatedTotal).toLocaleString()} Gil</span>
                             </div>
                           </div>
-                          {!genRateOverride && genPreview.summary.unresolvedShiftCount > 0 && (
-                            <p className="text-xs text-amber-500">
-                              {genPreview.summary.unresolvedShiftCount} shift
-                              {genPreview.summary.unresolvedShiftCount !== 1 ? "s" : ""} skipped — no rate could be
-                              resolved (no role rate on the shift, no personal rate, no primary role rate). They&apos;ll stay
-                              eligible for a future payroll run once a rate exists.
+                          {genPreview.summary.unresolvedShiftCount > 0 && (
+                            <p className="text-xs text-destructive">
+                              Blocked: {genPreview.summary.unresolvedShiftCount} shift
+                              {genPreview.summary.unresolvedShiftCount !== 1 ? "s" : ""} in this period{" "}
+                              {genPreview.summary.unresolvedShiftCount !== 1 ? "have" : "has"} no resolvable rate (no
+                              role rate on the shift, no personal rate, no primary role rate). Set a rate on the
+                              position or member before generating.
                             </p>
                           )}
                         </>
@@ -884,9 +870,7 @@ export default function PayrollPage() {
                     disabled={
                       !genPreview ||
                       genPreview.shifts.length === 0 ||
-                      (genRateOverride
-                        ? genEffectiveRate === null || genEffectiveRate <= 0
-                        : genPreview.summary.estimatedTotal === null) ||
+                      genPreview.summary.unresolvedShiftCount > 0 ||
                       genCreating
                     }
                   >

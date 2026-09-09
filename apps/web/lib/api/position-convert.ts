@@ -26,3 +26,17 @@ export function minorUnitsToDollars(minor: number | null): number | null {
   if (minor === null) return null
   return minor / 100
 }
+
+// xvm-api's tax_basis_points is an int (100 = 1%); the dashboard UI and Prisma's
+// VenuePotSettings.taxPercent both use a 0-100 percent. Round rather than truncate
+// for the same reason as dollarsToMinorUnits: a fractional basis point from float
+// math shouldn't silently shave precision off the stored rate.
+export function percentToBasisPoints(percent: number | null): number | null {
+  if (percent === null) return null
+  return Math.round(percent * 100)
+}
+
+export function basisPointsToPercent(basisPoints: number | null): number | null {
+  if (basisPoints === null) return null
+  return basisPoints / 100
+}

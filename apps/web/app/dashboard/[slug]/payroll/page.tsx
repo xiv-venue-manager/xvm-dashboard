@@ -1248,20 +1248,33 @@ export default function PayrollPage() {
                                 </Button>
                               </AlertDialogTrigger>
                               <AlertDialogContent>
-                                <AlertDialogHeader>
-                                  <AlertDialogTitle>Delete this payroll entry?</AlertDialogTitle>
-                                  <AlertDialogDescription>
-                                    {entry.isPaid
-                                      ? "This entry is marked PAID. Deleting it removes the record of that payment."
-                                      : "This cannot be undone."}
-                                  </AlertDialogDescription>
-                                </AlertDialogHeader>
-                                <AlertDialogFooter>
-                                  <AlertDialogCancel>Cancel</AlertDialogCancel>
-                                  <AlertDialogAction onClick={() => handleDeleteEntry(entry.id)}>
-                                    Delete
-                                  </AlertDialogAction>
-                                </AlertDialogFooter>
+                                {entry.isPaid ? (
+                                  <>
+                                    <AlertDialogHeader>
+                                      <AlertDialogTitle>Can&apos;t delete a paid entry</AlertDialogTitle>
+                                      <AlertDialogDescription>
+                                        Paid entries can&apos;t be deleted. Mark this as unpaid first, then you&apos;ll
+                                        be able to delete it.
+                                      </AlertDialogDescription>
+                                    </AlertDialogHeader>
+                                    <AlertDialogFooter>
+                                      <AlertDialogCancel>Got it</AlertDialogCancel>
+                                    </AlertDialogFooter>
+                                  </>
+                                ) : (
+                                  <>
+                                    <AlertDialogHeader>
+                                      <AlertDialogTitle>Delete this payroll entry?</AlertDialogTitle>
+                                      <AlertDialogDescription>This cannot be undone.</AlertDialogDescription>
+                                    </AlertDialogHeader>
+                                    <AlertDialogFooter>
+                                      <AlertDialogCancel>Cancel</AlertDialogCancel>
+                                      <AlertDialogAction onClick={() => handleDeleteEntry(entry.id)}>
+                                        Delete
+                                      </AlertDialogAction>
+                                    </AlertDialogFooter>
+                                  </>
+                                )}
                               </AlertDialogContent>
                             </AlertDialog>
                           </div>

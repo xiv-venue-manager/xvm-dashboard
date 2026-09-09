@@ -1480,3 +1480,86 @@ export async function rollRaffle(personToken: string, venueId: string, raffleId:
   if (!process.env.XVM_API_BASE_URL) throw new Error("XVM_API_BASE_URL is not set")
   return xvmFetch<RaffleRoll>(`/venues/${venueId}/raffles/${raffleId}/roll`, { method: "POST" }, personToken)
 }
+
+// ── Payroll API ────────────────────────────────────────────────
+
+export type PaymentType = "fixed_salary" | "hourly" | "pot_share"
+
+export interface PayrollEntryRow {
+  id: number
+  membership_id: number | null
+  person_id: number
+  payment_type: PaymentType
+  base_rate_minor: number
+  minutes_worked: number | null
+  bonus_amount_minor: number | null
+  total_amount_minor: number
+  period_start: string
+  period_end: string
+  is_paid: boolean
+  paid_at: string | null
+  paid_by_person_id: number | null
+  pot_distribution_id: number | null
+  notes: string | null
+  created_at: string
+}
+
+export interface PayrollEntryCreate {
+  membership_id: number
+  payment_type: "fixed_salary" | "hourly"
+  base_rate_minor: number
+  minutes_worked?: number | null
+  bonus_amount_minor?: number | null
+  period_start: string
+  period_end: string
+  notes?: string | null
+}
+
+export interface PayrollEntryUpdate {
+  is_paid?: boolean
+  notes?: string | null
+}
+
+export async function listPayroll(
+  personToken: string,
+  venueId: string,
+  opts: { from: string; to: string; isPaid?: boolean; membershipId?: number }
+): Promise<PayrollEntryRow[]> {
+  if (!process.env.XVM_API_BASE_URL) throw new Error("XVM_API_BASE_URL is not set")
+  const params = new URLSearchParams({ from: opts.from, to: opts.to })
+  if (opts.isPaid !== undefined) params.set("is_paid", String(opts.isPaid))
+  if (opts.membershipId !== undefined) params.set("membership_id", String(opts.membershipId))
+  return xvmFetch<PayrollEntryRow[]>(`/venues/${venueId}/finance/payroll?${params}`, {}, personToken)
+}
+
+export async function createPayrollEntry(
+  personToken: string,
+  venueId: string,
+  data: PayrollEntryCreate
+): Promise<PayrollEntryRow> {
+  if (!process.env.XVM_API_BASE_URL) throw new Error("XVM_API_BASE_URL is not set")
+  return xvmFetch<PayrollEntryRow>(
+    `/venues/${venueId}/finance/payroll`,
+    { method: "POST", body: JSON.stringify(data) },
+    personToken
+  )
+}
+
+export async function updatePayrollEntry(
+  personToken: string,
+  venueId: string,
+  entryId: number,
+  data: PayrollEntryUpdate
+): Promise<PayrollEntryRow> {
+  if (!process.env.XVM_API_BASE_URL) throw new Error("XVM_API_BASE_URL is not set")
+  return xvmFetch<PayrollEntryRow>(
+    `/venues/${venueId}/finance/payroll/${entryId}`,
+    { method: "PATCH", body: JSON.stringify(data) },
+    personToken
+  )
+}
+
+export async function deletePayrollEntry(personToken: string, venueId: string, entryId: number): Promise<void> {
+  if (!process.env.XVM_API_BASE_URL) throw new Error("XVM_API_BASE_URL is not set")
+  return xvmFetch<void>(`/venues/${venueId}/finance/payroll/${entryId}`, { method: "DELETE" }, personToken)
+}

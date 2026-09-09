@@ -5,7 +5,7 @@ import { z } from "zod"
 import { prisma } from "@/lib/prisma"
 import { withRateLimit } from "@/lib/middleware/with-rate-limit"
 import { getValidXvmApiToken, xvmApiErrorResponse } from "@/lib/api/xvm-api-store"
-import { listPayroll, createPayrollEntry, type PayrollEntryRow } from "@/lib/api/xvm-api"
+import { listPayrollChunked, createPayrollEntry, type PayrollEntryRow } from "@/lib/api/xvm-api"
 import { dollarsToMinorUnits, minorUnitsToDollars, hoursToMinutes, minutesToHours } from "@/lib/api/position-convert"
 
 const createPayrollSchema = z
@@ -92,7 +92,7 @@ export const GET = withRateLimit<{ params: Promise<{ venueId: string }> }>(
     toDate.setUTCHours(23, 59, 59, 999)
 
     try {
-      const rows = await listPayroll(token, gate.xvmApiVenueId!, {
+      const rows = await listPayrollChunked(token, gate.xvmApiVenueId!, {
         from: new Date(from).toISOString(),
         to: toDate.toISOString(),
         isPaid: isPaidFilter !== null ? isPaidFilter === "true" : undefined,

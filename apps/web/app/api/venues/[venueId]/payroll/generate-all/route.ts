@@ -9,7 +9,7 @@ import {
   listMemberships,
   listShiftsChunked,
   listPositions,
-  listPayroll,
+  listPayrollChunked,
   createPayrollEntry,
   type ShiftRow,
   type PositionRow,
@@ -86,7 +86,7 @@ async function computeAllMembers(
     listMemberships(token, xvmApiVenueId),
     listShiftsChunked(token, xvmApiVenueId, { from: fromIso, to: toIso }),
     listPositions(token, xvmApiVenueId),
-    listPayroll(token, xvmApiVenueId, { from: fromIso, to: toIso }),
+    listPayrollChunked(token, xvmApiVenueId, { from: fromIso, to: toIso }),
   ])
 
   const positionById = new Map<number, PositionRow>(positions.map((p) => [p.id, p]))

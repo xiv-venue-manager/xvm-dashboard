@@ -8,7 +8,7 @@ import { getValidXvmApiToken, xvmApiErrorResponse } from "@/lib/api/xvm-api-stor
 import {
   listShiftsChunked,
   listPositions,
-  listPayroll,
+  listPayrollChunked,
   createPayrollEntry,
   type ShiftRow,
   type PositionRow,
@@ -57,7 +57,7 @@ async function findEligibleShifts(
 
   const [shifts, existingEntries] = await Promise.all([
     listShiftsChunked(token, xvmApiVenueId, { from: fromIso, to: toIso }),
-    listPayroll(token, xvmApiVenueId, { from: fromIso, to: toIso, membershipId }),
+    listPayrollChunked(token, xvmApiVenueId, { from: fromIso, to: toIso, membershipId }),
   ])
 
   const completed = shifts.filter(

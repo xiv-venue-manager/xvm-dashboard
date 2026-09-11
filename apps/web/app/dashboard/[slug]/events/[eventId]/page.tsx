@@ -51,7 +51,6 @@ export default async function EventDetailsPage({ params }: { params: Promise<{ s
           userId: session.user.id,
         },
       },
-      venuePotSettings: true,
     },
   })
 
@@ -79,7 +78,6 @@ export default async function EventDetailsPage({ params }: { params: Promise<{ s
 
   const userRole = venue.memberships[0].role
   const canEdit = ["OWNER", "MANAGER"].includes(userRole)
-  const potModeEnabled = venue.venuePotSettings?.enabled ?? false
 
   return (
     <VenueLayout venueSlug={venue.slug} venueName={venue.name} userRole={userRole}>
@@ -246,7 +244,7 @@ export default async function EventDetailsPage({ params }: { params: Promise<{ s
             </Card>
 
             {/* Pot Payroll */}
-            {event.status === "COMPLETED" && potModeEnabled && canEdit && (
+            {event.status === "COMPLETED" && canEdit && (
               <Card>
                 <CardHeader>
                   <CardTitle>Pot Payroll</CardTitle>

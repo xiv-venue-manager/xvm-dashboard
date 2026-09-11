@@ -49,7 +49,6 @@ interface CreateShiftDialogProps {
   roles: RoleOption[]
   trigger?: React.ReactNode
   prefill?: ShiftPrefill
-  potModeEnabled?: boolean
   events?: EventOption[]
 }
 
@@ -59,7 +58,6 @@ export function CreateShiftDialog({
   roles,
   trigger,
   prefill,
-  potModeEnabled,
   events,
 }: CreateShiftDialogProps) {
   const router = useRouter()
@@ -247,7 +245,7 @@ export function CreateShiftDialog({
             </div>
           )}
 
-          {potModeEnabled && events && events.length > 0 && (
+          {events && events.length > 0 && (
             <div className="space-y-2">
               <Label htmlFor="event">Event (optional, for pot payroll)</Label>
               <div className="flex gap-2">

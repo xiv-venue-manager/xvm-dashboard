@@ -68,7 +68,6 @@ export interface ShiftsWeekViewProps {
   staffForDialog: StaffOption[]
   venueRoles: RoleOption[]
   staffNames: StaffNameLookup
-  potModeEnabled: boolean
   eventsForDialog: EventOption[]
 }
 
@@ -97,7 +96,6 @@ export function ShiftsWeekView(props: ShiftsWeekViewProps) {
         venueSlug={props.slug}
         staff={props.staffForDialog}
         roles={props.venueRoles}
-        potModeEnabled={props.potModeEnabled}
         events={props.eventsForDialog}
         trigger={
           <Button variant="ghost" size="sm" aria-label="Duplicate shift" className="h-6 w-6 p-0">

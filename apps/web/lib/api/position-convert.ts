@@ -40,3 +40,12 @@ export function minutesToHours(minutes: number | null): number | null {
   if (minutes === null) return null
   return minutes / 60
 }
+
+// minutesToHours is exact division, not currency-rounded like the pair above - most
+// minute totals aren't a clean multiple of 60, so the raw float (e.g. 2.3333333333333335
+// for 140 minutes) isn't fit to display as-is. Round for display only; nothing here
+// should feed back into a money computation.
+export function formatHours(hours: number | null): string {
+  if (hours === null) return "—"
+  return (Math.round(hours * 100) / 100).toString()
+}

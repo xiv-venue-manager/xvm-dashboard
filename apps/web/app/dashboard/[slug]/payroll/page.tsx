@@ -1,6 +1,7 @@
 "use client"
 
 import { Fragment, useEffect, useState } from "react"
+import { formatHours } from "@/lib/api/position-convert"
 import { useSession } from "next-auth/react"
 import { useParams, useRouter } from "next/navigation"
 import { Button } from "@/components/ui/button"
@@ -605,7 +606,7 @@ export default function PayrollPage() {
                                 </Avatar>
                                 <span className="font-medium">{name}</span>
                                 <span className="text-muted-foreground">
-                                  {m.shiftCount} shift{m.shiftCount !== 1 ? "s" : ""} · {m.totalHours}h
+                                  {m.shiftCount} shift{m.shiftCount !== 1 ? "s" : ""} · {formatHours(m.totalHours)}h
                                   {m.entryCount > 1 && <span> · {m.entryCount} entries</span>}
                                 </span>
                               </div>
@@ -768,7 +769,7 @@ export default function PayrollPage() {
                                     {format(new Date(shift.actualStart!), "MMM d, h:mm a")} –{" "}
                                     {format(new Date(shift.actualEnd!), "h:mm a")}
                                   </span>
-                                  <span className="font-mono">{shift.hoursWorked}h</span>
+                                  <span className="font-mono">{formatHours(shift.hoursWorked)}h</span>
                                 </div>
                               ))}
                             </div>
@@ -800,7 +801,7 @@ export default function PayrollPage() {
                           <div className="p-4 bg-muted rounded-lg space-y-1">
                             <div className="flex justify-between text-sm">
                               <span>Total Hours</span>
-                              <span className="font-mono">{genPreview.summary.totalHours}h</span>
+                              <span className="font-mono">{formatHours(genPreview.summary.totalHours)}h</span>
                             </div>
                             <div className="flex justify-between text-sm">
                               <span>Rate</span>
@@ -1188,7 +1189,7 @@ export default function PayrollPage() {
                         </td>
                         {/* Hours */}
                         <td className="px-5 py-3.5 text-sm text-muted-foreground hidden md:table-cell">
-                          {entry.hoursWorked ? `${entry.hoursWorked}h` : "—"}
+                          {entry.hoursWorked ? `${formatHours(Number(entry.hoursWorked))}h` : "—"}
                         </td>
                         {/* Total */}
                         <td className="xiv-td">

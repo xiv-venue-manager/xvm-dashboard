@@ -6,6 +6,7 @@ import {
   minorUnitsToDollars,
   hoursToMinutes,
   minutesToHours,
+  formatHours,
 } from "./position-convert"
 
 describe("hexColorToInt", () => {
@@ -71,5 +72,19 @@ describe("hoursToMinutes / minutesToHours round-trip", () => {
   it("rounds to the nearest minute instead of truncating", () => {
     expect(hoursToMinutes(1.008)).toBe(60) // 1.008h = 60.48min -> rounds to 60
     expect(hoursToMinutes(1.01)).toBe(61) // 1.01h = 60.6min -> rounds to 61
+  })
+})
+
+describe("formatHours", () => {
+  it("rounds a repeating-decimal float to 2 places, e.g. 140 minutes worth of hours", () => {
+    expect(formatHours(minutesToHours(140))).toBe("2.33") // 2.3333333333333335 unrounded
+  })
+
+  it("doesn't pad a whole number with trailing zeros", () => {
+    expect(formatHours(2)).toBe("2")
+  })
+
+  it("returns an em dash for null input", () => {
+    expect(formatHours(null)).toBe("—")
   })
 })

@@ -1,5 +1,5 @@
 import { describe, it, expect } from "vitest"
-import { localDayKey, localHourLabel } from "./local-day"
+import { localDayKey, localHourLabel, endOfLocalDayUtc } from "./local-day"
 import { utcDayKey, fmtHour } from "./shift-format"
 
 describe("localDayKey", () => {
@@ -41,5 +41,20 @@ describe("localHourLabel", () => {
       expect(localDayKey(d, "UTC")).toBe(utcDayKey(d))
       expect(localHourLabel(d, "UTC")).toBe(fmtHour(d))
     }
+  })
+})
+
+describe("endOfLocalDayUtc", () => {
+  it("returns 23:59:59.999 UTC unchanged when the timezone is UTC", () => {
+    expect(endOfLocalDayUtc("2026-09-30", "UTC").toISOString()).toBe("2026-09-30T23:59:59.999Z")
+  })
+
+  it("pushes the instant into the next UTC day for a negative offset (EDT, UTC-4 in September)", () => {
+    // Local 23:59:59.999 in New York (UTC-4 in September) is 03:59:59.999 UTC the next day.
+    expect(endOfLocalDayUtc("2026-09-30", "America/New_York").toISOString()).toBe("2026-10-01T03:59:59.999Z")
+  })
+
+  it("pulls the instant earlier in the same UTC day for a positive offset (JST, UTC+9)", () => {
+    expect(endOfLocalDayUtc("2026-09-30", "Asia/Tokyo").toISOString()).toBe("2026-09-30T14:59:59.999Z")
   })
 })

@@ -119,7 +119,7 @@ function summarize(resolved: ResolvedShift[]) {
 
 const generateSchema = z
   .object({
-    membershipId: z.number().int(),
+    membershipId: z.number().int().positive(),
     periodStart: z.string(),
     periodEnd: z.string(),
     bonusAmount: z.number().min(0).max(999999999).optional(),
@@ -294,8 +294,23 @@ export const POST = withRateLimit<{ params: Promise<{ venueId: string }> }>(
         }
       })
 
-      if (entries.length === 0 && failedGroups.length > 0) {
-        return NextResponse.json({ error: "Payroll generation failed", failedGroups }, { status: 502 })
+      // Any non-2xx status makes the existing frontend error path fire (it
+      // only checks response.ok) - a 201 here would look like full success
+      // even with entries missing, so partial failure must not stay in the
+      // 2xx range even though some entries really were created.
+      if (failedGroups.length > 0) {
+        return NextResponse.json(
+          {
+            error:
+              entries.length === 0
+                ? "Payroll generation failed"
+                : "Some pay groups could not be created; the ones that succeeded were not rolled back",
+            entries,
+            failedGroups,
+            shiftsLinked: eligible.length,
+          },
+          { status: 502 }
+        )
       }
 
       return NextResponse.json({ entries, shiftsLinked: eligible.length, failedGroups }, { status: 201 })

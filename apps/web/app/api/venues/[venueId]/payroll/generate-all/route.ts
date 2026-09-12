@@ -11,11 +11,21 @@ import {
   listPositions,
   listPayrollChunked,
   createPayrollEntry,
-  type ShiftRow,
-  type PositionRow,
+  getVenue,
   type MembershipRow,
 } from "@/lib/api/xvm-api"
-import { minorUnitsToDollars, hoursToMinutes } from "@/lib/api/position-convert"
+import { minorUnitsToDollars } from "@/lib/api/position-convert"
+import { endOfLocalDayUtc } from "@/lib/local-day"
+import {
+  resolveShiftRate,
+  isShiftCovered,
+  groupByRate,
+  groupPeriod,
+  totalMinutesWorked,
+  hourlyAmountMinor,
+  type ResolvedShift,
+  type PositionRate,
+} from "@/lib/payroll-generate"
 
 async function requireXvmVenueId(venueId: string) {
   const venue = await prisma.venue.findFirst({
@@ -33,35 +43,6 @@ async function requireXvmVenueId(venueId: string) {
   return { xvmApiVenueId: venue.xvmApiVenueId }
 }
 
-interface ResolvedShift {
-  shift: ShiftRow
-  hours: number
-  rateMinorPerHour: number | null
-}
-
-function groupByRate(resolved: ResolvedShift[]): Map<number, ResolvedShift[]> {
-  const groups = new Map<number, ResolvedShift[]>()
-  for (const r of resolved) {
-    const rate = r.rateMinorPerHour!
-    const existing = groups.get(rate)
-    if (existing) {
-      existing.push(r)
-    } else {
-      groups.set(rate, [r])
-    }
-  }
-  return groups
-}
-
-function groupPeriod(group: ResolvedShift[]): { start: string; end: string } {
-  const starts = group.map((r) => new Date(r.shift.actual_start!).getTime())
-  const ends = group.map((r) => new Date(r.shift.actual_end!).getTime())
-  return {
-    start: new Date(Math.min(...starts)).toISOString(),
-    end: new Date(Math.max(...ends)).toISOString(),
-  }
-}
-
 interface MemberResult {
   member: MembershipRow
   resolved: ResolvedShift[]
@@ -75,50 +56,64 @@ async function computeAllMembers(
   token: string,
   xvmApiVenueId: string,
   periodStart: string,
-  periodEnd: string
+  periodEnd: string,
+  timeZone: string
 ): Promise<MemberResult[]> {
   const fromIso = new Date(periodStart).toISOString()
-  const toDate = new Date(periodEnd)
-  toDate.setUTCHours(23, 59, 59, 999)
-  const toIso = toDate.toISOString()
+  const toIso = endOfLocalDayUtc(periodEnd, timeZone).toISOString()
+  // See the identical comment in generate/route.ts's findEligibleShifts: an
+  // entry's period_end can fall after the window it was generated for, so
+  // this must be fetched up to now, not bounded to the requested window.
+  const entriesToIso = new Date().toISOString()
 
   const [members, shifts, positions, existingEntries] = await Promise.all([
     listMemberships(token, xvmApiVenueId),
     listShiftsChunked(token, xvmApiVenueId, { from: fromIso, to: toIso }),
     listPositions(token, xvmApiVenueId),
-    listPayrollChunked(token, xvmApiVenueId, { from: fromIso, to: toIso }),
+    listPayrollChunked(token, xvmApiVenueId, { from: fromIso, to: entriesToIso }),
   ])
 
-  const positionById = new Map<number, PositionRow>(positions.map((p) => [p.id, p]))
+  const positionById = new Map<number, PositionRate>(
+    positions.map((p) => [p.id, { id: p.id, hourlyRateMinor: p.hourly_rate_minor }])
+  )
+  const entryWindowsByMember = new Map<number | null, { periodStart: string; periodEnd: string }[]>()
+  for (const e of existingEntries) {
+    const list = entryWindowsByMember.get(e.membership_id)
+    const window = { periodStart: e.period_start, periodEnd: e.period_end }
+    if (list) {
+      list.push(window)
+    } else {
+      entryWindowsByMember.set(e.membership_id, [window])
+    }
+  }
   const completedShifts = shifts.filter(
     (s) => s.status === "completed" && s.actual_start !== null && s.actual_end !== null
   )
 
   return members.map((member) => {
-    const entriesForMember = existingEntries.filter((e) => e.membership_id === member.id)
+    const entriesForMember = entryWindowsByMember.get(member.id) ?? []
     const memberShifts = completedShifts.filter((s) => s.membership_id === member.id)
 
-    const eligible = memberShifts.filter((shift) => {
-      const shiftEnd = new Date(shift.actual_end!).getTime()
-      return !entriesForMember.some((entry) => {
-        const start = new Date(entry.period_start).getTime()
-        const end = new Date(entry.period_end).getTime()
-        return shiftEnd >= start && shiftEnd <= end
-      })
-    })
+    const eligible = memberShifts.filter(
+      (shift) => !isShiftCovered(new Date(shift.actual_end!).getTime(), entriesForMember)
+    )
 
     if (eligible.length === 0) {
       return { member, resolved: [], totalHours: 0, totalAmountMinor: 0, skipped: true, skipReason: "no_shifts" }
     }
 
-    const resolved: ResolvedShift[] = eligible.map((shift) => {
-      const start = new Date(shift.actual_start!).getTime()
-      const end = new Date(shift.actual_end!).getTime()
-      const hours = Math.round(((end - start) / (1000 * 60 * 60)) * 100) / 100
-      const position = shift.position_id !== null ? positionById.get(shift.position_id) : undefined
-      const rateMinorPerHour = position?.hourly_rate_minor ?? null
-      return { shift, hours, rateMinorPerHour }
-    })
+    const resolved: ResolvedShift[] = eligible.map((shift) =>
+      resolveShiftRate(
+        {
+          id: shift.id,
+          actualStart: shift.actual_start!,
+          actualEnd: shift.actual_end!,
+          minutesWorked: shift.worked_minutes ?? 0,
+          positionId: shift.position_id,
+        },
+        positionById
+      )
+    )
 
     const anyUnresolved = resolved.some((r) => r.rateMinorPerHour === null)
     if (anyUnresolved) {
@@ -126,7 +121,11 @@ async function computeAllMembers(
     }
 
     const totalHours = resolved.reduce((sum, r) => sum + r.hours, 0)
-    const totalAmountMinor = resolved.reduce((sum, r) => sum + Math.round(r.hours * r.rateMinorPerHour!), 0)
+    const groups = groupByRate(resolved)
+    const totalAmountMinor = [...groups.entries()].reduce(
+      (sum, [rate, group]) => sum + hourlyAmountMinor(rate, totalMinutesWorked(group)),
+      0
+    )
 
     return { member, resolved, totalHours, totalAmountMinor, skipped: false, skipReason: null }
   })
@@ -162,7 +161,8 @@ export const GET = withRateLimit<{ params: Promise<{ venueId: string }> }>(
     }
 
     try {
-      const results = await computeAllMembers(token, gate.xvmApiVenueId!, periodStart, periodEnd)
+      const venue = await getVenue(token, gate.xvmApiVenueId!)
+      const results = await computeAllMembers(token, gate.xvmApiVenueId!, periodStart, periodEnd, venue.timezone)
       return NextResponse.json({
         members: results.map((r) => ({
           membershipId: r.member.id,
@@ -206,7 +206,14 @@ export const POST = withRateLimit<{ params: Promise<{ venueId: string }> }>(
     }
 
     try {
-      const results = await computeAllMembers(token, gate.xvmApiVenueId!, data.periodStart, data.periodEnd)
+      const venue = await getVenue(token, gate.xvmApiVenueId!)
+      const results = await computeAllMembers(
+        token,
+        gate.xvmApiVenueId!,
+        data.periodStart,
+        data.periodEnd,
+        venue.timezone
+      )
       const eligible = results.filter((r) => !r.skipped)
 
       if (eligible.length === 0) {
@@ -218,13 +225,13 @@ export const POST = withRateLimit<{ params: Promise<{ venueId: string }> }>(
           const groups = [...groupByRate(r.resolved).entries()]
           const createdTotalsMinor = await Promise.all(
             groups.map(async ([rateMinorPerHour, shifts]) => {
-              const groupHours = shifts.reduce((sum, s) => sum + s.hours, 0)
+              const minutesWorked = totalMinutesWorked(shifts)
               const { start, end } = groupPeriod(shifts)
               const row = await createPayrollEntry(token, gate.xvmApiVenueId!, {
                 membership_id: r.member.id,
                 payment_type: "hourly",
                 base_rate_minor: rateMinorPerHour,
-                minutes_worked: hoursToMinutes(groupHours)!,
+                minutes_worked: minutesWorked,
                 period_start: start,
                 period_end: end,
               })

@@ -81,6 +81,14 @@ describe("groupByRate", () => {
     expect(groups.get(2000)?.map((r) => r.shift.id)).toEqual([1, 3])
     expect(groups.get(2500)?.map((r) => r.shift.id)).toEqual([2])
   })
+
+  it("pins the current contract: a null-rate shift keys under a literal null, which downstream arithmetic treats as a real $0/hr rate", () => {
+    const positionById = new Map<number, PositionRate>([[1, { id: 1, hourlyRateMinor: null }]])
+    const resolved = [resolveShiftRate(shift({ id: 1, positionId: 1 }), positionById)]
+    const groups = groupByRate(resolved)
+    expect(groups.size).toBe(1)
+    expect(Array.from(groups.keys())).toEqual([null])
+  })
 })
 
 describe("groupPeriod", () => {

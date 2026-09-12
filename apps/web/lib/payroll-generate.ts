@@ -47,6 +47,10 @@ export function isShiftCovered(shiftEndMs: number, entries: PayrollEntryWindow[]
   })
 }
 
+// Callers must filter out null-rate shifts first: the assertion below is a
+// TypeScript-only device, so a null rate slips through as a literal `null`
+// map key that later arithmetic (e.g. hourlyAmountMinor) treats as 0 - a
+// real $0/hr rate.
 export function groupByRate(resolved: ResolvedShift[]): Map<number, ResolvedShift[]> {
   const groups = new Map<number, ResolvedShift[]>()
   for (const r of resolved) {

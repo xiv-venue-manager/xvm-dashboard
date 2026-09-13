@@ -223,21 +223,30 @@ export default function ServicesPage({ params }: { params: Promise<{ slug: strin
   // Positions are granted/revoked via separate endpoints, not bundled into the
   // service save — diff against what the service had before and fire only
   // the grants/revokes that changed.
-  async function applyPositionChanges(serviceId: number, previousPositionIds: number[]) {
+  async function applyPositionChanges(
+    serviceId: number,
+    previousPositionIds: number[]
+  ): Promise<string[]> {
     const toGrant = formData.selectedRoleIds.filter((id) => !previousPositionIds.includes(id))
     const toRevoke = previousPositionIds.filter((id) => !formData.selectedRoleIds.includes(id))
-    await Promise.all([
-      ...toGrant.map((positionId) =>
-        fetch(`/api/venues/${venueId}/services/${serviceId}/positions`, {
+    const roleName = (id: number) => roles.find((r) => r.id === id)?.name ?? `role ${id}`
+    const results = await Promise.all([
+      ...toGrant.map(async (positionId) => {
+        const response = await fetch(`/api/venues/${venueId}/services/${serviceId}/positions`, {
           method: "POST",
           headers: { "Content-Type": "application/json" },
           body: JSON.stringify({ positionId }),
         })
-      ),
-      ...toRevoke.map((positionId) =>
-        fetch(`/api/venues/${venueId}/services/${serviceId}/positions/${positionId}`, { method: "DELETE" })
-      ),
+        return response.ok ? null : `grant position ${roleName(positionId)}`
+      }),
+      ...toRevoke.map(async (positionId) => {
+        const response = await fetch(`/api/venues/${venueId}/services/${serviceId}/positions/${positionId}`, {
+          method: "DELETE",
+        })
+        return response.ok ? null : `revoke position ${roleName(positionId)}`
+      }),
     ])
+    return results.filter((r): r is string => r !== null)
   }
 
   // Inventory link is likewise a separate action from the service save. There
@@ -249,9 +258,10 @@ export default function ServicesPage({ params }: { params: Promise<{ slug: strin
     serviceId: number,
     previousLinkedItemId: number | null,
     previousStockCount: number | null = null
-  ) {
+  ): Promise<string[]> {
+    const failures: string[] = []
     if (formData.linkedItem) {
-      await fetch(`/api/venues/${venueId}/services/${serviceId}/inventory`, {
+      const linkResponse = await fetch(`/api/venues/${venueId}/services/${serviceId}/inventory`, {
         method: "PUT",
         headers: { "Content-Type": "application/json" },
         body: JSON.stringify({
@@ -260,20 +270,24 @@ export default function ServicesPage({ params }: { params: Promise<{ slug: strin
           linkedItemIcon: formData.linkedItem.iconId,
         }),
       })
+      if (!linkResponse.ok) failures.push("link inventory")
       const stockCount = formData.stockCount.trim() === "" ? 0 : parseInt(formData.stockCount, 10)
       const sameItem = previousLinkedItemId === formData.linkedItem.itemId
       const baseline = sameItem ? (previousStockCount ?? 0) : 0
       const delta = stockCount - baseline
       if (delta !== 0) {
-        await fetch(`/api/venues/${venueId}/services/${serviceId}/inventory/movements`, {
+        const movementResponse = await fetch(`/api/venues/${venueId}/services/${serviceId}/inventory/movements`, {
           method: "POST",
           headers: { "Content-Type": "application/json" },
           body: JSON.stringify({ reason: delta > 0 ? "restock" : "adjustment", delta }),
         })
+        if (!movementResponse.ok) failures.push(delta > 0 ? "restock movement" : "adjustment movement")
       }
     } else if (previousLinkedItemId !== null) {
-      await fetch(`/api/venues/${venueId}/services/${serviceId}/inventory`, { method: "DELETE" })
+      const unlinkResponse = await fetch(`/api/venues/${venueId}/services/${serviceId}/inventory`, { method: "DELETE" })
+      if (!unlinkResponse.ok) failures.push("unlink inventory")
     }
+    return failures
   }
 
   const handleCreateService = async () => {
@@ -304,8 +318,10 @@ export default function ServicesPage({ params }: { params: Promise<{ slug: strin
       }
 
       const created = await response.json()
-      await applyPositionChanges(created.id, [])
-      await applyInventoryChanges(created.id, null)
+      const failures = [
+        ...(await applyPositionChanges(created.id, [])),
+        ...(await applyInventoryChanges(created.id, null)),
+      ]
 
       // Re-fetch so the card reflects the positions/inventory just applied.
       const finalResponse = await fetch(`/api/venues/${venueId}/services/${created.id}`)
@@ -313,6 +329,11 @@ export default function ServicesPage({ params }: { params: Promise<{ slug: strin
       setServices([toServiceShape(finalRow), ...services])
       setIsCreateDialogOpen(false)
       setFormData(emptyFormData)
+      if (failures.length > 0) {
+        setError(
+          `Service was created, but ${failures.length} change${failures.length > 1 ? "s" : ""} didn't apply: ${failures.join(", ")}. Reopen the edit dialog to retry.`
+        )
+      }
     } catch (error: unknown) {
       setFormError(error instanceof Error ? error.message : "Failed to create service")
     } finally {
@@ -348,12 +369,14 @@ export default function ServicesPage({ params }: { params: Promise<{ slug: strin
       }
 
       await response.json()
-      await applyPositionChanges(editingService.id, editingService.position_ids)
-      await applyInventoryChanges(
-        editingService.id,
-        editingService.inventory?.linked_item_id ?? null,
-        editingService.inventory?.stock_count ?? null
-      )
+      const failures = [
+        ...(await applyPositionChanges(editingService.id, editingService.position_ids)),
+        ...(await applyInventoryChanges(
+          editingService.id,
+          editingService.inventory?.linked_item_id ?? null,
+          editingService.inventory?.stock_count ?? null
+        )),
+      ]
 
       const finalResponse = await fetch(`/api/venues/${venueId}/services/${editingService.id}`)
       const finalRow = finalResponse.ok ? await finalResponse.json() : null
@@ -364,6 +387,11 @@ export default function ServicesPage({ params }: { params: Promise<{ slug: strin
       setIsEditDialogOpen(false)
       setEditingService(null)
       setFormData(emptyFormData)
+      if (failures.length > 0) {
+        setError(
+          `Service was saved, but ${failures.length} change${failures.length > 1 ? "s" : ""} didn't apply: ${failures.join(", ")}. Reopen the edit dialog to retry.`
+        )
+      }
     } catch (error: unknown) {
       setFormError(error instanceof Error ? error.message : "Failed to update service")
     } finally {

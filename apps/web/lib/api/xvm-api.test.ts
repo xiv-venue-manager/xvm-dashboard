@@ -30,12 +30,17 @@ import {
   updateServiceCategory,
   deleteServiceCategory,
   listServices,
+  getService,
   createService,
+  updateService,
   deleteService,
   grantServicePosition,
   revokeServicePosition,
   linkServiceInventory,
+  unlinkServiceInventory,
+  setStock,
   createStockMovement,
+  listStockMovements,
   type TaskRow,
   type PublicHours,
   type GiveawayRow,
@@ -460,6 +465,7 @@ describe("Services API", () => {
     const [url, options] = (fetch as ReturnType<typeof vi.fn>).mock.calls[0]
     expect(url).toContain("/venues/venue-1/services/1/inventory")
     expect(options.method).toBe("PUT")
+    expect(JSON.parse(options.body)).toEqual({ linked_item_id: 42 })
   })
 
   it("createStockMovement POSTs to /{id}/inventory/movements", async () => {
@@ -479,5 +485,69 @@ describe("Services API", () => {
     expect(url).toContain("/venues/venue-1/services/1/inventory/movements")
     expect(options.method).toBe("POST")
     expect(JSON.parse(options.body)).toEqual({ reason: "restock", delta: 10 })
+  })
+
+  it("getService GETs /venues/{venueId}/services/{id}", async () => {
+    mockFetchOnce({ ok: true, status: 200, body: sampleService })
+    const result = await getService("token", "venue-1", 1)
+    expect(result).toEqual(sampleService)
+    const [url] = (fetch as ReturnType<typeof vi.fn>).mock.calls[0]
+    expect(url).toContain("/venues/venue-1/services/1")
+  })
+
+  it("updateService PATCHes /venues/{venueId}/services/{id}", async () => {
+    mockFetchOnce({ ok: true, status: 200, body: { ...sampleService, name: "Mocktail" } })
+    const result = await updateService("token", "venue-1", 1, { name: "Mocktail" })
+    expect(result).toEqual({ ...sampleService, name: "Mocktail" })
+    const [url, options] = (fetch as ReturnType<typeof vi.fn>).mock.calls[0]
+    expect(url).toContain("/venues/venue-1/services/1")
+    expect(options.method).toBe("PATCH")
+    expect(JSON.parse(options.body)).toEqual({ name: "Mocktail" })
+  })
+
+  it("unlinkServiceInventory DELETEs /{id}/inventory", async () => {
+    mockFetchOnce({ ok: true, status: 204, body: null })
+    await unlinkServiceInventory("token", "venue-1", 1)
+    const [url, options] = (fetch as ReturnType<typeof vi.fn>).mock.calls[0]
+    expect(url).toContain("/venues/venue-1/services/1/inventory")
+    expect(options.method).toBe("DELETE")
+  })
+
+  it("setStock PUTs /{id}/inventory/stock", async () => {
+    const sampleInventory = {
+      service_id: 1,
+      linked_item_id: 42,
+      linked_item_name: "Vodka",
+      linked_item_icon: 100,
+      stock_count: 20,
+      low_stock_threshold: 2,
+      is_low: false,
+      updated_at: "2026-01-01T00:00:00Z",
+    }
+    mockFetchOnce({ ok: true, status: 200, body: sampleInventory })
+    const result = await setStock("token", "venue-1", 1, { stock_count: 20 })
+    expect(result).toEqual(sampleInventory)
+    const [url, options] = (fetch as ReturnType<typeof vi.fn>).mock.calls[0]
+    expect(url).toContain("/venues/venue-1/services/1/inventory/stock")
+    expect(options.method).toBe("PUT")
+    expect(JSON.parse(options.body)).toEqual({ stock_count: 20 })
+  })
+
+  it("listStockMovements GETs /{id}/inventory/movements with default limit=50", async () => {
+    const sampleMovement: StockMovementRow = {
+      id: 1,
+      reason: "sale",
+      delta: -1,
+      transaction_id: 9,
+      actor_person_id: null,
+      note: null,
+      created_at: "2026-01-01T00:00:00Z",
+    }
+    mockFetchOnce({ ok: true, status: 200, body: [sampleMovement] })
+    const result = await listStockMovements("token", "venue-1", 1)
+    expect(result).toEqual([sampleMovement])
+    const [url] = (fetch as ReturnType<typeof vi.fn>).mock.calls[0]
+    expect(url).toContain("/venues/venue-1/services/1/inventory/movements")
+    expect(url).toContain("limit=50")
   })
 })

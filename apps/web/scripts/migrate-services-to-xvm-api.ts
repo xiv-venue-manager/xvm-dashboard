@@ -48,94 +48,138 @@ async function main() {
   })
   console.log(`Found ${venues.length} xvm-api-connected venue(s).\n`)
 
+  const summary = {
+    venuesSkipped: [] as string[],
+    venuesErrored: [] as string[],
+    servicesCreated: 0,
+    servicesSkippedAlreadyMigrated: 0,
+    servicesIncompleteGrants: [] as string[],
+  }
+
   for (const venue of venues) {
     console.log(`── Venue "${venue.name}" (${venue.id}) ──`)
     const xvmApiVenueId = venue.xvmApiVenueId!
 
-    const services = await prisma.service.findMany({
-      where: { venueId: venue.id },
-      include: { roles: { select: { name: true } } },
-    })
-    if (services.length === 0) {
-      console.log(`  No services to migrate.\n`)
-      continue
-    }
-
-    const ownerMembership = await prisma.membership.findFirst({
-      where: { venueId: venue.id, role: "OWNER", status: "active" },
-      select: { userId: true },
-    })
-    if (!ownerMembership?.userId) {
-      console.warn(`  [warn] No active owner found — can't authenticate to xvm-api. Skipping venue.\n`)
-      continue
-    }
-    const token = await getValidXvmApiToken(ownerMembership.userId)
-    if (!token) {
-      console.warn(`  [warn] Venue owner has no valid stored xvm-api token. Skipping venue.\n`)
-      continue
-    }
-
-    const existingCategories = await listServiceCategories(token, xvmApiVenueId)
-    const existingPositions = await listPositions(token, xvmApiVenueId)
-    const managerPosition = existingPositions.find((p) => p.name.toLowerCase() === "manager")
-    if (!managerPosition) {
-      console.warn(`  [warn] No "Manager" position found on xvm-api for this venue — position grants will be skipped.`)
-    }
-
-    // category name -> xvm-api category id, seeded with what already exists.
-    const categoryIdByName = new Map<string, number>(existingCategories.map((c) => [c.name, c.id]))
-
-    const distinctCategoryNames = [...new Set(services.map((s) => s.category).filter((c): c is string => !!c))]
-    for (const name of distinctCategoryNames) {
-      if (categoryIdByName.has(name)) {
-        console.log(`  [skip-create-category] "${name}" already exists (id ${categoryIdByName.get(name)})`)
-        continue
-      }
-      console.log(`  [create-category] "${name}"`, apply ? "" : "(dry run, not sent)")
-      if (apply) {
-        const created = await createServiceCategory(token, xvmApiVenueId, { name })
-        categoryIdByName.set(name, created.id)
-      }
-    }
-
-    for (const service of services) {
-      if (service.xvmApiServiceId) {
-        console.log(`  [skip-already-migrated] "${service.name}" (xvm-api id ${service.xvmApiServiceId})`)
+    try {
+      const services = await prisma.service.findMany({
+        where: { venueId: venue.id },
+        include: { roles: { select: { name: true } } },
+      })
+      if (services.length === 0) {
+        console.log(`  No services to migrate.\n`)
         continue
       }
 
-      const categoryId = service.category ? categoryIdByName.get(service.category) ?? null : null
-      const payload = {
-        name: service.name,
-        description: service.description,
-        price_minor: dollarsToMinorUnits(Number(service.price)),
-        category_id: categoryId,
-        is_active: service.isActive,
+      const ownerMembership = await prisma.membership.findFirst({
+        where: { venueId: venue.id, role: "OWNER", status: "active" },
+        select: { userId: true },
+      })
+      if (!ownerMembership?.userId) {
+        console.warn(`  [warn] No active owner found — can't authenticate to xvm-api. Skipping venue.\n`)
+        summary.venuesSkipped.push(`${venue.id} (no active owner)`)
+        continue
       }
-      console.log(`  [create-service] "${service.name}"`, apply ? "" : "(dry run, not sent)", payload)
+      const token = await getValidXvmApiToken(ownerMembership.userId)
+      if (!token) {
+        console.warn(`  [warn] Venue owner has no valid stored xvm-api token. Skipping venue.\n`)
+        summary.venuesSkipped.push(`${venue.id} (no valid token)`)
+        continue
+      }
 
-      if (!apply) continue // can't grant positions on a service that doesn't exist yet in dry-run
+      const existingCategories = await listServiceCategories(token, xvmApiVenueId)
+      const existingPositions = await listPositions(token, xvmApiVenueId)
+      const managerPosition = existingPositions.find((p) => p.name.toLowerCase() === "manager")
+      if (!managerPosition) {
+        console.warn(`  [warn] No "Manager" position found on xvm-api for this venue — position grants will be skipped.`)
+      }
 
-      const created = await createService(token, xvmApiVenueId, payload)
-      await prisma.service.update({ where: { id: service.id }, data: { xvmApiServiceId: created.id } })
+      // category name -> xvm-api category id, seeded with what already exists.
+      const categoryIdByName = new Map<string, number>(existingCategories.map((c) => [c.name, c.id]))
 
-      // Manager is always granted for UI consistency, plus any other Prisma
-      // roles this service had. Position names are matched case-insensitively.
-      const roleNames = new Set([...(managerPosition ? ["manager"] : []), ...service.roles.map((r) => r.name.toLowerCase())])
-      for (const roleName of roleNames) {
-        const position = existingPositions.find((p) => p.name.toLowerCase() === roleName)
-        if (!position) {
-          console.warn(`    [warn] No xvm-api position matching "${roleName}" — grant skipped`)
+      const distinctCategoryNames = [...new Set(services.map((s) => s.category).filter((c): c is string => !!c))]
+      for (const name of distinctCategoryNames) {
+        if (categoryIdByName.has(name)) {
+          console.log(`  [skip-create-category] "${name}" already exists (id ${categoryIdByName.get(name)})`)
           continue
         }
-        console.log(`    [grant] "${position.name}" -> service "${service.name}"`)
-        await grantServicePosition(token, xvmApiVenueId, created.id, position.id)
+        console.log(`  [create-category] "${name}"`, apply ? "" : "(dry run, not sent)")
+        if (apply) {
+          const created = await createServiceCategory(token, xvmApiVenueId, { name })
+          categoryIdByName.set(name, created.id)
+        }
       }
+
+      for (const service of services) {
+        if (service.xvmApiServiceId) {
+          console.log(`  [skip-already-migrated] "${service.name}" (xvm-api id ${service.xvmApiServiceId})`)
+          summary.servicesSkippedAlreadyMigrated++
+          continue
+        }
+
+        const categoryId = service.category ? categoryIdByName.get(service.category) ?? null : null
+        const payload = {
+          name: service.name,
+          description: service.description,
+          price_minor: dollarsToMinorUnits(Number(service.price)),
+          category_id: categoryId,
+          is_active: service.isActive,
+        }
+        console.log(`  [create-service] "${service.name}"`, apply ? "" : "(dry run, not sent)", payload)
+
+        if (!apply) continue // can't grant positions on a service that doesn't exist yet in dry-run
+
+        const created = await createService(token, xvmApiVenueId, payload)
+        await prisma.service.update({ where: { id: service.id }, data: { xvmApiServiceId: created.id } })
+        summary.servicesCreated++
+
+        // Manager is always granted for UI consistency, plus any other Prisma
+        // roles this service had. Position names are matched case-insensitively.
+        // Each grant is isolated: a failed grant must not abort the venue loop,
+        // nor silently leave the service's grants incomplete — since
+        // xvmApiServiceId is already written back above, a re-run would skip
+        // this service entirely, so any grant failure here is permanent unless
+        // flagged in the summary for manual follow-up.
+        const roleNames = new Set([...(managerPosition ? ["manager"] : []), ...service.roles.map((r) => r.name.toLowerCase())])
+        let hadGrantFailure = false
+        for (const roleName of roleNames) {
+          const position = existingPositions.find((p) => p.name.toLowerCase() === roleName)
+          if (!position) {
+            console.warn(`    [warn] No xvm-api position matching "${roleName}" — grant skipped`)
+            continue
+          }
+          try {
+            console.log(`    [grant] "${position.name}" -> service "${service.name}"`)
+            await grantServicePosition(token, xvmApiVenueId, created.id, position.id)
+          } catch (err) {
+            hadGrantFailure = true
+            console.error(
+              `    [error] Failed to grant "${position.name}" on service "${service.name}" (xvm-api id ${created.id}):`,
+              err,
+            )
+          }
+        }
+        if (hadGrantFailure) {
+          summary.servicesIncompleteGrants.push(`${service.name} (venue ${venue.id}, xvm-api service id ${created.id})`)
+        }
+      }
+      console.log("")
+    } catch (err) {
+      console.error(`  [error] Venue "${venue.name}" (${venue.id}) failed:`, err)
+      summary.venuesErrored.push(venue.id)
     }
-    console.log("")
   }
 
-  console.log(`Done.${apply ? "" : " Re-run with --apply to actually write."}\n`)
+  console.log("── Summary ──")
+  console.log(`Venues found: ${venues.length}`)
+  console.log(`Venues skipped: ${summary.venuesSkipped.length}`)
+  summary.venuesSkipped.forEach((v) => console.log(`  - ${v}`))
+  console.log(`Venues errored: ${summary.venuesErrored.length}`)
+  summary.venuesErrored.forEach((v) => console.log(`  - ${v}`))
+  console.log(`Services created: ${summary.servicesCreated}`)
+  console.log(`Services skipped (already migrated): ${summary.servicesSkippedAlreadyMigrated}`)
+  console.log(`Services created with incomplete grants: ${summary.servicesIncompleteGrants.length}`)
+  summary.servicesIncompleteGrants.forEach((s) => console.log(`  - ${s}`))
+  console.log(`\nDone.${apply ? "" : " Re-run with --apply to actually write."}\n`)
 }
 
 main()

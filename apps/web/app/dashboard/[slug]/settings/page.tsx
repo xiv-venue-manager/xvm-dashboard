@@ -9,6 +9,7 @@ import { VenueEyebrow } from "@/components/venue-eyebrow"
 import { Label } from "@/components/ui/label"
 import { Input } from "@/components/ui/input"
 import { GalleryManager } from "@/components/gallery-manager"
+import { FinanceCategoriesSettings } from "@/components/finance-categories-settings"
 import { BannerUpload } from "@/components/banner-upload"
 import { LogoUpload } from "@/components/logo-upload"
 import type { VenueImage } from "@/lib/api/xvm-api"
@@ -104,7 +105,6 @@ export default function SettingsPage({ params }: { params: Promise<{ slug: strin
   const [shiftBotChannelId, setShiftBotChannelId] = useState("")
   const [shiftBotDaysBefore, setShiftBotDaysBefore] = useState(3)
   const [shiftBotThumbnailUrl, setShiftBotThumbnailUrl] = useState("")
-  const [potEnabled, setPotEnabled] = useState(false)
   const [potTaxPercent, setPotTaxPercent] = useState(0)
   const [potIncludeSalesInPot, setPotIncludeSalesInPot] = useState(false)
   const [potDefaultTipPooled, setPotDefaultTipPooled] = useState(false)
@@ -202,16 +202,7 @@ export default function SettingsPage({ params }: { params: Promise<{ slug: strin
           setShiftBotTemplates(settingsData.shiftBot?.templates ?? [])
         }
 
-        fetch(`/api/venues/${venue.id}/pot-settings`)
-          .then((r) => (r.ok ? r.json() : null))
-          .then((data) => {
-            if (!data) return
-            setPotEnabled(data.settings.enabled)
-            setPotTaxPercent(data.settings.taxPercent)
-            setPotIncludeSalesInPot(data.settings.includeSalesInPot)
-            setPotDefaultTipPooled(data.settings.defaultTipPooled)
-          })
-          .catch(() => {})
+        loadPotSettings(venue.id)
 
         fetch(`/api/venues/${venue.id}/inventory-settings`)
           .then((r) => (r.ok ? r.json() : null))
@@ -254,7 +245,6 @@ export default function SettingsPage({ params }: { params: Promise<{ slug: strin
     shiftBotDaysBefore,
     shiftBotThumbnailUrl,
     shiftBotTemplates,
-    potEnabled,
     potTaxPercent,
     potIncludeSalesInPot,
     potDefaultTipPooled,
@@ -312,7 +302,6 @@ export default function SettingsPage({ params }: { params: Promise<{ slug: strin
         method: "PUT",
         headers: { "Content-Type": "application/json" },
         body: JSON.stringify({
-          enabled: potEnabled,
           taxPercent: potTaxPercent,
           includeSalesInPot: potIncludeSalesInPot,
           defaultTipPooled: potDefaultTipPooled,
@@ -451,6 +440,15 @@ export default function SettingsPage({ params }: { params: Promise<{ slug: strin
     }
   }
 
+  async function loadPotSettings(id: string) {
+    const r = await fetch(`/api/venues/${id}/pot-settings`)
+    if (!r.ok) return
+    const data = await r.json()
+    setPotTaxPercent(data.settings.taxPercent)
+    setPotIncludeSalesInPot(data.settings.includeSalesInPot)
+    setPotDefaultTipPooled(data.settings.defaultTipPooled)
+  }
+
   async function handleXvmConnect() {
     setXvmConnecting(true)
     setXvmConnectError(null)
@@ -463,6 +461,7 @@ export default function SettingsPage({ params }: { params: Promise<{ slug: strin
       const result = await res.json()
       setXvmApiVenueId(result.id)
       setXvmApiVenueLinkedAt(new Date().toISOString())
+      loadPotSettings(venueId).catch(() => {})
     } catch (e) {
       setXvmConnectError(e instanceof Error ? e.message : "Failed to connect")
     } finally {
@@ -1548,17 +1547,7 @@ export default function SettingsPage({ params }: { params: Promise<{ slug: strin
                   <div className="iname">Pot Payroll</div>
                   <div className="idesc">Nightly revenue/tip pooling instead of (or alongside) hourly pay</div>
                 </div>
-                <label className="flex items-center gap-2 cursor-pointer ml-auto shrink-0">
-                  <input
-                    type="checkbox"
-                    checked={potEnabled}
-                    onChange={(e) => setPotEnabled(e.target.checked)}
-                    className="rounded"
-                  />
-                  <span className="text-sm">{potEnabled ? "Enabled" : "Disabled"}</span>
-                </label>
-                {potEnabled && (
-                  <div className="w-full pl-[54px] space-y-4">
+                <div className="w-full pl-[54px] space-y-4">
                     <div>
                       <label className="block text-sm font-medium mb-1">Tax percent</label>
                       <input
@@ -1590,8 +1579,20 @@ export default function SettingsPage({ params }: { params: Promise<{ slug: strin
                       <span className="text-sm">Default new staff to pooling their tips</span>
                     </label>
                   </div>
-                )}
               </div>
+
+              {/* Finance Categories */}
+              {venueId && (
+                <div className="introw" style={{ flexWrap: "wrap", gap: 14 }}>
+                  <div className="iinfo w-full">
+                    <div className="iname">Finance Categories</div>
+                    <div className="idesc">Group transactions for reporting — optional, sales work without one</div>
+                  </div>
+                  <div className="w-full">
+                    <FinanceCategoriesSettings key={xvmApiVenueId ?? "disconnected"} venueId={venueId} />
+                  </div>
+                </div>
+              )}
 
               {/* Bar Inventory */}
               <div className="introw" style={{ flexWrap: "wrap", gap: 14 }}>

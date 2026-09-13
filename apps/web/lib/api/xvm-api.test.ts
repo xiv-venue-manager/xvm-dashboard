@@ -596,6 +596,13 @@ describe("Finance Transactions API", () => {
     expect(url).toContain("service_id=1")
   })
 
+  it("listFinanceTransactions omits service_id when serviceId is not passed", async () => {
+    mockFetchOnce({ ok: true, status: 200, body: [sampleTransaction] })
+    await listFinanceTransactions("token", "venue-1", { from: "2026-01-01", to: "2026-01-31" })
+    const [url] = (fetch as ReturnType<typeof vi.fn>).mock.calls[0]
+    expect(url).not.toContain("service_id")
+  })
+
   it("createFinanceTransaction POSTs a sale transaction", async () => {
     mockFetchOnce({ ok: true, status: 201, body: sampleTransaction })
     const result = await createFinanceTransaction("token", "venue-1", {

@@ -41,6 +41,10 @@ import {
   setStock,
   createStockMovement,
   listStockMovements,
+  listFinanceTransactions,
+  createFinanceTransaction,
+  updateFinanceTransaction,
+  voidFinanceTransaction,
   type TaskRow,
   type PublicHours,
   type GiveawayRow,
@@ -48,6 +52,7 @@ import {
   type ServiceCategoryRow,
   type ServiceRow,
   type StockMovementRow,
+  type FinanceTransactionRow,
 } from "./xvm-api"
 
 function mockFetchOnce({ ok, status, body }: { ok: boolean; status: number; body: unknown }) {
@@ -549,5 +554,80 @@ describe("Services API", () => {
     const [url] = (fetch as ReturnType<typeof vi.fn>).mock.calls[0]
     expect(url).toContain("/venues/venue-1/services/1/inventory/movements")
     expect(url).toContain("limit=50")
+  })
+})
+
+describe("Finance Transactions API", () => {
+  const sampleTransaction: FinanceTransactionRow = {
+    id: 1,
+    kind: "sale",
+    entry_type: "revenue",
+    status: "posted",
+    amount: 1000,
+    category_id: null,
+    event_id: null,
+    service_id: 1,
+    service_name: "Cocktail",
+    membership_id: null,
+    recorded_by_person_id: 3,
+    customer_name: null,
+    notes: null,
+    idempotency_key: null,
+    created_at: "2026-01-01T00:00:00Z",
+    posted_at: "2026-01-01T00:00:00Z",
+    posted_by_person_id: 3,
+    voided_at: null,
+    voided_by_person_id: null,
+    void_reason: null,
+  }
+
+  it("listFinanceTransactions GETs with from/to/service_id query params", async () => {
+    mockFetchOnce({ ok: true, status: 200, body: [sampleTransaction] })
+    const result = await listFinanceTransactions("token", "venue-1", {
+      from: "2026-01-01",
+      to: "2026-01-31",
+      serviceId: 1,
+    })
+    expect(result).toEqual([sampleTransaction])
+    const [url] = (fetch as ReturnType<typeof vi.fn>).mock.calls[0]
+    expect(url).toContain("/venues/venue-1/finance/transactions?")
+    expect(url).toContain("from=2026-01-01")
+    expect(url).toContain("to=2026-01-31")
+    expect(url).toContain("service_id=1")
+  })
+
+  it("createFinanceTransaction POSTs a sale transaction", async () => {
+    mockFetchOnce({ ok: true, status: 201, body: sampleTransaction })
+    const result = await createFinanceTransaction("token", "venue-1", {
+      kind: "sale",
+      amount: 1000,
+      service_id: 1,
+    })
+    expect(result).toEqual(sampleTransaction)
+    const [url, options] = (fetch as ReturnType<typeof vi.fn>).mock.calls[0]
+    expect(url).toContain("/venues/venue-1/finance/transactions")
+    expect(options.method).toBe("POST")
+    expect(JSON.parse(options.body)).toEqual({ kind: "sale", amount: 1000, service_id: 1 })
+  })
+
+  it("updateFinanceTransaction PATCHes /{id}", async () => {
+    mockFetchOnce({ ok: true, status: 200, body: { ...sampleTransaction, notes: "comped" } })
+    const result = await updateFinanceTransaction("token", "venue-1", 1, { notes: "comped" })
+    expect(result).toEqual({ ...sampleTransaction, notes: "comped" })
+    const [url, options] = (fetch as ReturnType<typeof vi.fn>).mock.calls[0]
+    expect(url).toContain("/venues/venue-1/finance/transactions/1")
+    expect(options.method).toBe("PATCH")
+    expect(JSON.parse(options.body)).toEqual({ notes: "comped" })
+  })
+
+  it("voidFinanceTransaction POSTs /{id}/void with a reason", async () => {
+    const voided = { ...sampleTransaction, voided_at: "2026-01-02T00:00:00Z", voided_by_person_id: 3, void_reason: "refund" }
+    mockFetchOnce({ ok: true, status: 200, body: voided })
+    const result = await voidFinanceTransaction("token", "venue-1", 1, { reason: "refund" })
+    expect(result).toEqual(voided)
+    const [url, options] = (fetch as ReturnType<typeof vi.fn>).mock.calls[0]
+    expect(url).toContain("/venues/venue-1/finance/transactions/1/void")
+    expect(options.method).toBe("POST")
+    expect(JSON.parse(options.body)).toEqual({ reason: "refund" })
   })
 })

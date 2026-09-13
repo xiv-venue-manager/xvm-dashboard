@@ -1945,3 +1945,106 @@ export async function listStockMovements(
     personToken
   )
 }
+
+// ── Finance: Transactions ────────────────────────────────────────
+
+export type FinanceTransactionKind = "sale" | "tip" | "cover_charge" | "other_income" | "expense" | "payout"
+export type FinanceTransactionStatus = "pending" | "posted"
+
+export interface FinanceTransactionRow {
+  id: number
+  kind: FinanceTransactionKind
+  entry_type: "revenue" | "expense" | "payout"
+  status: FinanceTransactionStatus
+  amount: number
+  category_id: number | null
+  event_id: number | null
+  service_id: number | null
+  service_name: string | null
+  membership_id: number | null
+  recorded_by_person_id: number | null
+  customer_name: string | null
+  notes: string | null
+  idempotency_key: string | null
+  created_at: string
+  posted_at: string | null
+  posted_by_person_id: number | null
+  voided_at: string | null
+  voided_by_person_id: number | null
+  void_reason: string | null
+}
+
+export interface FinanceTransactionCreate {
+  kind?: FinanceTransactionKind
+  amount: number
+  status?: FinanceTransactionStatus
+  category_id?: number | null
+  event_id?: number | null
+  service_id?: number | null
+  membership_id?: number | null
+  customer_name?: string | null
+  notes?: string | null
+  idempotency_key?: string | null
+}
+
+export interface FinanceTransactionUpdate {
+  amount?: number
+  category_id?: number | null
+  event_id?: number | null
+  service_id?: number | null
+  membership_id?: number | null
+  customer_name?: string | null
+  notes?: string | null
+}
+
+export async function listFinanceTransactions(
+  personToken: string,
+  venueId: string,
+  opts: { from: string; to: string; serviceId?: number }
+): Promise<FinanceTransactionRow[]> {
+  if (!process.env.XVM_API_BASE_URL) throw new Error("XVM_API_BASE_URL is not set")
+  const params = new URLSearchParams({ from: opts.from, to: opts.to })
+  if (opts.serviceId !== undefined) params.set("service_id", String(opts.serviceId))
+  return xvmFetch<FinanceTransactionRow[]>(`/venues/${venueId}/finance/transactions?${params}`, {}, personToken)
+}
+
+export async function createFinanceTransaction(
+  personToken: string,
+  venueId: string,
+  data: FinanceTransactionCreate
+): Promise<FinanceTransactionRow> {
+  if (!process.env.XVM_API_BASE_URL) throw new Error("XVM_API_BASE_URL is not set")
+  return xvmFetch<FinanceTransactionRow>(
+    `/venues/${venueId}/finance/transactions`,
+    { method: "POST", body: JSON.stringify(data) },
+    personToken
+  )
+}
+
+export async function updateFinanceTransaction(
+  personToken: string,
+  venueId: string,
+  transactionId: number,
+  data: FinanceTransactionUpdate
+): Promise<FinanceTransactionRow> {
+  if (!process.env.XVM_API_BASE_URL) throw new Error("XVM_API_BASE_URL is not set")
+  return xvmFetch<FinanceTransactionRow>(
+    `/venues/${venueId}/finance/transactions/${transactionId}`,
+    { method: "PATCH", body: JSON.stringify(data) },
+    personToken
+  )
+}
+
+export async function voidFinanceTransaction(
+  personToken: string,
+  venueId: string,
+  transactionId: number,
+  data: { reason?: string | null }
+): Promise<FinanceTransactionRow> {
+  if (!process.env.XVM_API_BASE_URL) throw new Error("XVM_API_BASE_URL is not set")
+  return xvmFetch<FinanceTransactionRow>(
+    `/venues/${venueId}/finance/transactions/${transactionId}/void`,
+    { method: "POST", body: JSON.stringify(data) },
+    personToken
+  )
+}

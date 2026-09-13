@@ -17,6 +17,7 @@ interface FinanceTransactionRow {
   amount: number
   service_id: number | null
   service_name: string | null
+  recorded_by_person_id: number | null
   customer_name: string | null
   notes: string | null
   created_at: string
@@ -26,6 +27,10 @@ interface Service {
   id: number
   name: string
   price: number
+}
+
+interface StaffMember {
+  user: { id: number; name: string | null }
 }
 
 // Default lookback window for the transactions list. xvm-api's finance list
@@ -40,6 +45,7 @@ function toUiTransaction(row: FinanceTransactionRow): Transaction {
     amount: minorUnitsToDollars(row.amount) ?? 0,
     serviceId: row.service_id,
     serviceName: row.service_name,
+    recordedByPersonId: row.recorded_by_person_id,
     customerName: row.customer_name,
     notes: row.notes,
     createdAt: row.created_at,
@@ -51,6 +57,7 @@ export default function SalesPage({ params }: { params: Promise<{ slug: string }
   const [venueId, setVenueId] = useState("")
   const [transactions, setTransactions] = useState<Transaction[]>([])
   const [services, setServices] = useState<Service[]>([])
+  const [staffNamesByPersonId, setStaffNamesByPersonId] = useState<Map<number, string>>(new Map())
   const [isLoading, setIsLoading] = useState(true)
   const [error, setError] = useState("")
 
@@ -76,11 +83,12 @@ export default function SalesPage({ params }: { params: Promise<{ slug: string }
         const to = new Date()
         const from = new Date(to.getTime() - LOOKBACK_DAYS * 24 * 60 * 60 * 1000)
 
-        const [transactionsResponse, servicesResponse] = await Promise.all([
+        const [transactionsResponse, servicesResponse, staffResponse] = await Promise.all([
           fetch(
             `/api/venues/${venue.id}/transactions?startDate=${from.toISOString()}&endDate=${to.toISOString()}`
           ),
           fetch(`/api/venues/${venue.id}/services`),
+          fetch(`/api/venues/${venue.id}/staff`),
         ])
 
         if (!transactionsResponse.ok) {
@@ -99,6 +107,14 @@ export default function SalesPage({ params }: { params: Promise<{ slug: string }
             .filter((s) => s.is_active)
             .map((s) => ({ id: s.id, name: s.name, price: minorUnitsToDollars(s.price_minor) ?? 0 }))
         )
+
+        // Top-earners resolution: staff route already exposes person id +
+        // display name per membership (same lookup services page uses for
+        // position names) - reuse it here instead of a separate id-only endpoint.
+        if (staffResponse.ok) {
+          const staffData: StaffMember[] = await staffResponse.json()
+          setStaffNamesByPersonId(new Map(staffData.map((s) => [s.user.id, s.user.name ?? "Unknown"])))
+        }
       } catch (err: unknown) {
         setError(err instanceof Error ? err.message : "Failed to load sales")
       } finally {
@@ -134,6 +150,22 @@ export default function SalesPage({ params }: { params: Promise<{ slug: string }
   }
   const topServices = [...serviceMap.values()].sort((a, b) => b.total - a.total).slice(0, 5)
   const maxServiceTotal = topServices[0]?.total || 1
+
+  // Top earners by revenue — grouped by recorded_by_person_id, resolved to a
+  // display name via the staff roster fetched above.
+  const earnerMap = new Map<number, { name: string; total: number }>()
+  for (const t of transactions) {
+    if (t.recordedByPersonId != null) {
+      if (!earnerMap.has(t.recordedByPersonId)) {
+        earnerMap.set(t.recordedByPersonId, {
+          name: staffNamesByPersonId.get(t.recordedByPersonId) ?? "Unknown",
+          total: 0,
+        })
+      }
+      earnerMap.get(t.recordedByPersonId)!.total += t.amount
+    }
+  }
+  const topEarners = [...earnerMap.values()].sort((a, b) => b.total - a.total).slice(0, 5)
 
   return (
     <VenueLayoutClient slug={slug}>
@@ -282,6 +314,40 @@ export default function SalesPage({ params }: { params: Promise<{ slug: string }
                               style={{ width: `${Math.round((s.total / maxServiceTotal) * 100)}%` }}
                             />
                           </div>
+                        </div>
+                      ))}
+                    </div>
+                  </div>
+                )}
+
+                {topEarners.length > 0 && (
+                  <div className="rounded-xl border border-[var(--blue-018)] bg-[var(--card)] overflow-hidden">
+                    <div className="flex items-center gap-2 px-4 py-3 border-b border-[var(--blue-008)] font-semibold text-sm">
+                      <svg
+                        className="w-4 h-4 text-[var(--xiv-blue)]"
+                        xmlns="http://www.w3.org/2000/svg"
+                        viewBox="0 0 24 24"
+                        fill="none"
+                        stroke="currentColor"
+                        strokeWidth="2"
+                      >
+                        <path d="M17 21v-2a4 4 0 0 0-4-4H5a4 4 0 0 0-4 4v2" />
+                        <circle cx="9" cy="7" r="4" />
+                        <path d="M23 21v-2a4 4 0 0 0-3-3.87" />
+                        <path d="M16 3.13a4 4 0 0 1 0 7.75" />
+                      </svg>
+                      Top earners
+                    </div>
+                    <div className="divide-y divide-[var(--blue-008)]">
+                      {topEarners.map((e) => (
+                        <div key={e.name} className="flex items-center gap-3 px-4 py-2.5">
+                          <span className="w-7 h-7 rounded-full bg-gradient-to-br from-[var(--xiv-blue)] to-blue-700 flex items-center justify-center text-[0.62rem] font-bold text-white flex-shrink-0">
+                            {e.name.charAt(0).toUpperCase()}
+                          </span>
+                          <span className="flex-1 text-sm font-medium truncate">{e.name}</span>
+                          <span className="text-xs text-[var(--xiv-blue)] font-semibold shrink-0">
+                            {e.total.toLocaleString()} gil
+                          </span>
                         </div>
                       ))}
                     </div>

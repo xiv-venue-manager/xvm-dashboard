@@ -240,11 +240,16 @@ export default function ServicesPage({ params }: { params: Promise<{ slug: strin
     ])
   }
 
-  // Inventory link is likewise a separate action from the service save. If a
-  // stock count was entered alongside a newly-linked item, record it as an
-  // initial "restock" movement — there is no direct set-stock endpoint wired
-  // up to the dashboard yet.
-  async function applyInventoryChanges(serviceId: number, previousLinkedItemId: number | null) {
+  // Inventory link is likewise a separate action from the service save. There
+  // is no direct set-stock endpoint, only delta-based movements, so we diff
+  // the submitted stock count against what it was before the edit (the same
+  // item's previous count, or 0 if this is a fresh link/new service) and only
+  // fire a movement for the difference — never the raw submitted value.
+  async function applyInventoryChanges(
+    serviceId: number,
+    previousLinkedItemId: number | null,
+    previousStockCount: number | null = null
+  ) {
     if (formData.linkedItem) {
       await fetch(`/api/venues/${venueId}/services/${serviceId}/inventory`, {
         method: "PUT",
@@ -255,12 +260,15 @@ export default function ServicesPage({ params }: { params: Promise<{ slug: strin
           linkedItemIcon: formData.linkedItem.iconId,
         }),
       })
-      const stockCount = formData.stockCount.trim() === "" ? null : parseInt(formData.stockCount, 10)
-      if (stockCount !== null && stockCount > 0) {
+      const stockCount = formData.stockCount.trim() === "" ? 0 : parseInt(formData.stockCount, 10)
+      const sameItem = previousLinkedItemId === formData.linkedItem.itemId
+      const baseline = sameItem ? (previousStockCount ?? 0) : 0
+      const delta = stockCount - baseline
+      if (delta !== 0) {
         await fetch(`/api/venues/${venueId}/services/${serviceId}/inventory/movements`, {
           method: "POST",
           headers: { "Content-Type": "application/json" },
-          body: JSON.stringify({ reason: "restock", delta: stockCount }),
+          body: JSON.stringify({ reason: delta > 0 ? "restock" : "adjustment", delta }),
         })
       }
     } else if (previousLinkedItemId !== null) {
@@ -341,7 +349,11 @@ export default function ServicesPage({ params }: { params: Promise<{ slug: strin
 
       await response.json()
       await applyPositionChanges(editingService.id, editingService.position_ids)
-      await applyInventoryChanges(editingService.id, editingService.inventory?.linked_item_id ?? null)
+      await applyInventoryChanges(
+        editingService.id,
+        editingService.inventory?.linked_item_id ?? null,
+        editingService.inventory?.stock_count ?? null
+      )
 
       const finalResponse = await fetch(`/api/venues/${venueId}/services/${editingService.id}`)
       const finalRow = finalResponse.ok ? await finalResponse.json() : null

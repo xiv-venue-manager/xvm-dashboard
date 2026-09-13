@@ -32,6 +32,7 @@ export interface Transaction {
   amount: number
   serviceId: number | null
   serviceName: string | null
+  recordedByPersonId?: number | null
   customerName: string | null
   notes: string | null
   createdAt: string

@@ -15,7 +15,7 @@ const createServiceSchema = z.object({
   price: z.number().min(0, "Price must be positive"),
   categoryId: z.number().int().positive().nullable().optional(),
   isActive: z.boolean().default(true),
-})
+}).strict()
 
 async function requireXvmVenueId(venueId: string) {
   const venue = await prisma.venue.findUnique({ where: { id: venueId }, select: { xvmApiVenueId: true } })
@@ -95,7 +95,7 @@ export const POST = withRateLimit<{ params: Promise<{ venueId: string }> }>(
       data = createServiceSchema.parse(await request.json())
     } catch (err) {
       if (err instanceof z.ZodError) {
-        return NextResponse.json({ error: "Validation error", details: err.issues }, { status: 400 })
+        return NextResponse.json({ error: "Invalid request", details: err.flatten() }, { status: 400 })
       }
       return NextResponse.json({ error: "Invalid request" }, { status: 400 })
     }

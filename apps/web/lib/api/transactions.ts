@@ -136,32 +136,36 @@ export async function createTransaction(venueId: string, staffUserId: string, in
       const service = await getService(token, xvmApiVenueId, serviceId)
       stockCount = service.inventory?.stock_count ?? null
     } catch (error) {
+      // Swallows ALL errors here, including a 401 from an expired/invalid
+      // token. That's not a permanent mask: this sale's primary
+      // createFinanceTransaction call already succeeded with this token, so
+      // a 401 here would only blind this one sale's stock count - the next
+      // sale hits the same bad token on its primary call and surfaces the
+      // failure normally through xvmApiErrorResponse.
       console.error("Failed to fetch post-sale stock count:", error)
     }
   }
 
   // Discord webhook (fire-and-forget - never block the response)
-  if (venue) {
-    const venueSettings = parseVenueSettings(venue.settings)
-    const webhookConfig: VenueWebhookConfig = {
-      discordWebhooks: venueSettings.discordWebhooks,
-      webhooks: venueSettings.webhooks,
-      discordWebhookUrl: venue.discordWebhookUrl,
-    }
+  const venueSettings = parseVenueSettings(venue.settings)
+  const webhookConfig: VenueWebhookConfig = {
+    discordWebhooks: venueSettings.discordWebhooks,
+    webhooks: venueSettings.webhooks,
+    discordWebhookUrl: venue.discordWebhookUrl,
+  }
 
-    const webhookUrl = getWebhookUrlForType(webhookConfig, "saleLogged")
-    if (webhookUrl) {
-      const embed = formatSaleLoggedEmbed({
-        amount: amountDollars,
-        service: serviceForEmbed,
-        customerName: sanitizeDiscordContent(newTransaction.customer_name),
-        staff: { name: resolvedStaffName },
-      })
+  const webhookUrl = getWebhookUrlForType(webhookConfig, "saleLogged")
+  if (webhookUrl) {
+    const embed = formatSaleLoggedEmbed({
+      amount: amountDollars,
+      service: serviceForEmbed,
+      customerName: sanitizeDiscordContent(newTransaction.customer_name),
+      staff: { name: resolvedStaffName },
+    })
 
-      sendDiscordWebhook(webhookUrl, { embeds: [embed] }).catch((error) =>
-        console.error("Failed to send Discord webhook:", error)
-      )
-    }
+    sendDiscordWebhook(webhookUrl, { embeds: [embed] }).catch((error) =>
+      console.error("Failed to send Discord webhook:", error)
+    )
   }
 
   venueEventBus.emit(venueId, {

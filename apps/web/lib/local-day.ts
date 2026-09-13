@@ -31,3 +31,20 @@ export function localTimeInput(d: Date | string, timeZone: string): string {
     new Date(d)
   )
 }
+
+/**
+ * The UTC instant for 23:59:59.999 local wall-clock time, on the given
+ * calendar day, in the given IANA timezone. Use this to bound a date-range
+ * window's end so "the last day of the period" means that day's close in the
+ * venue's own timezone, not UTC's - forcing UTC end-of-day silently excludes
+ * a venue's late-evening local hours for any negative-offset timezone.
+ */
+export function endOfLocalDayUtc(dateStr: string, timeZone: string): Date {
+  const guess = new Date(`${dateStr}T23:59:59.999Z`)
+  // Both re-parsed with the same (arbitrary) local-machine offset, so that
+  // offset cancels out of the difference below regardless of server timezone.
+  const asIfUtc = new Date(guess.toLocaleString("en-US", { timeZone: "UTC" }))
+  const asIfZoned = new Date(guess.toLocaleString("en-US", { timeZone }))
+  const offsetMs = asIfZoned.getTime() - asIfUtc.getTime()
+  return new Date(guess.getTime() - offsetMs)
+}

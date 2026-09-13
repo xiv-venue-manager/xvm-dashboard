@@ -1,144 +1,181 @@
 import { NextRequest, NextResponse } from "next/server"
 import { getServerSession } from "next-auth"
+import { z } from "zod"
 import { authOptions } from "@/lib/auth"
 import { prisma } from "@/lib/prisma"
 import { withRateLimit } from "@/lib/middleware/with-rate-limit"
-import { fetchRoleRates, resolveShiftRates } from "@/lib/payroll-rates"
-import { resolveDisplayName } from "@/lib/display-name"
-import { Prisma } from "@/generated/prisma/client"
-const Decimal = Prisma.Decimal
+import { getValidXvmApiToken, xvmApiErrorResponse } from "@/lib/api/xvm-api-store"
+import {
+  listMemberships,
+  listShiftsChunked,
+  listPositions,
+  listPayrollChunked,
+  createPayrollEntry,
+  getVenue,
+  type MembershipRow,
+} from "@/lib/api/xvm-api"
+import { minorUnitsToDollars } from "@/lib/api/position-convert"
+import { endOfLocalDayUtc } from "@/lib/local-day"
+import {
+  resolveShiftRate,
+  isShiftCovered,
+  groupByRate,
+  groupPeriod,
+  totalMinutesWorked,
+  hourlyAmountMinor,
+  type ResolvedShift,
+  type PositionRate,
+} from "@/lib/payroll-generate"
 
-/**
- * GET /api/venues/[venueId]/payroll/generate-all?periodStart=Y&periodEnd=Z
- * Preview: returns per-member shift counts and estimated totals.
- *
- * POST /api/venues/[venueId]/payroll/generate-all
- * Body: { periodStart, periodEnd }
- * Generates a payroll entry for every active member who has completed,
- * unpaid shifts in the period. Reuses the same logic as generate (single member).
- * Members with no eligible shifts or no hourly rate are skipped.
- */
-
-async function resolveVenueAndCheckPerms(venueId: string, userId: string) {
+async function requireXvmVenueId(venueId: string) {
   const venue = await prisma.venue.findFirst({
     where: { OR: [{ id: venueId }, { slug: venueId }] },
+    select: { xvmApiVenueId: true },
   })
-  if (!venue) return { error: "Venue not found", status: 404 }
-
-  const membership = await prisma.membership.findFirst({
-    where: { userId, venueId: venue.id, status: "active" },
-  })
-  if (!membership) return { error: "No access to this venue", status: 403 }
-  if (membership.role !== "OWNER" && membership.role !== "MANAGER")
-    return { error: "Only owners and managers can generate payroll", status: 403 }
-
-  return { venue }
+  if (!venue?.xvmApiVenueId) {
+    return {
+      error: NextResponse.json(
+        { error: "not_connected", message: "This venue hasn't been connected to xvm-api yet." },
+        { status: 409 }
+      ),
+    }
+  }
+  return { xvmApiVenueId: venue.xvmApiVenueId }
 }
 
-async function getEligibleShiftsPerMember(venueId: string, startDate: Date, endDate: Date) {
-  const activeMembers = await prisma.membership.findMany({
-    where: { venueId, status: "active" },
-    include: {
-      user: {
-        select: {
-          id: true,
-          name: true,
-          displayName: true,
-          image: true,
-          characters: {
-            orderBy: [{ isPrimary: "desc" }, { createdAt: "asc" }],
-            take: 1,
-            select: { characterName: true },
-          },
-        },
-      },
-    },
-  })
+interface MemberResult {
+  member: MembershipRow
+  resolved: ResolvedShift[]
+  totalHours: number
+  totalAmountMinor: number
+  skipped: boolean
+  skipReason: "no_shifts" | "unresolved_rate" | null
+}
 
-  const perMember = await Promise.all(
-    activeMembers.map(async (member) => {
-      const shifts = await prisma.shift.findMany({
-        where: {
-          membershipId: member.id,
-          venueId,
-          status: "COMPLETED",
-          payrollEntryId: null,
-          actualEnd: { gte: startDate, lte: endDate },
-        },
-        orderBy: { actualStart: "asc" },
-      })
-      return { member, shifts }
-    })
+async function computeAllMembers(
+  token: string,
+  xvmApiVenueId: string,
+  periodStart: string,
+  periodEnd: string,
+  timeZone: string
+): Promise<MemberResult[]> {
+  const fromIso = new Date(periodStart).toISOString()
+  const toIso = endOfLocalDayUtc(periodEnd, timeZone).toISOString()
+  // See the identical comment in generate/route.ts's findEligibleShifts: an
+  // entry's period_end can fall after the window it was generated for, so
+  // this must be fetched up to now, not bounded to the requested window.
+  const entriesToIso = new Date().toISOString()
+
+  const [members, shifts, positions, existingEntries] = await Promise.all([
+    listMemberships(token, xvmApiVenueId),
+    listShiftsChunked(token, xvmApiVenueId, { from: fromIso, to: toIso }),
+    listPositions(token, xvmApiVenueId),
+    listPayrollChunked(token, xvmApiVenueId, { from: fromIso, to: entriesToIso }),
+  ])
+
+  const positionById = new Map<number, PositionRate>(
+    positions.map((p) => [p.id, { id: p.id, hourlyRateMinor: p.hourly_rate_minor }])
+  )
+  const entryWindowsByMember = new Map<number | null, { periodStart: string; periodEnd: string }[]>()
+  for (const e of existingEntries) {
+    const list = entryWindowsByMember.get(e.membership_id)
+    const window = { periodStart: e.period_start, periodEnd: e.period_end }
+    if (list) {
+      list.push(window)
+    } else {
+      entryWindowsByMember.set(e.membership_id, [window])
+    }
+  }
+  const completedShifts = shifts.filter(
+    (s) => s.status === "completed" && s.actual_start !== null && s.actual_end !== null
   )
 
-  // Gather every role ID this venue's members/shifts might need in one pass, so
-  // role rates are fetched once for the whole venue instead of once per member.
-  const allRoleIds = perMember.flatMap(({ member, shifts }) => [member.roleId, ...shifts.map((s) => s.roleId)])
-  const roleRates = await fetchRoleRates(allRoleIds)
+  return members.map((member) => {
+    const entriesForMember = entryWindowsByMember.get(member.id) ?? []
+    const memberShifts = completedShifts.filter((s) => s.membership_id === member.id)
 
-  return perMember.map(({ member, shifts }) => {
-    const resolution = resolveShiftRates(shifts, member, roleRates)
-    const totalHours = Number(resolution.totalHours)
+    const eligible = memberShifts.filter(
+      (shift) => !isShiftCovered(new Date(shift.actual_end!).getTime(), entriesForMember)
+    )
 
-    return {
-      member,
-      shifts,
-      resolution,
-      totalHours,
-      estimatedTotal: resolution.includedShiftIds.length > 0 ? Math.round(Number(resolution.totalAmount)) : null,
-      skipped: shifts.length === 0 || resolution.includedShiftIds.length === 0,
-      skipReason: shifts.length === 0 ? "no_shifts" : resolution.includedShiftIds.length === 0 ? "no_rate" : null,
+    if (eligible.length === 0) {
+      return { member, resolved: [], totalHours: 0, totalAmountMinor: 0, skipped: true, skipReason: "no_shifts" }
     }
+
+    const resolved: ResolvedShift[] = eligible.map((shift) =>
+      resolveShiftRate(
+        {
+          id: shift.id,
+          actualStart: shift.actual_start!,
+          actualEnd: shift.actual_end!,
+          minutesWorked: shift.worked_minutes ?? 0,
+          positionId: shift.position_id,
+        },
+        positionById
+      )
+    )
+
+    const anyUnresolved = resolved.some((r) => r.rateMinorPerHour === null)
+    if (anyUnresolved) {
+      return { member, resolved: [], totalHours: 0, totalAmountMinor: 0, skipped: true, skipReason: "unresolved_rate" }
+    }
+
+    const totalHours = resolved.reduce((sum, r) => sum + r.hours, 0)
+    const groups = groupByRate(resolved)
+    const totalAmountMinor = [...groups.entries()].reduce(
+      (sum, [rate, group]) => sum + hourlyAmountMinor(rate, totalMinutesWorked(group)),
+      0
+    )
+
+    return { member, resolved, totalHours, totalAmountMinor, skipped: false, skipReason: null }
   })
 }
+
+const generateAllSchema = z
+  .object({ periodStart: z.string(), periodEnd: z.string() })
+  .strict()
+  .refine((data) => new Date(data.periodEnd) > new Date(data.periodStart), {
+    message: "Period end must be after period start",
+    path: ["periodEnd"],
+  })
 
 export const GET = withRateLimit<{ params: Promise<{ venueId: string }> }>(
   async (request: NextRequest, context) => {
     if (!context?.params) return NextResponse.json({ error: "Invalid request" }, { status: 400 })
+
+    const session = await getServerSession(authOptions)
+    if (!session?.user?.id) return NextResponse.json({ error: "Unauthorized" }, { status: 401 })
+
+    const token = await getValidXvmApiToken(session.user.id)
+    if (!token) return NextResponse.json({ error: "xvm-api link not established yet" }, { status: 503 })
+
+    const { venueId } = await context.params
+    const gate = await requireXvmVenueId(venueId)
+    if (gate.error) return gate.error
+
+    const sp = request.nextUrl.searchParams
+    const periodStart = sp.get("periodStart")
+    const periodEnd = sp.get("periodEnd")
+    if (!periodStart || !periodEnd) {
+      return NextResponse.json({ error: "periodStart and periodEnd are required" }, { status: 400 })
+    }
+
     try {
-      const session = await getServerSession(authOptions)
-      if (!session?.user?.id) return NextResponse.json({ error: "Unauthorized" }, { status: 401 })
-
-      const { venueId } = await context.params
-      const check = await resolveVenueAndCheckPerms(venueId, session.user.id)
-      if ("error" in check) return NextResponse.json({ error: check.error }, { status: check.status })
-      const venue = check.venue!
-
-      const sp = request.nextUrl.searchParams
-      const periodStart = sp.get("periodStart")
-      const periodEnd = sp.get("periodEnd")
-      if (!periodStart || !periodEnd)
-        return NextResponse.json({ error: "periodStart and periodEnd are required" }, { status: 400 })
-
-      const startDate = new Date(periodStart)
-      const endDate = new Date(periodEnd)
-      endDate.setUTCHours(23, 59, 59, 999)
-      if (isNaN(startDate.getTime()) || isNaN(endDate.getTime()))
-        return NextResponse.json({ error: "Invalid date format" }, { status: 400 })
-
-      const results = await getEligibleShiftsPerMember(venue.id, startDate, endDate)
-
+      const venue = await getVenue(token, gate.xvmApiVenueId!)
+      const results = await computeAllMembers(token, gate.xvmApiVenueId!, periodStart, periodEnd, venue.timezone)
       return NextResponse.json({
         members: results.map((r) => ({
           membershipId: r.member.id,
-          name: resolveDisplayName({
-            characterName: r.member.user?.characters?.[0]?.characterName,
-            nickname: r.member.nickname,
-            displayName: r.member.user?.displayName,
-            discordName: r.member.user?.name,
-          }),
-          image: r.member.user?.image ?? null,
-          shiftCount: r.shifts.length,
+          shiftCount: r.resolved.length,
           totalHours: r.totalHours,
-          estimatedTotal: r.estimatedTotal,
+          estimatedTotal: r.skipped ? null : minorUnitsToDollars(r.totalAmountMinor),
+          entryCount: r.skipped ? 0 : groupByRate(r.resolved).size,
           skipped: r.skipped,
           skipReason: r.skipReason,
-          unresolvedShiftCount: r.resolution.excludedShiftIds.length,
         })),
       })
-    } catch (e) {
-      console.error("Error previewing generate-all:", e)
-      return NextResponse.json({ error: "Internal server error" }, { status: 500 })
+    } catch (err) {
+      return xvmApiErrorResponse(err, session.user.id, "[payroll/generate-all] GET error")
     }
   },
   { requests: 30, window: "1 m" }
@@ -147,85 +184,79 @@ export const GET = withRateLimit<{ params: Promise<{ venueId: string }> }>(
 export const POST = withRateLimit<{ params: Promise<{ venueId: string }> }>(
   async (request: NextRequest, context) => {
     if (!context?.params) return NextResponse.json({ error: "Invalid request" }, { status: 400 })
+
+    const session = await getServerSession(authOptions)
+    if (!session?.user?.id) return NextResponse.json({ error: "Unauthorized" }, { status: 401 })
+
+    const token = await getValidXvmApiToken(session.user.id)
+    if (!token) return NextResponse.json({ error: "xvm-api link not established yet" }, { status: 503 })
+
+    const { venueId } = await context.params
+    const gate = await requireXvmVenueId(venueId)
+    if (gate.error) return gate.error
+
+    let data: z.infer<typeof generateAllSchema>
     try {
-      const session = await getServerSession(authOptions)
-      if (!session?.user?.id) return NextResponse.json({ error: "Unauthorized" }, { status: 401 })
+      data = generateAllSchema.parse(await request.json())
+    } catch (err) {
+      if (err instanceof z.ZodError) {
+        return NextResponse.json({ error: "Invalid request", details: err.flatten() }, { status: 400 })
+      }
+      return NextResponse.json({ error: "Invalid request" }, { status: 400 })
+    }
 
-      const { venueId } = await context.params
-      const check = await resolveVenueAndCheckPerms(venueId, session.user.id)
-      if ("error" in check) return NextResponse.json({ error: check.error }, { status: check.status })
-      const venue = check.venue!
-
-      const { periodStart, periodEnd } = await request.json()
-      if (!periodStart || !periodEnd)
-        return NextResponse.json({ error: "periodStart and periodEnd are required" }, { status: 400 })
-
-      const startDate = new Date(periodStart)
-      const endDate = new Date(periodEnd)
-      endDate.setUTCHours(23, 59, 59, 999)
-      if (isNaN(startDate.getTime()) || isNaN(endDate.getTime()))
-        return NextResponse.json({ error: "Invalid date format" }, { status: 400 })
-
-      const results = await getEligibleShiftsPerMember(venue.id, startDate, endDate)
+    try {
+      const venue = await getVenue(token, gate.xvmApiVenueId!)
+      const results = await computeAllMembers(
+        token,
+        gate.xvmApiVenueId!,
+        data.periodStart,
+        data.periodEnd,
+        venue.timezone
+      )
       const eligible = results.filter((r) => !r.skipped)
 
-      if (eligible.length === 0)
+      if (eligible.length === 0) {
         return NextResponse.json({ error: "No eligible members with shifts and rates in this period" }, { status: 400 })
+      }
 
-      const created = await prisma.$transaction(async (tx) => {
-        const entries = []
-        for (const r of eligible) {
-          const totalHours = r.resolution.totalHours
-          const totalAmount = r.resolution.totalAmount
-          // Informational effective rate — the real math happened per-shift.
-          const baseRate = totalHours.gt(0) ? totalAmount.div(totalHours) : new Decimal(0)
-
-          const entry = await tx.payrollEntry.create({
-            data: {
-              venueId: venue.id,
-              membershipId: r.member.id,
-              paymentType: "HOURLY",
-              baseRate,
-              hoursWorked: totalHours,
-              totalAmount,
-              periodStart: startDate,
-              periodEnd: endDate,
-            },
-          })
-
-          // Link only the shifts that resolved to a rate — see resolveShiftRates.
-          await tx.shift.updateMany({
-            where: { id: { in: r.resolution.includedShiftIds } },
-            data: { payrollEntryId: entry.id },
-          })
-
-          entries.push({
+      const perMemberEntries = await Promise.all(
+        eligible.map(async (r) => {
+          const groups = [...groupByRate(r.resolved).entries()]
+          const createdTotalsMinor = await Promise.all(
+            groups.map(async ([rateMinorPerHour, shifts]) => {
+              const minutesWorked = totalMinutesWorked(shifts)
+              const { start, end } = groupPeriod(shifts)
+              const row = await createPayrollEntry(token, gate.xvmApiVenueId!, {
+                membership_id: r.member.id,
+                payment_type: "hourly",
+                base_rate_minor: rateMinorPerHour,
+                minutes_worked: minutesWorked,
+                period_start: start,
+                period_end: end,
+              })
+              return row.total_amount_minor
+            })
+          )
+          return {
             membershipId: r.member.id,
-            name: resolveDisplayName({
-              characterName: r.member.user?.characters?.[0]?.characterName,
-              nickname: r.member.nickname,
-              displayName: r.member.user?.displayName,
-              discordName: r.member.user?.name,
-            }),
-            shiftCount: r.resolution.includedShiftIds.length,
+            entryCount: createdTotalsMinor.length,
             totalHours: r.totalHours,
-            totalAmount: Math.round(Number(totalAmount)),
-          })
-        }
-        return entries
-      })
+            totalAmount: minorUnitsToDollars(createdTotalsMinor.reduce((sum, m) => sum + m, 0)),
+          }
+        })
+      )
 
       return NextResponse.json(
         {
-          generated: created.length,
+          generated: perMemberEntries.length,
           skipped: results.filter((r) => r.skipped).length,
-          entries: created,
+          entries: perMemberEntries,
         },
         { status: 201 }
       )
-    } catch (e) {
-      console.error("Error in generate-all:", e)
-      return NextResponse.json({ error: "Internal server error" }, { status: 500 })
+    } catch (err) {
+      return xvmApiErrorResponse(err, session.user.id, "[payroll/generate-all] POST error")
     }
   },
   { requests: 5, window: "1 m" }

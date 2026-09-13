@@ -1481,6 +1481,117 @@ export async function rollRaffle(personToken: string, venueId: string, raffleId:
   return xvmFetch<RaffleRoll>(`/venues/${venueId}/raffles/${raffleId}/roll`, { method: "POST" }, personToken)
 }
 
+// ── Payroll API ────────────────────────────────────────────────
+
+export type PaymentType = "fixed_salary" | "hourly" | "pot_share"
+
+export interface PayrollEntryRow {
+  id: number
+  membership_id: number | null
+  person_id: number
+  payment_type: PaymentType
+  base_rate_minor: number
+  minutes_worked: number | null
+  bonus_amount_minor: number | null
+  total_amount_minor: number
+  period_start: string
+  period_end: string
+  is_paid: boolean
+  paid_at: string | null
+  paid_by_person_id: number | null
+  pot_distribution_id: number | null
+  notes: string | null
+  created_at: string
+}
+
+export interface PayrollEntryCreate {
+  membership_id: number
+  payment_type: "fixed_salary" | "hourly"
+  base_rate_minor: number
+  minutes_worked?: number | null
+  bonus_amount_minor?: number | null
+  period_start: string
+  period_end: string
+  notes?: string | null
+}
+
+export interface PayrollEntryUpdate {
+  is_paid?: boolean
+  notes?: string | null
+}
+
+export async function listPayroll(
+  personToken: string,
+  venueId: string,
+  opts: { from: string; to: string; isPaid?: boolean; membershipId?: number }
+): Promise<PayrollEntryRow[]> {
+  if (!process.env.XVM_API_BASE_URL) throw new Error("XVM_API_BASE_URL is not set")
+  const params = new URLSearchParams({ from: opts.from, to: opts.to })
+  if (opts.isPaid !== undefined) params.set("is_paid", String(opts.isPaid))
+  if (opts.membershipId !== undefined) params.set("membership_id", String(opts.membershipId))
+  return xvmFetch<PayrollEntryRow[]>(`/venues/${venueId}/finance/payroll?${params}`, {}, personToken)
+}
+
+// xvm-api rejects a from/to window over 60 days (400, "Windows are capped at
+// 60 days"), same cap listShiftsChunked already works around. Callers wanting a
+// wider range (the payroll page's 12-month default) chunk through this instead
+// of listPayroll directly.
+export async function listPayrollChunked(
+  personToken: string,
+  venueId: string,
+  opts: { from: string; to: string; isPaid?: boolean; membershipId?: number }
+): Promise<PayrollEntryRow[]> {
+  const from = new Date(opts.from)
+  const to = new Date(opts.to)
+  const chunks: { from: string; to: string }[] = []
+  let chunkStart = from
+  while (chunkStart < to) {
+    const chunkEnd = new Date(
+      Math.min(chunkStart.getTime() + (LIST_SHIFTS_MAX_WINDOW_DAYS - 1) * 24 * 60 * 60 * 1000, to.getTime())
+    )
+    chunks.push({ from: chunkStart.toISOString(), to: chunkEnd.toISOString() })
+    chunkStart = chunkEnd
+  }
+  const results = await Promise.all(
+    chunks.map((c) => listPayroll(personToken, venueId, { ...opts, from: c.from, to: c.to }))
+  )
+  const byId = new Map<number, PayrollEntryRow>()
+  for (const entry of results.flat()) byId.set(entry.id, entry)
+  return [...byId.values()]
+}
+
+export async function createPayrollEntry(
+  personToken: string,
+  venueId: string,
+  data: PayrollEntryCreate
+): Promise<PayrollEntryRow> {
+  if (!process.env.XVM_API_BASE_URL) throw new Error("XVM_API_BASE_URL is not set")
+  return xvmFetch<PayrollEntryRow>(
+    `/venues/${venueId}/finance/payroll`,
+    { method: "POST", body: JSON.stringify(data) },
+    personToken
+  )
+}
+
+export async function updatePayrollEntry(
+  personToken: string,
+  venueId: string,
+  entryId: number,
+  data: PayrollEntryUpdate
+): Promise<PayrollEntryRow> {
+  if (!process.env.XVM_API_BASE_URL) throw new Error("XVM_API_BASE_URL is not set")
+  return xvmFetch<PayrollEntryRow>(
+    `/venues/${venueId}/finance/payroll/${entryId}`,
+    { method: "PATCH", body: JSON.stringify(data) },
+    personToken
+  )
+}
+
+export async function deletePayrollEntry(personToken: string, venueId: string, entryId: number): Promise<void> {
+  if (!process.env.XVM_API_BASE_URL) throw new Error("XVM_API_BASE_URL is not set")
+  return xvmFetch<void>(`/venues/${venueId}/finance/payroll/${entryId}`, { method: "DELETE" }, personToken)
+}
+
 // ── Finance API ────────────────────────────────────────────────
 
 export interface FinanceSettingsRow {

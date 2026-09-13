@@ -1,6 +1,7 @@
 "use client"
 
 import { Fragment, useEffect, useState } from "react"
+import { formatHours } from "@/lib/api/position-convert"
 import { useSession } from "next-auth/react"
 import { useParams, useRouter } from "next/navigation"
 import { Button } from "@/components/ui/button"
@@ -21,7 +22,6 @@ import { Select, SelectContent, SelectItem, SelectTrigger, SelectValue } from "@
 import { Input } from "@/components/ui/input"
 import { Label } from "@/components/ui/label"
 import { Textarea } from "@/components/ui/textarea"
-import { Checkbox } from "@/components/ui/checkbox"
 import { Badge } from "@/components/ui/badge"
 import { Avatar, AvatarFallback, AvatarImage } from "@/components/ui/avatar"
 import { format } from "date-fns"
@@ -42,6 +42,7 @@ import {
 
 interface PayrollEntry {
   id: string
+  membershipId: number | null
   paymentType: "FIXED_SALARY" | "HOURLY" | "POT_SHARE" | "CONTRACTOR_PAYOUT"
   baseRate: string
   hoursWorked: string | null
@@ -52,30 +53,6 @@ interface PayrollEntry {
   isPaid: boolean
   paidAt: string | null
   notes: string | null
-  isManualEntry: boolean
-  manualEntryName: string | null
-  membership: {
-    id: string
-    role: string
-    nickname: string | null
-    user: {
-      id: string
-      name: string | null
-      displayName: string | null
-      characters: { characterName: string }[]
-      image: string | null
-    } | null
-    customRole: {
-      id: string
-      name: string
-      color: string | null
-    } | null
-  } | null
-  paidByUser: {
-    id: string
-    name: string | null
-    displayName: string | null
-  } | null
   potDistribution: {
     eventId: string
     regularSales: string
@@ -116,19 +93,24 @@ interface ShiftPreview {
 }
 
 interface GeneratePreview {
-  staff: {
-    membershipId: string
-    name: string
-    image: string | null
-    defaultHourlyRate: number | null
-  }
   shifts: ShiftPreview[]
   summary: {
     shiftCount: number
     totalHours: number
     estimatedTotal: number | null
     unresolvedShiftCount: number
+    entryCount: number
   }
+}
+
+function defaultDateFrom() {
+  const d = new Date()
+  d.setMonth(d.getMonth() - 12)
+  return d.toISOString().slice(0, 10)
+}
+
+function defaultDateTo() {
+  return new Date().toISOString().slice(0, 10)
 }
 
 export default function PayrollPage() {
@@ -143,8 +125,8 @@ export default function PayrollPage() {
   const [loading, setLoading] = useState(true)
   const [isDialogOpen, setIsDialogOpen] = useState(false)
   const [filter, setFilter] = useState<"all" | "paid" | "unpaid">("all")
-  const [dateFrom, setDateFrom] = useState("")
-  const [dateTo, setDateTo] = useState("")
+  const [dateFrom, setDateFrom] = useState(() => defaultDateFrom())
+  const [dateTo, setDateTo] = useState(() => defaultDateTo())
   const [isCreating, setIsCreating] = useState(false)
   const [updatingId, setUpdatingId] = useState<string | null>(null)
   const [expandedEntryIds, setExpandedEntryIds] = useState<Set<string>>(new Set())
@@ -159,8 +141,6 @@ export default function PayrollPage() {
   }
 
   // Form state
-  const [isManualEntry, setIsManualEntry] = useState(false)
-  const [manualEntryName, setManualEntryName] = useState("")
   const [selectedStaff, setSelectedStaff] = useState("")
   const [paymentType, setPaymentType] = useState<"FIXED_SALARY" | "HOURLY">("FIXED_SALARY")
   const [baseRate, setBaseRate] = useState("")
@@ -175,7 +155,6 @@ export default function PayrollPage() {
   const [genStaff, setGenStaff] = useState("")
   const [genPeriodStart, setGenPeriodStart] = useState("")
   const [genPeriodEnd, setGenPeriodEnd] = useState("")
-  const [genRateOverride, setGenRateOverride] = useState("")
   const [genBonus, setGenBonus] = useState("")
   const [genNotes, setGenNotes] = useState("")
   const [genPreview, setGenPreview] = useState<GeneratePreview | null>(null)
@@ -188,15 +167,13 @@ export default function PayrollPage() {
   const [genAllEnd, setGenAllEnd] = useState("")
   const [genAllPreview, setGenAllPreview] = useState<
     | {
-        membershipId: string
-        name: string
-        image: string | null
+        membershipId: number
         shiftCount: number
         totalHours: number
         estimatedTotal: number | null
+        entryCount: number
         skipped: boolean
-        skipReason: string | null
-        unresolvedShiftCount: number
+        skipReason: "no_shifts" | "unresolved_rate" | null
       }[]
     | null
   >(null)
@@ -208,11 +185,9 @@ export default function PayrollPage() {
   const fetchPayrollEntries = async () => {
     try {
       const isPaidQuery = filter === "paid" ? "true" : filter === "unpaid" ? "false" : ""
-      const qs = new URLSearchParams()
+      const qs = new URLSearchParams({ from: dateFrom, to: dateTo })
       if (isPaidQuery) qs.set("isPaid", isPaidQuery)
-      if (dateFrom) qs.set("from", dateFrom)
-      if (dateTo) qs.set("to", dateTo)
-      const response = await fetch(`/api/venues/${slug}/payroll${qs.toString() ? `?${qs}` : ""}`)
+      const response = await fetch(`/api/venues/${slug}/payroll?${qs}`)
 
       if (!response.ok) {
         if (response.status === 403) {
@@ -290,9 +265,7 @@ export default function PayrollPage() {
           "Content-Type": "application/json",
         },
         body: JSON.stringify({
-          isManualEntry,
-          manualEntryName: isManualEntry ? manualEntryName : null,
-          membershipId: isManualEntry ? null : selectedStaff,
+          membershipId: selectedStaff,
           paymentType,
           baseRate: parseFloat(baseRate),
           hoursWorked: paymentType === "HOURLY" && hoursWorked ? parseFloat(hoursWorked) : null,
@@ -309,8 +282,6 @@ export default function PayrollPage() {
       }
 
       // Reset form
-      setIsManualEntry(false)
-      setManualEntryName("")
       setSelectedStaff("")
       setPaymentType("FIXED_SALARY")
       setBaseRate("")
@@ -396,9 +367,6 @@ export default function PayrollPage() {
       }
       const data = await response.json()
       setGenPreview(data)
-      // Deliberately not auto-filling genRateOverride from the staff default anymore.
-      // Leaving it empty means the manager gets real per-shift resolution by default;
-      // typing a value here is now an explicit opt-in to bypass that with a flat rate.
     } catch (error) {
       console.error("Error fetching generate preview:", error)
       const msg = error instanceof Error ? error.message : "Failed to fetch preview"
@@ -419,20 +387,22 @@ export default function PayrollPage() {
           membershipId: genStaff,
           periodStart: genPeriodStart,
           periodEnd: genPeriodEnd,
-          baseRate: genRateOverride ? parseFloat(genRateOverride) : undefined,
           bonusAmount: genBonus ? parseFloat(genBonus) : undefined,
           notes: genNotes || undefined,
         }),
       })
       if (!response.ok) {
         const err = await response.json()
+        if (response.status === 409 && Array.isArray(err.unresolvedShiftIds)) {
+          const count = err.unresolvedShiftIds.length
+          throw new Error(`${err.error} (${count} shift${count !== 1 ? "s" : ""} blocking generation)`)
+        }
         throw new Error(err.error || "Failed to generate payroll")
       }
       // Reset and close
       setGenStaff("")
       setGenPeriodStart("")
       setGenPeriodEnd("")
-      setGenRateOverride("")
       setGenBonus("")
       setGenNotes("")
       setGenPreview(null)
@@ -492,16 +462,22 @@ export default function PayrollPage() {
     }
   }
 
-  // With no override, trust the server's real per-shift resolution (genPreview.summary.estimatedTotal)
-  // instead of recomputing a flat number client-side — that's the whole point of per-shift rates.
-  // An override, when the manager explicitly types one, still applies flat to every eligible hour,
-  // same as before this feature existed.
-  const genEffectiveRate = genRateOverride ? parseFloat(genRateOverride) : null
   const genEstimatedTotal = genPreview
-    ? (genRateOverride && genEffectiveRate !== null
-        ? Math.round(genEffectiveRate * genPreview.summary.totalHours)
-        : (genPreview.summary.estimatedTotal ?? 0)) + (genBonus ? parseFloat(genBonus) || 0 : 0)
+    ? (genPreview.summary.estimatedTotal ?? 0) + (genBonus ? parseFloat(genBonus) || 0 : 0)
     : 0
+
+  const staffForMembership = (membershipId: number) => staff.find((s) => String(s.id) === String(membershipId))
+  const displayNameForMembership = (membershipId: number) => {
+    const s = staffForMembership(membershipId)
+    return s
+      ? resolveDisplayName({
+          characterName: s.user?.characters?.[0]?.characterName,
+          nickname: s.nickname,
+          displayName: s.user?.displayName,
+          discordName: s.user?.name,
+        })
+      : `Member #${membershipId}`
+  }
 
   const calculateTotal = () => {
     let total = parseFloat(baseRate) || 0
@@ -615,29 +591,31 @@ export default function PayrollPage() {
                       )}
                       {genAllPreview
                         .filter((m) => !m.skipped)
-                        .map((m) => (
-                          <div
-                            key={m.membershipId}
-                            className="flex items-center justify-between p-3 bg-muted rounded-lg text-sm"
-                          >
-                            <div className="flex items-center gap-2">
-                              <Avatar className="w-6 h-6">
-                                <AvatarImage src={m.image || undefined} />
-                                <AvatarFallback className="text-[0.6rem]">{m.name[0]}</AvatarFallback>
-                              </Avatar>
-                              <span className="font-medium">{m.name}</span>
-                              <span className="text-muted-foreground">
-                                {m.shiftCount} shift{m.shiftCount !== 1 ? "s" : ""} · {m.totalHours}h
-                                {m.unresolvedShiftCount > 0 && (
-                                  <span className="text-amber-500"> · {m.unresolvedShiftCount} unresolved</span>
-                                )}
+                        .map((m) => {
+                          const name = displayNameForMembership(m.membershipId)
+                          const image = staffForMembership(m.membershipId)?.user?.image ?? null
+                          return (
+                            <div
+                              key={m.membershipId}
+                              className="flex items-center justify-between p-3 bg-muted rounded-lg text-sm"
+                            >
+                              <div className="flex items-center gap-2">
+                                <Avatar className="w-6 h-6">
+                                  <AvatarImage src={image || undefined} />
+                                  <AvatarFallback className="text-[0.6rem]">{name[0]}</AvatarFallback>
+                                </Avatar>
+                                <span className="font-medium">{name}</span>
+                                <span className="text-muted-foreground">
+                                  {m.shiftCount} shift{m.shiftCount !== 1 ? "s" : ""} · {formatHours(m.totalHours)}h
+                                  {m.entryCount > 1 && <span> · {m.entryCount} entries</span>}
+                                </span>
+                              </div>
+                              <span className="font-semibold text-[var(--xiv-blue)]">
+                                {m.estimatedTotal?.toLocaleString()} gil
                               </span>
                             </div>
-                            <span className="font-semibold text-[var(--xiv-blue)]">
-                              {m.estimatedTotal?.toLocaleString()} gil
-                            </span>
-                          </div>
-                        ))}
+                          )
+                        })}
                       {genAllPreview.filter((m) => m.skipped).length > 0 && (
                         <div className="pt-2 border-t border-border">
                           <p className="text-xs text-muted-foreground mb-1">Skipped</p>
@@ -648,7 +626,7 @@ export default function PayrollPage() {
                                 key={m.membershipId}
                                 className="flex items-center justify-between p-2 text-xs text-muted-foreground"
                               >
-                                <span>{m.name}</span>
+                                <span>{displayNameForMembership(m.membershipId)}</span>
                                 <span>{m.skipReason === "no_shifts" ? "No shifts" : "No rate set"}</span>
                               </div>
                             ))}
@@ -683,7 +661,6 @@ export default function PayrollPage() {
                   setGenStaff("")
                   setGenPeriodStart("")
                   setGenPeriodEnd("")
-                  setGenRateOverride("")
                   setGenBonus("")
                   setGenNotes("")
                 }
@@ -792,27 +769,10 @@ export default function PayrollPage() {
                                     {format(new Date(shift.actualStart!), "MMM d, h:mm a")} –{" "}
                                     {format(new Date(shift.actualEnd!), "h:mm a")}
                                   </span>
-                                  <span className="font-mono">{shift.hoursWorked}h</span>
+                                  <span className="font-mono">{formatHours(shift.hoursWorked)}h</span>
                                 </div>
                               ))}
                             </div>
-                          </div>
-
-                          {/* Rate Override */}
-                          <div className="space-y-2">
-                            <Label>Hourly Rate Override (Optional)</Label>
-                            <Input
-                              type="number"
-                              step="0.01"
-                              placeholder="Leave blank to use per-shift resolved rates"
-                              value={genRateOverride}
-                              onChange={(e) => setGenRateOverride(e.target.value)}
-                            />
-                            <p className="text-xs text-muted-foreground">
-                              By default, pay is resolved per shift (a shift&apos;s tagged role rate, then the staff member&apos;s
-                              own rate, then their primary role&apos;s rate). Setting a value here overrides all of that and
-                              pays every hour in this period at this one flat rate.
-                            </p>
                           </div>
 
                           {/* Bonus */}
@@ -841,16 +801,20 @@ export default function PayrollPage() {
                           <div className="p-4 bg-muted rounded-lg space-y-1">
                             <div className="flex justify-between text-sm">
                               <span>Total Hours</span>
-                              <span className="font-mono">{genPreview.summary.totalHours}h</span>
+                              <span className="font-mono">{formatHours(genPreview.summary.totalHours)}h</span>
                             </div>
                             <div className="flex justify-between text-sm">
                               <span>Rate</span>
-                              <span className="font-mono">
-                                {genRateOverride && genEffectiveRate !== null
-                                  ? `${genEffectiveRate} Gil/hr (override)`
-                                  : "Resolved per shift"}
-                              </span>
+                              <span className="font-mono">Resolved per shift</span>
                             </div>
+                            {genPreview.summary.entryCount > 1 && (
+                              <div className="flex justify-between text-sm text-muted-foreground">
+                                <span>Entries</span>
+                                <span className="font-mono">
+                                  {genPreview.summary.entryCount} (different rates in this period)
+                                </span>
+                              </div>
+                            )}
                             {genBonus && parseFloat(genBonus) > 0 && (
                               <div className="flex justify-between text-sm">
                                 <span>Bonus</span>
@@ -862,12 +826,13 @@ export default function PayrollPage() {
                               <span className="text-lg">{Math.round(genEstimatedTotal).toLocaleString()} Gil</span>
                             </div>
                           </div>
-                          {!genRateOverride && genPreview.summary.unresolvedShiftCount > 0 && (
-                            <p className="text-xs text-amber-500">
-                              {genPreview.summary.unresolvedShiftCount} shift
-                              {genPreview.summary.unresolvedShiftCount !== 1 ? "s" : ""} skipped — no rate could be
-                              resolved (no role rate on the shift, no personal rate, no primary role rate). They&apos;ll stay
-                              eligible for a future payroll run once a rate exists.
+                          {genPreview.summary.unresolvedShiftCount > 0 && (
+                            <p className="text-xs text-destructive">
+                              Blocked: {genPreview.summary.unresolvedShiftCount} shift
+                              {genPreview.summary.unresolvedShiftCount !== 1 ? "s" : ""} in this period{" "}
+                              {genPreview.summary.unresolvedShiftCount !== 1 ? "have" : "has"} no resolvable rate (no
+                              role rate on the shift, no personal rate, no primary role rate). Set a rate on the
+                              position or member before generating.
                             </p>
                           )}
                         </>
@@ -885,9 +850,7 @@ export default function PayrollPage() {
                     disabled={
                       !genPreview ||
                       genPreview.shifts.length === 0 ||
-                      (genRateOverride
-                        ? genEffectiveRate === null || genEffectiveRate <= 0
-                        : genPreview.summary.estimatedTotal === null) ||
+                      genPreview.summary.unresolvedShiftCount > 0 ||
                       genCreating
                     }
                   >
@@ -901,7 +864,7 @@ export default function PayrollPage() {
               <DialogTrigger asChild>
                 <Button>
                   <Plus className="mr-2 h-4 w-4" />
-                  Add Manual Entry
+                  Add Payroll Entry
                 </Button>
               </DialogTrigger>
               <DialogContent className="max-w-2xl">
@@ -911,61 +874,27 @@ export default function PayrollPage() {
                 </DialogHeader>
 
                 <div className="space-y-4">
-                  {/* Manual Entry Toggle */}
-                  <div className="flex items-center space-x-2 p-4 bg-muted rounded-lg border-2 border-border">
-                    <Checkbox
-                      id="manual-entry"
-                      checked={isManualEntry}
-                      onCheckedChange={(checked) => {
-                        setIsManualEntry(checked as boolean)
-                        // Clear staff selection when switching to manual entry
-                        if (checked) setSelectedStaff("")
-                        // Clear manual name when switching to staff selection
-                        else setManualEntryName("")
-                      }}
-                    />
-                    <Label
-                      htmlFor="manual-entry"
-                      className="text-sm font-medium leading-none peer-disabled:cursor-not-allowed peer-disabled:opacity-70 cursor-pointer"
-                    >
-                      Manual Entry (for temp DJs, contractors, etc.)
-                    </Label>
+                  {/* Staff Selection */}
+                  <div className="space-y-2">
+                    <Label>Staff Member</Label>
+                    <Select value={selectedStaff} onValueChange={setSelectedStaff}>
+                      <SelectTrigger>
+                        <SelectValue placeholder="Select staff member" />
+                      </SelectTrigger>
+                      <SelectContent>
+                        {staff.map((member) => (
+                          <SelectItem key={member.id} value={member.id}>
+                            {resolveDisplayName({
+                              characterName: member.user?.characters?.[0]?.characterName,
+                              nickname: member.nickname,
+                              displayName: member.user?.displayName,
+                              discordName: member.user?.name,
+                            })}
+                          </SelectItem>
+                        ))}
+                      </SelectContent>
+                    </Select>
                   </div>
-
-                  {/* Conditional: Staff Selection OR Manual Name Input */}
-                  {!isManualEntry ? (
-                    <div className="space-y-2">
-                      <Label>Staff Member</Label>
-                      <Select value={selectedStaff} onValueChange={setSelectedStaff}>
-                        <SelectTrigger>
-                          <SelectValue placeholder="Select staff member" />
-                        </SelectTrigger>
-                        <SelectContent>
-                          {staff.map((member) => (
-                            <SelectItem key={member.id} value={member.id}>
-                              {resolveDisplayName({
-                                characterName: member.user?.characters?.[0]?.characterName,
-                                nickname: member.nickname,
-                                displayName: member.user?.displayName,
-                                discordName: member.user?.name,
-                              })}
-                            </SelectItem>
-                          ))}
-                        </SelectContent>
-                      </Select>
-                    </div>
-                  ) : (
-                    <div className="space-y-2">
-                      <Label>Name</Label>
-                      <Input
-                        type="text"
-                        placeholder="Enter name (e.g., John Doe)"
-                        value={manualEntryName}
-                        onChange={(e) => setManualEntryName(e.target.value)}
-                      />
-                      <p className="text-sm text-muted-foreground">Enter the name of the temporary DJ or contractor</p>
-                    </div>
-                  )}
 
                   {/* Payment Type */}
                   <div className="space-y-2">
@@ -1059,14 +988,7 @@ export default function PayrollPage() {
                   </Button>
                   <Button
                     onClick={handleCreatePayroll}
-                    disabled={
-                      (!isManualEntry && !selectedStaff) ||
-                      (isManualEntry && !manualEntryName.trim()) ||
-                      !baseRate ||
-                      !periodStart ||
-                      !periodEnd ||
-                      isCreating
-                    }
+                    disabled={!selectedStaff || !baseRate || !periodStart || !periodEnd || isCreating}
                   >
                     {isCreating ? "Creating..." : "Create Entry"}
                   </Button>
@@ -1203,11 +1125,11 @@ export default function PayrollPage() {
               className="w-36 h-8 text-xs"
               placeholder="To"
             />
-            {(dateFrom || dateTo) && (
+            {(dateFrom !== defaultDateFrom() || dateTo !== defaultDateTo()) && (
               <button
                 onClick={() => {
-                  setDateFrom("")
-                  setDateTo("")
+                  setDateFrom(defaultDateFrom())
+                  setDateTo(defaultDateTo())
                 }}
                 className="text-xs text-[var(--fg-faint)] hover:text-foreground transition-colors"
               >
@@ -1239,14 +1161,9 @@ export default function PayrollPage() {
               </thead>
               <tbody>
                 {filteredEntries.map((entry) => {
-                  const name = entry.isManualEntry
-                    ? entry.manualEntryName || "Unknown"
-                    : resolveDisplayName({
-                        characterName: entry.membership?.user?.characters?.[0]?.characterName,
-                        nickname: entry.membership?.nickname,
-                        displayName: entry.membership?.user?.displayName,
-                        discordName: entry.membership?.user?.name,
-                      })
+                  const name =
+                    entry.membershipId !== null ? displayNameForMembership(entry.membershipId) : "Unknown"
+                  const image = entry.membershipId !== null ? staffForMembership(entry.membershipId)?.user?.image : null
                   const initials = name.charAt(0).toUpperCase()
                   const total = Math.round(parseFloat(entry.totalAmount))
                   return (
@@ -1256,14 +1173,13 @@ export default function PayrollPage() {
                         <td className="xiv-td">
                           <div className="flex items-center gap-3">
                             <Avatar className="w-8 h-8">
-                              <AvatarImage src={entry.membership?.user?.image || undefined} />
+                              <AvatarImage src={image || undefined} />
                               <AvatarFallback className="text-[0.65rem] font-bold bg-gradient-to-br from-[var(--xiv-blue)] to-blue-700 text-white">
                                 {initials}
                               </AvatarFallback>
                             </Avatar>
                             <div>
                               <p className="text-sm font-medium">{name}</p>
-                              {entry.isManualEntry && <p className="text-[0.68rem] text-[var(--fg-faint)]">Manual</p>}
                             </div>
                           </div>
                         </td>
@@ -1273,7 +1189,7 @@ export default function PayrollPage() {
                         </td>
                         {/* Hours */}
                         <td className="px-5 py-3.5 text-sm text-muted-foreground hidden md:table-cell">
-                          {entry.hoursWorked ? `${entry.hoursWorked}h` : "—"}
+                          {entry.hoursWorked ? `${formatHours(Number(entry.hoursWorked))}h` : "—"}
                         </td>
                         {/* Total */}
                         <td className="xiv-td">
@@ -1333,20 +1249,33 @@ export default function PayrollPage() {
                                 </Button>
                               </AlertDialogTrigger>
                               <AlertDialogContent>
-                                <AlertDialogHeader>
-                                  <AlertDialogTitle>Delete this payroll entry?</AlertDialogTitle>
-                                  <AlertDialogDescription>
-                                    {entry.isPaid
-                                      ? "This entry is marked PAID. Deleting it removes the record of that payment."
-                                      : "This cannot be undone."}
-                                  </AlertDialogDescription>
-                                </AlertDialogHeader>
-                                <AlertDialogFooter>
-                                  <AlertDialogCancel>Cancel</AlertDialogCancel>
-                                  <AlertDialogAction onClick={() => handleDeleteEntry(entry.id)}>
-                                    Delete
-                                  </AlertDialogAction>
-                                </AlertDialogFooter>
+                                {entry.isPaid ? (
+                                  <>
+                                    <AlertDialogHeader>
+                                      <AlertDialogTitle>Can&apos;t delete a paid entry</AlertDialogTitle>
+                                      <AlertDialogDescription>
+                                        Paid entries can&apos;t be deleted. Mark this as unpaid first, then you&apos;ll
+                                        be able to delete it.
+                                      </AlertDialogDescription>
+                                    </AlertDialogHeader>
+                                    <AlertDialogFooter>
+                                      <AlertDialogCancel>Got it</AlertDialogCancel>
+                                    </AlertDialogFooter>
+                                  </>
+                                ) : (
+                                  <>
+                                    <AlertDialogHeader>
+                                      <AlertDialogTitle>Delete this payroll entry?</AlertDialogTitle>
+                                      <AlertDialogDescription>This cannot be undone.</AlertDialogDescription>
+                                    </AlertDialogHeader>
+                                    <AlertDialogFooter>
+                                      <AlertDialogCancel>Cancel</AlertDialogCancel>
+                                      <AlertDialogAction onClick={() => handleDeleteEntry(entry.id)}>
+                                        Delete
+                                      </AlertDialogAction>
+                                    </AlertDialogFooter>
+                                  </>
+                                )}
                               </AlertDialogContent>
                             </AlertDialog>
                           </div>

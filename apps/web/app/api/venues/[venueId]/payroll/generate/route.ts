@@ -4,411 +4,319 @@ import { z } from "zod"
 import { authOptions } from "@/lib/auth"
 import { prisma } from "@/lib/prisma"
 import { withRateLimit } from "@/lib/middleware/with-rate-limit"
-import { fetchRoleRates, resolveShiftRates } from "@/lib/payroll-rates"
-import { resolveDisplayName } from "@/lib/display-name"
-import { Prisma } from "@/generated/prisma/client"
-const Decimal = Prisma.Decimal
-type Decimal = InstanceType<typeof Prisma.Decimal>
+import { getValidXvmApiToken, xvmApiErrorResponse } from "@/lib/api/xvm-api-store"
+import {
+  listShiftsChunked,
+  listPositions,
+  listPayrollChunked,
+  createPayrollEntry,
+  getVenue,
+  type ShiftRow,
+} from "@/lib/api/xvm-api"
+import { dollarsToMinorUnits, minorUnitsToDollars, minutesToHours } from "@/lib/api/position-convert"
+import { endOfLocalDayUtc } from "@/lib/local-day"
+import {
+  resolveShiftRate,
+  isShiftCovered,
+  groupByRate,
+  groupPeriod,
+  totalMinutesWorked,
+  hourlyAmountMinor,
+  type ResolvedShift,
+  type PositionRate,
+} from "@/lib/payroll-generate"
 
-const payrollGenerateOptionalsSchema = z.object({
-  baseRate: z
-    .union([
-      z.null(),
-      z.coerce
-        .number()
-        .min(0, "Invalid base rate. Must be a positive number")
-        .max(999999999, "Invalid base rate. Must be a positive number"),
-    ])
-    .optional(),
-  bonusAmount: z
-    .union([
-      z.null(),
-      z.coerce
-        .number()
-        .min(0, "Invalid bonus amount. Must be a positive number")
-        .max(999999999, "Invalid bonus amount. Must be a positive number"),
-    ])
-    .optional(),
-  notes: z.string().max(10000, "Notes must be 10,000 characters or less").optional().nullable(),
-})
+async function requireXvmVenueId(venueId: string) {
+  const venue = await prisma.venue.findFirst({
+    where: { OR: [{ id: venueId }, { slug: venueId }] },
+    select: { xvmApiVenueId: true },
+  })
+  if (!venue?.xvmApiVenueId) {
+    return {
+      error: NextResponse.json(
+        { error: "not_connected", message: "This venue hasn't been connected to xvm-api yet." },
+        { status: 409 }
+      ),
+    }
+  }
+  return { xvmApiVenueId: venue.xvmApiVenueId }
+}
 
 /**
- * POST /api/venues/[venueId]/payroll/generate
- *
- * Generate a payroll entry from completed, unpaid shifts.
- * Aggregates shifts for a staff member within a date range,
- * calculates total hours, and creates a linked PayrollEntry.
- *
- * Body: { membershipId, periodStart, periodEnd, baseRate?, bonusAmount?, notes? }
- * - baseRate defaults to the membership's hourlyRate if not provided
+ * Eligible shifts: completed, belong to this membership, actual_end inside the
+ * window, and NOT already covered by an existing payroll entry's period for this
+ * membership (window-overlap is the only eligibility signal available - xvm-api
+ * has no explicit shift-to-payroll-entry link).
  */
-export const POST = withRateLimit<{ params: Promise<{ venueId: string }> }>(
-  async (request: NextRequest, context) => {
-    if (!context?.params) {
-      return NextResponse.json({ error: "Invalid request" }, { status: 400 })
-    }
-    const { params } = context
-    try {
-      const session = await getServerSession(authOptions)
-      if (!session?.user?.id) {
-        return NextResponse.json({ error: "Unauthorized" }, { status: 401 })
-      }
+async function findEligibleShifts(
+  token: string,
+  xvmApiVenueId: string,
+  membershipId: number,
+  from: string,
+  to: string,
+  timeZone: string
+): Promise<ShiftRow[]> {
+  const fromIso = new Date(from).toISOString()
+  const toIso = endOfLocalDayUtc(to, timeZone).toISOString()
+  // Existing entries are fetched up to *now*, not just the requested window's
+  // end: an entry's period_end can fall after the window it was generated for
+  // (groupPeriod sets it to the group's own last shift time), so bounding this
+  // query to the same window can miss a real covering entry and pay its
+  // shifts a second time. Entries can only ever have a period_end in the past
+  // (they're built from completed shifts), so "now" is always wide enough.
+  const entriesToIso = new Date().toISOString()
 
-      const { venueId } = await params
+  const [shifts, existingEntries] = await Promise.all([
+    listShiftsChunked(token, xvmApiVenueId, { from: fromIso, to: toIso }),
+    listPayrollChunked(token, xvmApiVenueId, { from: fromIso, to: entriesToIso, membershipId }),
+  ])
 
-      // Look up venue by slug or ID
-      const venue = await prisma.venue.findFirst({
-        where: {
-          OR: [{ id: venueId }, { slug: venueId }],
-        },
-      })
+  const completed = shifts.filter(
+    (s) =>
+      s.status === "completed" &&
+      s.membership_id === membershipId &&
+      s.actual_start !== null &&
+      s.actual_end !== null
+  )
 
-      if (!venue) {
-        return NextResponse.json({ error: "Venue not found" }, { status: 404 })
-      }
+  const entryWindows = existingEntries.map((e) => ({ periodStart: e.period_start, periodEnd: e.period_end }))
+  return completed.filter((shift) => !isShiftCovered(new Date(shift.actual_end!).getTime(), entryWindows))
+}
 
-      // Check permissions - OWNER or MANAGER only
-      const callerMembership = await prisma.membership.findFirst({
-        where: {
-          userId: session.user.id,
-          venueId: venue.id,
-        },
-      })
+async function resolveRates(token: string, xvmApiVenueId: string, shifts: ShiftRow[]): Promise<ResolvedShift[]> {
+  const positions = await listPositions(token, xvmApiVenueId)
+  const positionById = new Map<number, PositionRate>(
+    positions.map((p) => [p.id, { id: p.id, hourlyRateMinor: p.hourly_rate_minor }])
+  )
 
-      if (!callerMembership) {
-        return NextResponse.json({ error: "You don't have access to this venue" }, { status: 403 })
-      }
+  return shifts.map((shift) =>
+    resolveShiftRate(
+      {
+        id: shift.id,
+        actualStart: shift.actual_start!,
+        actualEnd: shift.actual_end!,
+        minutesWorked: shift.worked_minutes ?? 0,
+        positionId: shift.position_id,
+      },
+      positionById
+    )
+  )
+}
 
-      if (callerMembership.role !== "OWNER" && callerMembership.role !== "MANAGER") {
-        return NextResponse.json({ error: "Only owners and managers can generate payroll" }, { status: 403 })
-      }
+function summarize(resolved: ResolvedShift[]) {
+  const unresolved = resolved.filter((r) => r.rateMinorPerHour === null)
+  const totalHours = resolved.reduce((sum, r) => sum + r.hours, 0)
+  // Ceiling per rate-group over the group's total minutes, mirroring exactly
+  // what the POST below actually creates - a per-shift sum here previously
+  // showed a different total than the entries it was previewing.
+  const groups = groupByRate(resolved.filter((r) => r.rateMinorPerHour !== null))
+  const totalAmountMinor = [...groups.entries()].reduce(
+    (sum, [rate, group]) => sum + hourlyAmountMinor(rate, totalMinutesWorked(group)),
+    0
+  )
+  return { unresolved, totalHours, totalAmountMinor }
+}
 
-      const body = await request.json()
-      const { membershipId, periodStart, periodEnd } = body
+const generateSchema = z
+  .object({
+    membershipId: z.number().int().positive(),
+    periodStart: z.string(),
+    periodEnd: z.string(),
+    bonusAmount: z.number().min(0).max(999999999).optional(),
+    notes: z.string().max(10000).optional().nullable(),
+  })
+  .strict()
+  .refine((data) => new Date(data.periodEnd) > new Date(data.periodStart), {
+    message: "Period end must be after period start",
+    path: ["periodEnd"],
+  })
 
-      let baseRate: number | null | undefined, bonusAmount: number | null | undefined, notes: string | null | undefined
-      try {
-        const parsedOptionals = payrollGenerateOptionalsSchema.parse(body)
-        baseRate = parsedOptionals.baseRate
-        bonusAmount = parsedOptionals.bonusAmount
-        notes = parsedOptionals.notes
-      } catch (error) {
-        if (error instanceof z.ZodError) {
-          return NextResponse.json({ error: "Validation error", details: error.issues }, { status: 400 })
-        }
-        throw error
-      }
-
-      // Validate required fields
-      if (!membershipId || !periodStart || !periodEnd) {
-        return NextResponse.json({ error: "membershipId, periodStart, and periodEnd are required" }, { status: 400 })
-      }
-
-      const startDate = new Date(periodStart)
-      const endDate = new Date(periodEnd)
-      endDate.setUTCHours(23, 59, 59, 999)
-
-      if (isNaN(startDate.getTime()) || isNaN(endDate.getTime())) {
-        return NextResponse.json({ error: "Invalid date format" }, { status: 400 })
-      }
-      if (endDate < startDate) {
-        return NextResponse.json({ error: "Period end must be after period start" }, { status: 400 })
-      }
-
-      // Fetch the staff member's membership (includes hourlyRate)
-      const staffMembership = await prisma.membership.findFirst({
-        where: {
-          id: membershipId,
-          venueId: venue.id,
-        },
-      })
-
-      if (!staffMembership) {
-        return NextResponse.json({ error: "Staff member not found in this venue" }, { status: 404 })
-      }
-
-      // Find completed shifts with no payroll entry in the date range
-      const eligibleShifts = await prisma.shift.findMany({
-        where: {
-          membershipId,
-          venueId: venue.id,
-          status: "COMPLETED",
-          payrollEntryId: null,
-          actualEnd: {
-            gte: startDate,
-            lte: endDate,
-          },
-        },
-        orderBy: { actualStart: "asc" },
-      })
-
-      if (eligibleShifts.length === 0) {
-        return NextResponse.json({ error: "No unpaid completed shifts found in this period" }, { status: 400 })
-      }
-
-      let totalHours: Decimal
-      let totalAmount: Decimal
-      let linkedShiftIds: string[]
-
-      if (baseRate !== undefined && baseRate !== null) {
-        // Explicit manual override: applies flat to every eligible shift, same as before —
-        // this is the one path that intentionally bypasses per-shift role resolution.
-        const overrideRate = new Decimal(baseRate)
-        totalHours = new Decimal(0)
-        for (const shift of eligibleShifts) {
-          if (shift.actualStart && shift.actualEnd) {
-            const hours = (shift.actualEnd.getTime() - shift.actualStart.getTime()) / (1000 * 60 * 60)
-            totalHours = totalHours.add(new Decimal(Math.round(hours * 100) / 100))
-          }
-        }
-        totalAmount = overrideRate.mul(totalHours)
-        linkedShiftIds = eligibleShifts.map((s) => s.id)
-      } else {
-        const roleIds = [...eligibleShifts.map((s) => s.roleId), staffMembership.roleId]
-        const roleRates = await fetchRoleRates(roleIds)
-        const resolution = resolveShiftRates(eligibleShifts, staffMembership, roleRates)
-
-        if (resolution.includedShiftIds.length === 0) {
-          return NextResponse.json(
-            {
-              error:
-                "No hourly rate could be resolved for any shift in this period (no personal rate, no role rate on the shifts, and no primary role rate set)",
-            },
-            { status: 400 }
-          )
-        }
-
-        totalHours = resolution.totalHours
-        totalAmount = resolution.totalAmount
-        linkedShiftIds = resolution.includedShiftIds
-      }
-
-      // Informational effective rate for display — computed before any bonus is folded
-      // in, same as the original flat-rate behavior (bonus is a separate line item, not
-      // part of the hourly rate). The real math happened per-shift above (unless the
-      // manual override path ran, in which case it's just that flat rate).
-      const effectiveRate = totalHours.gt(0) ? totalAmount.div(totalHours) : new Decimal(0)
-
-      if (bonusAmount) {
-        totalAmount = totalAmount.add(new Decimal(bonusAmount))
-      }
-
-      // Create payroll entry and link shifts in a single transaction
-      const result = await prisma.$transaction(async (tx) => {
-        const payrollEntry = await tx.payrollEntry.create({
-          data: {
-            venueId: venue.id,
-            membershipId,
-            paymentType: "HOURLY",
-            baseRate: new Decimal(effectiveRate),
-            hoursWorked: totalHours,
-            bonusAmount: bonusAmount ? new Decimal(bonusAmount) : null,
-            totalAmount,
-            periodStart: startDate,
-            periodEnd: endDate,
-            notes: notes || null,
-          },
-          include: {
-            membership: {
-              include: {
-                user: {
-                  select: {
-                    id: true,
-                    name: true,
-                    image: true,
-                    displayName: true,
-                    characters: {
-                      orderBy: [{ isPrimary: "desc" }, { createdAt: "asc" }],
-                      take: 1,
-                      select: { characterName: true },
-                    },
-                  },
-                },
-                customRole: true,
-              },
-            },
-          },
-        })
-
-        // Link only the shifts that actually resolved to a rate — see the rate
-        // resolution above for why this can be fewer than eligibleShifts.length.
-        await tx.shift.updateMany({
-          where: {
-            id: { in: linkedShiftIds },
-          },
-          data: {
-            payrollEntryId: payrollEntry.id,
-          },
-        })
-
-        return payrollEntry
-      })
-
-      return NextResponse.json(
-        {
-          ...result,
-          shiftsLinked: linkedShiftIds.length,
-          shiftsExcluded: eligibleShifts.length - linkedShiftIds.length,
-        },
-        { status: 201 }
-      )
-    } catch (error) {
-      console.error("Error generating payroll from shifts:", error)
-      return NextResponse.json({ error: "Internal server error" }, { status: 500 })
-    }
-  },
-  { requests: 10, window: "1 m" }
-)
-
-/**
- * GET /api/venues/[venueId]/payroll/generate?membershipId=X&periodStart=Y&periodEnd=Z
- *
- * Preview: returns eligible shifts and calculated totals without creating anything.
- * Used by the UI to show what will be generated before confirming.
- */
 export const GET = withRateLimit<{ params: Promise<{ venueId: string }> }>(
   async (request: NextRequest, context) => {
-    if (!context?.params) {
-      return NextResponse.json({ error: "Invalid request" }, { status: 400 })
+    if (!context?.params) return NextResponse.json({ error: "Invalid request" }, { status: 400 })
+
+    const session = await getServerSession(authOptions)
+    if (!session?.user?.id) return NextResponse.json({ error: "Unauthorized" }, { status: 401 })
+
+    const token = await getValidXvmApiToken(session.user.id)
+    if (!token) return NextResponse.json({ error: "xvm-api link not established yet" }, { status: 503 })
+
+    const { venueId } = await context.params
+    const gate = await requireXvmVenueId(venueId)
+    if (gate.error) return gate.error
+
+    const sp = request.nextUrl.searchParams
+    const membershipIdParam = sp.get("membershipId")
+    const periodStart = sp.get("periodStart")
+    const periodEnd = sp.get("periodEnd")
+    if (!membershipIdParam || !periodStart || !periodEnd) {
+      return NextResponse.json({ error: "membershipId, periodStart, and periodEnd are required" }, { status: 400 })
     }
-    const { params } = context
+    const membershipId = Number(membershipIdParam)
+    if (!Number.isInteger(membershipId) || membershipId <= 0) {
+      return NextResponse.json({ error: "membershipId must be a positive integer" }, { status: 400 })
+    }
+
     try {
-      const session = await getServerSession(authOptions)
-      if (!session?.user?.id) {
-        return NextResponse.json({ error: "Unauthorized" }, { status: 401 })
-      }
-
-      const { venueId } = await params
-
-      const venue = await prisma.venue.findFirst({
-        where: {
-          OR: [{ id: venueId }, { slug: venueId }],
-        },
-      })
-
-      if (!venue) {
-        return NextResponse.json({ error: "Venue not found" }, { status: 404 })
-      }
-
-      const callerMembership = await prisma.membership.findFirst({
-        where: {
-          userId: session.user.id,
-          venueId: venue.id,
-        },
-      })
-
-      if (!callerMembership) {
-        return NextResponse.json({ error: "You don't have access to this venue" }, { status: 403 })
-      }
-
-      if (callerMembership.role !== "OWNER" && callerMembership.role !== "MANAGER") {
-        return NextResponse.json({ error: "Only owners and managers can generate payroll" }, { status: 403 })
-      }
-
-      const searchParams = request.nextUrl.searchParams
-      const membershipId = searchParams.get("membershipId")
-      const periodStart = searchParams.get("periodStart")
-      const periodEnd = searchParams.get("periodEnd")
-
-      if (!membershipId || !periodStart || !periodEnd) {
-        return NextResponse.json({ error: "membershipId, periodStart, and periodEnd are required" }, { status: 400 })
-      }
-
-      const startDate = new Date(periodStart)
-      const endDate = new Date(periodEnd)
-      endDate.setUTCHours(23, 59, 59, 999)
-
-      if (isNaN(startDate.getTime()) || isNaN(endDate.getTime())) {
-        return NextResponse.json({ error: "Invalid date format" }, { status: 400 })
-      }
-
-      // Fetch staff membership for default rate
-      const staffMembership = await prisma.membership.findFirst({
-        where: {
-          id: membershipId,
-          venueId: venue.id,
-        },
-        include: {
-          user: {
-            select: {
-              id: true,
-              name: true,
-              displayName: true,
-              image: true,
-              characters: {
-                orderBy: [{ isPrimary: "desc" }, { createdAt: "asc" }],
-                take: 1,
-                select: { characterName: true },
-              },
-            },
-          },
-        },
-      })
-
-      if (!staffMembership) {
-        return NextResponse.json({ error: "Staff member not found in this venue" }, { status: 404 })
-      }
-
-      // Find eligible shifts
-      const eligibleShifts = await prisma.shift.findMany({
-        where: {
-          membershipId,
-          venueId: venue.id,
-          status: "COMPLETED",
-          payrollEntryId: null,
-          actualEnd: {
-            gte: startDate,
-            lte: endDate,
-          },
-        },
-        orderBy: { actualStart: "asc" },
-      })
-
-      const roleIds = [...eligibleShifts.map((s) => s.roleId), staffMembership.roleId]
-      const roleRates = await fetchRoleRates(roleIds)
-      const resolution = resolveShiftRates(eligibleShifts, staffMembership, roleRates)
-      const resolvedById = new Map(resolution.resolved.map((r) => [r.id, r]))
-
-      const shiftDetails = eligibleShifts.map((shift) => {
-        const r = resolvedById.get(shift.id)
-        return {
-          id: shift.id,
-          scheduledStart: shift.scheduledStart.toISOString(),
-          scheduledEnd: shift.scheduledEnd.toISOString(),
-          actualStart: shift.actualStart?.toISOString() ?? null,
-          actualEnd: shift.actualEnd?.toISOString() ?? null,
-          hoursWorked: r ? Number(r.hours) : 0,
-          resolvedRate: r?.rate ? Number(r.rate) : null,
-          storedHoursWorked: shift.hoursWorked ? Number(shift.hoursWorked) : null,
-        }
-      })
-
-      const defaultRate = staffMembership.hourlyRate ? Number(staffMembership.hourlyRate) : null
+      const venue = await getVenue(token, gate.xvmApiVenueId!)
+      const eligible = await findEligibleShifts(
+        token,
+        gate.xvmApiVenueId!,
+        membershipId,
+        periodStart,
+        periodEnd,
+        venue.timezone
+      )
+      const resolved = await resolveRates(token, gate.xvmApiVenueId!, eligible)
+      const { unresolved, totalHours, totalAmountMinor } = summarize(resolved)
+      const entryCount = groupByRate(resolved.filter((r) => r.rateMinorPerHour !== null)).size
 
       return NextResponse.json({
-        staff: {
-          membershipId: staffMembership.id,
-          name: resolveDisplayName({
-            characterName: staffMembership.user?.characters?.[0]?.characterName,
-            nickname: staffMembership.nickname,
-            displayName: staffMembership.user?.displayName,
-            discordName: staffMembership.user?.name,
-          }),
-          image: staffMembership.user?.image,
-          defaultHourlyRate: defaultRate,
-        },
-        shifts: shiftDetails,
+        shifts: resolved.map((r) => ({
+          id: r.shift.id,
+          actualStart: r.shift.actualStart,
+          actualEnd: r.shift.actualEnd,
+          hoursWorked: r.hours,
+          resolvedRate: r.rateMinorPerHour !== null ? minorUnitsToDollars(r.rateMinorPerHour) : null,
+        })),
         summary: {
-          shiftCount: eligibleShifts.length,
-          totalHours: Number(resolution.totalHours),
-          estimatedTotal: resolution.totalHours.gt(0) ? Number(resolution.totalAmount) : null,
-          unresolvedShiftCount: resolution.excludedShiftIds.length,
+          shiftCount: eligible.length,
+          totalHours,
+          estimatedTotal: unresolved.length === 0 ? minorUnitsToDollars(totalAmountMinor) : null,
+          unresolvedShiftCount: unresolved.length,
+          entryCount,
         },
       })
-    } catch (error) {
-      console.error("Error previewing payroll generation:", error)
-      return NextResponse.json({ error: "Internal server error" }, { status: 500 })
+    } catch (err) {
+      return xvmApiErrorResponse(err, session.user.id, "[payroll/generate] GET error")
     }
   },
   { requests: 30, window: "1 m" }
+)
+
+export const POST = withRateLimit<{ params: Promise<{ venueId: string }> }>(
+  async (request: NextRequest, context) => {
+    if (!context?.params) return NextResponse.json({ error: "Invalid request" }, { status: 400 })
+
+    const session = await getServerSession(authOptions)
+    if (!session?.user?.id) return NextResponse.json({ error: "Unauthorized" }, { status: 401 })
+
+    const token = await getValidXvmApiToken(session.user.id)
+    if (!token) return NextResponse.json({ error: "xvm-api link not established yet" }, { status: 503 })
+
+    const { venueId } = await context.params
+    const gate = await requireXvmVenueId(venueId)
+    if (gate.error) return gate.error
+
+    let data: z.infer<typeof generateSchema>
+    try {
+      data = generateSchema.parse(await request.json())
+    } catch (err) {
+      if (err instanceof z.ZodError) {
+        return NextResponse.json({ error: "Invalid request", details: err.flatten() }, { status: 400 })
+      }
+      return NextResponse.json({ error: "Invalid request" }, { status: 400 })
+    }
+
+    try {
+      const venue = await getVenue(token, gate.xvmApiVenueId!)
+      const eligible = await findEligibleShifts(
+        token,
+        gate.xvmApiVenueId!,
+        data.membershipId,
+        data.periodStart,
+        data.periodEnd,
+        venue.timezone
+      )
+      if (eligible.length === 0) {
+        return NextResponse.json({ error: "No unpaid completed shifts found in this period" }, { status: 400 })
+      }
+
+      const resolved = await resolveRates(token, gate.xvmApiVenueId!, eligible)
+      const { unresolved } = summarize(resolved)
+
+      if (unresolved.length > 0) {
+        return NextResponse.json(
+          {
+            error: "Some shifts in this period have no resolvable rate",
+            unresolvedShiftIds: unresolved.map((r) => r.shift.id),
+          },
+          { status: 409 }
+        )
+      }
+
+      const groups = [...groupByRate(resolved).entries()]
+      const bonusGroupIndex = groups.reduce((bestIndex, [, shifts], index) => {
+        const bestHours = groups[bestIndex][1].reduce((sum, r) => sum + r.hours, 0)
+        const hours = shifts.reduce((sum, r) => sum + r.hours, 0)
+        return hours > bestHours ? index : bestIndex
+      }, 0)
+
+      const settled = await Promise.allSettled(
+        groups.map(async ([rateMinorPerHour, shifts], index) => {
+          const minutesWorked = totalMinutesWorked(shifts)
+          const { start, end } = groupPeriod(shifts)
+          const row = await createPayrollEntry(token, gate.xvmApiVenueId!, {
+            membership_id: data.membershipId,
+            payment_type: "hourly",
+            base_rate_minor: rateMinorPerHour,
+            minutes_worked: minutesWorked,
+            bonus_amount_minor:
+              index === bonusGroupIndex && data.bonusAmount !== undefined
+                ? (dollarsToMinorUnits(data.bonusAmount) ?? undefined)
+                : undefined,
+            period_start: start,
+            period_end: end,
+            notes: data.notes,
+          })
+          return {
+            id: row.id,
+            totalAmount: minorUnitsToDollars(row.total_amount_minor),
+            hoursWorked: minutesToHours(row.minutes_worked),
+          }
+        })
+      )
+
+      // If a later group's create call fails after an earlier one already
+      // committed, that entry is real and should not be reported as if
+      // nothing happened - list what succeeded and what didn't rather than
+      // throwing a generic error that hides the partial success.
+      const entries: { id: number; totalAmount: number | null; hoursWorked: number | null }[] = []
+      const failedGroups: { rateMinorPerHour: number; error: string }[] = []
+      settled.forEach((result, index) => {
+        if (result.status === "fulfilled") {
+          entries.push(result.value)
+        } else {
+          failedGroups.push({
+            rateMinorPerHour: groups[index][0],
+            error: result.reason instanceof Error ? result.reason.message : String(result.reason),
+          })
+        }
+      })
+
+      // Any non-2xx status makes the existing frontend error path fire (it
+      // only checks response.ok) - a 201 here would look like full success
+      // even with entries missing, so partial failure must not stay in the
+      // 2xx range even though some entries really were created.
+      if (failedGroups.length > 0) {
+        return NextResponse.json(
+          {
+            error:
+              entries.length === 0
+                ? "Payroll generation failed"
+                : "Some pay groups could not be created; the ones that succeeded were not rolled back",
+            entries,
+            failedGroups,
+            shiftsLinked: eligible.length,
+          },
+          { status: 502 }
+        )
+      }
+
+      return NextResponse.json({ entries, shiftsLinked: eligible.length, failedGroups }, { status: 201 })
+    } catch (err) {
+      return xvmApiErrorResponse(err, session.user.id, "[payroll/generate] POST error")
+    }
+  },
+  { requests: 10, window: "1 m" }
 )

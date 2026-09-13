@@ -5,7 +5,21 @@ import { prisma } from "@/lib/prisma"
 import { z } from "zod"
 import { withRateLimit } from "@/lib/middleware/with-rate-limit"
 import { createTransaction, createTransactionSchema, InsufficientStockError } from "@/lib/api/transactions"
-import { Prisma } from "@/generated/prisma/client"
+import { getValidXvmApiToken, getValidXvmApiPersonId, xvmApiErrorResponse } from "@/lib/api/xvm-api-store"
+import { listFinanceTransactions } from "@/lib/api/xvm-api"
+
+async function requireXvmVenueId(venueId: string) {
+  const venue = await prisma.venue.findUnique({ where: { id: venueId }, select: { xvmApiVenueId: true } })
+  if (!venue?.xvmApiVenueId) {
+    return {
+      error: NextResponse.json(
+        { error: "not_connected", message: "This venue hasn't been connected to xvm-api yet." },
+        { status: 409 }
+      ),
+    }
+  }
+  return { xvmApiVenueId: venue.xvmApiVenueId }
+}
 
 export const GET = withRateLimit<{ params: Promise<{ venueId: string }> }>(
   async (request, context) => {
@@ -13,143 +27,107 @@ export const GET = withRateLimit<{ params: Promise<{ venueId: string }> }>(
       return NextResponse.json({ error: "Invalid request" }, { status: 400 })
     }
 
+    const session = await getServerSession(authOptions)
+    if (!session?.user?.id) {
+      return NextResponse.json({ error: "Unauthorized" }, { status: 401 })
+    }
+
+    const { params } = context
+    const { venueId } = await params
+    const { searchParams } = new URL(request.url)
+    // eventId, cursor and limit are accepted but no longer meaningful:
+    // xvm-api's finance transactions endpoint takes a from/to window, not a
+    // Prisma-style cursor, and eventId filtering has no cuid<->int bridge
+    // yet (same gap documented in lib/api/transactions.ts's createTransaction).
+    const serviceId = searchParams.get("serviceId")
+    const startDateParam = searchParams.get("startDate")
+    const endDateParam = searchParams.get("endDate")
+
+    // Validate dates if provided
+    let startDate: Date | undefined
+    let endDate: Date | undefined
+
+    if (startDateParam) {
+      const parsed = Date.parse(startDateParam)
+      if (isNaN(parsed)) {
+        return NextResponse.json({ error: "Invalid start date format" }, { status: 400 })
+      }
+      startDate = new Date(parsed)
+    }
+
+    if (endDateParam) {
+      const parsed = Date.parse(endDateParam)
+      if (isNaN(parsed)) {
+        return NextResponse.json({ error: "Invalid end date format" }, { status: 400 })
+      }
+      endDate = new Date(parsed)
+    }
+
+    // Ensure start date is before end date
+    if (startDate && endDate && startDate >= endDate) {
+      return NextResponse.json({ error: "Start date must be before end date" }, { status: 400 })
+    }
+
+    // Check if user has access to this venue
+    const membership = await prisma.membership.findFirst({
+      where: {
+        userId: session.user.id,
+        venueId,
+        status: "active",
+      },
+    })
+
+    if (!membership) {
+      return NextResponse.json({ error: "You don't have access to this venue" }, { status: 403 })
+    }
+
+    // Get venue settings
+    const venue = await prisma.venue.findUnique({
+      where: { id: venueId },
+      select: { settings: true },
+    })
+
+    const venueSettings = venue?.settings as Record<string, unknown> | undefined
+
+    // Check sales visibility for STAFF members
+    if (membership.role === "STAFF" && venueSettings?.salesVisibility) {
+      const salesVisibility = venueSettings.salesVisibility
+
+      if (salesVisibility === "none") {
+        // Staff have no access to sales page at all
+        return NextResponse.json({ error: "You don't have permission to view sales data" }, { status: 403 })
+      }
+    }
+
+    const token = await getValidXvmApiToken(session.user.id)
+    if (!token) {
+      return NextResponse.json({ error: "xvm-api link not established yet" }, { status: 503 })
+    }
+
+    const gate = await requireXvmVenueId(venueId)
+    if (gate.error) return gate.error
+
     try {
-      const session = await getServerSession(authOptions)
-      if (!session?.user?.id) {
-        return NextResponse.json({ error: "Unauthorized" }, { status: 401 })
-      }
-
-      const { params } = context
-      const { venueId } = await params
-      const { searchParams } = new URL(request.url)
-      const eventId = searchParams.get("eventId")
-      const serviceId = searchParams.get("serviceId")
-      const startDateParam = searchParams.get("startDate")
-      const endDateParam = searchParams.get("endDate")
-      const cursor = searchParams.get("cursor") // For pagination
-      const limit = Math.min(parseInt(searchParams.get("limit") || "50"), 100) // Max 100 items per page
-
-      // Validate dates if provided
-      let startDate: Date | undefined
-      let endDate: Date | undefined
-
-      if (startDateParam) {
-        const parsed = Date.parse(startDateParam)
-        if (isNaN(parsed)) {
-          return NextResponse.json({ error: "Invalid start date format" }, { status: 400 })
-        }
-        startDate = new Date(parsed)
-      }
-
-      if (endDateParam) {
-        const parsed = Date.parse(endDateParam)
-        if (isNaN(parsed)) {
-          return NextResponse.json({ error: "Invalid end date format" }, { status: 400 })
-        }
-        endDate = new Date(parsed)
-      }
-
-      // Ensure start date is before end date
-      if (startDate && endDate && startDate >= endDate) {
-        return NextResponse.json({ error: "Start date must be before end date" }, { status: 400 })
-      }
-
-      // Check if user has access to this venue
-      const membership = await prisma.membership.findFirst({
-        where: {
-          userId: session.user.id,
-          venueId,
-          status: "active",
-        },
+      const from = startDate?.toISOString() ?? new Date(0).toISOString()
+      const to = endDate?.toISOString() ?? new Date().toISOString()
+      let transactions = await listFinanceTransactions(token, gate.xvmApiVenueId!, {
+        from,
+        to,
+        serviceId: serviceId ? Number(serviceId) : undefined,
       })
 
-      if (!membership) {
-        return NextResponse.json({ error: "You don't have access to this venue" }, { status: 403 })
-      }
-
-      // Get venue settings
-      const venue = await prisma.venue.findUnique({
-        where: { id: venueId },
-        select: { settings: true },
-      })
-
-      const venueSettings = venue?.settings as Record<string, unknown> | undefined
-
-      // Check sales visibility for STAFF members
-      if (membership.role === "STAFF" && venueSettings?.salesVisibility) {
-        const salesVisibility = venueSettings.salesVisibility
-
-        if (salesVisibility === "none") {
-          // Staff have no access to sales page at all
-          return NextResponse.json({ error: "You don't have permission to view sales data" }, { status: 403 })
-        }
-      }
-
-      // Build where clause
-      const where: Prisma.TransactionWhereInput = { venueId }
-      if (eventId) where.eventId = eventId
-      if (serviceId) where.serviceId = serviceId
-      if (startDate || endDate) {
-        where.createdAt = {}
-        if (startDate) where.createdAt.gte = startDate
-        if (endDate) where.createdAt.lte = endDate
-      }
-
-      // Apply sales visibility settings for STAFF members
+      // "own" sales visibility restricts STAFF to transactions they
+      // personally recorded. xvm-api's list endpoint has no
+      // recorded_by_person_id query param, so this is filtered client-side
+      // against the caller's own xvm-api person id.
       if (membership.role === "STAFF" && venueSettings?.salesVisibility === "own") {
-        // Staff only see transactions they created
-        where.staffId = session.user.id
+        const personId = await getValidXvmApiPersonId(session.user.id)
+        transactions = transactions.filter((t) => t.recorded_by_person_id === personId)
       }
 
-      // Get transactions with pagination
-      const transactions = await prisma.transaction.findMany({
-        where,
-        include: {
-          service: {
-            select: {
-              id: true,
-              name: true,
-              price: true,
-            },
-          },
-          event: {
-            select: {
-              id: true,
-              title: true,
-            },
-          },
-          staff: {
-            select: {
-              id: true,
-              name: true,
-            },
-          },
-        },
-        orderBy: {
-          createdAt: "desc",
-        },
-        take: limit + 1, // Fetch one extra to determine if there are more results
-        ...(cursor && {
-          cursor: {
-            id: cursor,
-          },
-          skip: 1, // Skip the cursor item itself
-        }),
-      })
-
-      // Check if there are more results
-      const hasMore = transactions.length > limit
-      const paginatedTransactions = hasMore ? transactions.slice(0, limit) : transactions
-      const nextCursor = hasMore ? paginatedTransactions[paginatedTransactions.length - 1]?.id : null
-
-      return NextResponse.json({
-        transactions: paginatedTransactions,
-        nextCursor,
-        hasMore,
-      })
-    } catch (error) {
-      console.error("Error fetching transactions:", error)
-      return NextResponse.json({ error: "Internal server error" }, { status: 500 })
+      return NextResponse.json({ transactions, nextCursor: null, hasMore: false })
+    } catch (err) {
+      return xvmApiErrorResponse(err, session.user.id, "[transactions] GET error")
     }
   },
   { requests: 60, window: "1 m" }

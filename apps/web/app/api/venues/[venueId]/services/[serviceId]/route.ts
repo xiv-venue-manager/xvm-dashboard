@@ -1,152 +1,116 @@
-import { NextRequest, NextResponse } from "next/server"
+import { NextResponse } from "next/server"
 import { getServerSession } from "next-auth"
 import { authOptions } from "@/lib/auth"
-import { prisma } from "@/lib/prisma"
 import { z } from "zod"
+import { prisma } from "@/lib/prisma"
 import { withRateLimit } from "@/lib/middleware/with-rate-limit"
-import { invalidateCache, cacheKeys } from "@/lib/redis-cache"
+import { getValidXvmApiToken, xvmApiErrorResponse } from "@/lib/api/xvm-api-store"
+import { getService, updateService, deleteService } from "@/lib/api/xvm-api"
+import { dollarsToMinorUnits } from "@/lib/api/position-convert"
 import { validators } from "@/lib/validation"
 
 const updateServiceSchema = z.object({
   name: validators.serviceName.optional(),
   description: validators.serviceDescription,
   price: z.number().min(0).optional(),
-  category: validators.serviceCategory,
-  roleIds: z.array(z.string()).optional(),
+  categoryId: z.number().int().positive().nullable().optional(),
   isActive: z.boolean().optional(),
-  linkedItemId: z.number().int().positive().nullable().optional(),
-  linkedItemName: z.string().nullable().optional(),
-  linkedItemIcon: z.number().int().nullable().optional(),
-  stockCount: z.number().int().min(0).nullable().optional(),
 })
+
+async function requireXvmVenueId(venueId: string) {
+  const venue = await prisma.venue.findUnique({ where: { id: venueId }, select: { xvmApiVenueId: true } })
+  if (!venue?.xvmApiVenueId) {
+    return {
+      error: NextResponse.json(
+        { error: "not_connected", message: "This venue hasn't been connected to xvm-api yet." },
+        { status: 409 }
+      ),
+    }
+  }
+  return { xvmApiVenueId: venue.xvmApiVenueId }
+}
 
 export const GET = withRateLimit<{ params: Promise<{ venueId: string; serviceId: string }> }>(
   async (request, context) => {
-    if (!context?.params) {
-      return NextResponse.json({ error: "Invalid request" }, { status: 400 })
+    if (!context?.params) return NextResponse.json({ error: "Invalid request" }, { status: 400 })
+
+    const session = await getServerSession(authOptions)
+    if (!session?.user?.id) {
+      return NextResponse.json({ error: "Unauthorized" }, { status: 401 })
     }
 
+    const { venueId, serviceId } = await context.params
+    const membership = await prisma.membership.findFirst({
+      where: { userId: session.user.id, venueId, status: "active" },
+    })
+    if (!membership) {
+      return NextResponse.json({ error: "You don't have access to this venue" }, { status: 403 })
+    }
+
+    const token = await getValidXvmApiToken(session.user.id)
+    if (!token) {
+      return NextResponse.json({ error: "xvm-api link not established yet" }, { status: 503 })
+    }
+
+    const gate = await requireXvmVenueId(venueId)
+    if (gate.error) return gate.error
+
     try {
-      const session = await getServerSession(authOptions)
-      if (!session?.user?.id) {
-        return NextResponse.json({ error: "Unauthorized" }, { status: 401 })
-      }
-
-      const { params } = context
-      const { venueId, serviceId } = await params
-
-      // Check permissions
-      const membership = await prisma.membership.findFirst({
-        where: {
-          userId: session.user.id,
-          venueId,
-          status: "active",
-        },
-      })
-
-      if (!membership) {
-        return NextResponse.json({ error: "You don't have access to this venue" }, { status: 403 })
-      }
-
-      const service = await prisma.service.findUnique({
-        where: { id: serviceId, venueId },
-        include: {
-          roles: {
-            select: {
-              id: true,
-              name: true,
-              color: true,
-            },
-          },
-          _count: {
-            select: {
-              transactions: true,
-            },
-          },
-        },
-      })
-
-      if (!service) {
-        return NextResponse.json({ error: "Service not found" }, { status: 404 })
-      }
-
+      const service = await getService(token, gate.xvmApiVenueId!, Number(serviceId))
       return NextResponse.json(service)
-    } catch (error) {
-      console.error("Error fetching service:", error)
-      return NextResponse.json({ error: "Internal server error" }, { status: 500 })
+    } catch (err) {
+      return xvmApiErrorResponse(err, session.user.id, "[services/[serviceId]] GET error")
     }
   },
   { requests: 60, window: "1 m" }
 )
 
-export const PUT = withRateLimit<{ params: Promise<{ venueId: string; serviceId: string }> }>(
+export const PATCH = withRateLimit<{ params: Promise<{ venueId: string; serviceId: string }> }>(
   async (request, context) => {
-    if (!context?.params) {
+    if (!context?.params) return NextResponse.json({ error: "Invalid request" }, { status: 400 })
+
+    const session = await getServerSession(authOptions)
+    if (!session?.user?.id) {
+      return NextResponse.json({ error: "Unauthorized" }, { status: 401 })
+    }
+
+    const { venueId, serviceId } = await context.params
+    const membership = await prisma.membership.findFirst({
+      where: { userId: session.user.id, venueId, status: "active" },
+    })
+    if (!membership || !["OWNER", "MANAGER"].includes(membership.role)) {
+      return NextResponse.json({ error: "You don't have permission to update services" }, { status: 403 })
+    }
+
+    const token = await getValidXvmApiToken(session.user.id)
+    if (!token) {
+      return NextResponse.json({ error: "xvm-api link not established yet" }, { status: 503 })
+    }
+
+    const gate = await requireXvmVenueId(venueId)
+    if (gate.error) return gate.error
+
+    let data: z.infer<typeof updateServiceSchema>
+    try {
+      data = updateServiceSchema.parse(await request.json())
+    } catch (err) {
+      if (err instanceof z.ZodError) {
+        return NextResponse.json({ error: "Validation error", details: err.issues }, { status: 400 })
+      }
       return NextResponse.json({ error: "Invalid request" }, { status: 400 })
     }
 
     try {
-      const session = await getServerSession(authOptions)
-      if (!session?.user?.id) {
-        return NextResponse.json({ error: "Unauthorized" }, { status: 401 })
-      }
-
-      const { params } = context
-      const { venueId, serviceId } = await params
-
-      // Check permissions
-      const membership = await prisma.membership.findFirst({
-        where: {
-          userId: session.user.id,
-          venueId,
-          status: "active",
-        },
+      const service = await updateService(token, gate.xvmApiVenueId!, Number(serviceId), {
+        name: data.name,
+        description: data.description,
+        price_minor: data.price !== undefined ? dollarsToMinorUnits(data.price) : undefined,
+        category_id: data.categoryId,
+        is_active: data.isActive,
       })
-
-      if (!membership || !["OWNER", "MANAGER"].includes(membership.role)) {
-        return NextResponse.json({ error: "You don't have permission to update services" }, { status: 403 })
-      }
-
-      const body = await request.json()
-      const { roleIds, ...validatedData } = updateServiceSchema.parse(body)
-
-      const updatedService = await prisma.service.update({
-        where: { id: serviceId, venueId },
-        data: {
-          ...validatedData,
-          roles: roleIds
-            ? {
-                set: roleIds.map((id) => ({ id })),
-              }
-            : undefined,
-        },
-        include: {
-          roles: {
-            select: {
-              id: true,
-              name: true,
-              color: true,
-            },
-          },
-          _count: {
-            select: {
-              transactions: true,
-            },
-          },
-        },
-      })
-
-      // Invalidate services cache
-      await invalidateCache(cacheKeys.venueServices(venueId))
-
-      return NextResponse.json(updatedService)
-    } catch (error) {
-      if (error instanceof z.ZodError) {
-        return NextResponse.json({ error: "Validation error", details: error.issues }, { status: 400 })
-      }
-
-      console.error("Error updating service:", error)
-      return NextResponse.json({ error: "Internal server error" }, { status: 500 })
+      return NextResponse.json(service)
+    } catch (err) {
+      return xvmApiErrorResponse(err, session.user.id, "[services/[serviceId]] PATCH error")
     }
   },
   { requests: 20, window: "1 m" }
@@ -154,51 +118,34 @@ export const PUT = withRateLimit<{ params: Promise<{ venueId: string; serviceId:
 
 export const DELETE = withRateLimit<{ params: Promise<{ venueId: string; serviceId: string }> }>(
   async (request, context) => {
-    if (!context?.params) {
-      return NextResponse.json({ error: "Invalid request" }, { status: 400 })
+    if (!context?.params) return NextResponse.json({ error: "Invalid request" }, { status: 400 })
+
+    const session = await getServerSession(authOptions)
+    if (!session?.user?.id) {
+      return NextResponse.json({ error: "Unauthorized" }, { status: 401 })
     }
 
+    const { venueId, serviceId } = await context.params
+    const membership = await prisma.membership.findFirst({
+      where: { userId: session.user.id, venueId, status: "active" },
+    })
+    if (!membership || membership.role !== "OWNER") {
+      return NextResponse.json({ error: "Only owners can delete services" }, { status: 403 })
+    }
+
+    const token = await getValidXvmApiToken(session.user.id)
+    if (!token) {
+      return NextResponse.json({ error: "xvm-api link not established yet" }, { status: 503 })
+    }
+
+    const gate = await requireXvmVenueId(venueId)
+    if (gate.error) return gate.error
+
     try {
-      const session = await getServerSession(authOptions)
-      if (!session?.user?.id) {
-        return NextResponse.json({ error: "Unauthorized" }, { status: 401 })
-      }
-
-      const { params } = context
-      const { venueId, serviceId } = await params
-
-      // Check permissions
-      const membership = await prisma.membership.findFirst({
-        where: {
-          userId: session.user.id,
-          venueId,
-          status: "active",
-        },
-      })
-
-      if (!membership || membership.role !== "OWNER") {
-        return NextResponse.json({ error: "Only owners can delete services" }, { status: 403 })
-      }
-
-      const service = await prisma.service.findUnique({
-        where: { id: serviceId, venueId },
-      })
-
-      if (!service) {
-        return NextResponse.json({ error: "Service not found" }, { status: 404 })
-      }
-
-      await prisma.service.delete({
-        where: { id: serviceId, venueId },
-      })
-
-      // Invalidate services cache
-      await invalidateCache(cacheKeys.venueServices(venueId))
-
-      return NextResponse.json({ success: true })
-    } catch (error) {
-      console.error("Error deleting service:", error)
-      return NextResponse.json({ error: "Internal server error" }, { status: 500 })
+      await deleteService(token, gate.xvmApiVenueId!, Number(serviceId))
+      return new NextResponse(null, { status: 204 })
+    } catch (err) {
+      return xvmApiErrorResponse(err, session.user.id, "[services/[serviceId]] DELETE error")
     }
   },
   { requests: 5, window: "1 m" }

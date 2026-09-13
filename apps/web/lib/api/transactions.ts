@@ -125,6 +125,21 @@ export async function createTransaction(venueId: string, staffUserId: string, in
     ? { id: newTransaction.service_id, name: newTransaction.service_name ?? "" }
     : null
 
+  // Fetch live stock count for the plugin's post-sale confirmation (bartenders
+  // see "3 left" immediately after logging a sale). Only when a service was
+  // actually involved - tips/cover-charges never had a stock count. This is
+  // an accepted extra round-trip; failure here must not fail an
+  // already-successful sale, so fall back to null and log.
+  let stockCount: number | null = null
+  if (serviceId !== undefined) {
+    try {
+      const service = await getService(token, xvmApiVenueId, serviceId)
+      stockCount = service.inventory?.stock_count ?? null
+    } catch (error) {
+      console.error("Failed to fetch post-sale stock count:", error)
+    }
+  }
+
   // Discord webhook (fire-and-forget - never block the response)
   if (venue) {
     const venueSettings = parseVenueSettings(venue.settings)
@@ -168,13 +183,8 @@ export async function createTransaction(venueId: string, staffUserId: string, in
     amount: amountDollars,
     customerName: newTransaction.customer_name,
     serviceId: newTransaction.service_id,
-    // stockCount is always null here - the finance-transaction create
-    // response doesn't include the post-decrement stock level, and fetching
-    // it would mean an extra xvm-api round trip on every sale. The plugin
-    // route only surfaces this for display; not fetching it is an accepted
-    // simplification, not a silently dropped requirement.
     service: newTransaction.service_id
-      ? { id: newTransaction.service_id, name: newTransaction.service_name, stockCount: null as number | null }
+      ? { id: newTransaction.service_id, name: newTransaction.service_name, stockCount }
       : null,
     notes: newTransaction.notes,
     createdAt: newTransaction.created_at,

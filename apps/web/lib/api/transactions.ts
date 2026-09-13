@@ -8,9 +8,11 @@ import {
   getWebhookUrlForType,
   type VenueWebhookConfig,
 } from "@/lib/discord-webhook"
-import { invalidateCache } from "@/lib/redis-cache"
 import { resolveDisplayName } from "@/lib/display-name"
 import { parseVenueSettings } from "@/lib/types/venue-settings"
+import { getValidXvmApiToken } from "@/lib/api/xvm-api-store"
+import { createFinanceTransaction, getService, XvmApiError, type FinanceTransactionKind } from "@/lib/api/xvm-api"
+import { dollarsToMinorUnits, minorUnitsToDollars } from "@/lib/api/position-convert"
 
 /**
  * Shared validation schema for transaction creation. Used by both the
@@ -42,146 +44,88 @@ export class InsufficientStockError extends Error {
   }
 }
 
+// Prisma's TransactionType -> xvm-api's FinanceTransactionKind. Not a perfect
+// semantic match: xvm-api also has "expense" and "payout" kinds that the
+// dashboard's OTHER type never meant to cover. Flagged for review - closest
+// fit chosen so OTHER doesn't crash, not a validated mapping.
+const TRANSACTION_KIND_MAP: Record<CreateTransactionInput["type"], FinanceTransactionKind> = {
+  SALE: "sale",
+  TIP: "tip",
+  COVER_CHARGE: "cover_charge",
+  OTHER: "other_income",
+}
+
 /**
- * Create a transaction row, fire the sale-logged Discord webhook, and
- * invalidate the services + transactions caches. Callers are responsible
- * for auth, venue access verification, and permission checks - this
- * helper only owns the domain write + side effects.
+ * Create a transaction row in xvm-api, fire the sale-logged Discord webhook,
+ * and emit the SSE event for the live dashboard. Callers are responsible for
+ * auth, venue access verification, and permission checks - this helper only
+ * owns the domain write + side effects.
  */
 export async function createTransaction(venueId: string, staffUserId: string, input: CreateTransactionInput) {
-  // If the caller didn't specify an event, attribute the sale to whatever
-  // event is currently running at this venue (startTime <= now <= endTime,
-  // status PUBLISHED or ACTIVE). Mirrors the lookup in
-  // /api/plugin/events/active so sales logged during an event always count
-  // toward its revenue, even if the client (plugin or web) doesn't pass
-  // eventId explicitly.
-  let eventId = input.eventId
-  if (!eventId) {
-    const now = new Date()
-    const activeEvent = await prisma.event.findFirst({
-      where: {
-        venueId,
-        startTime: { lte: now },
-        endTime: { gte: now },
-        status: { in: ["PUBLISHED", "ACTIVE"] },
-      },
-      orderBy: { startTime: "desc" },
-      select: { id: true },
-    })
-    eventId = activeEvent?.id
+  const venue = await prisma.venue.findUnique({
+    where: { id: venueId },
+    select: { xvmApiVenueId: true, discordWebhookUrl: true, settings: true },
+  })
+  if (!venue?.xvmApiVenueId) {
+    throw new Error(`Venue ${venueId} is not connected to xvm-api`)
+  }
+  const xvmApiVenueId = venue.xvmApiVenueId
+
+  const token = await getValidXvmApiToken(staffUserId)
+  if (!token) {
+    throw new Error(`No valid xvm-api token for user ${staffUserId}`)
   }
 
-  // Stock enforcement only applies to actual sales - a TIP or COVER_CHARGE
-  // logged against a serviceId must not consume inventory. resolvedType is
-  // the same value that ends up in `type: ...` on the create() below, so
-  // this condition can never diverge from what's actually inserted.
+  // input.eventId is intentionally dropped here. xvm-api's finance
+  // transactions take an int event_id, but Prisma's Event ids are cuids -
+  // there is no bridge between the two yet (a separate, not-yet-started
+  // cutover). The transaction is created venue-scoped but not event-scoped
+  // for now; this is a known, accepted gap, not something to work around.
   const resolvedType = input.type ?? "SALE"
+  const serviceId = input.serviceId ? Number(input.serviceId) : undefined
 
-  // Stock check + create + decrement happen in one DB transaction so a
-  // concurrent sale can't oversell the last unit. updateMany's gt:0 filter
-  // is the atomic guard: if two requests race, only one's updateMany
-  // affects a row, and the loser gets a hard 409 rather than a negative
-  // stockCount.
-  if (input.serviceId && resolvedType === "SALE") {
-    const service = await prisma.service.findUnique({
-      where: { id: input.serviceId },
-      select: { name: true, stockCount: true },
+  let newTransaction
+  try {
+    newTransaction = await createFinanceTransaction(token, xvmApiVenueId, {
+      kind: TRANSACTION_KIND_MAP[resolvedType],
+      amount: dollarsToMinorUnits(input.amount)!,
+      service_id: serviceId,
+      customer_name: input.customerName,
+      notes: input.notes,
     })
-    if (service && service.stockCount !== null && service.stockCount <= 0) {
-      throw new InsufficientStockError(service.name)
+  } catch (error) {
+    // xvm-api's sale hook refuses an out-of-stock sale with 409 at insert
+    // time, replacing the old Prisma pre-check + atomic decrement.
+    if (error instanceof XvmApiError && error.status === 409) {
+      const serviceName = serviceId
+        ? (await getService(token, xvmApiVenueId, serviceId)).name
+        : "This service"
+      throw new InsufficientStockError(serviceName)
     }
+    throw error
   }
 
-  const newTransaction = await prisma.$transaction(async (tx) => {
-    if (input.serviceId && resolvedType === "SALE") {
-      const decremented = await tx.service.updateMany({
-        where: { id: input.serviceId, stockCount: { gt: 0 } },
-        data: { stockCount: { decrement: 1 } },
-      })
-      // decremented.count === 0 means either the service isn't
-      // stock-tracked (stockCount is null, filtered out by gt:0 - fine,
-      // not an error) or it hit zero between our findUnique check and
-      // here (a real race - re-check to distinguish the two).
-      if (decremented.count === 0) {
-        const current = await tx.service.findUnique({
-          where: { id: input.serviceId },
-          select: { name: true, stockCount: true },
-        })
-        if (current && current.stockCount !== null && current.stockCount <= 0) {
-          throw new InsufficientStockError(current.name)
-        }
-      }
-    }
-
-    return tx.transaction.create({
-      data: {
-        venueId,
-        serviceId: input.serviceId,
-        eventId,
-        staffId: staffUserId,
-        type: resolvedType,
-        amount: input.amount,
-        customerName: input.customerName,
-        notes: input.notes,
-      },
-      include: {
-        service: {
-          select: {
-            id: true,
-            name: true,
-            price: true,
-            stockCount: true,
-          },
-        },
-        event: {
-          select: {
-            id: true,
-            title: true,
-          },
-        },
-        staff: {
-          select: {
-            id: true,
-            name: true,
-            displayName: true,
-            characters: {
-              orderBy: [{ isPrimary: "desc" }, { createdAt: "asc" }],
-              take: 1,
-              select: { characterName: true },
-            },
-          },
-        },
-      },
-    })
+  // Minor display regression flagged for review: the old code joined
+  // Transaction.staff.characters for a richer name including FFXIV
+  // character name. Transaction creation no longer goes through Prisma, so
+  // that relation isn't available here - fall back to nickname only.
+  const staffMembership = await prisma.membership.findFirst({
+    where: { userId: staffUserId, venueId },
+    select: { nickname: true },
+  })
+  const resolvedStaffName = resolveDisplayName({
+    characterName: undefined,
+    nickname: staffMembership?.nickname,
+    displayName: undefined,
+    discordName: undefined,
   })
 
-  // The nickname is venue-specific and Transaction has no direct Membership
-  // relation (only staffId -> User), so look it up separately.
-  const staffMembership = newTransaction.staff
-    ? await prisma.membership.findFirst({
-        where: { userId: newTransaction.staff.id, venueId },
-        select: { nickname: true },
-      })
-    : null
-
-  const resolvedStaffName = newTransaction.staff
-    ? resolveDisplayName({
-        characterName: newTransaction.staff.characters[0]?.characterName,
-        nickname: staffMembership?.nickname,
-        displayName: newTransaction.staff.displayName,
-        discordName: newTransaction.staff.name,
-      })
+  const amountDollars = minorUnitsToDollars(newTransaction.amount)!
+  const serviceForEmbed = newTransaction.service_id
+    ? { id: newTransaction.service_id, name: newTransaction.service_name ?? "" }
     : null
 
   // Discord webhook (fire-and-forget - never block the response)
-  const venue = await prisma.venue.findUnique({
-    where: { id: venueId },
-    select: {
-      discordWebhookUrl: true,
-      settings: true,
-    },
-  })
-
   if (venue) {
     const venueSettings = parseVenueSettings(venue.settings)
     const webhookConfig: VenueWebhookConfig = {
@@ -193,10 +137,10 @@ export async function createTransaction(venueId: string, staffUserId: string, in
     const webhookUrl = getWebhookUrlForType(webhookConfig, "saleLogged")
     if (webhookUrl) {
       const embed = formatSaleLoggedEmbed({
-        amount: Number(newTransaction.amount),
-        service: newTransaction.service,
-        customerName: sanitizeDiscordContent(newTransaction.customerName),
-        staff: resolvedStaffName ? { name: resolvedStaffName } : null,
+        amount: amountDollars,
+        service: serviceForEmbed,
+        customerName: sanitizeDiscordContent(newTransaction.customer_name),
+        staff: { name: resolvedStaffName },
       })
 
       sendDiscordWebhook(webhookUrl, { embeds: [embed] }).catch((error) =>
@@ -205,23 +149,34 @@ export async function createTransaction(venueId: string, staffUserId: string, in
     }
   }
 
-  // Invalidate caches (transactions affect service stats)
-  await invalidateCache(`venue:${venueId}:services`)
-  await invalidateCache(`venue:${venueId}:transactions:*`)
-
   venueEventBus.emit(venueId, {
-    id: newTransaction.id,
+    id: String(newTransaction.id),
     type: "sale",
     venueId,
-    timestamp: newTransaction.createdAt.toISOString(),
+    timestamp: newTransaction.created_at,
     data: {
-      amount: Number(newTransaction.amount),
-      customerName: newTransaction.customerName,
-      service: newTransaction.service,
-      staff: resolvedStaffName ? { id: newTransaction.staff?.id, name: resolvedStaffName } : null,
+      amount: amountDollars,
+      customerName: newTransaction.customer_name,
+      service: serviceForEmbed,
+      staff: { id: staffUserId, name: resolvedStaffName },
       notes: newTransaction.notes,
     },
   })
 
-  return newTransaction
+  return {
+    id: newTransaction.id,
+    amount: amountDollars,
+    customerName: newTransaction.customer_name,
+    serviceId: newTransaction.service_id,
+    // stockCount is always null here - the finance-transaction create
+    // response doesn't include the post-decrement stock level, and fetching
+    // it would mean an extra xvm-api round trip on every sale. The plugin
+    // route only surfaces this for display; not fetching it is an accepted
+    // simplification, not a silently dropped requirement.
+    service: newTransaction.service_id
+      ? { id: newTransaction.service_id, name: newTransaction.service_name, stockCount: null as number | null }
+      : null,
+    notes: newTransaction.notes,
+    createdAt: newTransaction.created_at,
+  }
 }

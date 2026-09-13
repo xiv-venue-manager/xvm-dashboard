@@ -1591,3 +1591,103 @@ export async function deletePayrollEntry(personToken: string, venueId: string, e
   if (!process.env.XVM_API_BASE_URL) throw new Error("XVM_API_BASE_URL is not set")
   return xvmFetch<void>(`/venues/${venueId}/finance/payroll/${entryId}`, { method: "DELETE" }, personToken)
 }
+
+// ── Finance API ────────────────────────────────────────────────
+
+export interface FinanceSettingsRow {
+  tax_basis_points: number
+  include_sales_in_pot: boolean
+  default_tip_pooled: boolean
+  auto_generate_payroll: boolean
+  auto_close_after_hours: number | null
+  payout_rounding_minor: number
+}
+
+export interface FinanceSettingsUpdate {
+  tax_basis_points?: number
+  include_sales_in_pot?: boolean
+  default_tip_pooled?: boolean
+  auto_generate_payroll?: boolean
+  auto_close_after_hours?: number | null
+  payout_rounding_minor?: number
+}
+
+export async function getFinanceSettings(personToken: string, venueId: string): Promise<FinanceSettingsRow> {
+  if (!process.env.XVM_API_BASE_URL) throw new Error("XVM_API_BASE_URL is not set")
+  return xvmFetch<FinanceSettingsRow>(`/venues/${venueId}/finance/settings`, {}, personToken)
+}
+
+export async function updateFinanceSettings(
+  personToken: string,
+  venueId: string,
+  data: FinanceSettingsUpdate
+): Promise<FinanceSettingsRow> {
+  if (!process.env.XVM_API_BASE_URL) throw new Error("XVM_API_BASE_URL is not set")
+  return xvmFetch<FinanceSettingsRow>(
+    `/venues/${venueId}/finance/settings`,
+    { method: "PATCH", body: JSON.stringify(data) },
+    personToken
+  )
+}
+
+export type FinanceEntryType = "revenue" | "expense" | "payout"
+
+export interface FinanceCategoryRow {
+  id: number
+  name: string
+  sort_order: number
+  applies_to: FinanceEntryType | null
+}
+
+export interface FinanceCategoryCreate {
+  name: string
+  sort_order?: number
+  applies_to?: FinanceEntryType | null
+}
+
+export interface FinanceCategoryUpdate {
+  name?: string
+  sort_order?: number
+  applies_to?: FinanceEntryType | null
+}
+
+export async function listFinanceCategories(personToken: string, venueId: string): Promise<FinanceCategoryRow[]> {
+  if (!process.env.XVM_API_BASE_URL) throw new Error("XVM_API_BASE_URL is not set")
+  return xvmFetch<FinanceCategoryRow[]>(`/venues/${venueId}/finance/categories`, {}, personToken)
+}
+
+export async function createFinanceCategory(
+  personToken: string,
+  venueId: string,
+  data: FinanceCategoryCreate
+): Promise<FinanceCategoryRow> {
+  if (!process.env.XVM_API_BASE_URL) throw new Error("XVM_API_BASE_URL is not set")
+  return xvmFetch<FinanceCategoryRow>(
+    `/venues/${venueId}/finance/categories`,
+    { method: "POST", body: JSON.stringify(data) },
+    personToken
+  )
+}
+
+export async function updateFinanceCategory(
+  personToken: string,
+  venueId: string,
+  categoryId: number,
+  data: FinanceCategoryUpdate
+): Promise<FinanceCategoryRow> {
+  if (!process.env.XVM_API_BASE_URL) throw new Error("XVM_API_BASE_URL is not set")
+  return xvmFetch<FinanceCategoryRow>(
+    `/venues/${venueId}/finance/categories/${categoryId}`,
+    { method: "PATCH", body: JSON.stringify(data) },
+    personToken
+  )
+}
+
+export async function deleteFinanceCategory(
+  personToken: string,
+  venueId: string,
+  categoryId: number
+): Promise<void> {
+  if (!process.env.XVM_API_BASE_URL) throw new Error("XVM_API_BASE_URL is not set")
+  return xvmFetch<void>(`/venues/${venueId}/finance/categories/${categoryId}`, { method: "DELETE" }, personToken)
+}

@@ -7,6 +7,8 @@ import {
   hoursToMinutes,
   minutesToHours,
   formatHours,
+  percentToBasisPoints,
+  basisPointsToPercent,
 } from "./position-convert"
 
 describe("hexColorToInt", () => {
@@ -86,5 +88,26 @@ describe("formatHours", () => {
 
   it("returns an em dash for null input", () => {
     expect(formatHours(null)).toBe("—")
+  })
+})
+
+describe("percentToBasisPoints / basisPointsToPercent round-trip", () => {
+  it("converts a percent to basis points and back", () => {
+    expect(percentToBasisPoints(5)).toBe(500)
+    expect(basisPointsToPercent(500)).toBe(5)
+  })
+
+  it("handles fractional percents", () => {
+    expect(percentToBasisPoints(12.5)).toBe(1250)
+    expect(basisPointsToPercent(1250)).toBe(12.5)
+  })
+
+  it("returns null for null input on both directions", () => {
+    expect(percentToBasisPoints(null)).toBeNull()
+    expect(basisPointsToPercent(null)).toBeNull()
+  })
+
+  it("rounds to the nearest basis point instead of truncating", () => {
+    expect(percentToBasisPoints(12.505)).toBe(1251)
   })
 })

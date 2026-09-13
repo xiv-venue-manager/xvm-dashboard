@@ -153,19 +153,12 @@ export default async function ShiftsPage({
 
   const { staff: staffForDialog, roles: venueRoles } = await listShiftStaffAndRoles(token, xvmApiVenueId)
 
-  const venuePotSettings = await prisma.venuePotSettings.findUnique({
+  const venueEvents = await prisma.event.findMany({
     where: { venueId: venue.id },
+    select: { id: true, title: true },
+    orderBy: { startTime: "desc" },
+    take: 50,
   })
-  const potModeEnabled = venuePotSettings?.enabled ?? false
-
-  const venueEvents = potModeEnabled
-    ? await prisma.event.findMany({
-        where: { venueId: venue.id },
-        select: { id: true, title: true },
-        orderBy: { startTime: "desc" },
-        take: 50,
-      })
-    : []
   const eventsForDialog = venueEvents.map((e) => ({ id: e.id, name: e.title }))
 
   return (
@@ -187,7 +180,6 @@ export default async function ShiftsPage({
               venueSlug={slug}
               staff={staffForDialog}
               roles={venueRoles}
-              potModeEnabled={potModeEnabled}
               events={eventsForDialog}
             />
           )}
@@ -296,7 +288,6 @@ export default async function ShiftsPage({
               staffForDialog={staffForDialog}
               venueRoles={venueRoles}
               staffNames={staffNames}
-              potModeEnabled={potModeEnabled}
               eventsForDialog={eventsForDialog}
             />
           </>

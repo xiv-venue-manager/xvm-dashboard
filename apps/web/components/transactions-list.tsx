@@ -1,9 +1,7 @@
 "use client"
 
-import { useEffect, useRef, useState } from "react"
+import { useState } from "react"
 import { Button } from "@/components/ui/button"
-import { Badge } from "@/components/ui/badge"
-import { RoleBadge } from "@/components/role-badge"
 import {
   Dialog,
   DialogContent,
@@ -27,81 +25,25 @@ import { Label } from "@/components/ui/label"
 import { Textarea } from "@/components/ui/textarea"
 import { Edit, Trash2 } from "lucide-react"
 import { formatLocalTime } from "@/components/server-time"
+import { minorUnitsToDollars } from "@/lib/api/position-convert"
 
-interface Transaction {
-  id: string
+export interface Transaction {
+  id: number
   amount: number
+  serviceId: number | null
+  serviceName: string | null
   customerName: string | null
   notes: string | null
   createdAt: string
-  service: {
-    id: string
-    name: string
-    price: number
-  } | null
-  event: {
-    id: string
-    title: string
-  } | null
-  staff: {
-    id: string
-    name: string | null
-    memberships?: Array<{
-      role: string
-      customRole: {
-        name: string
-        color: string | null
-      } | null
-    }>
-  } | null
 }
 
 interface TransactionsListProps {
-  initialTransactions: Transaction[]
-  initialNextCursor: string | null
-  initialHasMore: boolean
+  transactions: Transaction[]
   venueId: string
+  onTransactionsChange: (transactions: Transaction[]) => void
 }
 
-export function TransactionsList({
-  initialTransactions,
-  initialNextCursor,
-  initialHasMore,
-  venueId,
-}: TransactionsListProps) {
-  const [transactions, setTransactions] = useState(initialTransactions)
-  const [nextCursor, setNextCursor] = useState(initialNextCursor)
-  const [hasMore, setHasMore] = useState(initialHasMore)
-  const [isLoadingMore, setIsLoadingMore] = useState(false)
-  const hasPaginatedRef = useRef(false)
-
-  // useState's initial value only runs on first mount - router.refresh()
-  // (e.g. after logging a sale) re-renders the parent Server Component
-  // with fresh props, but this client component's own state won't pick
-  // them up on its own. Re-sync whenever the server sends a new first page.
-  //
-  // Merge rather than overwrite: initialTransactions is always just the
-  // first page, so a plain overwrite would wipe out any further pages the
-  // user had already loaded via "Load more". Keep those, just fold in
-  // whatever's new/changed on the first page.
-  //
-  // Same reasoning for the cursor - once the user has paginated past page
-  // 1, nextCursor/hasMore reflect how far *they've* gotten, not the fresh
-  // page's cursor (which always points to right after page 1) - leave
-  // those alone once pagination has started.
-  useEffect(() => {
-    // Re-syncs local state with fresh server props on router.refresh(); merge logic above explains why this can't be a plain derivation.
-    // eslint-disable-next-line react-hooks/set-state-in-effect
-    setTransactions((prev) => {
-      const freshIds = new Set(initialTransactions.map((t) => t.id))
-      const extras = prev.filter((t) => !freshIds.has(t.id))
-      return [...initialTransactions, ...extras]
-    })
-    if (!hasPaginatedRef.current) {
-      setNextCursor(initialNextCursor)
-      setHasMore(initialHasMore)
-    }
-  }, [initialTransactions, initialNextCursor, initialHasMore])
+export function TransactionsList({ transactions, venueId, onTransactionsChange }: TransactionsListProps) {
   const [editingTransaction, setEditingTransaction] = useState<Transaction | null>(null)
   const [deletingTransaction, setDeletingTransaction] = useState<Transaction | null>(null)
   const [isSubmitting, setIsSubmitting] = useState(false)
@@ -111,45 +53,17 @@ export function TransactionsList({
     notes: "",
   })
 
-  const loadMoreTransactions = async () => {
-    if (!nextCursor || isLoadingMore) return
-
-    setIsLoadingMore(true)
-    try {
-      const response = await fetch(`/api/venues/${venueId}/transactions?limit=50&cursor=${nextCursor}`)
-
-      if (response.ok) {
-        const data = await response.json()
-        hasPaginatedRef.current = true
-        setTransactions([...transactions, ...data.transactions])
-        setNextCursor(data.nextCursor)
-        setHasMore(data.hasMore)
-      }
-    } catch (err) {
-      console.error("Failed to load more transactions:", err)
-    } finally {
-      setIsLoadingMore(false)
-    }
-  }
-
   const exportToCSV = () => {
-    // CSV Headers
-    const headers = ["Date", "Event", "Service", "Amount (gil)"]
+    const headers = ["Date", "Service", "Amount (gil)"]
 
-    // CSV Rows
     const rows = transactions.map((transaction) => {
       const date = formatLocalTime(transaction.createdAt, "isoDateTime")
-      const event = transaction.event?.title || ""
-      const service = transaction.service?.name || "Manual Sale"
-      const amount = parseFloat(transaction.amount.toString())
-
-      return [date, event, service, amount]
+      const service = transaction.serviceName || "Manual Sale"
+      return [date, service, transaction.amount]
     })
 
-    // Combine headers and rows
     const csvContent = [headers.join(","), ...rows.map((row) => row.map((cell) => `"${cell}"`).join(","))].join("\n")
 
-    // Create download
     const blob = new Blob([csvContent], { type: "text/csv;charset=utf-8;" })
     const link = document.createElement("a")
     const url = URL.createObjectURL(blob)
@@ -191,10 +105,23 @@ export function TransactionsList({
         throw new Error("Failed to update transaction")
       }
 
-      const updated = await response.json()
+      // xvm-api's PATCH echoes the raw finance row back - amount is in minor
+      // units, unlike the POST-create response which is already in gil.
+      const updated: { id: number; amount: number; customer_name: string | null; notes: string | null } =
+        await response.json()
 
-      // Update local state
-      setTransactions(transactions.map((t) => (t.id === editingTransaction.id ? updated : t)))
+      onTransactionsChange(
+        transactions.map((t) =>
+          t.id === editingTransaction.id
+            ? {
+                ...t,
+                amount: minorUnitsToDollars(updated.amount) ?? t.amount,
+                customerName: updated.customer_name,
+                notes: updated.notes,
+              }
+            : t
+        )
+      )
 
       setEditingTransaction(null)
     } catch (error) {
@@ -209,21 +136,22 @@ export function TransactionsList({
     if (!deletingTransaction) return
 
     try {
+      // This voids the transaction in xvm-api (an audit row survives) rather
+      // than hard-deleting it - it just disappears from this list.
       const response = await fetch(`/api/venues/${venueId}/transactions/${deletingTransaction.id}`, {
         method: "DELETE",
       })
 
       if (!response.ok) {
-        throw new Error("Failed to delete transaction")
+        throw new Error("Failed to void transaction")
       }
 
-      // Remove from local state
-      setTransactions(transactions.filter((t) => t.id !== deletingTransaction.id))
+      onTransactionsChange(transactions.filter((t) => t.id !== deletingTransaction.id))
 
       setDeletingTransaction(null)
     } catch (error) {
-      console.error("Error deleting transaction:", error)
-      alert("Failed to delete transaction")
+      console.error("Error voiding transaction:", error)
+      alert("Failed to void transaction")
     }
   }
 
@@ -253,7 +181,7 @@ export function TransactionsList({
 
       <div className="space-y-2">
         {transactions.map((transaction) => {
-          const amount = parseFloat(transaction.amount.toString())
+          const amount = transaction.amount
           const isLarge = amount >= 500000
           const isMedium = amount >= 50000 && amount < 500000
           return (
@@ -263,29 +191,12 @@ export function TransactionsList({
             >
               <div className="flex-1 min-w-0">
                 <div className="flex items-center gap-2 mb-0.5 flex-wrap">
-                  <p className="font-semibold">{transaction.service ? transaction.service.name : "Manual Sale"}</p>
-                  {transaction.event && (
-                    <Badge variant="outline" className="text-xs">
-                      {transaction.event.title}
-                    </Badge>
-                  )}
+                  <p className="font-semibold">{transaction.serviceName || "Manual Sale"}</p>
                 </div>
                 <div className="flex items-center gap-2 flex-wrap text-xs text-muted-foreground">
                   {transaction.customerName && <span className="text-foreground/70">{transaction.customerName}</span>}
                   {transaction.customerName && <span>·</span>}
                   <span>{formatLocalTime(transaction.createdAt, "datetimelong")}</span>
-                  {transaction.staff && (
-                    <>
-                      <span>· {transaction.staff.name}</span>
-                      {transaction.staff.memberships?.[0]?.customRole && (
-                        <RoleBadge
-                          role={transaction.staff.memberships[0].customRole.name}
-                          color={transaction.staff.memberships[0].customRole.color}
-                          className="text-[10px] px-1 py-0 h-4"
-                        />
-                      )}
-                    </>
-                  )}
                 </div>
                 {transaction.notes && (
                   <p className="text-xs text-muted-foreground mt-0.5 italic">{transaction.notes}</p>
@@ -318,7 +229,7 @@ export function TransactionsList({
                     size="icon"
                     className="h-8 w-8"
                     onClick={() => setDeletingTransaction(transaction)}
-                    aria-label="Delete transaction"
+                    aria-label="Void transaction"
                   >
                     <Trash2 className="h-3.5 w-3.5 text-red-400" />
                   </Button>
@@ -328,21 +239,6 @@ export function TransactionsList({
           )
         })}
       </div>
-
-      {/* Load More Button */}
-      {hasMore && (
-        <div className="mt-6 text-center">
-          <Button
-            variant="outline"
-            onClick={loadMoreTransactions}
-            disabled={isLoadingMore}
-            className="w-full sm:w-auto"
-          >
-            {isLoadingMore ? "Loading..." : "Load More Transactions"}
-          </Button>
-          <p className="text-xs text-muted-foreground mt-2">Showing {transactions.length} of many transactions</p>
-        </div>
-      )}
 
       {/* Edit Dialog */}
       <Dialog open={editingTransaction !== null} onOpenChange={(open) => !open && setEditingTransaction(null)}>
@@ -408,16 +304,17 @@ export function TransactionsList({
       <AlertDialog open={deletingTransaction !== null} onOpenChange={(open) => !open && setDeletingTransaction(null)}>
         <AlertDialogContent>
           <AlertDialogHeader>
-            <AlertDialogTitle>Delete Transaction</AlertDialogTitle>
+            <AlertDialogTitle>Void Transaction</AlertDialogTitle>
             <AlertDialogDescription>
-              Are you sure you want to delete this transaction for{" "}
-              <strong>{deletingTransaction?.amount.toLocaleString()} gil</strong>? This action cannot be undone.
+              Are you sure you want to void this transaction for{" "}
+              <strong>{deletingTransaction?.amount.toLocaleString()} gil</strong>? It will be removed from this list
+              and marked voided, but kept as an audit record — this cannot be undone.
             </AlertDialogDescription>
           </AlertDialogHeader>
           <AlertDialogFooter>
             <AlertDialogCancel>Cancel</AlertDialogCancel>
             <AlertDialogAction onClick={handleDelete} className="bg-destructive text-white hover:bg-destructive/90">
-              Delete
+              Void
             </AlertDialogAction>
           </AlertDialogFooter>
         </AlertDialogContent>

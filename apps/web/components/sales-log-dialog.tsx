@@ -1,7 +1,6 @@
 "use client"
 
 import { useState } from "react"
-import { useRouter } from "next/navigation"
 import { Button } from "@/components/ui/button"
 import { Input } from "@/components/ui/input"
 import { Label } from "@/components/ui/label"
@@ -16,34 +15,24 @@ import {
 } from "@/components/ui/dialog"
 import { Select, SelectContent, SelectItem, SelectTrigger, SelectValue } from "@/components/ui/select"
 import { Alert, AlertDescription } from "@/components/ui/alert"
+import type { Transaction } from "@/components/transactions-list"
 
 interface Service {
-  id: string
+  id: number
   name: string
   price: number
-  category: string | null
-  isActive: boolean
-}
-
-interface Event {
-  id: string
-  title: string
-  startTime: Date
-  status: string
 }
 
 interface SalesLogDialogProps {
   venueId: string
   services: Service[]
-  events: Event[]
+  onLogged: (transaction: Transaction) => void
 }
 
-export function SalesLogDialog({ venueId, services, events }: SalesLogDialogProps) {
-  const router = useRouter()
+export function SalesLogDialog({ venueId, services, onLogged }: SalesLogDialogProps) {
   const [isOpen, setIsOpen] = useState(false)
   const [formData, setFormData] = useState({
     serviceId: "",
-    eventId: "",
     type: "SALE" as "SALE" | "TIP" | "COVER_CHARGE" | "OTHER",
     amount: "",
     customerName: "",
@@ -52,14 +41,11 @@ export function SalesLogDialog({ venueId, services, events }: SalesLogDialogProp
   const [formError, setFormError] = useState("")
   const [isSubmitting, setIsSubmitting] = useState(false)
 
-  // Find active event to auto-select
-  const activeEvent = events.find((event) => event.status === "ACTIVE")
-
   const handleServiceSelect = (serviceId: string) => {
     if (serviceId === "manual") {
       setFormData({ ...formData, serviceId: "", amount: "" })
     } else {
-      const service = services.find((s) => s.id === serviceId)
+      const service = services.find((s) => String(s.id) === serviceId)
       if (service) {
         setFormData({
           ...formData,
@@ -85,7 +71,6 @@ export function SalesLogDialog({ venueId, services, events }: SalesLogDialogProp
         headers: { "Content-Type": "application/json" },
         body: JSON.stringify({
           serviceId: formData.serviceId || undefined,
-          eventId: formData.eventId || undefined,
           type: formData.type,
           amount: parseFloat(formData.amount),
           customerName: formData.customerName || undefined,
@@ -98,9 +83,28 @@ export function SalesLogDialog({ venueId, services, events }: SalesLogDialogProp
         throw new Error(data.error || "Failed to log sale")
       }
 
+      const created: {
+        id: number
+        amount: number
+        customerName: string | null
+        serviceId: number | null
+        service: { id: number; name: string | null } | null
+        notes: string | null
+        createdAt: string
+      } = await response.json()
+
+      onLogged({
+        id: created.id,
+        amount: created.amount,
+        serviceId: created.serviceId,
+        serviceName: created.service?.name ?? null,
+        customerName: created.customerName,
+        notes: created.notes,
+        createdAt: created.createdAt,
+      })
+
       setIsOpen(false)
-      setFormData({ serviceId: "", eventId: "", type: "SALE", amount: "", customerName: "", notes: "" })
-      router.refresh() // Trigger server-side data refresh
+      setFormData({ serviceId: "", type: "SALE", amount: "", customerName: "", notes: "" })
     } catch (error: unknown) {
       setFormError(error instanceof Error ? error.message : "Failed to log sale")
     } finally {
@@ -109,15 +113,7 @@ export function SalesLogDialog({ venueId, services, events }: SalesLogDialogProp
   }
 
   const openDialog = () => {
-    // Auto-select active event if one exists
-    setFormData({
-      serviceId: "",
-      eventId: activeEvent ? activeEvent.id : "",
-      type: "SALE",
-      amount: "",
-      customerName: "",
-      notes: "",
-    })
+    setFormData({ serviceId: "", type: "SALE", amount: "", customerName: "", notes: "" })
     setFormError("")
     setIsOpen(true)
   }
@@ -154,31 +150,8 @@ export function SalesLogDialog({ venueId, services, events }: SalesLogDialogProp
                 <SelectContent>
                   <SelectItem value="manual">Manual Entry</SelectItem>
                   {services.map((service) => (
-                    <SelectItem key={service.id} value={service.id}>
+                    <SelectItem key={service.id} value={String(service.id)}>
                       {service.name} - {service.price} gil
-                    </SelectItem>
-                  ))}
-                </SelectContent>
-              </Select>
-            </div>
-            <div className="space-y-2">
-              <Label htmlFor="event">
-                Event {activeEvent && <span className="text-xs text-emerald-500">(Auto-selected active event)</span>}
-              </Label>
-              <Select
-                value={formData.eventId || "none"}
-                onValueChange={(value) => setFormData({ ...formData, eventId: value === "none" ? "" : value })}
-                disabled={isSubmitting}
-              >
-                <SelectTrigger>
-                  <SelectValue placeholder="Select an event or leave blank" />
-                </SelectTrigger>
-                <SelectContent>
-                  <SelectItem value="none">No Event</SelectItem>
-                  {events.map((event) => (
-                    <SelectItem key={event.id} value={event.id}>
-                      {event.title} {event.status === "ACTIVE" && "🟢 Active"}
-                      {event.status === "PUBLISHED" && "(Published)"}
                     </SelectItem>
                   ))}
                 </SelectContent>

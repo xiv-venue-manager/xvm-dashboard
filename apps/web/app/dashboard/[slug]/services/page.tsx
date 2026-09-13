@@ -45,28 +45,36 @@ import {
 import { PageLoading } from "@/components/ui/loading-spinner"
 import { ItemSearchCombobox } from "@/components/item-search-combobox"
 import { canManageVenue, isVenueOwner } from "@/lib/roles"
+import { minorUnitsToDollars } from "@/lib/api/position-convert"
 
 interface Role {
-  id: string
+  id: number
   name: string
   color: string
 }
 
+interface Category {
+  id: number
+  name: string
+  sort_order: number
+}
+
+interface ServiceInventory {
+  linked_item_id: number
+  linked_item_name: string | null
+  linked_item_icon: number | null
+  stock_count: number | null
+}
+
 interface Service {
-  id: string
+  id: number
   name: string
   description: string | null
   price: number
-  category?: string | null
+  category_id: number | null
   isActive: boolean
-  roles?: Role[]
-  _count?: {
-    transactions: number
-  }
-  linkedItemId?: number | null
-  linkedItemName?: string | null
-  linkedItemIcon?: number | null
-  stockCount?: number | null
+  position_ids: number[]
+  inventory: ServiceInventory | null
 }
 
 export default function ServicesPage({ params }: { params: Promise<{ slug: string }> }) {
@@ -77,6 +85,7 @@ export default function ServicesPage({ params }: { params: Promise<{ slug: strin
   const [inventoryEnabled, setInventoryEnabled] = useState(false)
   const [services, setServices] = useState<Service[]>([])
   const [roles, setRoles] = useState<Role[]>([])
+  const [categories, setCategories] = useState<Category[]>([])
   const [isLoading, setIsLoading] = useState(true)
   const [error, setError] = useState("")
 
@@ -88,15 +97,17 @@ export default function ServicesPage({ params }: { params: Promise<{ slug: strin
     name: "",
     description: "",
     price: "",
-    category: "",
-    selectedRoleIds: [] as string[],
+    categoryId: "" as string, // "" = no category
+    selectedRoleIds: [] as number[],
     isActive: true,
     linkedItem: null as { itemId: number; name: string; iconId: number | null } | null,
     stockCount: "" as string,
   })
+  const [newCategoryName, setNewCategoryName] = useState("")
+  const [isCreatingCategory, setIsCreatingCategory] = useState(false)
   const [formError, setFormError] = useState("")
-  const [categoryFilter, setCategoryFilter] = useState("All")
-  const [roleFilter, setRoleFilter] = useState("All")
+  const [categoryFilter, setCategoryFilter] = useState<number | "All">("All")
+  const [roleFilter, setRoleFilter] = useState<number | "All">("All")
   const [search, setSearch] = useState("")
   const [isSubmitting, setIsSubmitting] = useState(false)
 
@@ -124,10 +135,11 @@ export default function ServicesPage({ params }: { params: Promise<{ slug: strin
         setVenueId(venue.id)
         setUserRole(venue.memberships?.[0]?.role ?? null)
 
-        // Get services, roles, and inventory settings
-        const [servicesResponse, rolesResponse] = await Promise.all([
+        // Get services, roles, categories, and inventory settings
+        const [servicesResponse, rolesResponse, categoriesResponse] = await Promise.all([
           fetch(`/api/venues/${venue.id}/services`),
           fetch(`/api/venues/${venue.id}/roles`),
+          fetch(`/api/venues/${venue.id}/services/categories`),
           fetch(`/api/venues/${venue.id}/inventory-settings`)
             .then((r) => (r.ok ? r.json() : null))
             .then((data) => {
@@ -137,11 +149,34 @@ export default function ServicesPage({ params }: { params: Promise<{ slug: strin
 
         if (!servicesResponse.ok) throw new Error("Failed to fetch services")
         if (!rolesResponse.ok) throw new Error("Failed to fetch roles")
+        if (!categoriesResponse.ok) throw new Error("Failed to fetch categories")
 
-        const servicesData = await servicesResponse.json()
+        const servicesData: Array<{
+          id: number
+          name: string
+          description: string | null
+          price_minor: number | null
+          category_id: number | null
+          is_active: boolean
+          position_ids: number[]
+          inventory: ServiceInventory | null
+        }> = await servicesResponse.json()
         const rolesData = await rolesResponse.json()
-        setServices(servicesData)
+        const categoriesData = await categoriesResponse.json()
+        setServices(
+          servicesData.map((s) => ({
+            id: s.id,
+            name: s.name,
+            description: s.description,
+            price: minorUnitsToDollars(s.price_minor) ?? 0,
+            category_id: s.category_id,
+            isActive: s.is_active,
+            position_ids: s.position_ids,
+            inventory: s.inventory,
+          }))
+        )
         setRoles(rolesData)
+        setCategories(categoriesData)
       } catch (error: unknown) {
         setError(error instanceof Error ? error.message : "Failed to load services")
       } finally {
@@ -151,6 +186,87 @@ export default function ServicesPage({ params }: { params: Promise<{ slug: strin
 
     fetchServices()
   }, [slug])
+
+  const emptyFormData = {
+    name: "",
+    description: "",
+    price: "",
+    categoryId: "",
+    selectedRoleIds: [] as number[],
+    isActive: true,
+    linkedItem: null as { itemId: number; name: string; iconId: number | null } | null,
+    stockCount: "",
+  }
+
+  function toServiceShape(row: {
+    id: number
+    name: string
+    description: string | null
+    price_minor: number | null
+    category_id: number | null
+    is_active: boolean
+    position_ids: number[]
+    inventory: ServiceInventory | null
+  }): Service {
+    return {
+      id: row.id,
+      name: row.name,
+      description: row.description,
+      price: minorUnitsToDollars(row.price_minor) ?? 0,
+      category_id: row.category_id,
+      isActive: row.is_active,
+      position_ids: row.position_ids,
+      inventory: row.inventory,
+    }
+  }
+
+  // Positions are granted/revoked via separate endpoints, not bundled into the
+  // service save — diff against what the service had before and fire only
+  // the grants/revokes that changed.
+  async function applyPositionChanges(serviceId: number, previousPositionIds: number[]) {
+    const toGrant = formData.selectedRoleIds.filter((id) => !previousPositionIds.includes(id))
+    const toRevoke = previousPositionIds.filter((id) => !formData.selectedRoleIds.includes(id))
+    await Promise.all([
+      ...toGrant.map((positionId) =>
+        fetch(`/api/venues/${venueId}/services/${serviceId}/positions`, {
+          method: "POST",
+          headers: { "Content-Type": "application/json" },
+          body: JSON.stringify({ positionId }),
+        })
+      ),
+      ...toRevoke.map((positionId) =>
+        fetch(`/api/venues/${venueId}/services/${serviceId}/positions/${positionId}`, { method: "DELETE" })
+      ),
+    ])
+  }
+
+  // Inventory link is likewise a separate action from the service save. If a
+  // stock count was entered alongside a newly-linked item, record it as an
+  // initial "restock" movement — there is no direct set-stock endpoint wired
+  // up to the dashboard yet.
+  async function applyInventoryChanges(serviceId: number, previousLinkedItemId: number | null) {
+    if (formData.linkedItem) {
+      await fetch(`/api/venues/${venueId}/services/${serviceId}/inventory`, {
+        method: "PUT",
+        headers: { "Content-Type": "application/json" },
+        body: JSON.stringify({
+          linkedItemId: formData.linkedItem.itemId,
+          linkedItemName: formData.linkedItem.name,
+          linkedItemIcon: formData.linkedItem.iconId,
+        }),
+      })
+      const stockCount = formData.stockCount.trim() === "" ? null : parseInt(formData.stockCount, 10)
+      if (stockCount !== null && stockCount > 0) {
+        await fetch(`/api/venues/${venueId}/services/${serviceId}/inventory/movements`, {
+          method: "POST",
+          headers: { "Content-Type": "application/json" },
+          body: JSON.stringify({ reason: "restock", delta: stockCount }),
+        })
+      }
+    } else if (previousLinkedItemId !== null) {
+      await fetch(`/api/venues/${venueId}/services/${serviceId}/inventory`, { method: "DELETE" })
+    }
+  }
 
   const handleCreateService = async () => {
     if (!formData.name.trim() || !formData.price) {
@@ -169,13 +285,8 @@ export default function ServicesPage({ params }: { params: Promise<{ slug: strin
           name: formData.name,
           description: formData.description || undefined,
           price: parseFloat(formData.price),
-          category: formData.category || undefined,
-          roleIds: formData.selectedRoleIds,
+          categoryId: formData.categoryId ? Number(formData.categoryId) : undefined,
           isActive: formData.isActive,
-          linkedItemId: formData.linkedItem?.itemId ?? null,
-          linkedItemName: formData.linkedItem?.name ?? null,
-          linkedItemIcon: formData.linkedItem?.iconId ?? null,
-          stockCount: formData.stockCount.trim() === "" ? null : parseInt(formData.stockCount, 10),
         }),
       })
 
@@ -184,19 +295,16 @@ export default function ServicesPage({ params }: { params: Promise<{ slug: strin
         throw new Error(data.error || "Failed to create service")
       }
 
-      const newService = await response.json()
-      setServices([newService, ...services])
+      const created = await response.json()
+      await applyPositionChanges(created.id, [])
+      await applyInventoryChanges(created.id, null)
+
+      // Re-fetch so the card reflects the positions/inventory just applied.
+      const finalResponse = await fetch(`/api/venues/${venueId}/services/${created.id}`)
+      const finalRow = finalResponse.ok ? await finalResponse.json() : created
+      setServices([toServiceShape(finalRow), ...services])
       setIsCreateDialogOpen(false)
-      setFormData({
-        name: "",
-        description: "",
-        price: "",
-        category: "",
-        selectedRoleIds: [] as string[],
-        isActive: true,
-        linkedItem: null,
-        stockCount: "",
-      })
+      setFormData(emptyFormData)
     } catch (error: unknown) {
       setFormError(error instanceof Error ? error.message : "Failed to create service")
     } finally {
@@ -215,19 +323,14 @@ export default function ServicesPage({ params }: { params: Promise<{ slug: strin
 
     try {
       const response = await fetch(`/api/venues/${venueId}/services/${editingService.id}`, {
-        method: "PUT",
+        method: "PATCH",
         headers: { "Content-Type": "application/json" },
         body: JSON.stringify({
           name: formData.name,
           description: formData.description || undefined,
           price: parseFloat(formData.price),
-          category: formData.category || undefined,
-          roleIds: formData.selectedRoleIds,
+          categoryId: formData.categoryId ? Number(formData.categoryId) : null,
           isActive: formData.isActive,
-          linkedItemId: formData.linkedItem?.itemId ?? null,
-          linkedItemName: formData.linkedItem?.name ?? null,
-          linkedItemIcon: formData.linkedItem?.iconId ?? null,
-          stockCount: formData.stockCount.trim() === "" ? null : parseInt(formData.stockCount, 10),
         }),
       })
 
@@ -236,20 +339,19 @@ export default function ServicesPage({ params }: { params: Promise<{ slug: strin
         throw new Error(data.error || "Failed to update service")
       }
 
-      const updatedService = await response.json()
-      setServices(services.map((s) => (s.id === updatedService.id ? updatedService : s)))
+      await response.json()
+      await applyPositionChanges(editingService.id, editingService.position_ids)
+      await applyInventoryChanges(editingService.id, editingService.inventory?.linked_item_id ?? null)
+
+      const finalResponse = await fetch(`/api/venues/${venueId}/services/${editingService.id}`)
+      const finalRow = finalResponse.ok ? await finalResponse.json() : null
+      if (finalRow) {
+        const updatedService = toServiceShape(finalRow)
+        setServices(services.map((s) => (s.id === updatedService.id ? updatedService : s)))
+      }
       setIsEditDialogOpen(false)
       setEditingService(null)
-      setFormData({
-        name: "",
-        description: "",
-        price: "",
-        category: "",
-        selectedRoleIds: [] as string[],
-        isActive: true,
-        linkedItem: null,
-        stockCount: "",
-      })
+      setFormData(emptyFormData)
     } catch (error: unknown) {
       setFormError(error instanceof Error ? error.message : "Failed to update service")
     } finally {
@@ -277,13 +379,13 @@ export default function ServicesPage({ params }: { params: Promise<{ slug: strin
   const handleToggleService = async (service: Service) => {
     try {
       const response = await fetch(`/api/venues/${venueId}/services/${service.id}`, {
-        method: "PUT",
+        method: "PATCH",
         headers: { "Content-Type": "application/json" },
         body: JSON.stringify({ isActive: !service.isActive }),
       })
       if (!response.ok) throw new Error("Failed to toggle service")
       const updated = await response.json()
-      setServices(services.map((s) => (s.id === updated.id ? updated : s)))
+      setServices(services.map((s) => (s.id === updated.id ? toServiceShape(updated) : s)))
     } catch (error: unknown) {
       alert(error instanceof Error ? error.message : "Failed to toggle service")
     }
@@ -295,40 +397,59 @@ export default function ServicesPage({ params }: { params: Promise<{ slug: strin
       name: service.name,
       description: service.description || "",
       price: service.price.toString(),
-      category: service.category ?? "",
-      selectedRoleIds: service.roles?.map((r) => r.id) || [],
+      categoryId: service.category_id != null ? String(service.category_id) : "",
+      selectedRoleIds: service.position_ids,
       isActive: service.isActive,
-      linkedItem: service.linkedItemId
-        ? { itemId: service.linkedItemId, name: service.linkedItemName ?? "", iconId: service.linkedItemIcon ?? null }
+      linkedItem: service.inventory
+        ? {
+            itemId: service.inventory.linked_item_id,
+            name: service.inventory.linked_item_name ?? "",
+            iconId: service.inventory.linked_item_icon ?? null,
+          }
         : null,
-      stockCount: service.stockCount != null ? String(service.stockCount) : "",
+      stockCount: service.inventory?.stock_count != null ? String(service.inventory.stock_count) : "",
     })
     setFormError("")
     setIsEditDialogOpen(true)
   }
 
   const openCreateDialog = () => {
-    setFormData({
-      name: "",
-      description: "",
-      price: "",
-      category: "",
-      selectedRoleIds: [] as string[],
-      isActive: true,
-      linkedItem: null,
-      stockCount: "",
-    })
+    setFormData(emptyFormData)
     setFormError("")
     setIsCreateDialogOpen(true)
   }
 
-  const toggleRoleSelection = (roleId: string) => {
+  const toggleRoleSelection = (roleId: number) => {
     setFormData((prev) => ({
       ...prev,
       selectedRoleIds: prev.selectedRoleIds.includes(roleId)
         ? prev.selectedRoleIds.filter((id) => id !== roleId)
         : [...prev.selectedRoleIds, roleId],
     }))
+  }
+
+  const handleCreateCategory = async () => {
+    if (!newCategoryName.trim()) return
+    setIsCreatingCategory(true)
+    try {
+      const response = await fetch(`/api/venues/${venueId}/services/categories`, {
+        method: "POST",
+        headers: { "Content-Type": "application/json" },
+        body: JSON.stringify({ name: newCategoryName.trim() }),
+      })
+      if (!response.ok) {
+        const data = await response.json()
+        throw new Error(data.error || "Failed to create category")
+      }
+      const created: Category = await response.json()
+      setCategories([...categories, created])
+      setFormData((prev) => ({ ...prev, categoryId: String(created.id) }))
+      setNewCategoryName("")
+    } catch (error: unknown) {
+      setFormError(error instanceof Error ? error.message : "Failed to create category")
+    } finally {
+      setIsCreatingCategory(false)
+    }
   }
 
   if (!slug) {
@@ -443,17 +564,23 @@ export default function ServicesPage({ params }: { params: Promise<{ slug: strin
             {/* Category filter tabs + role filter + search */}
             <div className="flex items-center gap-3 mb-5 flex-wrap">
               <div className="flex gap-1 bg-[var(--card)] border border-[var(--blue-015)] rounded-full p-1">
-                {["All", ...Array.from(new Set(services.map((s) => s.category).filter(Boolean) as string[]))].map(
-                  (cat) => (
+                <button
+                  onClick={() => setCategoryFilter("All")}
+                  className={`text-sm font-semibold px-4 py-1.5 rounded-full transition-colors ${categoryFilter === "All" ? "bg-[var(--xiv-blue)] text-[var(--xiv-navy)]" : "text-muted-foreground hover:text-foreground hover:bg-[var(--blue-007)]"}`}
+                >
+                  All
+                </button>
+                {categories
+                  .filter((cat) => services.some((s) => s.category_id === cat.id))
+                  .map((cat) => (
                     <button
-                      key={cat}
-                      onClick={() => setCategoryFilter(cat)}
-                      className={`text-sm font-semibold px-4 py-1.5 rounded-full transition-colors ${categoryFilter === cat ? "bg-[var(--xiv-blue)] text-[var(--xiv-navy)]" : "text-muted-foreground hover:text-foreground hover:bg-[var(--blue-007)]"}`}
+                      key={cat.id}
+                      onClick={() => setCategoryFilter(cat.id)}
+                      className={`text-sm font-semibold px-4 py-1.5 rounded-full transition-colors ${categoryFilter === cat.id ? "bg-[var(--xiv-blue)] text-[var(--xiv-navy)]" : "text-muted-foreground hover:text-foreground hover:bg-[var(--blue-007)]"}`}
                     >
-                      {cat}
+                      {cat.name}
                     </button>
-                  )
-                )}
+                  ))}
               </div>
               <DropdownMenu>
                 <DropdownMenuTrigger asChild>
@@ -473,7 +600,7 @@ export default function ServicesPage({ params }: { params: Promise<{ slug: strin
                     {roleFilter === "All" && <Check className="w-3.5 h-3.5 flex-shrink-0" />}
                   </DropdownMenuItem>
                   {roles.map((role) => {
-                    const count = services.filter((s) => s.roles?.some((r) => r.id === role.id)).length
+                    const count = services.filter((s) => s.position_ids.includes(role.id)).length
                     return (
                       <DropdownMenuItem
                         key={role.id}
@@ -506,8 +633,8 @@ export default function ServicesPage({ params }: { params: Promise<{ slug: strin
             {/* Service catalogue — auto-fill 3-col grid matching prototype svc-grid */}
             <div className="grid gap-4" style={{ gridTemplateColumns: "repeat(auto-fill, minmax(264px, 1fr))" }}>
               {services
-                .filter((s) => roleFilter === "All" || s.roles?.some((r) => r.id === roleFilter))
-                .filter((s) => categoryFilter === "All" || s.category === categoryFilter)
+                .filter((s) => roleFilter === "All" || s.position_ids.includes(roleFilter))
+                .filter((s) => categoryFilter === "All" || s.category_id === categoryFilter)
                 .filter(
                   (s) =>
                     !search ||
@@ -539,20 +666,25 @@ export default function ServicesPage({ params }: { params: Promise<{ slug: strin
                         <p className="font-[var(--font-outfit)] font-semibold text-base leading-tight">
                           {service.name}
                         </p>
-                        <p className="text-[0.72rem] text-[var(--fg-faint)] mt-0.5">{service.category ?? "Service"}</p>
+                        <p className="text-[0.72rem] text-[var(--fg-faint)] mt-0.5">
+                          {categories.find((c) => c.id === service.category_id)?.name ?? "Service"}
+                        </p>
                       </div>
-                      {service.stockCount != null && service.stockCount <= 5 && (
+                      {service.inventory?.stock_count != null && service.inventory.stock_count <= 5 && (
                         <Badge variant="destructive">
-                          {service.stockCount === 0 ? "Out of stock" : `Low stock: ${service.stockCount}`}
+                          {service.inventory.stock_count === 0
+                            ? "Out of stock"
+                            : `Low stock: ${service.inventory.stock_count}`}
                         </Badge>
                       )}
                     </div>
                     {/* Roles */}
-                    {service.roles && service.roles.length > 0 && (
+                    {service.position_ids.length > 0 && (
                       <div className="flex flex-wrap gap-1.5">
-                        {service.roles.map((role) => (
-                          <RoleBadge key={role.id} role={role.name} color={role.color} />
-                        ))}
+                        {service.position_ids.map((positionId) => {
+                          const role = roles.find((r) => r.id === positionId)
+                          return role ? <RoleBadge key={role.id} role={role.name} color={role.color} /> : null
+                        })}
                       </div>
                     )}
                     {/* Description */}
@@ -572,9 +704,6 @@ export default function ServicesPage({ params }: { params: Promise<{ slug: strin
                             <span className="text-[0.72rem] text-muted-foreground font-medium ml-1">gil</span>
                           )}
                         </span>
-                        {service._count && service._count.transactions > 0 && (
-                          <p className="text-[0.68rem] text-emerald-400">{service._count.transactions} sales</p>
-                        )}
                       </div>
                       <div className="flex items-center gap-1.5">
                         {canManageVenue(userRole) && (
@@ -692,13 +821,40 @@ export default function ServicesPage({ params }: { params: Promise<{ slug: strin
               </div>
               <div className="space-y-2">
                 <Label htmlFor="create-category">Category</Label>
-                <Input
+                <select
                   id="create-category"
-                  placeholder="e.g., Food & Drink, VIP, Entertainment"
-                  value={formData.category}
-                  onChange={(e) => setFormData({ ...formData, category: e.target.value })}
+                  value={formData.categoryId}
+                  onChange={(e) => setFormData({ ...formData, categoryId: e.target.value })}
                   disabled={isSubmitting}
-                />
+                  className="w-full h-9 rounded-[var(--radius-sm)] border border-[var(--blue-015)] bg-background px-3 text-sm focus:border-[var(--blue-035)] focus:outline-none"
+                >
+                  <option value="">No category</option>
+                  {categories.map((cat) => (
+                    <option key={cat.id} value={cat.id}>
+                      {cat.name}
+                    </option>
+                  ))}
+                </select>
+                <div className="flex items-center gap-2">
+                  <input
+                    type="text"
+                    value={newCategoryName}
+                    onChange={(e) => setNewCategoryName(e.target.value)}
+                    placeholder="New category name"
+                    maxLength={50}
+                    disabled={isSubmitting || isCreatingCategory}
+                    className="flex-1 h-9 rounded-[var(--radius-sm)] border border-[var(--blue-015)] bg-background px-3 text-sm focus:border-[var(--blue-035)] focus:outline-none"
+                  />
+                  <Button
+                    type="button"
+                    variant="outline"
+                    size="sm"
+                    disabled={isSubmitting || isCreatingCategory || !newCategoryName.trim()}
+                    onClick={handleCreateCategory}
+                  >
+                    {isCreatingCategory ? "Adding..." : "Add"}
+                  </Button>
+                </div>
               </div>
               <div className="space-y-2">
                 <Label>Roles (who can provide this service)</Label>
@@ -808,13 +964,40 @@ export default function ServicesPage({ params }: { params: Promise<{ slug: strin
               </div>
               <div className="space-y-2">
                 <Label htmlFor="edit-category">Category</Label>
-                <Input
+                <select
                   id="edit-category"
-                  placeholder="e.g., Food & Drink, VIP, Entertainment"
-                  value={formData.category}
-                  onChange={(e) => setFormData({ ...formData, category: e.target.value })}
+                  value={formData.categoryId}
+                  onChange={(e) => setFormData({ ...formData, categoryId: e.target.value })}
                   disabled={isSubmitting}
-                />
+                  className="w-full h-9 rounded-[var(--radius-sm)] border border-[var(--blue-015)] bg-background px-3 text-sm focus:border-[var(--blue-035)] focus:outline-none"
+                >
+                  <option value="">No category</option>
+                  {categories.map((cat) => (
+                    <option key={cat.id} value={cat.id}>
+                      {cat.name}
+                    </option>
+                  ))}
+                </select>
+                <div className="flex items-center gap-2">
+                  <input
+                    type="text"
+                    value={newCategoryName}
+                    onChange={(e) => setNewCategoryName(e.target.value)}
+                    placeholder="New category name"
+                    maxLength={50}
+                    disabled={isSubmitting || isCreatingCategory}
+                    className="flex-1 h-9 rounded-[var(--radius-sm)] border border-[var(--blue-015)] bg-background px-3 text-sm focus:border-[var(--blue-035)] focus:outline-none"
+                  />
+                  <Button
+                    type="button"
+                    variant="outline"
+                    size="sm"
+                    disabled={isSubmitting || isCreatingCategory || !newCategoryName.trim()}
+                    onClick={handleCreateCategory}
+                  >
+                    {isCreatingCategory ? "Adding..." : "Add"}
+                  </Button>
+                </div>
               </div>
               <div className="space-y-2">
                 <Label>Roles (who can provide this service)</Label>

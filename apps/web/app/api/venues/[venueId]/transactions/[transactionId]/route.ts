@@ -5,7 +5,6 @@ import { prisma } from "@/lib/prisma"
 import { z } from "zod"
 import { withRateLimit } from "@/lib/middleware/with-rate-limit"
 import { validators } from "@/lib/validation"
-import { invalidateCache } from "@/lib/redis-cache"
 import { getValidXvmApiToken, xvmApiErrorResponse } from "@/lib/api/xvm-api-store"
 import { updateFinanceTransaction, voidFinanceTransaction } from "@/lib/api/xvm-api"
 import { dollarsToMinorUnits } from "@/lib/api/position-convert"
@@ -78,9 +77,6 @@ export const PATCH = withRateLimit<{ params: Promise<{ venueId: string; transact
         notes: validatedData.notes,
       })
 
-      // Invalidate cache for analytics
-      await invalidateCache(`venue:${venueId}:analytics`)
-
       return NextResponse.json(transaction)
     } catch (err) {
       return xvmApiErrorResponse(err, session.user.id, "[transactions/:id] PATCH error")
@@ -127,9 +123,6 @@ export const DELETE = withRateLimit<{ params: Promise<{ venueId: string; transac
       await voidFinanceTransaction(token, gate.xvmApiVenueId!, Number(transactionId), {
         reason: "Deleted via dashboard",
       })
-
-      // Invalidate cache for analytics
-      await invalidateCache(`venue:${venueId}:analytics`)
 
       return NextResponse.json({ success: true })
     } catch (err) {

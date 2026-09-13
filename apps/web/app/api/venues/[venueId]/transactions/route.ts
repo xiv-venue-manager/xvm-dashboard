@@ -122,7 +122,7 @@ export const GET = withRateLimit<{ params: Promise<{ venueId: string }> }>(
       // against the caller's own xvm-api person id.
       if (membership.role === "STAFF" && venueSettings?.salesVisibility === "own") {
         const personId = await getValidXvmApiPersonId(session.user.id)
-        transactions = transactions.filter((t) => t.recorded_by_person_id === personId)
+        transactions = personId !== null ? transactions.filter((t) => t.recorded_by_person_id === personId) : []
       }
 
       return NextResponse.json({ transactions, nextCursor: null, hasMore: false })

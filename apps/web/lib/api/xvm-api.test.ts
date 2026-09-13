@@ -29,11 +29,20 @@ import {
   createServiceCategory,
   updateServiceCategory,
   deleteServiceCategory,
+  listServices,
+  createService,
+  deleteService,
+  grantServicePosition,
+  revokeServicePosition,
+  linkServiceInventory,
+  createStockMovement,
   type TaskRow,
   type PublicHours,
   type GiveawayRow,
   type RaffleRow,
   type ServiceCategoryRow,
+  type ServiceRow,
+  type StockMovementRow,
 } from "./xvm-api"
 
 function mockFetchOnce({ ok, status, body }: { ok: boolean; status: number; body: unknown }) {
@@ -374,5 +383,101 @@ describe("Service categories API", () => {
     const [url, options] = (fetch as ReturnType<typeof vi.fn>).mock.calls[0]
     expect(url).toContain("/venues/venue-1/services/categories/1")
     expect(options.method).toBe("DELETE")
+  })
+})
+
+describe("Services API", () => {
+  const sampleService: ServiceRow = {
+    id: 1,
+    name: "Cocktail",
+    description: null,
+    price_minor: 1000,
+    category_id: 1,
+    is_active: true,
+    sort_order: 0,
+    position_ids: [],
+    inventory: null,
+  }
+
+  it("listServices GETs /venues/{venueId}/services", async () => {
+    mockFetchOnce({ ok: true, status: 200, body: [sampleService] })
+    const result = await listServices("token", "venue-1")
+    expect(result).toEqual([sampleService])
+    const [url] = (fetch as ReturnType<typeof vi.fn>).mock.calls[0]
+    expect(url).toContain("/venues/venue-1/services")
+  })
+
+  it("createService POSTs to /venues/{venueId}/services", async () => {
+    mockFetchOnce({ ok: true, status: 201, body: sampleService })
+    const result = await createService("token", "venue-1", { name: "Cocktail", price_minor: 1000 })
+    expect(result).toEqual(sampleService)
+    const [url, options] = (fetch as ReturnType<typeof vi.fn>).mock.calls[0]
+    expect(url).toContain("/venues/venue-1/services")
+    expect(options.method).toBe("POST")
+    expect(JSON.parse(options.body)).toEqual({ name: "Cocktail", price_minor: 1000 })
+  })
+
+  it("deleteService DELETEs /{id}", async () => {
+    mockFetchOnce({ ok: true, status: 204, body: null })
+    await deleteService("token", "venue-1", 1)
+    const [url, options] = (fetch as ReturnType<typeof vi.fn>).mock.calls[0]
+    expect(url).toContain("/venues/venue-1/services/1")
+    expect(options.method).toBe("DELETE")
+  })
+
+  it("grantServicePosition POSTs to /{id}/positions", async () => {
+    mockFetchOnce({ ok: true, status: 200, body: { ...sampleService, position_ids: [5] } })
+    const result = await grantServicePosition("token", "venue-1", 1, 5)
+    expect(result).toEqual({ ...sampleService, position_ids: [5] })
+    const [url, options] = (fetch as ReturnType<typeof vi.fn>).mock.calls[0]
+    expect(url).toContain("/venues/venue-1/services/1/positions")
+    expect(options.method).toBe("POST")
+    expect(JSON.parse(options.body)).toEqual({ position_id: 5 })
+  })
+
+  it("revokeServicePosition DELETEs /{id}/positions/{positionId}", async () => {
+    mockFetchOnce({ ok: true, status: 204, body: null })
+    await revokeServicePosition("token", "venue-1", 1, 5)
+    const [url, options] = (fetch as ReturnType<typeof vi.fn>).mock.calls[0]
+    expect(url).toContain("/venues/venue-1/services/1/positions/5")
+    expect(options.method).toBe("DELETE")
+  })
+
+  it("linkServiceInventory PUTs /{id}/inventory", async () => {
+    const sampleInventory = {
+      service_id: 1,
+      linked_item_id: 42,
+      linked_item_name: "Vodka",
+      linked_item_icon: 100,
+      stock_count: 10,
+      low_stock_threshold: 2,
+      is_low: false,
+      updated_at: "2026-01-01T00:00:00Z",
+    }
+    mockFetchOnce({ ok: true, status: 200, body: sampleInventory })
+    const result = await linkServiceInventory("token", "venue-1", 1, { linked_item_id: 42 })
+    expect(result).toEqual(sampleInventory)
+    const [url, options] = (fetch as ReturnType<typeof vi.fn>).mock.calls[0]
+    expect(url).toContain("/venues/venue-1/services/1/inventory")
+    expect(options.method).toBe("PUT")
+  })
+
+  it("createStockMovement POSTs to /{id}/inventory/movements", async () => {
+    const sampleMovement: StockMovementRow = {
+      id: 1,
+      reason: "restock",
+      delta: 10,
+      transaction_id: null,
+      actor_person_id: 3,
+      note: null,
+      created_at: "2026-01-01T00:00:00Z",
+    }
+    mockFetchOnce({ ok: true, status: 201, body: sampleMovement })
+    const result = await createStockMovement("token", "venue-1", 1, { reason: "restock", delta: 10 })
+    expect(result).toEqual(sampleMovement)
+    const [url, options] = (fetch as ReturnType<typeof vi.fn>).mock.calls[0]
+    expect(url).toContain("/venues/venue-1/services/1/inventory/movements")
+    expect(options.method).toBe("POST")
+    expect(JSON.parse(options.body)).toEqual({ reason: "restock", delta: 10 })
   })
 })

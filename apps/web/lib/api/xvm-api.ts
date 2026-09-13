@@ -1746,3 +1746,200 @@ export async function deleteServiceCategory(personToken: string, venueId: string
   if (!process.env.XVM_API_BASE_URL) throw new Error("XVM_API_BASE_URL is not set")
   return xvmFetch<void>(`/venues/${venueId}/services/categories/${categoryId}`, { method: "DELETE" }, personToken)
 }
+
+// ── Services ───────────────────────────────────────────────────
+
+export interface ServiceInventoryRow {
+  service_id: number
+  linked_item_id: number
+  linked_item_name: string | null
+  linked_item_icon: number | null
+  stock_count: number | null
+  low_stock_threshold: number | null
+  is_low: boolean
+  updated_at: string
+}
+
+export interface ServiceRow {
+  id: number
+  name: string
+  description: string | null
+  price_minor: number | null
+  category_id: number | null
+  is_active: boolean
+  sort_order: number
+  position_ids: number[]
+  inventory: ServiceInventoryRow | null
+}
+
+export interface ServiceCreate {
+  name: string
+  description?: string | null
+  price_minor?: number | null
+  category_id?: number | null
+  is_active?: boolean
+  sort_order?: number
+}
+
+export interface ServiceUpdate {
+  name?: string
+  description?: string | null
+  price_minor?: number | null
+  category_id?: number | null
+  is_active?: boolean
+  sort_order?: number
+}
+
+export async function listServices(personToken: string, venueId: string): Promise<ServiceRow[]> {
+  if (!process.env.XVM_API_BASE_URL) throw new Error("XVM_API_BASE_URL is not set")
+  return xvmFetch<ServiceRow[]>(`/venues/${venueId}/services`, {}, personToken)
+}
+
+export async function getService(personToken: string, venueId: string, serviceId: number): Promise<ServiceRow> {
+  if (!process.env.XVM_API_BASE_URL) throw new Error("XVM_API_BASE_URL is not set")
+  return xvmFetch<ServiceRow>(`/venues/${venueId}/services/${serviceId}`, {}, personToken)
+}
+
+export async function createService(
+  personToken: string,
+  venueId: string,
+  data: ServiceCreate
+): Promise<ServiceRow> {
+  if (!process.env.XVM_API_BASE_URL) throw new Error("XVM_API_BASE_URL is not set")
+  return xvmFetch<ServiceRow>(`/venues/${venueId}/services`, { method: "POST", body: JSON.stringify(data) }, personToken)
+}
+
+export async function updateService(
+  personToken: string,
+  venueId: string,
+  serviceId: number,
+  data: ServiceUpdate
+): Promise<ServiceRow> {
+  if (!process.env.XVM_API_BASE_URL) throw new Error("XVM_API_BASE_URL is not set")
+  return xvmFetch<ServiceRow>(
+    `/venues/${venueId}/services/${serviceId}`,
+    { method: "PATCH", body: JSON.stringify(data) },
+    personToken
+  )
+}
+
+export async function deleteService(personToken: string, venueId: string, serviceId: number): Promise<void> {
+  if (!process.env.XVM_API_BASE_URL) throw new Error("XVM_API_BASE_URL is not set")
+  return xvmFetch<void>(`/venues/${venueId}/services/${serviceId}`, { method: "DELETE" }, personToken)
+}
+
+export async function grantServicePosition(
+  personToken: string,
+  venueId: string,
+  serviceId: number,
+  positionId: number
+): Promise<ServiceRow> {
+  if (!process.env.XVM_API_BASE_URL) throw new Error("XVM_API_BASE_URL is not set")
+  return xvmFetch<ServiceRow>(
+    `/venues/${venueId}/services/${serviceId}/positions`,
+    { method: "POST", body: JSON.stringify({ position_id: positionId }) },
+    personToken
+  )
+}
+
+export async function revokeServicePosition(
+  personToken: string,
+  venueId: string,
+  serviceId: number,
+  positionId: number
+): Promise<void> {
+  if (!process.env.XVM_API_BASE_URL) throw new Error("XVM_API_BASE_URL is not set")
+  return xvmFetch<void>(
+    `/venues/${venueId}/services/${serviceId}/positions/${positionId}`,
+    { method: "DELETE" },
+    personToken
+  )
+}
+
+// ── Services: Inventory ──────────────────────────────────────────
+
+export interface InventoryLinkInput {
+  linked_item_id: number
+  linked_item_name?: string | null
+  linked_item_icon?: number | null
+  low_stock_threshold?: number | null
+}
+
+export type StockMovementReason = "restock" | "adjustment" | "spoilage"
+
+export interface StockMovementCreateInput {
+  reason: StockMovementReason
+  delta: number
+  note?: string | null
+}
+
+export interface StockMovementRow {
+  id: number
+  reason: StockMovementReason | "sale"
+  delta: number
+  transaction_id: number | null
+  actor_person_id: number | null
+  note: string | null
+  created_at: string
+}
+
+export async function linkServiceInventory(
+  personToken: string,
+  venueId: string,
+  serviceId: number,
+  data: InventoryLinkInput
+): Promise<ServiceInventoryRow> {
+  if (!process.env.XVM_API_BASE_URL) throw new Error("XVM_API_BASE_URL is not set")
+  return xvmFetch<ServiceInventoryRow>(
+    `/venues/${venueId}/services/${serviceId}/inventory`,
+    { method: "PUT", body: JSON.stringify(data) },
+    personToken
+  )
+}
+
+export async function unlinkServiceInventory(personToken: string, venueId: string, serviceId: number): Promise<void> {
+  if (!process.env.XVM_API_BASE_URL) throw new Error("XVM_API_BASE_URL is not set")
+  return xvmFetch<void>(`/venues/${venueId}/services/${serviceId}/inventory`, { method: "DELETE" }, personToken)
+}
+
+export async function setStock(
+  personToken: string,
+  venueId: string,
+  serviceId: number,
+  data: { stock_count: number; note?: string | null }
+): Promise<ServiceInventoryRow> {
+  if (!process.env.XVM_API_BASE_URL) throw new Error("XVM_API_BASE_URL is not set")
+  return xvmFetch<ServiceInventoryRow>(
+    `/venues/${venueId}/services/${serviceId}/inventory/stock`,
+    { method: "PUT", body: JSON.stringify(data) },
+    personToken
+  )
+}
+
+export async function createStockMovement(
+  personToken: string,
+  venueId: string,
+  serviceId: number,
+  data: StockMovementCreateInput
+): Promise<StockMovementRow> {
+  if (!process.env.XVM_API_BASE_URL) throw new Error("XVM_API_BASE_URL is not set")
+  return xvmFetch<StockMovementRow>(
+    `/venues/${venueId}/services/${serviceId}/inventory/movements`,
+    { method: "POST", body: JSON.stringify(data) },
+    personToken
+  )
+}
+
+export async function listStockMovements(
+  personToken: string,
+  venueId: string,
+  serviceId: number,
+  limit = 50
+): Promise<StockMovementRow[]> {
+  if (!process.env.XVM_API_BASE_URL) throw new Error("XVM_API_BASE_URL is not set")
+  return xvmFetch<StockMovementRow[]>(
+    `/venues/${venueId}/services/${serviceId}/inventory/movements?limit=${limit}`,
+    {},
+    personToken
+  )
+}

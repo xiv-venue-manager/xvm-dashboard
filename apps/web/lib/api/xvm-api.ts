@@ -1691,3 +1691,58 @@ export async function deleteFinanceCategory(
   if (!process.env.XVM_API_BASE_URL) throw new Error("XVM_API_BASE_URL is not set")
   return xvmFetch<void>(`/venues/${venueId}/finance/categories/${categoryId}`, { method: "DELETE" }, personToken)
 }
+
+// ── Services: Categories ────────────────────────────────────────
+
+export interface ServiceCategoryRow {
+  id: number
+  name: string
+  sort_order: number
+}
+
+export interface ServiceCategoryCreate {
+  name: string
+  sort_order?: number
+}
+
+export interface ServiceCategoryUpdate {
+  name?: string
+  sort_order?: number
+}
+
+export async function listServiceCategories(personToken: string, venueId: string): Promise<ServiceCategoryRow[]> {
+  if (!process.env.XVM_API_BASE_URL) throw new Error("XVM_API_BASE_URL is not set")
+  return xvmFetch<ServiceCategoryRow[]>(`/venues/${venueId}/services/categories`, {}, personToken)
+}
+
+export async function createServiceCategory(
+  personToken: string,
+  venueId: string,
+  data: ServiceCategoryCreate
+): Promise<ServiceCategoryRow> {
+  if (!process.env.XVM_API_BASE_URL) throw new Error("XVM_API_BASE_URL is not set")
+  return xvmFetch<ServiceCategoryRow>(
+    `/venues/${venueId}/services/categories`,
+    { method: "POST", body: JSON.stringify(data) },
+    personToken
+  )
+}
+
+export async function updateServiceCategory(
+  personToken: string,
+  venueId: string,
+  categoryId: number,
+  data: ServiceCategoryUpdate
+): Promise<ServiceCategoryRow> {
+  if (!process.env.XVM_API_BASE_URL) throw new Error("XVM_API_BASE_URL is not set")
+  return xvmFetch<ServiceCategoryRow>(
+    `/venues/${venueId}/services/categories/${categoryId}`,
+    { method: "PATCH", body: JSON.stringify(data) },
+    personToken
+  )
+}
+
+export async function deleteServiceCategory(personToken: string, venueId: string, categoryId: number): Promise<void> {
+  if (!process.env.XVM_API_BASE_URL) throw new Error("XVM_API_BASE_URL is not set")
+  return xvmFetch<void>(`/venues/${venueId}/services/categories/${categoryId}`, { method: "DELETE" }, personToken)
+}

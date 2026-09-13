@@ -25,10 +25,15 @@ import {
   creditTickets,
   refundTickets,
   rollRaffle,
+  listServiceCategories,
+  createServiceCategory,
+  updateServiceCategory,
+  deleteServiceCategory,
   type TaskRow,
   type PublicHours,
   type GiveawayRow,
   type RaffleRow,
+  type ServiceCategoryRow,
 } from "./xvm-api"
 
 function mockFetchOnce({ ok, status, body }: { ok: boolean; status: number; body: unknown }) {
@@ -329,5 +334,45 @@ describe("Raffles API", () => {
     const [url, options] = (fetch as ReturnType<typeof vi.fn>).mock.calls[0]
     expect(url).toContain("/raffles/1/roll")
     expect(options.method).toBe("POST")
+  })
+})
+
+describe("Service categories API", () => {
+  const sampleCategory: ServiceCategoryRow = { id: 1, name: "Drinks", sort_order: 0 }
+
+  it("listServiceCategories GETs /venues/{venueId}/services/categories", async () => {
+    mockFetchOnce({ ok: true, status: 200, body: [sampleCategory] })
+    const result = await listServiceCategories("token", "venue-1")
+    expect(result).toEqual([sampleCategory])
+    const [url] = (fetch as ReturnType<typeof vi.fn>).mock.calls[0]
+    expect(url).toContain("/venues/venue-1/services/categories")
+  })
+
+  it("createServiceCategory POSTs to /venues/{venueId}/services/categories", async () => {
+    mockFetchOnce({ ok: true, status: 201, body: sampleCategory })
+    const result = await createServiceCategory("token", "venue-1", { name: "Drinks", sort_order: 0 })
+    expect(result).toEqual(sampleCategory)
+    const [url, options] = (fetch as ReturnType<typeof vi.fn>).mock.calls[0]
+    expect(url).toContain("/venues/venue-1/services/categories")
+    expect(options.method).toBe("POST")
+    expect(JSON.parse(options.body)).toEqual({ name: "Drinks", sort_order: 0 })
+  })
+
+  it("updateServiceCategory PATCHes /{id}", async () => {
+    mockFetchOnce({ ok: true, status: 200, body: sampleCategory })
+    const result = await updateServiceCategory("token", "venue-1", 1, { name: "Food & Drink" })
+    expect(result).toEqual(sampleCategory)
+    const [url, options] = (fetch as ReturnType<typeof vi.fn>).mock.calls[0]
+    expect(url).toContain("/venues/venue-1/services/categories/1")
+    expect(options.method).toBe("PATCH")
+    expect(JSON.parse(options.body)).toEqual({ name: "Food & Drink" })
+  })
+
+  it("deleteServiceCategory DELETEs /{id}", async () => {
+    mockFetchOnce({ ok: true, status: 204, body: null })
+    await deleteServiceCategory("token", "venue-1", 1)
+    const [url, options] = (fetch as ReturnType<typeof vi.fn>).mock.calls[0]
+    expect(url).toContain("/venues/venue-1/services/categories/1")
+    expect(options.method).toBe("DELETE")
   })
 })

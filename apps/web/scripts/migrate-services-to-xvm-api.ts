@@ -54,6 +54,7 @@ async function main() {
     servicesCreated: 0,
     servicesSkippedAlreadyMigrated: 0,
     servicesIncompleteGrants: [] as string[],
+    servicesOrphanedWriteback: [] as string[],
   }
 
   for (const venue of venues) {
@@ -93,19 +94,27 @@ async function main() {
         console.warn(`  [warn] No "Manager" position found on xvm-api for this venue — position grants will be skipped.`)
       }
 
-      // category name -> xvm-api category id, seeded with what already exists.
-      const categoryIdByName = new Map<string, number>(existingCategories.map((c) => [c.name, c.id]))
+      // lowercased category name -> xvm-api category id, seeded with what already exists.
+      // Matched case-insensitively, same as position matching below, so "Drinks" and
+      // "drinks" collapse into one xvm-api category rather than becoming two.
+      // A category the dry run would create has no real id yet, so it's held as a
+      // pending-name placeholder instead — never a fabricated number.
+      type CategoryRef = number | { pendingName: string }
+      const categoryIdByName = new Map<string, CategoryRef>(existingCategories.map((c) => [c.name.toLowerCase(), c.id]))
 
       const distinctCategoryNames = [...new Set(services.map((s) => s.category).filter((c): c is string => !!c))]
       for (const name of distinctCategoryNames) {
-        if (categoryIdByName.has(name)) {
-          console.log(`  [skip-create-category] "${name}" already exists (id ${categoryIdByName.get(name)})`)
+        const key = name.toLowerCase()
+        if (categoryIdByName.has(key)) {
+          console.log(`  [skip-create-category] "${name}" already exists (id ${categoryIdByName.get(key)})`)
           continue
         }
         console.log(`  [create-category] "${name}"`, apply ? "" : "(dry run, not sent)")
         if (apply) {
           const created = await createServiceCategory(token, xvmApiVenueId, { name })
-          categoryIdByName.set(name, created.id)
+          categoryIdByName.set(key, created.id)
+        } else {
+          categoryIdByName.set(key, { pendingName: name })
         }
       }
 
@@ -116,7 +125,8 @@ async function main() {
           continue
         }
 
-        const categoryId = service.category ? categoryIdByName.get(service.category) ?? null : null
+        const categoryRef = service.category ? categoryIdByName.get(service.category.toLowerCase()) ?? null : null
+        const categoryId = typeof categoryRef === "number" ? categoryRef : null
         const payload = {
           name: service.name,
           description: service.description,
@@ -124,13 +134,29 @@ async function main() {
           category_id: categoryId,
           is_active: service.isActive,
         }
-        console.log(`  [create-service] "${service.name}"`, apply ? "" : "(dry run, not sent)", payload)
+        const loggedCategoryId = categoryRef && typeof categoryRef !== "number" ? `<new "${categoryRef.pendingName}">` : categoryId
+        console.log(`  [create-service] "${service.name}"`, apply ? "" : "(dry run, not sent)", {
+          ...payload,
+          category_id: loggedCategoryId,
+        })
 
         if (!apply) continue // can't grant positions on a service that doesn't exist yet in dry-run
 
         const created = await createService(token, xvmApiVenueId, payload)
-        await prisma.service.update({ where: { id: service.id }, data: { xvmApiServiceId: created.id } })
         summary.servicesCreated++
+
+        try {
+          await prisma.service.update({ where: { id: service.id }, data: { xvmApiServiceId: created.id } })
+        } catch (err) {
+          // The service now exists in xvm-api but Prisma doesn't know it — a re-run
+          // would create a duplicate rather than skip it, same permanence as a failed
+          // grant, so it gets the same manual-follow-up treatment.
+          console.error(
+            `    [error] Created "${service.name}" in xvm-api (id ${created.id}) but failed to write xvmApiServiceId back to Prisma:`,
+            err,
+          )
+          summary.servicesOrphanedWriteback.push(`${service.name} (venue ${venue.id}, xvm-api service id ${created.id})`)
+        }
 
         // Manager is always granted for UI consistency, plus any other Prisma
         // roles this service had. Position names are matched case-insensitively.
@@ -179,6 +205,8 @@ async function main() {
   console.log(`Services skipped (already migrated): ${summary.servicesSkippedAlreadyMigrated}`)
   console.log(`Services created with incomplete grants: ${summary.servicesIncompleteGrants.length}`)
   summary.servicesIncompleteGrants.forEach((s) => console.log(`  - ${s}`))
+  console.log(`Services created but not written back to Prisma (re-run will duplicate): ${summary.servicesOrphanedWriteback.length}`)
+  summary.servicesOrphanedWriteback.forEach((s) => console.log(`  - ${s}`))
   console.log(`\nDone.${apply ? "" : " Re-run with --apply to actually write."}\n`)
 }
 

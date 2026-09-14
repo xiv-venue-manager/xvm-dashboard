@@ -159,101 +159,14 @@ export const POST = withRateLimit<{ params: Promise<{ venueId: string; eventId: 
         return NextResponse.json({ error: "Pot payroll can only be generated for completed events" }, { status: 400 })
       }
 
-      const existing = await prisma.potDistribution.findUnique({ where: { eventId } })
-      if (existing) {
-        return NextResponse.json({ error: "Pot payroll has already been generated for this event" }, { status: 409 })
-      }
-
-      const resolved = await resolvePotInputs(venue.id, eventId, event)
-      const { result, settings } = resolved
-
-      const distribution = await prisma.$transaction(async (tx) => {
-        const dist = await tx.potDistribution.create({
-          data: {
-            venueId: venue.id,
-            eventId,
-            regularSales: result.regularSales,
-            contractorSales: result.contractorSales,
-            pooledTips: result.pooledTips,
-            taxPercent: settings?.taxPercent ?? new Decimal(0),
-            potTotal: result.potTotal,
-            recipientCount: result.recipientCount,
-            perPersonShare: result.perPersonShare,
-            generatedById: session.user.id,
-          },
-        })
-
-        const handled = new Set<string>()
-        const contractorPayoutMembershipIds = new Set(result.contractorPayouts.map((p) => p.membershipId))
-
-        for (const membershipId of result.recipientMembershipIds) {
-          // If this membership also gets a CONTRACTOR_PAYOUT entry below, the kept-tips
-          // bonus is folded in there instead — otherwise it would be double-paid.
-          const bonus = contractorPayoutMembershipIds.has(membershipId)
-            ? null
-            : (result.keptTipsByMembership.get(membershipId) ?? null)
-          await tx.payrollEntry.create({
-            data: {
-              venueId: venue.id,
-              membershipId,
-              paymentType: "POT_SHARE",
-              baseRate: result.perPersonShare,
-              bonusAmount: bonus,
-              totalAmount: bonus ? result.perPersonShare.plus(bonus) : result.perPersonShare,
-              periodStart: event.startTime,
-              periodEnd: event.endTime,
-              potDistributionId: dist.id,
-            },
-          })
-          handled.add(membershipId)
-        }
-
-        for (const payout of result.contractorPayouts) {
-          const bonus = result.keptTipsByMembership.get(payout.membershipId) ?? null
-          await tx.payrollEntry.create({
-            data: {
-              venueId: venue.id,
-              membershipId: payout.membershipId,
-              paymentType: "CONTRACTOR_PAYOUT",
-              baseRate: payout.payout,
-              bonusAmount: bonus,
-              totalAmount: bonus ? payout.payout.plus(bonus) : payout.payout,
-              periodStart: event.startTime,
-              periodEnd: event.endTime,
-              potDistributionId: dist.id,
-            },
-          })
-          handled.add(payout.membershipId)
-        }
-
-        // Kept tips for staff who are neither a pot recipient nor a paid contractor
-        // (e.g. a STANDARD-role member who kept their own tips) still need their own
-        // entry so the money isn't lost — a zero-base, bonus-only entry.
-        for (const [membershipId, bonus] of result.keptTipsByMembership) {
-          if (handled.has(membershipId)) continue
-          await tx.payrollEntry.create({
-            data: {
-              venueId: venue.id,
-              membershipId,
-              paymentType: "POT_SHARE",
-              baseRate: new Decimal(0),
-              bonusAmount: bonus,
-              totalAmount: bonus,
-              periodStart: event.startTime,
-              periodEnd: event.endTime,
-              potDistributionId: dist.id,
-            },
-          })
-        }
-
-        return dist
-      })
-
-      return NextResponse.json({ distribution }, { status: 201 })
+      // Sales moved to xvm-api and no longer write prisma.transaction, so resolvePotInputs'
+      // revenue query below always returns empty. Generation is disabled until Events moves
+      // to xvm-api too and pot revenue can be computed there instead.
+      return NextResponse.json(
+        { error: "Pot payroll generation is unavailable until the Events cutover lands" },
+        { status: 503 }
+      )
     } catch (error) {
-      if (error instanceof Prisma.PrismaClientKnownRequestError && error.code === "P2002") {
-        return NextResponse.json({ error: "Pot payroll has already been generated for this event" }, { status: 409 })
-      }
       console.error("Error generating pot payroll:", error)
       return NextResponse.json({ error: "Internal server error" }, { status: 500 })
     }

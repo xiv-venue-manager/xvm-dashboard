@@ -1,7 +1,5 @@
 "use client"
 
-import { useState } from "react"
-import { useRouter } from "next/navigation"
 import { Button } from "@/components/ui/button"
 import { LocalTime } from "@/components/server-time"
 
@@ -17,31 +15,7 @@ interface GeneratePotPayrollButtonProps {
   existingDistribution: PotDistributionSummary | null
 }
 
-export function GeneratePotPayrollButton({ venueSlug, eventId, existingDistribution }: GeneratePotPayrollButtonProps) {
-  const router = useRouter()
-  const [generating, setGenerating] = useState(false)
-  const [error, setError] = useState("")
-
-  async function handleGenerate() {
-    setGenerating(true)
-    setError("")
-    try {
-      const res = await fetch(`/api/venues/${venueSlug}/events/${eventId}/pot-payroll`, {
-        method: "POST",
-      })
-      if (!res.ok) {
-        const body = await res.json().catch(() => ({}))
-        setError(body.error || `Failed to generate pot payroll (${res.status})`)
-        return
-      }
-      router.refresh()
-    } catch {
-      setError("Network error generating pot payroll.")
-    } finally {
-      setGenerating(false)
-    }
-  }
-
+export function GeneratePotPayrollButton({ existingDistribution }: GeneratePotPayrollButtonProps) {
   if (existingDistribution) {
     return (
       <p className="text-sm text-muted-foreground">
@@ -53,10 +27,12 @@ export function GeneratePotPayrollButton({ venueSlug, eventId, existingDistribut
 
   return (
     <div className="space-y-2">
-      <Button onClick={handleGenerate} disabled={generating}>
-        {generating ? "Generating…" : "Generate Pot Payroll"}
+      <Button disabled title="Unavailable until the Events cutover lands">
+        Generate Pot Payroll
       </Button>
-      {error && <p className="text-sm text-red-400">{error}</p>}
+      <p className="text-sm text-muted-foreground">
+        Generation is unavailable until Events moves to xvm-api and pot revenue can be computed there.
+      </p>
     </div>
   )
 }

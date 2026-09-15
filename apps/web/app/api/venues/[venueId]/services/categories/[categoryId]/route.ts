@@ -5,17 +5,14 @@ import { z } from "zod"
 import { prisma } from "@/lib/prisma"
 import { withRateLimit } from "@/lib/middleware/with-rate-limit"
 import { getValidXvmApiToken, xvmApiErrorResponse } from "@/lib/api/xvm-api-store"
-import { listServices, createService } from "@/lib/api/xvm-api"
-import { dollarsToMinorUnits } from "@/lib/api/position-convert"
-import { validators } from "@/lib/validation"
+import { updateServiceCategory, deleteServiceCategory } from "@/lib/api/xvm-api"
 
-const createServiceSchema = z.object({
-  name: validators.serviceName,
-  description: validators.serviceDescription,
-  price: z.number().min(0, "Price must be positive"),
-  categoryId: z.number().int().positive().nullable().optional(),
-  isActive: z.boolean().default(true),
-}).strict()
+const updateCategorySchema = z
+  .object({
+    name: z.string().trim().min(1).max(50).optional(),
+    sort_order: z.number().int().min(0).optional(),
+  })
+  .strict()
 
 async function requireXvmVenueId(venueId: string) {
   const venue = await prisma.venue.findUnique({ where: { id: venueId }, select: { xvmApiVenueId: true } })
@@ -30,7 +27,7 @@ async function requireXvmVenueId(venueId: string) {
   return { xvmApiVenueId: venue.xvmApiVenueId }
 }
 
-export const GET = withRateLimit<{ params: Promise<{ venueId: string }> }>(
+export const PATCH = withRateLimit<{ params: Promise<{ venueId: string; categoryId: string }> }>(
   async (request, context) => {
     if (!context?.params) return NextResponse.json({ error: "Invalid request" }, { status: 400 })
 
@@ -39,47 +36,17 @@ export const GET = withRateLimit<{ params: Promise<{ venueId: string }> }>(
       return NextResponse.json({ error: "Unauthorized" }, { status: 401 })
     }
 
-    const { venueId } = await context.params
-    const membership = await prisma.membership.findFirst({
-      where: { userId: session.user.id, venueId, status: "active" },
-    })
-    if (!membership) {
-      return NextResponse.json({ error: "You don't have access to this venue" }, { status: 403 })
+    const { venueId, categoryId } = await context.params
+    const categoryIdNum = Number(categoryId)
+    if (!Number.isInteger(categoryIdNum) || categoryIdNum <= 0) {
+      return NextResponse.json({ error: "Invalid category id" }, { status: 400 })
     }
 
-    const token = await getValidXvmApiToken(session.user.id)
-    if (!token) {
-      return NextResponse.json({ error: "xvm-api link not established yet" }, { status: 503 })
-    }
-
-    const gate = await requireXvmVenueId(venueId)
-    if (gate.error) return gate.error
-
-    try {
-      const services = await listServices(token, gate.xvmApiVenueId!)
-      return NextResponse.json(services)
-    } catch (err) {
-      return xvmApiErrorResponse(err, session.user.id, "[services] GET error")
-    }
-  },
-  { requests: 60, window: "1 m" }
-)
-
-export const POST = withRateLimit<{ params: Promise<{ venueId: string }> }>(
-  async (request, context) => {
-    if (!context?.params) return NextResponse.json({ error: "Invalid request" }, { status: 400 })
-
-    const session = await getServerSession(authOptions)
-    if (!session?.user?.id) {
-      return NextResponse.json({ error: "Unauthorized" }, { status: 401 })
-    }
-
-    const { venueId } = await context.params
     const membership = await prisma.membership.findFirst({
       where: { userId: session.user.id, venueId, status: "active" },
     })
     if (!membership || !["OWNER", "MANAGER"].includes(membership.role)) {
-      return NextResponse.json({ error: "You don't have permission to create services" }, { status: 403 })
+      return NextResponse.json({ error: "You don't have permission to manage categories" }, { status: 403 })
     }
 
     const token = await getValidXvmApiToken(session.user.id)
@@ -90,9 +57,9 @@ export const POST = withRateLimit<{ params: Promise<{ venueId: string }> }>(
     const gate = await requireXvmVenueId(venueId)
     if (gate.error) return gate.error
 
-    let data: z.infer<typeof createServiceSchema>
+    let data: z.infer<typeof updateCategorySchema>
     try {
-      data = createServiceSchema.parse(await request.json())
+      data = updateCategorySchema.parse(await request.json())
     } catch (err) {
       if (err instanceof z.ZodError) {
         return NextResponse.json({ error: "Invalid request", details: err.flatten() }, { status: 400 })
@@ -101,17 +68,51 @@ export const POST = withRateLimit<{ params: Promise<{ venueId: string }> }>(
     }
 
     try {
-      const service = await createService(token, gate.xvmApiVenueId!, {
-        name: data.name,
-        description: data.description,
-        price_minor: dollarsToMinorUnits(data.price),
-        category_id: data.categoryId ?? null,
-        is_active: data.isActive,
-      })
-      return NextResponse.json(service, { status: 201 })
+      const category = await updateServiceCategory(token, gate.xvmApiVenueId!, categoryIdNum, data)
+      return NextResponse.json(category)
     } catch (err) {
-      return xvmApiErrorResponse(err, session.user.id, "[services] POST error")
+      return xvmApiErrorResponse(err, session.user.id, "[services/categories] PATCH error")
     }
   },
-  { requests: 10, window: "1 m" }
+  { requests: 20, window: "1 m" }
+)
+
+export const DELETE = withRateLimit<{ params: Promise<{ venueId: string; categoryId: string }> }>(
+  async (request, context) => {
+    if (!context?.params) return NextResponse.json({ error: "Invalid request" }, { status: 400 })
+
+    const session = await getServerSession(authOptions)
+    if (!session?.user?.id) {
+      return NextResponse.json({ error: "Unauthorized" }, { status: 401 })
+    }
+
+    const { venueId, categoryId } = await context.params
+    const categoryIdNum = Number(categoryId)
+    if (!Number.isInteger(categoryIdNum) || categoryIdNum <= 0) {
+      return NextResponse.json({ error: "Invalid category id" }, { status: 400 })
+    }
+
+    const membership = await prisma.membership.findFirst({
+      where: { userId: session.user.id, venueId, status: "active" },
+    })
+    if (!membership || membership.role !== "OWNER") {
+      return NextResponse.json({ error: "Only owners can delete categories" }, { status: 403 })
+    }
+
+    const token = await getValidXvmApiToken(session.user.id)
+    if (!token) {
+      return NextResponse.json({ error: "xvm-api link not established yet" }, { status: 503 })
+    }
+
+    const gate = await requireXvmVenueId(venueId)
+    if (gate.error) return gate.error
+
+    try {
+      await deleteServiceCategory(token, gate.xvmApiVenueId!, categoryIdNum)
+      return new NextResponse(null, { status: 204 })
+    } catch (err) {
+      return xvmApiErrorResponse(err, session.user.id, "[services/categories] DELETE error")
+    }
+  },
+  { requests: 5, window: "1 m" }
 )

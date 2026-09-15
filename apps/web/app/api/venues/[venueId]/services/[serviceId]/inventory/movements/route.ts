@@ -5,17 +5,15 @@ import { z } from "zod"
 import { prisma } from "@/lib/prisma"
 import { withRateLimit } from "@/lib/middleware/with-rate-limit"
 import { getValidXvmApiToken, xvmApiErrorResponse } from "@/lib/api/xvm-api-store"
-import { listServices, createService } from "@/lib/api/xvm-api"
-import { dollarsToMinorUnits } from "@/lib/api/position-convert"
-import { validators } from "@/lib/validation"
+import { listStockMovements, createStockMovement } from "@/lib/api/xvm-api"
 
-const createServiceSchema = z.object({
-  name: validators.serviceName,
-  description: validators.serviceDescription,
-  price: z.number().min(0, "Price must be positive"),
-  categoryId: z.number().int().positive().nullable().optional(),
-  isActive: z.boolean().default(true),
-}).strict()
+const createMovementSchema = z
+  .object({
+    reason: z.enum(["restock", "adjustment", "spoilage"]),
+    delta: z.number().int(),
+    note: z.string().nullable().optional(),
+  })
+  .strict()
 
 async function requireXvmVenueId(venueId: string) {
   const venue = await prisma.venue.findUnique({ where: { id: venueId }, select: { xvmApiVenueId: true } })
@@ -30,7 +28,7 @@ async function requireXvmVenueId(venueId: string) {
   return { xvmApiVenueId: venue.xvmApiVenueId }
 }
 
-export const GET = withRateLimit<{ params: Promise<{ venueId: string }> }>(
+export const GET = withRateLimit<{ params: Promise<{ venueId: string; serviceId: string }> }>(
   async (request, context) => {
     if (!context?.params) return NextResponse.json({ error: "Invalid request" }, { status: 400 })
 
@@ -39,7 +37,7 @@ export const GET = withRateLimit<{ params: Promise<{ venueId: string }> }>(
       return NextResponse.json({ error: "Unauthorized" }, { status: 401 })
     }
 
-    const { venueId } = await context.params
+    const { venueId, serviceId } = await context.params
     const membership = await prisma.membership.findFirst({
       where: { userId: session.user.id, venueId, status: "active" },
     })
@@ -56,16 +54,16 @@ export const GET = withRateLimit<{ params: Promise<{ venueId: string }> }>(
     if (gate.error) return gate.error
 
     try {
-      const services = await listServices(token, gate.xvmApiVenueId!)
-      return NextResponse.json(services)
+      const movements = await listStockMovements(token, gate.xvmApiVenueId!, Number(serviceId))
+      return NextResponse.json(movements)
     } catch (err) {
-      return xvmApiErrorResponse(err, session.user.id, "[services] GET error")
+      return xvmApiErrorResponse(err, session.user.id, "[services/[serviceId]/inventory/movements] GET error")
     }
   },
   { requests: 60, window: "1 m" }
 )
 
-export const POST = withRateLimit<{ params: Promise<{ venueId: string }> }>(
+export const POST = withRateLimit<{ params: Promise<{ venueId: string; serviceId: string }> }>(
   async (request, context) => {
     if (!context?.params) return NextResponse.json({ error: "Invalid request" }, { status: 400 })
 
@@ -74,12 +72,12 @@ export const POST = withRateLimit<{ params: Promise<{ venueId: string }> }>(
       return NextResponse.json({ error: "Unauthorized" }, { status: 401 })
     }
 
-    const { venueId } = await context.params
+    const { venueId, serviceId } = await context.params
     const membership = await prisma.membership.findFirst({
       where: { userId: session.user.id, venueId, status: "active" },
     })
     if (!membership || !["OWNER", "MANAGER"].includes(membership.role)) {
-      return NextResponse.json({ error: "You don't have permission to create services" }, { status: 403 })
+      return NextResponse.json({ error: "You don't have permission to manage service inventory" }, { status: 403 })
     }
 
     const token = await getValidXvmApiToken(session.user.id)
@@ -90,9 +88,9 @@ export const POST = withRateLimit<{ params: Promise<{ venueId: string }> }>(
     const gate = await requireXvmVenueId(venueId)
     if (gate.error) return gate.error
 
-    let data: z.infer<typeof createServiceSchema>
+    let data: z.infer<typeof createMovementSchema>
     try {
-      data = createServiceSchema.parse(await request.json())
+      data = createMovementSchema.parse(await request.json())
     } catch (err) {
       if (err instanceof z.ZodError) {
         return NextResponse.json({ error: "Invalid request", details: err.flatten() }, { status: 400 })
@@ -101,17 +99,11 @@ export const POST = withRateLimit<{ params: Promise<{ venueId: string }> }>(
     }
 
     try {
-      const service = await createService(token, gate.xvmApiVenueId!, {
-        name: data.name,
-        description: data.description,
-        price_minor: dollarsToMinorUnits(data.price),
-        category_id: data.categoryId ?? null,
-        is_active: data.isActive,
-      })
-      return NextResponse.json(service, { status: 201 })
+      const movement = await createStockMovement(token, gate.xvmApiVenueId!, Number(serviceId), data)
+      return NextResponse.json(movement, { status: 201 })
     } catch (err) {
-      return xvmApiErrorResponse(err, session.user.id, "[services] POST error")
+      return xvmApiErrorResponse(err, session.user.id, "[services/[serviceId]/inventory/movements] POST error")
     }
   },
-  { requests: 10, window: "1 m" }
+  { requests: 20, window: "1 m" }
 )

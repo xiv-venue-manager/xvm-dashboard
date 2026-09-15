@@ -557,6 +557,11 @@ model Service {
   category    String?
   isActive    Boolean @default(true)
 
+  // Set once this row has been backfilled into xvm-api's Service module —
+  // lets the one-time migration script (scripts/migrate-services-to-xvm-api.ts)
+  // skip rows it already created on a re-run.
+  xvmApiServiceId Int?
+
   // Bar inventory mapping — a drink is an existing Service with these
   // populated. linkedItemId is the real FFXIV item ID (source of truth);
   // name/icon are a display cache either search path can refresh.

@@ -71,10 +71,6 @@ export function FormerStaff({ members, slug, canManageStaff }: FormerStaffProps)
         <span className="pt">
           <UserCheck /> Former Staff
         </span>
-        <span className="ph-spacer" />
-        <span className="pcount">
-          {formerMembers.length} {formerMembers.length === 1 ? "member" : "members"}
-        </span>
       </div>
       {error && <p className="px-5 pt-3 text-xs text-destructive">{error}</p>}
       <table className="dtable">

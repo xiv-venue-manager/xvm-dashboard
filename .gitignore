@@ -89,7 +89,7 @@ graphify-out/
 # app.json and eas.json intentionally tracked (needed for EAS Build)
 graphify-out/
 .worktrees/
-.claude/worktrees/
+.claude/
 docs/superpowers/brainstorm/
 .superpowers/
 docker/minio/data/

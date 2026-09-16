@@ -1,6 +1,6 @@
 "use client"
 
-import { useState, type CSSProperties } from "react"
+import { useEffect, useState, type CSSProperties } from "react"
 import Link from "next/link"
 import { LocalTime } from "@/components/server-time"
 import { Avatar, AvatarFallback, AvatarImage } from "@/components/ui/avatar"
@@ -98,6 +98,13 @@ export function StaffTable({
   canManage: boolean
 }) {
   const [members, setMembers] = useState(initialMembers)
+  // router.refresh() re-renders the parent server component with fresh data,
+  // but this component's own state wouldn't otherwise pick up the new
+  // initialMembers array - confirmed live: a rehired member stayed missing
+  // from this table until a hard reload without this sync.
+  useEffect(() => {
+    setMembers(initialMembers)
+  }, [initialMembers])
   const [filter, setFilter] = useState<Filter>("all")
   const [search, setSearch] = useState("")
   const [editingId, setEditingId] = useState<number | null>(null)

@@ -2,10 +2,9 @@
 
 import { useState } from "react"
 import { useRouter } from "next/navigation"
-import { Card, CardContent } from "@/components/ui/card"
 import { Button } from "@/components/ui/button"
 import { Avatar, AvatarFallback } from "@/components/ui/avatar"
-import { RoleBadge } from "@/components/role-badge"
+import { DataTable } from "@/components/ui/data-table"
 import {
   AlertDialog,
   AlertDialogAction,
@@ -20,6 +19,14 @@ import {
 import { UserCheck } from "lucide-react"
 import { resolveDisplayName } from "@/lib/display-name"
 import type { StaffMember } from "@/components/staff-table"
+
+// Matches staff-table.tsx's rolePill exactly - duplicated per this
+// codebase's per-file convention rather than exported/shared.
+const rolePill: Record<string, string> = {
+  OWNER: "bg-[rgba(249,226,175,0.10)] text-[var(--warning)] border border-[rgba(249,226,175,0.28)]",
+  MANAGER: "bg-[rgba(0,180,255,0.10)] text-[var(--xiv-blue)] border border-[rgba(0,180,255,0.28)]",
+  STAFF: "bg-[rgba(108,112,134,0.12)] text-muted-foreground border border-[var(--border)]",
+}
 
 interface FormerStaffProps {
   members: StaffMember[]
@@ -60,12 +67,18 @@ export function FormerStaff({ members, slug, canManageStaff }: FormerStaffProps)
   }
 
   return (
-    <div>
-      <h2 className="text-2xl font-bold mb-4 flex items-center gap-2">
-        <span className="text-muted-foreground">Former Staff</span>
-      </h2>
-      {error && <p className="text-sm text-destructive mb-3">{error}</p>}
-      <div className="grid grid-cols-1 gap-4">
+    <section className="panel">
+      <div className="ph">
+        <span className="pt">
+          <UserCheck /> Former Staff
+        </span>
+        <span className="ph-spacer" />
+        <span className="pcount">
+          {formerMembers.length} {formerMembers.length === 1 ? "member" : "members"}
+        </span>
+      </div>
+      {error && <p className="px-5 pt-3 text-xs text-destructive">{error}</p>}
+      <DataTable columns={[{ label: "Staff" }, { label: "Role" }, { label: "", align: "right" }]} isEmpty={false} emptyMessage="">
         {formerMembers.map((member) => {
           const displayName = resolveDisplayName({
             characterName: member.user?.characterName,
@@ -75,50 +88,51 @@ export function FormerStaff({ members, slug, canManageStaff }: FormerStaffProps)
           })
 
           return (
-            <Card key={member.id} className="border-muted opacity-80">
-              <CardContent className="p-6">
-                <div className="flex items-center justify-between gap-4">
-                  <div className="flex items-center gap-4 flex-1 min-w-0">
-                    <Avatar className="h-12 w-12">
-                      <AvatarFallback className="bg-muted text-muted-foreground">
-                        {displayName.substring(0, 2).toUpperCase()}
-                      </AvatarFallback>
-                    </Avatar>
-                    <div className="min-w-0">
-                      <p className="font-semibold truncate">{displayName}</p>
-                      <RoleBadge role={member.role} className="mt-1" />
-                    </div>
-                  </div>
-
-                  {canManageStaff && (
-                    <AlertDialog>
-                      <AlertDialogTrigger asChild>
-                        <Button size="sm" variant="outline" disabled={rehiringId === member.id}>
-                          <UserCheck className="h-4 w-4 mr-1" />
-                          Rehire
-                        </Button>
-                      </AlertDialogTrigger>
-                      <AlertDialogContent>
-                        <AlertDialogHeader>
-                          <AlertDialogTitle>Rehire {displayName}?</AlertDialogTitle>
-                          <AlertDialogDescription>
-                            Restores them to the active roster at their previous role
-                            ({member.role.toLowerCase()}) and positions.
-                          </AlertDialogDescription>
-                        </AlertDialogHeader>
-                        <AlertDialogFooter>
-                          <AlertDialogCancel>Cancel</AlertDialogCancel>
-                          <AlertDialogAction onClick={() => rehire(member.id)}>Rehire</AlertDialogAction>
-                        </AlertDialogFooter>
-                      </AlertDialogContent>
-                    </AlertDialog>
-                  )}
+            <tr key={member.id}>
+              <td>
+                <div className="flex items-center gap-3">
+                  <Avatar className="w-8 h-8 flex-shrink-0">
+                    <AvatarFallback className="text-[0.65rem] font-bold bg-muted text-muted-foreground">
+                      {displayName.slice(0, 2).toUpperCase()}
+                    </AvatarFallback>
+                  </Avatar>
+                  <span className="text-sm font-medium">{displayName}</span>
                 </div>
-              </CardContent>
-            </Card>
+              </td>
+              <td>
+                <span className={`text-[0.7rem] font-medium px-2.5 py-0.5 rounded-full ${rolePill[member.role]}`}>
+                  {member.role.charAt(0) + member.role.slice(1).toLowerCase()}
+                </span>
+              </td>
+              <td className="t-num">
+                {canManageStaff && (
+                  <AlertDialog>
+                    <AlertDialogTrigger asChild>
+                      <Button size="sm" variant="outline" disabled={rehiringId === member.id}>
+                        <UserCheck className="h-4 w-4 mr-1" />
+                        Rehire
+                      </Button>
+                    </AlertDialogTrigger>
+                    <AlertDialogContent>
+                      <AlertDialogHeader>
+                        <AlertDialogTitle>Rehire {displayName}?</AlertDialogTitle>
+                        <AlertDialogDescription>
+                          Restores them to the active roster at their previous role
+                          ({member.role.toLowerCase()}) and positions.
+                        </AlertDialogDescription>
+                      </AlertDialogHeader>
+                      <AlertDialogFooter>
+                        <AlertDialogCancel>Cancel</AlertDialogCancel>
+                        <AlertDialogAction onClick={() => rehire(member.id)}>Rehire</AlertDialogAction>
+                      </AlertDialogFooter>
+                    </AlertDialogContent>
+                  </AlertDialog>
+                )}
+              </td>
+            </tr>
           )
         })}
-      </div>
-    </div>
+      </DataTable>
+    </section>
   )
 }

@@ -4,7 +4,6 @@ import { useState } from "react"
 import { useRouter } from "next/navigation"
 import { Button } from "@/components/ui/button"
 import { Avatar, AvatarFallback } from "@/components/ui/avatar"
-import { DataTable } from "@/components/ui/data-table"
 import {
   AlertDialog,
   AlertDialogAction,
@@ -78,61 +77,63 @@ export function FormerStaff({ members, slug, canManageStaff }: FormerStaffProps)
         </span>
       </div>
       {error && <p className="px-5 pt-3 text-xs text-destructive">{error}</p>}
-      <DataTable columns={[{ label: "Staff" }, { label: "Role" }, { label: "", align: "right" }]} isEmpty={false} emptyMessage="">
-        {formerMembers.map((member) => {
-          const displayName = resolveDisplayName({
-            characterName: member.user?.characterName,
-            nickname: member.nickname,
-            displayName: member.user?.displayName,
-            discordName: member.user?.name,
-          })
+      <table className="dtable">
+        <tbody>
+          {formerMembers.map((member) => {
+            const displayName = resolveDisplayName({
+              characterName: member.user?.characterName,
+              nickname: member.nickname,
+              displayName: member.user?.displayName,
+              discordName: member.user?.name,
+            })
 
-          return (
-            <tr key={member.id}>
-              <td>
-                <div className="flex items-center gap-3">
-                  <Avatar className="w-8 h-8 flex-shrink-0">
-                    <AvatarFallback className="text-[0.65rem] font-bold bg-muted text-muted-foreground">
-                      {displayName.slice(0, 2).toUpperCase()}
-                    </AvatarFallback>
-                  </Avatar>
-                  <span className="text-sm font-medium">{displayName}</span>
-                </div>
-              </td>
-              <td>
-                <span className={`text-[0.7rem] font-medium px-2.5 py-0.5 rounded-full ${rolePill[member.role]}`}>
-                  {member.role.charAt(0) + member.role.slice(1).toLowerCase()}
-                </span>
-              </td>
-              <td className="t-num">
-                {canManageStaff && (
-                  <AlertDialog>
-                    <AlertDialogTrigger asChild>
-                      <Button size="sm" variant="outline" disabled={rehiringId === member.id}>
-                        <UserCheck className="h-4 w-4 mr-1" />
-                        Rehire
-                      </Button>
-                    </AlertDialogTrigger>
-                    <AlertDialogContent>
-                      <AlertDialogHeader>
-                        <AlertDialogTitle>Rehire {displayName}?</AlertDialogTitle>
-                        <AlertDialogDescription>
-                          Restores them to the active roster at their previous role
-                          ({member.role.toLowerCase()}) and positions.
-                        </AlertDialogDescription>
-                      </AlertDialogHeader>
-                      <AlertDialogFooter>
-                        <AlertDialogCancel>Cancel</AlertDialogCancel>
-                        <AlertDialogAction onClick={() => rehire(member.id)}>Rehire</AlertDialogAction>
-                      </AlertDialogFooter>
-                    </AlertDialogContent>
-                  </AlertDialog>
-                )}
-              </td>
-            </tr>
-          )
-        })}
-      </DataTable>
+            return (
+              <tr key={member.id}>
+                <td className="w-[300px]">
+                  <div className="flex items-center gap-3">
+                    <Avatar className="w-8 h-8 flex-shrink-0">
+                      <AvatarFallback className="text-[0.65rem] font-bold bg-muted text-muted-foreground">
+                        {displayName.slice(0, 2).toUpperCase()}
+                      </AvatarFallback>
+                    </Avatar>
+                    <span className="text-sm font-medium">{displayName}</span>
+                  </div>
+                </td>
+                <td>
+                  <span className={`text-[0.7rem] font-medium px-2.5 py-0.5 rounded-full ${rolePill[member.role]}`}>
+                    {member.role.charAt(0) + member.role.slice(1).toLowerCase()}
+                  </span>
+                </td>
+                <td className="t-num">
+                  {canManageStaff && (
+                    <AlertDialog>
+                      <AlertDialogTrigger asChild>
+                        <Button size="sm" variant="outline" disabled={rehiringId === member.id}>
+                          <UserCheck className="h-4 w-4 mr-1" />
+                          Rehire
+                        </Button>
+                      </AlertDialogTrigger>
+                      <AlertDialogContent>
+                        <AlertDialogHeader>
+                          <AlertDialogTitle>Rehire {displayName}?</AlertDialogTitle>
+                          <AlertDialogDescription>
+                            Restores them to the active roster at their previous role
+                            ({member.role.toLowerCase()}) and positions.
+                          </AlertDialogDescription>
+                        </AlertDialogHeader>
+                        <AlertDialogFooter>
+                          <AlertDialogCancel>Cancel</AlertDialogCancel>
+                          <AlertDialogAction onClick={() => rehire(member.id)}>Rehire</AlertDialogAction>
+                        </AlertDialogFooter>
+                      </AlertDialogContent>
+                    </AlertDialog>
+                  )}
+                </td>
+              </tr>
+            )
+          })}
+        </tbody>
+      </table>
     </section>
   )
 }

@@ -259,7 +259,7 @@ export function StaffTable({
           {visible.map((member) => (
             <tr key={member.id}>
               {/* Name */}
-              <td>
+              <td className="w-[300px]">
                 <div className="flex items-center gap-3">
                   <Avatar className="w-8 h-8 flex-shrink-0">
                     <AvatarImage src={member.user?.image ?? undefined} />

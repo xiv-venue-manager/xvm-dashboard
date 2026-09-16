@@ -11,6 +11,7 @@ import { Avatar, AvatarFallback, AvatarImage } from "@/components/ui/avatar"
 import { prisma } from "@/lib/prisma"
 import { format } from "date-fns"
 import { Users, UserPlus, Shield, AlertTriangle } from "lucide-react"
+import { FormerStaff } from "@/components/former-staff"
 import { PendingInvites } from "@/components/pending-invites"
 import { StaffTable, type StaffMember } from "@/components/staff-table"
 import { VenueLayout } from "@/components/venue-layout"
@@ -104,6 +105,7 @@ export default async function StaffPage({ params }: { params: Promise<{ slug: st
   // tables/endpoints, unlike Prisma's unified Membership row with a
   // status: "pending" filter - a real structural change, not a field rename.
   let activeStaff: StaffMember[] = []
+  let formerStaff: StaffMember[] = []
   let pendingInvites: PendingInviteShape[] = []
 
   const token = await getValidXvmApiToken(session.user.id)
@@ -116,8 +118,10 @@ export default async function StaffPage({ params }: { params: Promise<{ slug: st
       ])
       const positionsById = new Map(positions.map((p) => [p.id, p]))
       // roster() returns every membership regardless of employment status -
-      // this page is the active roster, terminated members don't belong here.
+      // this page is the active roster, terminated members surface separately
+      // below via formerStaff instead.
       activeStaff = memberships.filter((m) => m.is_employed).map((m) => toStaffShape(m, positionsById, slug))
+      formerStaff = memberships.filter((m) => !m.is_employed).map((m) => toStaffShape(m, positionsById, slug))
       pendingInvites = invites.map(toPendingInviteShape)
     } catch (err) {
       console.error("[staff page] xvm-api fetch error:", err)
@@ -252,6 +256,9 @@ export default async function StaffPage({ params }: { params: Promise<{ slug: st
         <div className="space-y-8 mt-6">
           {/* Pending Invites */}
           <PendingInvites invites={pendingInvites} slug={slug} canManageStaff={canManageStaff} />
+
+          {/* Former Staff */}
+          <FormerStaff members={formerStaff} slug={slug} canManageStaff={canManageStaff} />
 
           {canManageStaff && <StaffVisibilitySettings venueId={venue.id} />}
         </div>

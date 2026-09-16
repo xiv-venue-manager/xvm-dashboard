@@ -299,7 +299,7 @@ export function TransactionsList({
                         : "text-base text-foreground/80"
                   }`}
                 >
-                  {amount.toLocaleString()} gil
+                  {amount.toLocaleString("en-US")} gil
                 </p>
                 <div className="flex gap-0.5">
                   <Button
@@ -409,7 +409,7 @@ export function TransactionsList({
             <AlertDialogTitle>Delete Transaction</AlertDialogTitle>
             <AlertDialogDescription>
               Are you sure you want to delete this transaction for{" "}
-              <strong>{deletingTransaction?.amount.toLocaleString()} gil</strong>? This action cannot be undone.
+              <strong>{deletingTransaction?.amount.toLocaleString("en-US")} gil</strong>? This action cannot be undone.
             </AlertDialogDescription>
           </AlertDialogHeader>
           <AlertDialogFooter>

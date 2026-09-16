@@ -255,7 +255,7 @@ export default async function SalesPage({ params }: PageProps) {
           <Card className="px-[18px] py-4">
             <StatReadout
               label="Sales tonight"
-              value={`${todayRevenue.toLocaleString()}`}
+              value={`${todayRevenue.toLocaleString("en-US")}`}
               subtext="gil"
               icon={<Zap />}
               iconVariant="success"
@@ -265,7 +265,7 @@ export default async function SalesPage({ params }: PageProps) {
           <Card className="px-[18px] py-4">
             <StatReadout
               label="This week"
-              value={`${totalRevenue.toLocaleString()}`}
+              value={`${totalRevenue.toLocaleString("en-US")}`}
               subtext="gil"
               icon={<BarChart3 />}
               iconVariant="blue"
@@ -274,7 +274,7 @@ export default async function SalesPage({ params }: PageProps) {
           <Card className="px-[18px] py-4">
             <StatReadout
               label="Avg sale"
-              value={`${transactions.length > 0 ? Math.round(totalRevenue / transactions.length).toLocaleString() : 0}`}
+              value={`${transactions.length > 0 ? Math.round(totalRevenue / transactions.length).toLocaleString("en-US") : 0}`}
               subtext="gil"
               icon={<TrendingUp />}
               iconVariant="blue"
@@ -361,7 +361,7 @@ export default async function SalesPage({ params }: PageProps) {
                       <div className="flex items-center justify-between text-xs mb-1">
                         <span className="font-medium truncate mr-2">{s.name}</span>
                         <span className="text-[var(--xiv-blue)] font-semibold shrink-0">
-                          {s.total.toLocaleString()} gil
+                          {s.total.toLocaleString("en-US")} gil
                         </span>
                       </div>
                       <div className="h-1.5 rounded-full bg-[var(--blue-008)] overflow-hidden">
@@ -403,7 +403,7 @@ export default async function SalesPage({ params }: PageProps) {
                       </span>
                       <span className="flex-1 text-sm font-medium truncate">{e.name}</span>
                       <span className="text-xs text-[var(--xiv-blue)] font-semibold shrink-0">
-                        {e.total.toLocaleString()} gil
+                        {e.total.toLocaleString("en-US")} gil
                       </span>
                     </div>
                   ))}

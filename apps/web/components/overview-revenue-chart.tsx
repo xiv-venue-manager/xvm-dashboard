@@ -13,7 +13,7 @@ function TooltipBox({ active, payload, label }: any) {
   return (
     <div className="rounded-lg border border-[var(--blue-020)] bg-[#0a0f1e] px-3 py-2 shadow-xl text-sm">
       <p className="text-muted-foreground mb-0.5">{label}</p>
-      <p className="text-[var(--xiv-blue)] font-semibold">{payload[0].value.toLocaleString()} gil</p>
+      <p className="text-[var(--xiv-blue)] font-semibold">{payload[0].value.toLocaleString("en-US")} gil</p>
     </div>
   )
 }

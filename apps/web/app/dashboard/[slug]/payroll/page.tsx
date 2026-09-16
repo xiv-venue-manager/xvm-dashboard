@@ -506,7 +506,7 @@ export default function PayrollPage() {
       total += parseFloat(bonusAmount) || 0
     }
 
-    return Math.round(total).toLocaleString()
+    return Math.round(total).toLocaleString("en-US")
   }
 
   if (loading) {
@@ -626,7 +626,7 @@ export default function PayrollPage() {
                               </span>
                             </div>
                             <span className="font-semibold text-[var(--xiv-blue)]">
-                              {m.estimatedTotal?.toLocaleString()} gil
+                              {m.estimatedTotal?.toLocaleString("en-US")} gil
                             </span>
                           </div>
                         ))}
@@ -851,7 +851,7 @@ export default function PayrollPage() {
                             )}
                             <div className="flex justify-between font-semibold pt-2 border-t border-border">
                               <span>Total</span>
-                              <span className="text-lg">{Math.round(genEstimatedTotal).toLocaleString()} Gil</span>
+                              <span className="text-lg">{Math.round(genEstimatedTotal).toLocaleString("en-US")} Gil</span>
                             </div>
                           </div>
                           {!genRateOverride && genPreview.summary.unresolvedShiftCount > 0 && (
@@ -1074,7 +1074,7 @@ export default function PayrollPage() {
           <Card className="px-[18px] py-4">
             <StatReadout
               label="Period payout"
-              value={`${Math.round(unpaidTotal + paidTotal).toLocaleString()} gil`}
+              value={`${Math.round(unpaidTotal + paidTotal).toLocaleString("en-US")} gil`}
               subtext={`${payrollEntries.length} staff`}
               icon={
                 <svg
@@ -1115,7 +1115,7 @@ export default function PayrollPage() {
           <Card className="px-[18px] py-4">
             <StatReadout
               label="Tips pooled"
-              value={tipsTotal > 0 ? `${tipsTotal.toLocaleString()} gil` : "—"}
+              value={tipsTotal > 0 ? `${tipsTotal.toLocaleString("en-US")} gil` : "—"}
               subtext="split by hours"
               icon={
                 <svg
@@ -1135,7 +1135,7 @@ export default function PayrollPage() {
             <StatReadout
               label="Paid"
               value={payrollEntries.filter((e) => e.isPaid).length}
-              subtext={`${Math.round(paidTotal).toLocaleString()} gil`}
+              subtext={`${Math.round(paidTotal).toLocaleString("en-US")} gil`}
               deltaDirection="up"
               icon={
                 <svg
@@ -1270,11 +1270,11 @@ export default function PayrollPage() {
                         {/* Total */}
                         <td className="xiv-td">
                           <span className="text-sm font-semibold font-[var(--font-outfit)] text-[var(--xiv-blue)]">
-                            {total.toLocaleString()} gil
+                            {total.toLocaleString("en-US")} gil
                           </span>
                           {entry.bonusAmount && parseFloat(entry.bonusAmount) > 0 && (
                             <p className="text-[0.68rem] text-emerald-400">
-                              +{parseFloat(entry.bonusAmount).toLocaleString()} bonus
+                              +{parseFloat(entry.bonusAmount).toLocaleString("en-US")} bonus
                             </p>
                           )}
                           {(entry.paymentType === "POT_SHARE" || entry.paymentType === "CONTRACTOR_PAYOUT") &&
@@ -1328,13 +1328,13 @@ export default function PayrollPage() {
                       {expandedEntryIds.has(entry.id) && entry.potDistribution && (
                         <tr className="border-b border-[var(--blue-008)] last:border-0 bg-[var(--blue-004)]">
                           <td colSpan={6} className="px-5 py-3 text-xs text-muted-foreground">
-                            Regular sales: {Number(entry.potDistribution.regularSales).toLocaleString()} gil
-                            {" · "}Contractor sales: {Number(entry.potDistribution.contractorSales).toLocaleString()}{" "}
+                            Regular sales: {Number(entry.potDistribution.regularSales).toLocaleString("en-US")} gil
+                            {" · "}Contractor sales: {Number(entry.potDistribution.contractorSales).toLocaleString("en-US")}{" "}
                             gil
-                            {" · "}Pooled tips: {Number(entry.potDistribution.pooledTips).toLocaleString()} gil
-                            {" · "}Pot total: {Number(entry.potDistribution.potTotal).toLocaleString()} gil
+                            {" · "}Pooled tips: {Number(entry.potDistribution.pooledTips).toLocaleString("en-US")} gil
+                            {" · "}Pot total: {Number(entry.potDistribution.potTotal).toLocaleString("en-US")} gil
                             {" · "}Recipients: {entry.potDistribution.recipientCount}
-                            {" · "}Per person: {Number(entry.potDistribution.perPersonShare).toLocaleString()} gil
+                            {" · "}Per person: {Number(entry.potDistribution.perPersonShare).toLocaleString("en-US")} gil
                           </td>
                         </tr>
                       )}

@@ -202,7 +202,7 @@ function TimelineRow({ item, isLast }: { item: TimelineItem; isLast: boolean }) 
           <div className="tl-title">
             <strong>Sale logged</strong>
             {service && <> — {(service as { name: string }).name}</>}{" "}
-            <span className="gil">{Number(amount).toLocaleString()} gil</span>
+            <span className="gil">{Number(amount).toLocaleString("en-US")} gil</span>
           </div>
           {(customerName || (staff && (staff as { name?: string }).name)) && (
             <div className="tl-desc">

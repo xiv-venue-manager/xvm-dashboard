@@ -491,7 +491,7 @@ export function formatSaleLoggedEmbed(transaction: {
 
   return {
     title: "💰 Sale Logged",
-    description: `**Amount: ${transaction.amount.toLocaleString()} Gil**`,
+    description: `**Amount: ${transaction.amount.toLocaleString("en-US")} Gil**`,
     color: DiscordColors.Green,
     fields,
     timestamp: new Date().toISOString(),
@@ -518,7 +518,7 @@ export function formatDailySalesSummaryEmbed(summary: {
     },
     {
       name: "Total Revenue",
-      value: `${summary.totalRevenue.toLocaleString()} Gil`,
+      value: `${summary.totalRevenue.toLocaleString("en-US")} Gil`,
       inline: true,
     },
   ]

@@ -139,7 +139,7 @@ export function LiveDashboard({
               timestamp: item.timestamp,
               text:
                 item.type === "sale"
-                  ? `${item.data?.service?.name ? item.data.service.name + " · " : ""}${item.data?.customerName || "Someone"} — ${Number(item.data?.amount || 0).toLocaleString()} gil${item.data?.staff?.name ? " · " + item.data.staff.name : ""}`
+                  ? `${item.data?.service?.name ? item.data.service.name + " · " : ""}${item.data?.customerName || "Someone"} — ${Number(item.data?.amount || 0).toLocaleString("en-US")} gil${item.data?.staff?.name ? " · " + item.data.staff.name : ""}`
                   : item.type === "patron_enter"
                     ? `${item.data?.characterName || "Unknown"} entered`
                     : `${item.data?.characterName || "Unknown"} left`,
@@ -173,7 +173,7 @@ export function LiveDashboard({
                     id: data.id,
                     type: "sale" as const,
                     timestamp: data.timestamp,
-                    text: `${data.data.service?.name ? data.data.service.name + " · " : ""}${data.data.customerName || "Someone"} — ${amt.toLocaleString()} gil${data.data.staff?.name ? " · " + data.data.staff.name : ""}`,
+                    text: `${data.data.service?.name ? data.data.service.name + " · " : ""}${data.data.customerName || "Someone"} — ${amt.toLocaleString("en-US")} gil${data.data.staff?.name ? " · " + data.data.staff.name : ""}`,
                   },
                   ...prev,
                 ].slice(0, 50)
@@ -295,7 +295,7 @@ export function LiveDashboard({
           <Card className="px-[18px] py-4">
             <StatReadout
               label="Sales tonight"
-              value={`${revenue.toLocaleString()}`}
+              value={`${revenue.toLocaleString("en-US")}`}
               subtext="gil"
               icon={<Coins />}
               iconVariant="success"

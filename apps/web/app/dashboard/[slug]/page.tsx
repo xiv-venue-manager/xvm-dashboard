@@ -263,7 +263,7 @@ export default async function VenueDashboardPage({ params }: { params: Promise<{
             <Card className="p-4">
               <StatReadout
                 label="Patrons this week"
-                value={kpis.patronsThisWeek.toLocaleString()}
+                value={kpis.patronsThisWeek.toLocaleString("en-US")}
                 delta={patDelta !== null ? `${patDelta > 0 ? "+" : ""}${patDelta}% vs last` : undefined}
                 deltaDirection={patDelta !== null ? (patDelta >= 0 ? "up" : "down") : "neutral"}
                 icon={<Users />}
@@ -293,7 +293,7 @@ export default async function VenueDashboardPage({ params }: { params: Promise<{
             <Card className="p-4">
               <StatReadout
                 label="Followers"
-                value={kpis.newFollowers.toLocaleString()}
+                value={kpis.newFollowers.toLocaleString("en-US")}
                 icon={<Heart />}
                 iconVariant="warning"
               />
@@ -430,7 +430,7 @@ export default async function VenueDashboardPage({ params }: { params: Promise<{
                           </td>
                           <td className="px-5 py-3.5 text-right tabular-nums font-[var(--font-outfit)] font-semibold text-[0.86rem]">
                             {ev.revenue > 0 ? (
-                              `${ev.revenue.toLocaleString()} gil`
+                              `${ev.revenue.toLocaleString("en-US")} gil`
                             ) : (
                               <span className="text-[var(--fg-faint)] font-normal">—</span>
                             )}

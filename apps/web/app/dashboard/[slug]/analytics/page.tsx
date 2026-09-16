@@ -278,7 +278,7 @@ export default function AnalyticsPage() {
               </span>
             </div>
             <div className="k">Patrons</div>
-            <div className="v">{totalPatrons.toLocaleString()}</div>
+            <div className="v">{totalPatrons.toLocaleString("en-US")}</div>
             <div className="delta flat">unique visitors</div>
           </div>
           <div className="stat">
@@ -299,9 +299,9 @@ export default function AnalyticsPage() {
             <div className="k">Avg spend</div>
             <div className="v">
               {eventStats?.avgSpend && eventStats.avgSpend > 0
-                ? `${eventStats.avgSpend.toLocaleString()}`
+                ? `${eventStats.avgSpend.toLocaleString("en-US")}`
                 : avgDailyRevenue > 0
-                  ? `${avgDailyRevenue.toLocaleString()}`
+                  ? `${avgDailyRevenue.toLocaleString("en-US")}`
                   : "—"}{" "}
               <span className="unit">gil</span>
             </div>
@@ -379,7 +379,7 @@ export default function AnalyticsPage() {
                       })()}
                     <div className="flex-1" />
                     <span className="font-[var(--font-outfit)] font-bold text-[1.25rem]">
-                      {totalRev >= 1000 ? `${(totalRev / 1000).toFixed(1)}k` : totalRev.toLocaleString()}
+                      {totalRev >= 1000 ? `${(totalRev / 1000).toFixed(1)}k` : totalRev.toLocaleString("en-US")}
                       <span className="text-[0.82rem] font-medium text-muted-foreground ml-1">gil</span>
                     </span>
                     <button
@@ -397,7 +397,7 @@ export default function AnalyticsPage() {
                         <div
                           key={i}
                           className="flex-1 flex flex-col items-center gap-2 h-full justify-end group cursor-default"
-                          title={`${d.eventTitle}: ${d.revenue.toLocaleString()} gil`}
+                          title={`${d.eventTitle}: ${d.revenue.toLocaleString("en-US")} gil`}
                         >
                           <div
                             className="w-full max-w-[26px] rounded-t-[5px] rounded-b-[2px] transition-all group-hover:brightness-125"
@@ -587,7 +587,7 @@ export default function AnalyticsPage() {
                           <div className="flex items-center justify-between text-xs mb-1">
                             <span className="font-medium truncate mr-2">{s.name}</span>
                             <span className="text-[var(--xiv-blue)] font-semibold shrink-0 tabular-nums">
-                              {s.value.toLocaleString()}
+                              {s.value.toLocaleString("en-US")}
                             </span>
                           </div>
                           <div className="h-1.5 rounded-full bg-[var(--blue-008)] overflow-hidden">
@@ -660,10 +660,10 @@ export default function AnalyticsPage() {
                                 {format(new Date(event.startTime), "MMM dd, yyyy")}
                               </TableCell>
                               <TableCell className="text-right font-medium text-[var(--xiv-blue)]">
-                                {event.revenue.toLocaleString()} gil
+                                {event.revenue.toLocaleString("en-US")} gil
                               </TableCell>
                               <TableCell className="text-right font-medium text-amber-400">
-                                {event.payroll.toLocaleString()} gil
+                                {event.payroll.toLocaleString("en-US")} gil
                               </TableCell>
                               <TableCell
                                 className={`text-right font-semibold ${
@@ -671,7 +671,7 @@ export default function AnalyticsPage() {
                                 }`}
                               >
                                 {event.netProfit >= 0 ? "+" : ""}
-                                {event.netProfit.toLocaleString()} gil
+                                {event.netProfit.toLocaleString("en-US")} gil
                               </TableCell>
                               <TableCell
                                 className={`text-right font-medium ${
@@ -697,10 +697,10 @@ export default function AnalyticsPage() {
                             TOTAL (Last 10 Events)
                           </TableCell>
                           <TableCell className="text-right text-[var(--xiv-blue)]">
-                            {data.revenueByEvent.reduce((sum, e) => sum + e.revenue, 0).toLocaleString()} gil
+                            {data.revenueByEvent.reduce((sum, e) => sum + e.revenue, 0).toLocaleString("en-US")} gil
                           </TableCell>
                           <TableCell className="text-right text-amber-400">
-                            {data.revenueByEvent.reduce((sum, e) => sum + e.payroll, 0).toLocaleString()} gil
+                            {data.revenueByEvent.reduce((sum, e) => sum + e.payroll, 0).toLocaleString("en-US")} gil
                           </TableCell>
                           <TableCell
                             className={`text-right ${
@@ -710,7 +710,7 @@ export default function AnalyticsPage() {
                             }`}
                           >
                             {data.revenueByEvent.reduce((sum, e) => sum + e.netProfit, 0) >= 0 ? "+" : ""}
-                            {data.revenueByEvent.reduce((sum, e) => sum + e.netProfit, 0).toLocaleString()} gil
+                            {data.revenueByEvent.reduce((sum, e) => sum + e.netProfit, 0).toLocaleString("en-US")} gil
                           </TableCell>
                           <TableCell
                             className={`text-right ${
@@ -858,7 +858,7 @@ export default function AnalyticsPage() {
               <Card className="px-[18px] py-4">
                 <StatReadout
                   label="Payroll expenses"
-                  value={`${Math.round(data.financial.totalPayroll).toLocaleString()} gil`}
+                  value={`${Math.round(data.financial.totalPayroll).toLocaleString("en-US")} gil`}
                   subtext={`${data.financial.payrollAsPercentOfRevenue.toFixed(1)}% of revenue`}
                   icon={<DollarSign />}
                   iconVariant="blue"
@@ -867,7 +867,7 @@ export default function AnalyticsPage() {
               <Card className="px-[18px] py-4">
                 <StatReadout
                   label="Net profit / loss"
-                  value={`${data.financial.netProfit >= 0 ? "+" : ""}${Math.round(data.financial.netProfit).toLocaleString()} gil`}
+                  value={`${data.financial.netProfit >= 0 ? "+" : ""}${Math.round(data.financial.netProfit).toLocaleString("en-US")} gil`}
                   subtext="revenue minus payroll"
                   deltaDirection={data.financial.netProfit >= 0 ? "up" : "down"}
                   icon={<TrendingUp />}

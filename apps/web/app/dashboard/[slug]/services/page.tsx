@@ -563,7 +563,7 @@ export default function ServicesPage({ params }: { params: Promise<{ slug: strin
                     <div className="flex items-center justify-between border-t border-[var(--blue-008)] pt-3">
                       <div>
                         <span className="font-[var(--font-outfit)] font-bold text-[1.1rem] text-[var(--xiv-blue)]">
-                          {service.price > 0 ? service.price.toLocaleString() : "Free"}
+                          {service.price > 0 ? service.price.toLocaleString("en-US") : "Free"}
                           {service.price > 0 && (
                             <span className="text-[0.72rem] text-muted-foreground font-medium ml-1">gil</span>
                           )}

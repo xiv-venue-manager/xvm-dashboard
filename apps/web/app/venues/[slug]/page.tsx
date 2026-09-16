@@ -255,7 +255,7 @@ export default async function VenueProfilePage({ params }: { params: Promise<{ s
                   </Link>
                 )}
                 <div className="text-[0.8rem] text-muted-foreground mt-2 text-right">
-                  <strong className="text-foreground">{venue._count.follows.toLocaleString()}</strong> following
+                  <strong className="text-foreground">{venue._count.follows.toLocaleString("en-US")}</strong> following
                 </div>
               </div>
             </div>

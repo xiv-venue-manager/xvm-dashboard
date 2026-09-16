@@ -182,7 +182,7 @@ export function PatronProfilesTable({
                 <td className="hide t-muted">{formatLocalTime(p.lastSeen, "datetime")}</td>
                 <td className="t-num hide">
                   {p.totalSpent && p.totalSpent > 0 ? (
-                    <span className="gil">{p.totalSpent.toLocaleString()}</span>
+                    <span className="gil">{p.totalSpent.toLocaleString("en-US")}</span>
                   ) : (
                     <span className="t-muted">—</span>
                   )}

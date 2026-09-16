@@ -339,7 +339,7 @@ export default function RolesPage({ params }: { params: Promise<{ slug: string }
                         {role._count?.memberships || 0} {(role._count?.memberships || 0) === 1 ? "member" : "members"}
                       </Badge>
                       {role.hourlyRate && (
-                        <Badge variant="outline">{Number(role.hourlyRate).toLocaleString()}/hr</Badge>
+                        <Badge variant="outline">{Number(role.hourlyRate).toLocaleString("en-US")}/hr</Badge>
                       )}
                     </div>
                   </div>

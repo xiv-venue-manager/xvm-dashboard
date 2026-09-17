@@ -1,6 +1,6 @@
 "use client"
 
-import { useState } from "react"
+import { useEffect, useState } from "react"
 import { Card, CardContent } from "@/components/ui/card"
 import { Button } from "@/components/ui/button"
 import { Badge } from "@/components/ui/badge"
@@ -55,6 +55,8 @@ export function PendingInvites({ invites, slug, canManageStaff }: PendingInvites
   const [editForm, setEditForm] = useState({ name: "", email: "" })
   const [isUpdating, setIsUpdating] = useState(false)
   const [editError, setEditError] = useState("")
+  const [mounted, setMounted] = useState(false)
+  useEffect(() => setMounted(true), [])
 
   const getInviteUrl = (token: string) => {
     if (typeof window === "undefined") return ""
@@ -194,7 +196,7 @@ export function PendingInvites({ invites, slug, canManageStaff }: PendingInvites
                         <p className="text-xs font-medium mb-1 text-muted-foreground">Invite Link:</p>
                         <div className="flex items-center gap-2 min-w-0">
                           <code className="text-xs bg-[rgba(0,180,255,0.08)] text-[var(--xiv-blue)] px-2 py-1 rounded flex-1 truncate min-w-0 border border-[rgba(0,180,255,0.15)]">
-                            {getInviteUrl(invite.inviteToken)}
+                            {mounted ? getInviteUrl(invite.inviteToken) : ""}
                           </code>
                           <Button
                             size="sm"

@@ -98,6 +98,17 @@ export function StaffTable({
   canManage: boolean
 }) {
   const [members, setMembers] = useState(initialMembers)
+  // router.refresh() re-renders the parent server component with fresh data,
+  // but this component's own state wouldn't otherwise pick up the new
+  // initialMembers array - confirmed live: a rehired member stayed missing
+  // from this table until a hard reload without this sync. Adjusting state
+  // during render (React's documented pattern for this) rather than in a
+  // useEffect, which would call setState after an extra render pass.
+  const [prevInitialMembers, setPrevInitialMembers] = useState(initialMembers)
+  if (initialMembers !== prevInitialMembers) {
+    setPrevInitialMembers(initialMembers)
+    setMembers(initialMembers)
+  }
   const [filter, setFilter] = useState<Filter>("all")
   const [search, setSearch] = useState("")
   const [editingId, setEditingId] = useState<number | null>(null)
@@ -252,7 +263,7 @@ export function StaffTable({
           {visible.map((member) => (
             <tr key={member.id}>
               {/* Name */}
-              <td>
+              <td className="w-[300px]">
                 <div className="flex items-center gap-3">
                   <Avatar className="w-8 h-8 flex-shrink-0">
                     <AvatarImage src={member.user?.image ?? undefined} />

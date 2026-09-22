@@ -94,6 +94,5 @@ Both `POST /from-template` and `POST /{panel_id}/posts` return `202` with no bod
 
 ## Testing
 
-- `lib/api/xvm-api.test.ts` gets new cases for the reaction-role client functions (request shape, error mapping), following the existing `transactions.test.ts`/contest-function pattern.
-- One `vitest` case per new proxy route (happy path + 409/404), matching `tasks`/`contests` route coverage.
-- No new component-test infra — `Rooms`/`Contests`/`Tasks` have no `.test.tsx` today either, so this stays consistent with existing coverage.
+- `lib/api/xvm-api.test.ts` gets new cases for the reaction-role client functions (request shape, error mapping), following the existing `Giveaways API`/`transactions.test.ts` pattern.
+- No proxy-route tests and no component tests — verified none of `Rooms`/`Contests`/`Tasks`' proxy routes or components have test coverage today either (checked: no `.test.ts` anywhere under `app/api`, no `.test.tsx` next to any board component), so this stays consistent with existing coverage rather than introducing a new standard unilaterally.

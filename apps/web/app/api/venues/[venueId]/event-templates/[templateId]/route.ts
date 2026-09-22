@@ -1,10 +1,13 @@
-import { NextRequest, NextResponse } from "next/server"
+import { NextResponse } from "next/server"
 import { getServerSession } from "next-auth"
 import { authOptions } from "@/lib/auth"
 import { prisma } from "@/lib/prisma"
 import { z } from "zod"
 import { withRateLimit } from "@/lib/middleware/with-rate-limit"
 import { validators } from "@/lib/validation"
+import { getValidXvmApiToken, xvmApiErrorResponse } from "@/lib/api/xvm-api-store"
+import { updateEventTemplate, deleteEventTemplate } from "@/lib/api/xvm-api"
+import { HHMM_PATTERN, minutesOfDay, toDashboardTemplateShape } from "@/lib/api/event-template-shape"
 
 const updateTemplateSchema = z.object({
   name: z.string().min(1).max(100, "Template name too long (max 100 characters)").optional(),
@@ -12,15 +15,27 @@ const updateTemplateSchema = z.object({
   description: validators.eventDescription,
   eventType: z.enum(["PERFORMANCE", "GAME_NIGHT", "SPECIAL", "SOCIAL", "PRIVATE", "OTHER"]).optional(),
   timezone: z.string().optional(),
-  defaultStartTime: z
-    .string()
-    .regex(/^([01]\d|2[0-3]):([0-5]\d)$/, "Invalid time format. Use HH:MM")
-    .optional(),
-  defaultEndTime: z
-    .string()
-    .regex(/^([01]\d|2[0-3]):([0-5]\d)$/, "Invalid time format. Use HH:MM")
-    .optional(),
+  defaultStartTime: z.string().regex(HHMM_PATTERN, "Invalid time format. Use HH:MM").optional(),
+  defaultEndTime: z.string().regex(HHMM_PATTERN, "Invalid time format. Use HH:MM").optional(),
 })
+
+async function requireXvmVenueId(venueId: string) {
+  const venue = await prisma.venue.findUnique({ where: { id: venueId }, select: { xvmApiVenueId: true } })
+  if (!venue?.xvmApiVenueId) {
+    return {
+      error: NextResponse.json(
+        { error: "not_connected", message: "This venue hasn't been connected to xvm-api yet." },
+        { status: 409 }
+      ),
+    }
+  }
+  return { xvmApiVenueId: venue.xvmApiVenueId }
+}
+
+function parseTemplateId(templateId: string) {
+  const id = Number(templateId)
+  return Number.isInteger(id) ? id : null
+}
 
 // PATCH - Update an event template
 export const PATCH = withRateLimit<{ params: Promise<{ venueId: string; templateId: string }> }>(
@@ -29,71 +44,64 @@ export const PATCH = withRateLimit<{ params: Promise<{ venueId: string; template
       return NextResponse.json({ error: "Invalid request" }, { status: 400 })
     }
 
+    const session = await getServerSession(authOptions)
+    if (!session?.user?.id) {
+      return NextResponse.json({ error: "Unauthorized" }, { status: 401 })
+    }
+
+    const token = await getValidXvmApiToken(session.user.id)
+    if (!token) {
+      return NextResponse.json({ error: "xvm-api link not established yet" }, { status: 503 })
+    }
+
+    const { venueId, templateId } = await context.params
+    const id = parseTemplateId(templateId)
+    if (id === null) {
+      return NextResponse.json({ error: "Invalid template id" }, { status: 400 })
+    }
+
+    const gate = await requireXvmVenueId(venueId)
+    if (gate.error) return gate.error
+
+    let data: z.infer<typeof updateTemplateSchema>
     try {
-      const session = await getServerSession(authOptions)
-      if (!session?.user?.id) {
-        return NextResponse.json({ error: "Unauthorized" }, { status: 401 })
+      data = updateTemplateSchema.parse(await request.json())
+    } catch (err) {
+      if (err instanceof z.ZodError) {
+        return NextResponse.json({ error: "Validation error", details: err.issues }, { status: 400 })
       }
+      return NextResponse.json({ error: "Invalid request" }, { status: 400 })
+    }
 
-      const { params } = context
-      const { venueId, templateId } = await params
+    // xvm-api stores start-minute + duration, not a start/end pair, so computing
+    // a correct new duration needs both values in hand - if only one of the two
+    // is being changed, reject rather than guess at the missing half.
+    let startMinute: number | undefined
+    let durationMinutes: number | undefined
+    if (data.defaultStartTime !== undefined || data.defaultEndTime !== undefined) {
+      if (data.defaultStartTime === undefined || data.defaultEndTime === undefined) {
+        return NextResponse.json(
+          { error: "Invalid request", details: "defaultStartTime and defaultEndTime must be updated together" },
+          { status: 400 }
+        )
+      }
+      startMinute = minutesOfDay(data.defaultStartTime)
+      durationMinutes = minutesOfDay(data.defaultEndTime) - startMinute
+      if (durationMinutes <= 0) durationMinutes += 24 * 60
+    }
 
-      // Look up venue by ID
-      const venue = await prisma.venue.findUnique({
-        where: { id: venueId },
+    try {
+      const template = await updateEventTemplate(token, gate.xvmApiVenueId!, id, {
+        ...(data.name !== undefined && { name: data.name }),
+        ...(data.title !== undefined && { title: data.title }),
+        ...(data.description !== undefined && { description: data.description }),
+        ...(data.eventType !== undefined && { event_type: data.eventType }),
+        ...(startMinute !== undefined && { default_start_minute_of_day: startMinute }),
+        ...(durationMinutes !== undefined && { default_duration_minutes: durationMinutes }),
       })
-
-      if (!venue) {
-        return NextResponse.json({ error: "Venue not found" }, { status: 404 })
-      }
-
-      // Check if user has permission (OWNER or MANAGER only)
-      const membership = await prisma.membership.findFirst({
-        where: {
-          userId: session.user.id,
-          venueId: venue.id,
-          status: "active",
-        },
-      })
-
-      if (!membership || (membership.role !== "OWNER" && membership.role !== "MANAGER")) {
-        return NextResponse.json({ error: "You don't have permission to update templates" }, { status: 403 })
-      }
-
-      // Verify template belongs to this venue
-      const existingTemplate = await prisma.eventTemplate.findUnique({
-        where: { id: templateId },
-      })
-
-      if (!existingTemplate || existingTemplate.venueId !== venue.id) {
-        return NextResponse.json({ error: "Template not found" }, { status: 404 })
-      }
-
-      const body = await request.json()
-      const validatedData = updateTemplateSchema.parse(body)
-
-      const template = await prisma.eventTemplate.update({
-        where: { id: templateId },
-        data: validatedData,
-        include: {
-          createdBy: {
-            select: {
-              id: true,
-              name: true,
-              displayName: true,
-            },
-          },
-        },
-      })
-
-      return NextResponse.json(template)
-    } catch (error) {
-      if (error instanceof z.ZodError) {
-        return NextResponse.json({ error: "Validation error", details: error.issues }, { status: 400 })
-      }
-
-      console.error("Error updating event template:", error)
-      return NextResponse.json({ error: "Internal server error" }, { status: 500 })
+      return NextResponse.json(toDashboardTemplateShape(template))
+    } catch (err) {
+      return xvmApiErrorResponse(err, session.user.id, "[event-templates/:id] PATCH error")
     }
   },
   { requests: 20, window: "1 m" }
@@ -106,54 +114,30 @@ export const DELETE = withRateLimit<{ params: Promise<{ venueId: string; templat
       return NextResponse.json({ error: "Invalid request" }, { status: 400 })
     }
 
+    const session = await getServerSession(authOptions)
+    if (!session?.user?.id) {
+      return NextResponse.json({ error: "Unauthorized" }, { status: 401 })
+    }
+
+    const token = await getValidXvmApiToken(session.user.id)
+    if (!token) {
+      return NextResponse.json({ error: "xvm-api link not established yet" }, { status: 503 })
+    }
+
+    const { venueId, templateId } = await context.params
+    const id = parseTemplateId(templateId)
+    if (id === null) {
+      return NextResponse.json({ error: "Invalid template id" }, { status: 400 })
+    }
+
+    const gate = await requireXvmVenueId(venueId)
+    if (gate.error) return gate.error
+
     try {
-      const session = await getServerSession(authOptions)
-      if (!session?.user?.id) {
-        return NextResponse.json({ error: "Unauthorized" }, { status: 401 })
-      }
-
-      const { params } = context
-      const { venueId, templateId } = await params
-
-      // Look up venue by ID
-      const venue = await prisma.venue.findUnique({
-        where: { id: venueId },
-      })
-
-      if (!venue) {
-        return NextResponse.json({ error: "Venue not found" }, { status: 404 })
-      }
-
-      // Check if user has permission (OWNER or MANAGER only)
-      const membership = await prisma.membership.findFirst({
-        where: {
-          userId: session.user.id,
-          venueId: venue.id,
-          status: "active",
-        },
-      })
-
-      if (!membership || (membership.role !== "OWNER" && membership.role !== "MANAGER")) {
-        return NextResponse.json({ error: "You don't have permission to delete templates" }, { status: 403 })
-      }
-
-      // Verify template belongs to this venue
-      const existingTemplate = await prisma.eventTemplate.findUnique({
-        where: { id: templateId },
-      })
-
-      if (!existingTemplate || existingTemplate.venueId !== venue.id) {
-        return NextResponse.json({ error: "Template not found" }, { status: 404 })
-      }
-
-      await prisma.eventTemplate.delete({
-        where: { id: templateId },
-      })
-
+      await deleteEventTemplate(token, gate.xvmApiVenueId!, id)
       return NextResponse.json({ success: true })
-    } catch (error) {
-      console.error("Error deleting event template:", error)
-      return NextResponse.json({ error: "Internal server error" }, { status: 500 })
+    } catch (err) {
+      return xvmApiErrorResponse(err, session.user.id, "[event-templates/:id] DELETE error")
     }
   },
   { requests: 5, window: "1 m" }

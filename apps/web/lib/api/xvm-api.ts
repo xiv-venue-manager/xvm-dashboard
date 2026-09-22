@@ -1465,6 +1465,73 @@ export async function cancelTask(personToken: string, venueId: string, taskId: n
   )
 }
 
+// ── Event Templates API ───────────────────────────────────────────
+
+export interface EventTemplateRow {
+  id: number
+  name: string
+  title: string
+  description: string | null
+  event_type: string | null
+  default_start_minute_of_day: number
+  default_duration_minutes: number
+}
+
+export interface EventTemplateCreateData {
+  name: string
+  title: string
+  description?: string | null
+  event_type?: string | null
+  default_start_minute_of_day: number
+  default_duration_minutes: number
+}
+
+export interface EventTemplateUpdateData {
+  name?: string
+  title?: string
+  description?: string | null
+  event_type?: string | null
+  default_start_minute_of_day?: number
+  default_duration_minutes?: number
+}
+
+export async function listEventTemplates(personToken: string, venueId: string): Promise<EventTemplateRow[]> {
+  if (!process.env.XVM_API_BASE_URL) throw new Error("XVM_API_BASE_URL is not set")
+  return xvmFetch<EventTemplateRow[]>(`/venues/${venueId}/events/templates`, {}, personToken)
+}
+
+export async function createEventTemplate(
+  personToken: string,
+  venueId: string,
+  data: EventTemplateCreateData
+): Promise<EventTemplateRow> {
+  if (!process.env.XVM_API_BASE_URL) throw new Error("XVM_API_BASE_URL is not set")
+  return xvmFetch<EventTemplateRow>(
+    `/venues/${venueId}/events/templates`,
+    { method: "POST", body: JSON.stringify(data) },
+    personToken
+  )
+}
+
+export async function updateEventTemplate(
+  personToken: string,
+  venueId: string,
+  templateId: number,
+  data: EventTemplateUpdateData
+): Promise<EventTemplateRow> {
+  if (!process.env.XVM_API_BASE_URL) throw new Error("XVM_API_BASE_URL is not set")
+  return xvmFetch<EventTemplateRow>(
+    `/venues/${venueId}/events/templates/${templateId}`,
+    { method: "PATCH", body: JSON.stringify(data) },
+    personToken
+  )
+}
+
+export async function deleteEventTemplate(personToken: string, venueId: string, templateId: number): Promise<void> {
+  if (!process.env.XVM_API_BASE_URL) throw new Error("XVM_API_BASE_URL is not set")
+  return xvmFetch<void>(`/venues/${venueId}/events/templates/${templateId}`, { method: "DELETE" }, personToken)
+}
+
 // ── Contests API ───────────────────────────────────────────────
 //
 // discord_user_id is xvm-api's Snowflake type, serialized as a JSON string -

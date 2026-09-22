@@ -29,6 +29,7 @@ import {
   BookHeart,
   Ban,
   DoorOpen,
+  Smile,
   type LucideIcon,
 } from "lucide-react"
 
@@ -269,6 +270,12 @@ export function VenueSidebar({
           label: "Live Mode",
           icon: Radio,
           badge: livePatronCount,
+        },
+        {
+          href: `/dashboard/${venueSlug}/reaction-roles`,
+          label: "Reaction Roles",
+          icon: Smile,
+          roles: ["OWNER", "MANAGER"],
         },
       ],
     },

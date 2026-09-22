@@ -87,6 +87,8 @@ export const PATCH = withRateLimit<{ params: Promise<{ venueId: string; template
       }
       startMinute = minutesOfDay(data.defaultStartTime)
       durationMinutes = minutesOfDay(data.defaultEndTime) - startMinute
+      // <= (not <) is deliberate: identical start/end times mean the event
+      // runs a full 24h, not zero-length.
       if (durationMinutes <= 0) durationMinutes += 24 * 60
     }
 

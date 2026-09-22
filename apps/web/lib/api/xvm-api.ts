@@ -301,9 +301,14 @@ async function xvmFetch<T>(path: string, options: RequestInit = {}, bearerToken?
     const body = await res.text()
     throw new XvmApiError(res.status, body)
   }
-  // 204 (no content) and 202 (accepted - bot does the work async, no body)
-  // both come back with nothing to parse; res.json() throws on an empty body.
-  return res.status === 204 || res.status === 202 ? (null as T) : res.json()
+  // Keyed off actual body content, not status code: a 204 genuinely has no
+  // body (res.json() throws on it), but FastAPI's `-> None` handlers - the
+  // 202-accepted "bot does the work async" routes among them - still
+  // serialize a JSON `null`, which res.json() parses fine on its own. Reading
+  // text first and only parsing when non-empty is correct for both cases
+  // without assuming a given status code will never carry a real payload.
+  const text = await res.text()
+  return text ? (JSON.parse(text) as T) : (null as T)
 }
 
 // ── Auth ───────────────────────────────────────────────────────

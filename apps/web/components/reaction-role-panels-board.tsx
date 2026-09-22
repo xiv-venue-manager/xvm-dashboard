@@ -1,6 +1,6 @@
 "use client"
 
-import { useState } from "react"
+import { useEffect, useState } from "react"
 import { Button } from "@/components/ui/button"
 import { Badge } from "@/components/ui/badge"
 import { Card, CardContent, CardHeader } from "@/components/ui/card"
@@ -52,6 +52,24 @@ export function ReactionRolePanelsBoard({
   const [postTarget, setPostTarget] = useState<PanelRow | null>(null)
   const [postChannelId, setPostChannelId] = useState("")
   const [posting, setPosting] = useState(false)
+  const [postsByPanel, setPostsByPanel] = useState<Record<number, PanelPostRow[]>>({})
+
+  useEffect(() => {
+    let cancelled = false
+    Promise.all(
+      panels.map((p) =>
+        apiFetch<PanelPostRow[]>(`/api/venues/${venueId}/reaction-role-panels/${p.id}/posts`)
+          .then((posts) => [p.id, posts] as const)
+          .catch(() => [p.id, []] as const)
+      )
+    ).then((results) => {
+      if (cancelled) return
+      setPostsByPanel(Object.fromEntries(results))
+    })
+    return () => {
+      cancelled = true
+    }
+  }, [venueId, panels])
 
   function handleCreated(panel: PanelRow) {
     setPanels((prev) => [panel, ...prev])
@@ -106,6 +124,10 @@ export function ReactionRolePanelsBoard({
 
       if (found) {
         toast.success("Panel posted.", { id: toastId })
+        const posts = await apiFetch<PanelPostRow[]>(
+          `/api/venues/${venueId}/reaction-role-panels/${postTarget.id}/posts`
+        )
+        setPostsByPanel((prev) => ({ ...prev, [postTarget.id]: posts }))
       } else {
         toast.info("Still working — refresh in a moment.", { id: toastId })
       }
@@ -131,7 +153,7 @@ export function ReactionRolePanelsBoard({
       {canManage && (
         <div className="mb-4 flex gap-2">
           <ReactionRolePanelFormDialog venueId={venueId} onCreated={handleCreated} onUpdated={handleUpdated} />
-          <ApplyTemplateDialog venueId={venueId} templates={templates} />
+          <ApplyTemplateDialog venueId={venueId} templates={templates} onApplied={handleCreated} />
         </div>
       )}
 
@@ -156,6 +178,12 @@ export function ReactionRolePanelsBoard({
                     </li>
                   ))}
                 </ul>
+
+                <p className="text-xs text-muted-foreground mt-2">
+                  {(postsByPanel[panel.id]?.length ?? 0) > 0
+                    ? `Posted to ${postsByPanel[panel.id].length} channel${postsByPanel[panel.id].length === 1 ? "" : "s"}`
+                    : "Not posted anywhere yet"}
+                </p>
 
                 {canManage && (
                   <div className="flex gap-2 mt-3">

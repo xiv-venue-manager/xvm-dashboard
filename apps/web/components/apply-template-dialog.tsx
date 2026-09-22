@@ -29,9 +29,10 @@ function sleep(ms: number): Promise<void> {
 interface ApplyTemplateDialogProps {
   venueId: string
   templates: TemplateRow[]
+  onApplied: (panel: PanelRow) => void
 }
 
-export function ApplyTemplateDialog({ venueId, templates }: ApplyTemplateDialogProps) {
+export function ApplyTemplateDialog({ venueId, templates, onApplied }: ApplyTemplateDialogProps) {
   const [open, setOpen] = useState(false)
   const [templateId, setTemplateId] = useState<string>("")
   const [channelId, setChannelId] = useState("")
@@ -69,14 +70,16 @@ export function ApplyTemplateDialog({ venueId, templates }: ApplyTemplateDialogP
       while (Date.now() < deadline) {
         await sleep(POLL_INTERVAL_MS)
         const after = await apiFetch<PanelRow[]>(`/api/venues/${venueId}/reaction-role-panels`)
-        if (after.some((p) => !beforeIds.has(p.id))) {
+        const newPanel = after.find((p) => !beforeIds.has(p.id))
+        if (newPanel) {
           found = true
+          onApplied(newPanel)
           break
         }
       }
 
       if (found) {
-        toast.success("Template applied — reload to see the new panel.", { id: toastId })
+        toast.success("Template applied.", { id: toastId })
       } else {
         toast.info("Still working — refresh in a moment.", { id: toastId })
       }

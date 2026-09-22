@@ -3,6 +3,7 @@
 import { useState } from "react"
 import { formatLocalTime } from "@/components/server-time"
 import { DataTable } from "@/components/ui/data-table"
+import { Alert, AlertDescription } from "@/components/ui/alert"
 
 export type BannedPatron = {
   id: string
@@ -13,7 +14,17 @@ export type BannedPatron = {
   bannedBy: { id: string; name: string | null } | null
 }
 
-export function BanListManager({ venueId, patrons }: { venueId: string; patrons: BannedPatron[] }) {
+const NOT_CONNECTED_MESSAGE = "Ask the venue owner to connect this venue to xvm-api first."
+
+export function BanListManager({
+  venueId,
+  patrons,
+  notConnected,
+}: {
+  venueId: string
+  patrons: BannedPatron[]
+  notConnected?: boolean
+}) {
   const [localPatrons, setLocalPatrons] = useState(patrons)
   const [pendingIds, setPendingIds] = useState<Set<string>>(new Set())
 
@@ -37,6 +48,14 @@ export function BanListManager({ venueId, patrons }: { venueId: string; patrons:
         return next
       })
     }
+  }
+
+  if (notConnected) {
+    return (
+      <Alert>
+        <AlertDescription>{NOT_CONNECTED_MESSAGE}</AlertDescription>
+      </Alert>
+    )
   }
 
   return (

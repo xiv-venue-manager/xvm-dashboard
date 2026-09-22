@@ -4,6 +4,8 @@ import { redirect, notFound } from "next/navigation"
 import { prisma } from "@/lib/prisma"
 import { VenueLayout } from "@/components/venue-layout"
 import { BanListManager } from "@/components/ban-list-manager"
+import { getValidXvmApiToken, invalidateXvmApiCredential, isXvmAuthFailure } from "@/lib/api/xvm-api-store"
+import { listPatrons, listMemberships, type PatronSummary, type MembershipRow } from "@/lib/api/xvm-api"
 
 export default async function BanListPage({ params }: { params: Promise<{ slug: string }> }) {
   const session = await getServerSession(authOptions)
@@ -23,13 +25,27 @@ export default async function BanListPage({ params }: { params: Promise<{ slug: 
   const userRole = venue.memberships[0].role
   if (!["OWNER", "MANAGER"].includes(userRole)) notFound()
 
-  const banned = await prisma.patron.findMany({
-    where: { venueId: venue.id, isBanned: true },
-    include: {
-      bannedBy: { select: { id: true, name: true } },
-    },
-    orderBy: { bannedAt: "desc" },
-  })
+  let banned: PatronSummary[] = []
+  let memberships: MembershipRow[] = []
+  const notConnected = !venue.xvmApiVenueId
+  const token = await getValidXvmApiToken(session.user.id)
+  if (token && venue.xvmApiVenueId) {
+    try {
+      const [patrons, members] = await Promise.all([
+        listPatrons(token, venue.xvmApiVenueId),
+        listMemberships(token, venue.xvmApiVenueId),
+      ])
+      banned = patrons.filter((p) => p.is_banned)
+      memberships = members
+    } catch (err) {
+      console.error("[ban-list page] listPatrons/listMemberships error:", err)
+      if (isXvmAuthFailure(err)) {
+        await invalidateXvmApiCredential(session.user.id)
+      }
+    }
+  }
+
+  const personsById = new Map(memberships.map((m) => [m.person.id, m.person]))
 
   return (
     <VenueLayout venueSlug={venue.slug} venueName={venue.name} userRole={userRole}>
@@ -46,13 +62,19 @@ export default async function BanListPage({ params }: { params: Promise<{ slug: 
 
         <BanListManager
           venueId={venue.id}
+          notConnected={notConnected}
           patrons={banned.map((p) => ({
-            id: p.id,
-            characterName: p.characterName,
+            id: String(p.id),
+            characterName: p.character_name,
             world: p.world,
-            banReason: p.banReason,
-            bannedAt: p.bannedAt?.toISOString() ?? null,
-            bannedBy: p.bannedBy,
+            banReason: p.ban_reason,
+            bannedAt: p.banned_at,
+            bannedBy: p.banned_by_person_id
+              ? {
+                  id: String(p.banned_by_person_id),
+                  name: personsById.get(p.banned_by_person_id)?.display_name ?? null,
+                }
+              : null,
           }))}
         />
       </div>

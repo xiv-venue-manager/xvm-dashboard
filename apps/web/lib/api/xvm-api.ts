@@ -1532,6 +1532,48 @@ export async function deleteEventTemplate(personToken: string, venueId: string, 
   return xvmFetch<void>(`/venues/${venueId}/events/templates/${templateId}`, { method: "DELETE" }, personToken)
 }
 
+// ── Patrons API ────────────────────────────────────────────────
+
+export interface PatronRow {
+  id: number
+  character_name: string
+  world: string
+  is_banned: boolean
+  ban_reason: string | null
+  banned_at: string | null
+  banned_by_person_id: number | null
+  created_at: string
+}
+
+export interface PatronSummary extends PatronRow {
+  visits: number
+  last_seen: string | null
+}
+
+export async function listPatrons(personToken: string, venueId: string): Promise<PatronSummary[]> {
+  if (!process.env.XVM_API_BASE_URL) throw new Error("XVM_API_BASE_URL is not set")
+  return xvmFetch<PatronSummary[]>(`/venues/${venueId}/patrons`, {}, personToken)
+}
+
+export async function banPatron(
+  personToken: string,
+  venueId: string,
+  patronId: number,
+  reason: string
+): Promise<PatronRow> {
+  if (!process.env.XVM_API_BASE_URL) throw new Error("XVM_API_BASE_URL is not set")
+  return xvmFetch<PatronRow>(
+    `/venues/${venueId}/patrons/${patronId}/ban`,
+    { method: "PATCH", body: JSON.stringify({ reason }) },
+    personToken
+  )
+}
+
+export async function unbanPatron(personToken: string, venueId: string, patronId: number): Promise<PatronRow> {
+  if (!process.env.XVM_API_BASE_URL) throw new Error("XVM_API_BASE_URL is not set")
+  return xvmFetch<PatronRow>(`/venues/${venueId}/patrons/${patronId}/ban`, { method: "DELETE" }, personToken)
+}
+
 // ── Contests API ───────────────────────────────────────────────
 //
 // discord_user_id is xvm-api's Snowflake type, serialized as a JSON string -

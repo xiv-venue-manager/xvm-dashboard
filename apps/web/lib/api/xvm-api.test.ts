@@ -1,6 +1,7 @@
 import { describe, it, expect, vi, beforeEach } from "vitest"
 
 import {
+  deleteRoom,
   listTasks,
   createTask,
   updateTask,
@@ -66,6 +67,20 @@ function mockFetchOnce({ ok, status, body }: { ok: boolean; status: number; body
 
 beforeEach(() => {
   vi.stubGlobal("fetch", vi.fn())
+})
+
+describe("xvmFetch 202 handling", () => {
+  it("does not throw on a 202 with an empty body", async () => {
+    ;(fetch as ReturnType<typeof vi.fn>).mockResolvedValueOnce({
+      ok: true,
+      status: 202,
+      json: async () => {
+        throw new Error("should not be called for a 202")
+      },
+      text: async () => "",
+    } as Response)
+    await expect(deleteRoom("token", "venue-1", 1)).resolves.toBeNull()
+  })
 })
 
 describe("Tasks API", () => {

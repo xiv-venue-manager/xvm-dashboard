@@ -301,7 +301,9 @@ async function xvmFetch<T>(path: string, options: RequestInit = {}, bearerToken?
     const body = await res.text()
     throw new XvmApiError(res.status, body)
   }
-  return res.status === 204 ? (null as T) : res.json()
+  // 204 (no content) and 202 (accepted - bot does the work async, no body)
+  // both come back with nothing to parse; res.json() throws on an empty body.
+  return res.status === 204 || res.status === 202 ? (null as T) : res.json()
 }
 
 // ── Auth ───────────────────────────────────────────────────────

@@ -1,6 +1,6 @@
 "use client"
 
-import { useState } from "react"
+import { useEffect, useRef, useState } from "react"
 import { Button } from "@/components/ui/button"
 import {
   Dialog,
@@ -16,15 +16,9 @@ import { Label } from "@/components/ui/label"
 import { Select, SelectContent, SelectItem, SelectTrigger, SelectValue } from "@/components/ui/select"
 import { toast } from "sonner"
 import { apiFetch, ApiError } from "@/lib/api-fetch"
+import { pollUntil } from "@/lib/poll-until"
+import { SNOWFLAKE_PATTERN } from "@/lib/validation"
 import type { PanelRow, TemplateRow } from "@/lib/api/xvm-api"
-
-const SNOWFLAKE_PATTERN = /^\d+$/
-const POLL_INTERVAL_MS = 2000
-const POLL_TIMEOUT_MS = 15000
-
-function sleep(ms: number): Promise<void> {
-  return new Promise((resolve) => setTimeout(resolve, ms))
-}
 
 interface ApplyTemplateDialogProps {
   venueId: string
@@ -37,6 +31,13 @@ export function ApplyTemplateDialog({ venueId, templates, onApplied }: ApplyTemp
   const [templateId, setTemplateId] = useState<string>("")
   const [channelId, setChannelId] = useState("")
   const [submitting, setSubmitting] = useState(false)
+  const mountedRef = useRef(true)
+
+  useEffect(() => {
+    return () => {
+      mountedRef.current = false
+    }
+  }, [])
 
   function reset() {
     setTemplateId("")
@@ -65,20 +66,17 @@ export function ApplyTemplateDialog({ venueId, templates, onApplied }: ApplyTemp
         body: JSON.stringify({ templateId: Number(templateId), channelId }),
       })
 
-      const deadline = Date.now() + POLL_TIMEOUT_MS
-      let found = false
-      while (Date.now() < deadline) {
-        await sleep(POLL_INTERVAL_MS)
-        const after = await apiFetch<PanelRow[]>(`/api/venues/${venueId}/reaction-role-panels`)
-        const newPanel = after.find((p) => !beforeIds.has(p.id))
-        if (newPanel) {
-          found = true
-          onApplied(newPanel)
-          break
-        }
-      }
+      const after = await pollUntil<PanelRow>(
+        () => apiFetch<PanelRow[]>(`/api/venues/${venueId}/reaction-role-panels`),
+        (p) => !beforeIds.has(p.id),
+        { cancelled: () => !mountedRef.current }
+      )
 
-      if (found) {
+      if (!mountedRef.current) return
+
+      if (after) {
+        const newPanel = after.find((p) => !beforeIds.has(p.id))!
+        onApplied(newPanel)
         toast.success("Template applied.", { id: toastId })
       } else {
         toast.info("Still working — refresh in a moment.", { id: toastId })
@@ -86,9 +84,10 @@ export function ApplyTemplateDialog({ venueId, templates, onApplied }: ApplyTemp
       setOpen(false)
       reset()
     } catch (e) {
+      if (!mountedRef.current) return
       toast.error(e instanceof ApiError ? e.message : "Failed to apply template.", { id: toastId })
     } finally {
-      setSubmitting(false)
+      if (mountedRef.current) setSubmitting(false)
     }
   }
 

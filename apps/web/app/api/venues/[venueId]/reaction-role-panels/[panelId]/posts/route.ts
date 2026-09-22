@@ -6,9 +6,9 @@ import { prisma } from "@/lib/prisma"
 import { withRateLimit } from "@/lib/middleware/with-rate-limit"
 import { getValidXvmApiToken, xvmApiErrorResponse } from "@/lib/api/xvm-api-store"
 import { listPanelPosts, postPanel } from "@/lib/api/xvm-api"
+import { validators } from "@/lib/validation"
 
-const snowflake = z.string().max(20).regex(/^\d+$/, "Must be a numeric Discord ID")
-const postSchema = z.object({ channelId: snowflake })
+const postSchema = z.object({ channelId: validators.snowflake })
 
 async function requireXvmVenueId(venueId: string) {
   const venue = await prisma.venue.findUnique({ where: { id: venueId }, select: { xvmApiVenueId: true } })

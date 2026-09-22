@@ -17,9 +17,8 @@ import { Textarea } from "@/components/ui/textarea"
 import { Select, SelectContent, SelectItem, SelectTrigger, SelectValue } from "@/components/ui/select"
 import { toast } from "sonner"
 import { apiFetch, ApiError } from "@/lib/api-fetch"
+import { SNOWFLAKE_PATTERN } from "@/lib/validation"
 import type { PanelRow, ReactionRoleOptionRow } from "@/lib/api/xvm-api"
-
-const SNOWFLAKE_PATTERN = /^\d+$/
 
 interface ReactionRolePanelFormDialogProps {
   venueId: string
@@ -52,6 +51,7 @@ export function ReactionRolePanelFormDialog({
   const [options, setOptions] = useState<ReactionRoleOptionRow[]>(panel?.options ?? [])
   const [draft, setDraft] = useState<DraftOption>({ roleId: "", label: "", emoji: "" })
   const [savedPanelId, setSavedPanelId] = useState<number | null>(panel?.id ?? null)
+  const [optionBusy, setOptionBusy] = useState(false)
 
   function reset() {
     setTitle(panel?.title ?? "")
@@ -110,6 +110,7 @@ export function ReactionRolePanelFormDialog({
       toast.error("Save the panel first before adding options.")
       return
     }
+    if (optionBusy) return
     if (!SNOWFLAKE_PATTERN.test(draft.roleId)) {
       toast.error("Role ID must be numeric.")
       return
@@ -119,6 +120,7 @@ export function ReactionRolePanelFormDialog({
       return
     }
 
+    setOptionBusy(true)
     try {
       const option = await apiFetch<ReactionRoleOptionRow>(
         `/api/venues/${venueId}/reaction-role-panels/${savedPanelId}/options`,
@@ -137,11 +139,14 @@ export function ReactionRolePanelFormDialog({
       toast.success("Option added.")
     } catch (e) {
       toast.error(e instanceof ApiError ? e.message : "Failed to add option.")
+    } finally {
+      setOptionBusy(false)
     }
   }
 
   async function handleDeleteOption(optionId: number) {
-    if (!savedPanelId) return
+    if (!savedPanelId || optionBusy) return
+    setOptionBusy(true)
     try {
       await apiFetch(`/api/venues/${venueId}/reaction-role-panels/${savedPanelId}/options/${optionId}`, {
         method: "DELETE",
@@ -149,6 +154,8 @@ export function ReactionRolePanelFormDialog({
       setOptions((prev) => prev.filter((o) => o.id !== optionId))
     } catch (e) {
       toast.error(e instanceof ApiError ? e.message : "Failed to remove option.")
+    } finally {
+      setOptionBusy(false)
     }
   }
 
@@ -169,7 +176,13 @@ export function ReactionRolePanelFormDialog({
         <div className="space-y-4">
           <div className="space-y-2">
             <Label htmlFor="panel-title">Title</Label>
-            <Input id="panel-title" value={title} onChange={(e) => setTitle(e.target.value)} disabled={submitting} />
+            <Input
+              id="panel-title"
+              value={title}
+              onChange={(e) => setTitle(e.target.value)}
+              disabled={submitting}
+              maxLength={256}
+            />
           </div>
           <div className="space-y-2">
             <Label htmlFor="panel-description">Description</Label>
@@ -178,6 +191,7 @@ export function ReactionRolePanelFormDialog({
               value={description}
               onChange={(e) => setDescription(e.target.value)}
               disabled={submitting}
+              maxLength={4096}
             />
           </div>
           <div className="grid grid-cols-2 gap-4">
@@ -214,7 +228,7 @@ export function ReactionRolePanelFormDialog({
                 <span>{opt.emoji ?? "•"}</span>
                 <span className="flex-1">{opt.label ?? "(no label)"}</span>
                 <span className="text-muted-foreground text-xs">role {opt.role_id}</span>
-                <Button size="sm" variant="ghost" onClick={() => handleDeleteOption(opt.id)}>
+                <Button size="sm" variant="ghost" onClick={() => handleDeleteOption(opt.id)} disabled={optionBusy}>
                   Remove
                 </Button>
               </div>
@@ -224,21 +238,24 @@ export function ReactionRolePanelFormDialog({
                 placeholder="Role ID"
                 value={draft.roleId}
                 onChange={(e) => setDraft({ ...draft, roleId: e.target.value })}
-                disabled={!savedPanelId}
+                disabled={!savedPanelId || optionBusy}
+                maxLength={20}
               />
               <Input
                 placeholder="Label"
                 value={draft.label}
                 onChange={(e) => setDraft({ ...draft, label: e.target.value })}
-                disabled={!savedPanelId}
+                disabled={!savedPanelId || optionBusy}
+                maxLength={80}
               />
               <Input
                 placeholder="Emoji"
                 value={draft.emoji}
                 onChange={(e) => setDraft({ ...draft, emoji: e.target.value })}
-                disabled={!savedPanelId}
+                disabled={!savedPanelId || optionBusy}
+                maxLength={64}
               />
-              <Button type="button" variant="outline" onClick={handleAddOption} disabled={!savedPanelId}>
+              <Button type="button" variant="outline" onClick={handleAddOption} disabled={!savedPanelId || optionBusy}>
                 Add
               </Button>
             </div>

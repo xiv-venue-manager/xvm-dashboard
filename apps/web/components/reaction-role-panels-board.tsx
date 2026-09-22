@@ -1,6 +1,6 @@
 "use client"
 
-import { useEffect, useState } from "react"
+import { useEffect, useRef, useState } from "react"
 import { Button } from "@/components/ui/button"
 import { Badge } from "@/components/ui/badge"
 import { Card, CardContent, CardHeader } from "@/components/ui/card"
@@ -20,6 +20,8 @@ import { ReactionRolePanelFormDialog } from "@/components/reaction-role-panel-fo
 import { ApplyTemplateDialog } from "@/components/apply-template-dialog"
 import { toast } from "sonner"
 import { apiFetch, ApiError } from "@/lib/api-fetch"
+import { pollUntil } from "@/lib/poll-until"
+import { SNOWFLAKE_PATTERN } from "@/lib/validation"
 import type { PanelRow, PanelPostRow, TemplateRow } from "@/lib/api/xvm-api"
 
 export interface ReactionRolePanelsBoardProps {
@@ -31,13 +33,6 @@ export interface ReactionRolePanelsBoardProps {
 }
 
 const NOT_CONNECTED_MESSAGE = "Ask the venue owner to connect this venue to xvm-api first."
-const SNOWFLAKE_PATTERN = /^\d+$/
-const POLL_INTERVAL_MS = 2000
-const POLL_TIMEOUT_MS = 15000
-
-function sleep(ms: number): Promise<void> {
-  return new Promise((resolve) => setTimeout(resolve, ms))
-}
 
 export function ReactionRolePanelsBoard({
   venueId,
@@ -53,6 +48,13 @@ export function ReactionRolePanelsBoard({
   const [postChannelId, setPostChannelId] = useState("")
   const [posting, setPosting] = useState(false)
   const [postsByPanel, setPostsByPanel] = useState<Record<number, PanelPostRow[]>>({})
+  const mountedRef = useRef(true)
+
+  useEffect(() => {
+    return () => {
+      mountedRef.current = false
+    }
+  }, [])
 
   useEffect(() => {
     let cancelled = false
@@ -109,34 +111,29 @@ export function ReactionRolePanelsBoard({
         body: JSON.stringify({ channelId: postChannelId }),
       })
 
-      const deadline = Date.now() + POLL_TIMEOUT_MS
-      let found = false
-      while (Date.now() < deadline) {
-        await sleep(POLL_INTERVAL_MS)
-        const posts = await apiFetch<PanelPostRow[]>(
-          `/api/venues/${venueId}/reaction-role-panels/${postTarget.id}/posts`
-        )
-        if (posts.some((p) => p.channel_id === postChannelId)) {
-          found = true
-          break
-        }
-      }
+      const posts = await pollUntil<PanelPostRow>(
+        () => apiFetch<PanelPostRow[]>(`/api/venues/${venueId}/reaction-role-panels/${postTarget.id}/posts`),
+        (p) => p.channel_id === postChannelId,
+        { cancelled: () => !mountedRef.current }
+      )
 
-      if (found) {
+      if (!mountedRef.current) return
+
+      if (posts) {
         toast.success("Panel posted.", { id: toastId })
-        const posts = await apiFetch<PanelPostRow[]>(
-          `/api/venues/${venueId}/reaction-role-panels/${postTarget.id}/posts`
-        )
         setPostsByPanel((prev) => ({ ...prev, [postTarget.id]: posts }))
       } else {
         toast.info("Still working — refresh in a moment.", { id: toastId })
       }
     } catch (e) {
+      if (!mountedRef.current) return
       toast.error(e instanceof ApiError ? e.message : "Failed to post panel.", { id: toastId })
     } finally {
-      setPosting(false)
-      setPostTarget(null)
-      setPostChannelId("")
+      if (mountedRef.current) {
+        setPosting(false)
+        setPostTarget(null)
+        setPostChannelId("")
+      }
     }
   }
 

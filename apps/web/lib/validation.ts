@@ -4,7 +4,12 @@ import { z } from "zod"
 // Common Field Validators
 // ============================================
 
+// Discord snowflakes are unsigned 64-bit ints serialized as strings - never
+// coerce to number, real IDs exceed Number.MAX_SAFE_INTEGER.
+export const SNOWFLAKE_PATTERN = /^\d+$/
+
 export const validators = {
+  snowflake: z.string().max(20).regex(SNOWFLAKE_PATTERN, "Must be a numeric Discord ID"),
   venueName: z.string().min(1, "Name is required").max(100, "Name too long (max 100 characters)"),
   venueDescription: z.string().max(2000, "Description too long (max 2000 characters)").optional().nullable(),
   venueDistrict: z.string().max(50).optional().nullable(),

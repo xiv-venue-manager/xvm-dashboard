@@ -6,14 +6,11 @@ import { prisma } from "@/lib/prisma"
 import { withRateLimit } from "@/lib/middleware/with-rate-limit"
 import { getValidXvmApiToken, xvmApiErrorResponse } from "@/lib/api/xvm-api-store"
 import { addPanelOption } from "@/lib/api/xvm-api"
-
-// Discord snowflakes are unsigned 64-bit ints serialized as strings - never
-// coerce to number, real IDs exceed Number.MAX_SAFE_INTEGER.
-const snowflake = z.string().max(20).regex(/^\d+$/, "Must be a numeric Discord ID")
+import { validators } from "@/lib/validation"
 
 const addOptionSchema = z
   .object({
-    roleId: snowflake,
+    roleId: validators.snowflake,
     label: z.string().trim().min(1).max(80).nullable().optional(),
     emoji: z.string().trim().min(1).max(64).nullable().optional(),
   })

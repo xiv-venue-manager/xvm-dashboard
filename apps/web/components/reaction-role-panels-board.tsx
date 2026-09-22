@@ -215,7 +215,7 @@ export function ReactionRolePanelsBoard({
       <AlertDialog open={!!deleteTarget} onOpenChange={(open) => !open && setDeleteTarget(null)}>
         <AlertDialogContent>
           <AlertDialogHeader>
-            <AlertDialogTitle>Delete "{deleteTarget?.title}"?</AlertDialogTitle>
+            <AlertDialogTitle>Delete &quot;{deleteTarget?.title}&quot;?</AlertDialogTitle>
             <AlertDialogDescription>
               Every posted copy of this panel comes down first. This cannot be undone.
             </AlertDialogDescription>
@@ -240,7 +240,7 @@ export function ReactionRolePanelsBoard({
       >
         <AlertDialogContent>
           <AlertDialogHeader>
-            <AlertDialogTitle>Post "{postTarget?.title}" to a channel</AlertDialogTitle>
+            <AlertDialogTitle>Post &quot;{postTarget?.title}&quot; to a channel</AlertDialogTitle>
             <AlertDialogDescription>Enter the Discord channel ID to post this panel to.</AlertDialogDescription>
           </AlertDialogHeader>
           <Input

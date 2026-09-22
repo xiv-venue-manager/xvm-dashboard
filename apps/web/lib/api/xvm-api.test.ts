@@ -46,6 +46,18 @@ import {
   createFinanceTransaction,
   updateFinanceTransaction,
   voidFinanceTransaction,
+  listPanels,
+  createPanel,
+  getPanel,
+  updatePanel,
+  deletePanel,
+  addPanelOption,
+  updatePanelOption,
+  deletePanelOption,
+  applyPanelTemplate,
+  postPanel,
+  listPanelPosts,
+  listReactionRoleTemplates,
   type TaskRow,
   type PublicHours,
   type GiveawayRow,
@@ -54,6 +66,8 @@ import {
   type ServiceRow,
   type StockMovementRow,
   type FinanceTransactionRow,
+  type PanelRow,
+  type TemplateRow,
 } from "./xvm-api"
 
 function mockFetchOnce({ ok, status, body }: { ok: boolean; status: number; body: unknown }) {
@@ -78,7 +92,7 @@ describe("xvmFetch 202 handling", () => {
         throw new Error("should not be called for a 202")
       },
       text: async () => "",
-    } as Response)
+    } as unknown as Response)
     await expect(deleteRoom("token", "venue-1", 1)).resolves.toBeNull()
   })
 })
@@ -651,5 +665,128 @@ describe("Finance Transactions API", () => {
     expect(url).toContain("/venues/venue-1/finance/transactions/1/void")
     expect(options.method).toBe("POST")
     expect(JSON.parse(options.body)).toEqual({ reason: "refund" })
+  })
+})
+
+describe("Reaction Role Panels API", () => {
+  const samplePanel: PanelRow = {
+    id: 1,
+    title: "Pronouns",
+    description: null,
+    thumbnail_url: null,
+    color: null,
+    message_type: "normal",
+    options: [{ id: 1, role_id: "111", label: "she/her", emoji: null, sort_order: 0 }],
+    created_at: "2026-09-22T00:00:00Z",
+    updated_at: "2026-09-22T00:00:00Z",
+  }
+
+  it("listPanels GETs the venue's panels", async () => {
+    mockFetchOnce({ ok: true, status: 200, body: [samplePanel] })
+    const result = await listPanels("token", "venue-1")
+    expect(result).toEqual([samplePanel])
+    const [url] = (fetch as ReturnType<typeof vi.fn>).mock.calls[0]
+    expect(url).toContain("/venues/venue-1/reaction-role-panels")
+  })
+
+  it("createPanel POSTs to /venues/{venueId}/reaction-role-panels", async () => {
+    mockFetchOnce({ ok: true, status: 201, body: samplePanel })
+    const result = await createPanel("token", "venue-1", { title: "Pronouns" })
+    expect(result).toEqual(samplePanel)
+    const [url, options] = (fetch as ReturnType<typeof vi.fn>).mock.calls[0]
+    expect(url).toContain("/reaction-role-panels")
+    expect(options.method).toBe("POST")
+  })
+
+  it("getPanel GETs /reaction-role-panels/{id}", async () => {
+    mockFetchOnce({ ok: true, status: 200, body: samplePanel })
+    await getPanel("token", "venue-1", 1)
+    const [url] = (fetch as ReturnType<typeof vi.fn>).mock.calls[0]
+    expect(url).toContain("/reaction-role-panels/1")
+  })
+
+  it("updatePanel PATCHes /reaction-role-panels/{id}", async () => {
+    mockFetchOnce({ ok: true, status: 200, body: samplePanel })
+    await updatePanel("token", "venue-1", 1, { title: "Updated" })
+    const [url, options] = (fetch as ReturnType<typeof vi.fn>).mock.calls[0]
+    expect(url).toContain("/reaction-role-panels/1")
+    expect(options.method).toBe("PATCH")
+  })
+
+  it("deletePanel DELETEs /reaction-role-panels/{id}", async () => {
+    mockFetchOnce({ ok: true, status: 204, body: null })
+    await deletePanel("token", "venue-1", 1)
+    const [url, options] = (fetch as ReturnType<typeof vi.fn>).mock.calls[0]
+    expect(url).toContain("/reaction-role-panels/1")
+    expect(options.method).toBe("DELETE")
+  })
+
+  it("addPanelOption POSTs /reaction-role-panels/{id}/options", async () => {
+    mockFetchOnce({ ok: true, status: 201, body: samplePanel.options[0] })
+    await addPanelOption("token", "venue-1", 1, { role_id: "111", label: "she/her" })
+    const [url, options] = (fetch as ReturnType<typeof vi.fn>).mock.calls[0]
+    expect(url).toContain("/reaction-role-panels/1/options")
+    expect(options.method).toBe("POST")
+  })
+
+  it("updatePanelOption PATCHes /reaction-role-panels/{id}/options/{optionId}", async () => {
+    mockFetchOnce({ ok: true, status: 200, body: samplePanel.options[0] })
+    await updatePanelOption("token", "venue-1", 1, 1, { label: "she/they" })
+    const [url, options] = (fetch as ReturnType<typeof vi.fn>).mock.calls[0]
+    expect(url).toContain("/reaction-role-panels/1/options/1")
+    expect(options.method).toBe("PATCH")
+  })
+
+  it("deletePanelOption DELETEs /reaction-role-panels/{id}/options/{optionId}", async () => {
+    mockFetchOnce({ ok: true, status: 204, body: null })
+    await deletePanelOption("token", "venue-1", 1, 1)
+    const [url, options] = (fetch as ReturnType<typeof vi.fn>).mock.calls[0]
+    expect(url).toContain("/reaction-role-panels/1/options/1")
+    expect(options.method).toBe("DELETE")
+  })
+
+  it("applyPanelTemplate POSTs /reaction-role-panels/from-template and tolerates a 202 empty body", async () => {
+    ;(fetch as ReturnType<typeof vi.fn>).mockResolvedValueOnce({
+      ok: true,
+      status: 202,
+      json: async () => {
+        throw new Error("should not be called for a 202")
+      },
+      text: async () => "",
+    } as unknown as Response)
+    await applyPanelTemplate("token", "venue-1", { template_id: 1, channel_id: "222" })
+    const [url, options] = (fetch as ReturnType<typeof vi.fn>).mock.calls[0]
+    expect(url).toContain("/reaction-role-panels/from-template")
+    expect(options.method).toBe("POST")
+  })
+
+  it("postPanel POSTs /reaction-role-panels/{id}/posts and tolerates a 202 empty body", async () => {
+    ;(fetch as ReturnType<typeof vi.fn>).mockResolvedValueOnce({
+      ok: true,
+      status: 202,
+      json: async () => {
+        throw new Error("should not be called for a 202")
+      },
+      text: async () => "",
+    } as unknown as Response)
+    await postPanel("token", "venue-1", 1, { channel_id: "222" })
+    const [url, options] = (fetch as ReturnType<typeof vi.fn>).mock.calls[0]
+    expect(url).toContain("/reaction-role-panels/1/posts")
+    expect(options.method).toBe("POST")
+  })
+
+  it("listPanelPosts GETs /reaction-role-panels/{id}/posts", async () => {
+    mockFetchOnce({ ok: true, status: 200, body: [] })
+    await listPanelPosts("token", "venue-1", 1)
+    const [url] = (fetch as ReturnType<typeof vi.fn>).mock.calls[0]
+    expect(url).toContain("/reaction-role-panels/1/posts")
+  })
+
+  it("listReactionRoleTemplates GETs the flat, non-venue-scoped /reaction-role-templates", async () => {
+    mockFetchOnce({ ok: true, status: 200, body: [] })
+    await listReactionRoleTemplates("token")
+    const [url] = (fetch as ReturnType<typeof vi.fn>).mock.calls[0]
+    expect(url).toContain("/reaction-role-templates")
+    expect(url).not.toContain("/venues/")
   })
 })

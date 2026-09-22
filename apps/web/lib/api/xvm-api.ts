@@ -427,6 +427,217 @@ export async function uploadRoomImage(
   )
 }
 
+// ── Reaction Role Panels API ─────────────────────────────────────
+
+export interface ReactionRoleOptionRow {
+  id: number
+  role_id: string
+  label: string | null
+  emoji: string | null
+  sort_order: number
+}
+
+export interface PanelRow {
+  id: number
+  title: string | null
+  description: string | null
+  thumbnail_url: string | null
+  color: number | null
+  message_type: "normal" | "unique" | "verify"
+  options: ReactionRoleOptionRow[]
+  created_at: string
+  updated_at: string
+}
+
+export interface PanelPostRow {
+  channel_id: string
+  message_id: string | null
+  posted_at: string | null
+}
+
+export interface TemplateOptionRow {
+  id: number
+  name: string
+  color: number
+  emoji: string | null
+  sort_order: number
+}
+
+export interface TemplateRow {
+  id: number
+  name: string
+  title: string
+  description: string | null
+  message_type: "normal" | "unique" | "verify"
+  options: TemplateOptionRow[]
+  created_at: string
+  updated_at: string
+}
+
+export interface PanelCreateData {
+  title: string
+  description?: string | null
+  color?: number | null
+  message_type?: "normal" | "unique" | "verify"
+}
+
+export interface PanelUpdateData {
+  title?: string
+  description?: string | null
+  color?: number | null
+  message_type?: "normal" | "unique" | "verify"
+}
+
+export interface PanelOptionCreateData {
+  role_id: string
+  label?: string | null
+  emoji?: string | null
+}
+
+export interface PanelOptionUpdateData {
+  label?: string | null
+  emoji?: string | null
+}
+
+export async function listPanels(personToken: string, venueId: string): Promise<PanelRow[]> {
+  if (!process.env.XVM_API_BASE_URL) throw new Error("XVM_API_BASE_URL is not set")
+  return xvmFetch<PanelRow[]>(`/venues/${venueId}/reaction-role-panels`, {}, personToken)
+}
+
+export async function getPanel(personToken: string, venueId: string, panelId: number): Promise<PanelRow> {
+  if (!process.env.XVM_API_BASE_URL) throw new Error("XVM_API_BASE_URL is not set")
+  return xvmFetch<PanelRow>(`/venues/${venueId}/reaction-role-panels/${panelId}`, {}, personToken)
+}
+
+export async function createPanel(personToken: string, venueId: string, data: PanelCreateData): Promise<PanelRow> {
+  if (!process.env.XVM_API_BASE_URL) throw new Error("XVM_API_BASE_URL is not set")
+  return xvmFetch<PanelRow>(
+    `/venues/${venueId}/reaction-role-panels`,
+    { method: "POST", body: JSON.stringify(data) },
+    personToken
+  )
+}
+
+export async function updatePanel(
+  personToken: string,
+  venueId: string,
+  panelId: number,
+  data: PanelUpdateData
+): Promise<PanelRow> {
+  if (!process.env.XVM_API_BASE_URL) throw new Error("XVM_API_BASE_URL is not set")
+  return xvmFetch<PanelRow>(
+    `/venues/${venueId}/reaction-role-panels/${panelId}`,
+    { method: "PATCH", body: JSON.stringify(data) },
+    personToken
+  )
+}
+
+export async function deletePanel(personToken: string, venueId: string, panelId: number): Promise<void> {
+  if (!process.env.XVM_API_BASE_URL) throw new Error("XVM_API_BASE_URL is not set")
+  return xvmFetch<void>(`/venues/${venueId}/reaction-role-panels/${panelId}`, { method: "DELETE" }, personToken)
+}
+
+export async function setPanelThumbnail(
+  personToken: string,
+  venueId: string,
+  panelId: number,
+  file: File | Blob
+): Promise<PanelRow> {
+  if (!process.env.XVM_API_BASE_URL) throw new Error("XVM_API_BASE_URL is not set")
+  const form = new FormData()
+  form.append("file", file)
+  return xvmFetch<PanelRow>(
+    `/venues/${venueId}/reaction-role-panels/${panelId}/thumbnail`,
+    { method: "PUT", body: form },
+    personToken
+  )
+}
+
+export async function addPanelOption(
+  personToken: string,
+  venueId: string,
+  panelId: number,
+  data: PanelOptionCreateData
+): Promise<ReactionRoleOptionRow> {
+  if (!process.env.XVM_API_BASE_URL) throw new Error("XVM_API_BASE_URL is not set")
+  return xvmFetch<ReactionRoleOptionRow>(
+    `/venues/${venueId}/reaction-role-panels/${panelId}/options`,
+    { method: "POST", body: JSON.stringify(data) },
+    personToken
+  )
+}
+
+export async function updatePanelOption(
+  personToken: string,
+  venueId: string,
+  panelId: number,
+  optionId: number,
+  data: PanelOptionUpdateData
+): Promise<ReactionRoleOptionRow> {
+  if (!process.env.XVM_API_BASE_URL) throw new Error("XVM_API_BASE_URL is not set")
+  return xvmFetch<ReactionRoleOptionRow>(
+    `/venues/${venueId}/reaction-role-panels/${panelId}/options/${optionId}`,
+    { method: "PATCH", body: JSON.stringify(data) },
+    personToken
+  )
+}
+
+export async function deletePanelOption(
+  personToken: string,
+  venueId: string,
+  panelId: number,
+  optionId: number
+): Promise<void> {
+  if (!process.env.XVM_API_BASE_URL) throw new Error("XVM_API_BASE_URL is not set")
+  return xvmFetch<void>(
+    `/venues/${venueId}/reaction-role-panels/${panelId}/options/${optionId}`,
+    { method: "DELETE" },
+    personToken
+  )
+}
+
+// Both endpoints below return 202 with no body - the bot does the work
+// asynchronously. Callers poll listPanels/listPanelPosts to find out.
+
+export async function applyPanelTemplate(
+  personToken: string,
+  venueId: string,
+  data: { template_id: number; channel_id: string }
+): Promise<void> {
+  if (!process.env.XVM_API_BASE_URL) throw new Error("XVM_API_BASE_URL is not set")
+  return xvmFetch<void>(
+    `/venues/${venueId}/reaction-role-panels/from-template`,
+    { method: "POST", body: JSON.stringify(data) },
+    personToken
+  )
+}
+
+export async function postPanel(
+  personToken: string,
+  venueId: string,
+  panelId: number,
+  data: { channel_id: string }
+): Promise<void> {
+  if (!process.env.XVM_API_BASE_URL) throw new Error("XVM_API_BASE_URL is not set")
+  return xvmFetch<void>(
+    `/venues/${venueId}/reaction-role-panels/${panelId}/posts`,
+    { method: "POST", body: JSON.stringify(data) },
+    personToken
+  )
+}
+
+export async function listPanelPosts(personToken: string, venueId: string, panelId: number): Promise<PanelPostRow[]> {
+  if (!process.env.XVM_API_BASE_URL) throw new Error("XVM_API_BASE_URL is not set")
+  return xvmFetch<PanelPostRow[]>(`/venues/${venueId}/reaction-role-panels/${panelId}/posts`, {}, personToken)
+}
+
+// Not venue-scoped in xvm-api - templates are a flat, platform-wide catalog
+// (admin_router with no prefix). Read-only here; creation is platform-admin-only.
+export async function listReactionRoleTemplates(personToken: string): Promise<TemplateRow[]> {
+  if (!process.env.XVM_API_BASE_URL) throw new Error("XVM_API_BASE_URL is not set")
+  return xvmFetch<TemplateRow[]>("/reaction-role-templates", {}, personToken)
+}
+
 export async function deleteRoomImage(
   personToken: string,
   venueId: string,

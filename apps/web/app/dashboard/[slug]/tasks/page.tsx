@@ -33,6 +33,15 @@ import { format } from "date-fns"
 import { PageLoading } from "@/components/ui/loading-spinner"
 import { canManageVenue } from "@/lib/roles"
 
+// The date/datetime-local inputs below produce a naive string with no UTC
+// offset - the API rejects one on a due date field. Only the browser knows
+// the offset to apply, so this has to run client-side rather than server-side.
+function toAwareDueDate(value: string): string | undefined {
+  if (!value) return undefined
+  const parsed = new Date(value)
+  return Number.isNaN(parsed.getTime()) ? undefined : parsed.toISOString()
+}
+
 interface Task {
   id: number
   title: string
@@ -166,7 +175,7 @@ export default function TasksPage({ params }: { params: Promise<{ slug: string }
           priority: formData.priority,
           category: formData.category || undefined,
           assignedRoleId: formData.selectedRoleId ? Number(formData.selectedRoleId) : undefined,
-          dueDate: formData.dueDate || undefined,
+          dueDate: toAwareDueDate(formData.dueDate),
         }),
       })
 
@@ -296,7 +305,7 @@ export default function TasksPage({ params }: { params: Promise<{ slug: string }
         priority: formData.priority,
         category: formData.category === "none" ? null : formData.category,
         assignedRoleId: formData.selectedRoleId === "unassigned" ? null : Number(formData.selectedRoleId),
-        dueDate: formData.dueDate || null,
+        dueDate: toAwareDueDate(formData.dueDate) ?? null,
       }
 
       const response = await fetch(`/api/venues/${venue.id}/tasks/${editingTask.id}`, {

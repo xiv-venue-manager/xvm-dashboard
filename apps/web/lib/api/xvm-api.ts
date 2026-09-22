@@ -1574,6 +1574,32 @@ export async function unbanPatron(personToken: string, venueId: string, patronId
   return xvmFetch<PatronRow>(`/venues/${venueId}/patrons/${patronId}/ban`, { method: "DELETE" }, personToken)
 }
 
+export interface BannedRow {
+  character_name: string
+  world: string
+  ban_reason: string | null
+}
+
+export async function listBannedPatrons(personToken: string, venueId: string): Promise<BannedRow[]> {
+  if (!process.env.XVM_API_BASE_URL) throw new Error("XVM_API_BASE_URL is not set")
+  return xvmFetch<BannedRow[]>(`/venues/${venueId}/patrons/banned`, {}, personToken)
+}
+
+export async function banPatronByName(
+  personToken: string,
+  venueId: string,
+  characterName: string,
+  world: string,
+  reason: string
+): Promise<PatronRow> {
+  if (!process.env.XVM_API_BASE_URL) throw new Error("XVM_API_BASE_URL is not set")
+  return xvmFetch<PatronRow>(
+    `/venues/${venueId}/patrons/bans`,
+    { method: "POST", body: JSON.stringify({ character_name: characterName, world, reason }) },
+    personToken
+  )
+}
+
 // ── Contests API ───────────────────────────────────────────────
 //
 // discord_user_id is xvm-api's Snowflake type, serialized as a JSON string -

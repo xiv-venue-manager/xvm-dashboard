@@ -33,13 +33,22 @@ import { format } from "date-fns"
 import { PageLoading } from "@/components/ui/loading-spinner"
 import { canManageVenue } from "@/lib/roles"
 
-// The date/datetime-local inputs below produce a naive string with no UTC
-// offset - the API rejects one on a due date field. Only the browser knows
-// the offset to apply, so this has to run client-side rather than server-side.
+// The datetime-local input below produces a naive string with no UTC offset -
+// the API rejects one on a due date field. Only the browser knows the offset
+// to apply, so this has to run client-side rather than server-side.
 function toAwareDueDate(value: string): string | undefined {
   if (!value) return undefined
   const parsed = new Date(value)
   return Number.isNaN(parsed.getTime()) ? undefined : parsed.toISOString()
+}
+
+// Inverse of the above: renders an aware ISO string back into the naive local
+// wall-clock string a datetime-local input expects, so editing a task doesn't
+// re-interpret its due date in a different offset than it was set in.
+function toLocalDatetimeInputValue(iso: string): string {
+  const d = new Date(iso)
+  const pad = (n: number) => String(n).padStart(2, "0")
+  return `${d.getFullYear()}-${pad(d.getMonth() + 1)}-${pad(d.getDate())}T${pad(d.getHours())}:${pad(d.getMinutes())}`
 }
 
 interface Task {
@@ -276,7 +285,7 @@ export default function TasksPage({ params }: { params: Promise<{ slug: string }
       priority: task.priority,
       category: task.category || "none",
       selectedRoleId: task.assignedRole ? String(task.assignedRole.id) : "unassigned",
-      dueDate: task.dueDate ? new Date(task.dueDate).toISOString().split("T")[0] : "",
+      dueDate: task.dueDate ? toLocalDatetimeInputValue(task.dueDate) : "",
     })
     setFormError("")
     setIsEditDialogOpen(true)
@@ -809,7 +818,7 @@ export default function TasksPage({ params }: { params: Promise<{ slug: string }
                 <Label htmlFor="edit-due-date">Due Date (optional)</Label>
                 <Input
                   id="edit-due-date"
-                  type="date"
+                  type="datetime-local"
                   value={formData.dueDate}
                   onChange={(e) => setFormData({ ...formData, dueDate: e.target.value })}
                   disabled={isSubmitting}

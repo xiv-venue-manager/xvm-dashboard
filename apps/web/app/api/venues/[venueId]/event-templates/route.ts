@@ -6,9 +6,8 @@ import { z } from "zod"
 import { withRateLimit } from "@/lib/middleware/with-rate-limit"
 import { validators } from "@/lib/validation"
 import { getValidXvmApiToken, xvmApiErrorResponse } from "@/lib/api/xvm-api-store"
-import { listEventTemplates, createEventTemplate, type EventTemplateRow } from "@/lib/api/xvm-api"
-
-const HHMM_PATTERN = /^([01]\d|2[0-3]):([0-5]\d)$/
+import { listEventTemplates, createEventTemplate } from "@/lib/api/xvm-api"
+import { HHMM_PATTERN, minutesOfDay, toDashboardTemplateShape } from "@/lib/api/event-template-shape"
 
 const createTemplateSchema = z.object({
   name: z.string().min(1, "Template name is required").max(100, "Template name too long (max 100 characters)"),
@@ -22,31 +21,6 @@ const createTemplateSchema = z.object({
   defaultStartTime: z.string().regex(HHMM_PATTERN, "Invalid time format. Use HH:MM").default("19:00"),
   defaultEndTime: z.string().regex(HHMM_PATTERN, "Invalid time format. Use HH:MM").default("22:00"),
 })
-
-function minutesOfDay(hhmm: string): number {
-  const [h, m] = hhmm.split(":").map(Number)
-  return h * 60 + m
-}
-
-function hhmmFromMinutes(minutes: number): string {
-  const h = Math.floor(minutes / 60) % 24
-  const m = minutes % 60
-  return `${String(h).padStart(2, "0")}:${String(m).padStart(2, "0")}`
-}
-
-function toDashboardShape(t: EventTemplateRow) {
-  return {
-    id: String(t.id),
-    name: t.name,
-    title: t.title,
-    description: t.description,
-    eventType: t.event_type,
-    defaultStartTime: hhmmFromMinutes(t.default_start_minute_of_day),
-    defaultEndTime: hhmmFromMinutes(t.default_start_minute_of_day + t.default_duration_minutes),
-    // xvm-api's templates don't track who created them - no data to show here.
-    createdBy: null,
-  }
-}
 
 async function requireXvmVenueId(venueId: string) {
   const venue = await prisma.venue.findUnique({ where: { id: venueId }, select: { xvmApiVenueId: true } })
@@ -85,7 +59,7 @@ export const GET = withRateLimit<{ params: Promise<{ venueId: string }> }>(
 
     try {
       const templates = await listEventTemplates(token, gate.xvmApiVenueId!)
-      return NextResponse.json(templates.map(toDashboardShape))
+      return NextResponse.json(templates.map(toDashboardTemplateShape))
     } catch (err) {
       return xvmApiErrorResponse(err, session.user.id, "[event-templates] GET error")
     }
@@ -138,7 +112,7 @@ export const POST = withRateLimit<{ params: Promise<{ venueId: string }> }>(
         default_start_minute_of_day: startMinute,
         default_duration_minutes: durationMinutes,
       })
-      return NextResponse.json(toDashboardShape(template), { status: 201 })
+      return NextResponse.json(toDashboardTemplateShape(template), { status: 201 })
     } catch (err) {
       return xvmApiErrorResponse(err, session.user.id, "[event-templates] POST error")
     }

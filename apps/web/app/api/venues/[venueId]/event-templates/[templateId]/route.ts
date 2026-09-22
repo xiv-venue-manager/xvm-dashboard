@@ -6,9 +6,8 @@ import { z } from "zod"
 import { withRateLimit } from "@/lib/middleware/with-rate-limit"
 import { validators } from "@/lib/validation"
 import { getValidXvmApiToken, xvmApiErrorResponse } from "@/lib/api/xvm-api-store"
-import { updateEventTemplate, deleteEventTemplate, type EventTemplateRow } from "@/lib/api/xvm-api"
-
-const HHMM_PATTERN = /^([01]\d|2[0-3]):([0-5]\d)$/
+import { updateEventTemplate, deleteEventTemplate } from "@/lib/api/xvm-api"
+import { HHMM_PATTERN, minutesOfDay, toDashboardTemplateShape } from "@/lib/api/event-template-shape"
 
 const updateTemplateSchema = z.object({
   name: z.string().min(1).max(100, "Template name too long (max 100 characters)").optional(),
@@ -19,30 +18,6 @@ const updateTemplateSchema = z.object({
   defaultStartTime: z.string().regex(HHMM_PATTERN, "Invalid time format. Use HH:MM").optional(),
   defaultEndTime: z.string().regex(HHMM_PATTERN, "Invalid time format. Use HH:MM").optional(),
 })
-
-function minutesOfDay(hhmm: string): number {
-  const [h, m] = hhmm.split(":").map(Number)
-  return h * 60 + m
-}
-
-function hhmmFromMinutes(minutes: number): string {
-  const h = Math.floor(minutes / 60) % 24
-  const m = minutes % 60
-  return `${String(h).padStart(2, "0")}:${String(m).padStart(2, "0")}`
-}
-
-function toDashboardShape(t: EventTemplateRow) {
-  return {
-    id: String(t.id),
-    name: t.name,
-    title: t.title,
-    description: t.description,
-    eventType: t.event_type,
-    defaultStartTime: hhmmFromMinutes(t.default_start_minute_of_day),
-    defaultEndTime: hhmmFromMinutes(t.default_start_minute_of_day + t.default_duration_minutes),
-    createdBy: null,
-  }
-}
 
 async function requireXvmVenueId(venueId: string) {
   const venue = await prisma.venue.findUnique({ where: { id: venueId }, select: { xvmApiVenueId: true } })
@@ -124,7 +99,7 @@ export const PATCH = withRateLimit<{ params: Promise<{ venueId: string; template
         ...(startMinute !== undefined && { default_start_minute_of_day: startMinute }),
         ...(durationMinutes !== undefined && { default_duration_minutes: durationMinutes }),
       })
-      return NextResponse.json(toDashboardShape(template))
+      return NextResponse.json(toDashboardTemplateShape(template))
     } catch (err) {
       return xvmApiErrorResponse(err, session.user.id, "[event-templates/:id] PATCH error")
     }

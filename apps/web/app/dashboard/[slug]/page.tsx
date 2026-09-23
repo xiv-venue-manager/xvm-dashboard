@@ -9,7 +9,7 @@ import { StatReadout } from "@/components/ui/stat-readout"
 import { CrystalDivider } from "@/components/ui/crystal-divider"
 import { prisma } from "@/lib/prisma"
 import { xvmPageReader } from "@/lib/api/xvm-page-read"
-import { getFinanceSummary, listShifts, listTasks, type ShiftRow, type TaskRow } from "@/lib/api/xvm-api"
+import { getFinanceSummary, listShifts, listTasks, type ShiftRow } from "@/lib/api/xvm-api"
 import { minorUnitsToDollars } from "@/lib/api/position-convert"
 import { intToPriority } from "@/lib/api/task-convert"
 import { VenueLayout } from "@/components/venue-layout"
@@ -166,14 +166,14 @@ export default async function VenueDashboardPage({ params }: { params: Promise<{
     select: { id: true, title: true, startTime: true, endTime: true, eventType: true },
   })
 
-  const openTasks = (await readXvm("overview open tasks", [] as TaskRow[], (t, v) => listTasks(t, v)))
-    .slice(0, 5)
-    .map((task) => ({
+  const openTasks = await readXvm("overview open tasks", [], async (t, v) =>
+    (await listTasks(t, v)).slice(0, 5).map((task) => ({
       id: String(task.id),
       title: task.title,
       dueDate: task.due_at ? new Date(task.due_at) : null,
       priority: intToPriority(task.priority),
     }))
+  )
 
   // Announcements
   const announcements = await prisma.announcement.findMany({

@@ -7,7 +7,18 @@ import { prisma } from "@/lib/prisma"
 import { VenueLayout } from "@/components/venue-layout"
 import { LiveDashboard } from "@/components/live-dashboard"
 import { resolveDisplayName } from "@/lib/display-name"
-import { parseVenueSettings } from "@/lib/types/venue-settings"
+import { xvmPageReader } from "@/lib/api/xvm-page-read"
+import {
+  getVenue,
+  getFinanceSummary,
+  listShiftsOnNow,
+  listMemberships,
+  type FinanceSummary,
+  type MembershipRow,
+  type RevenueVisibility,
+  type ShiftRow,
+} from "@/lib/api/xvm-api"
+import { minorUnitsToDollars } from "@/lib/api/position-convert"
 
 export default async function LivePage({ params }: { params: Promise<{ slug: string }> }) {
   const session = await getServerSession(authOptions)
@@ -28,8 +39,13 @@ export default async function LivePage({ params }: { params: Promise<{ slug: str
 
   const userRole = venue.memberships[0].role
   const canManage = ["OWNER", "MANAGER"].includes(userRole)
-  const settings = parseVenueSettings(venue.settings)
-  const showRevenue = canManage || settings.revenueVisibility === "all" || settings.revenueVisibility === "own"
+  const readXvm = await xvmPageReader(session.user.id, venue.xvmApiVenueId)
+  const revenueVisibility = await readXvm<RevenueVisibility>(
+    "live page venue",
+    "hide",
+    async (t, v) => (await getVenue(t, v)).revenue_visibility
+  )
+  const showRevenue = canManage || revenueVisibility !== "hide"
 
   // Find the currently active event (or the next upcoming one)
   const now = new Date()
@@ -37,11 +53,6 @@ export default async function LivePage({ params }: { params: Promise<{ slug: str
     where: {
       venueId: venue.id,
       status: "ACTIVE",
-    },
-    include: {
-      transactions: {
-        select: { amount: true, staffId: true },
-      },
     },
   })
 
@@ -54,11 +65,6 @@ export default async function LivePage({ params }: { params: Promise<{ slug: str
         venueId: venue.id,
         status: "PUBLISHED",
         startTime: { lte: soon, gte: now },
-      },
-      include: {
-        transactions: {
-          select: { amount: true, staffId: true },
-        },
       },
       orderBy: { startTime: "asc" },
     })
@@ -86,34 +92,15 @@ export default async function LivePage({ params }: { params: Promise<{ slug: str
       }))
     : 0
 
-  // Calculate revenue (respect visibility)
-  let totalRevenue = 0
-  let personalRevenue = 0
-  let personalSaleCount = 0
-  if (activeEvent) {
-    for (const tx of activeEvent.transactions) {
-      const amt = Number(tx.amount)
-      totalRevenue += amt
-      if (tx.staffId === session.user.id) {
-        personalRevenue += amt
-        personalSaleCount++
-      }
-    }
-  }
-
-  const revenueDisplay = canManage
-    ? totalRevenue
-    : settings.revenueVisibility === "all"
-      ? totalRevenue
-      : settings.revenueVisibility === "own"
-        ? personalRevenue
-        : null
-
-  // Sale count follows the same visibility scoping as revenue, so the
-  // "Transactions" stat doesn't show a venue-wide count next to a
-  // personal-only gil amount.
-  const saleCountDisplay =
-    !canManage && settings.revenueVisibility === "own" ? personalSaleCount : (activeEvent?.transactions.length ?? 0)
+  const eventStart = activeEvent?.startTime
+  const eventSummary =
+    eventStart && eventStart <= now && showRevenue
+      ? await readXvm<FinanceSummary | null>("live page revenue", null, (t, v) =>
+          getFinanceSummary(t, v, { from: eventStart.toISOString(), to: now.toISOString() })
+        )
+      : null
+  const revenueDisplay = showRevenue ? (minorUnitsToDollars(eventSummary?.total_revenue ?? 0) ?? 0) : null
+  const saleCountDisplay = eventSummary?.transaction_count ?? 0
 
   // Patron roster (recent ENTERs, crude in-venue list)
   const patronRoster = activeEvent
@@ -125,28 +112,15 @@ export default async function LivePage({ params }: { params: Promise<{ slug: str
       })
     : []
 
-  // On-shift staff
-  const activeShifts = await prisma.shift.findMany({
-    where: { venueId: venue.id, status: "ACTIVE" },
-    include: {
-      membership: {
-        include: {
-          user: {
-            select: {
-              name: true,
-              displayName: true,
-              image: true,
-              characters: {
-                orderBy: [{ isPrimary: "desc" }, { createdAt: "asc" }],
-                take: 1,
-                select: { characterName: true },
-              },
-            },
-          },
-        },
-      },
-    },
-    take: 10,
+  const [onNow, roster] = await Promise.all([
+    readXvm("live page on-now", [] as ShiftRow[], (t, v) => listShiftsOnNow(t, v)),
+    readXvm("live page roster", [] as MembershipRow[], (t, v) => listMemberships(t, v)),
+  ])
+  const membersById = new Map(roster.map((m) => [m.id, m]))
+  const onShiftStaff = onNow.slice(0, 10).map((s) => {
+    const member = s.membership_id !== null ? membersById.get(s.membership_id) : undefined
+    const name = resolveDisplayName({ nickname: member?.nickname, displayName: member?.person.display_name })
+    return { name: name === "Unknown" ? "Staff" : name, role: member?.effective_tier.toUpperCase() ?? "STAFF" }
   })
 
   // New patrons tonight (first visit this event)
@@ -190,25 +164,14 @@ export default async function LivePage({ params }: { params: Promise<{ slug: str
             initialNewTonight={newTonightCount}
             showRevenue={showRevenue}
             currentUserId={session.user.id}
-            scopeSalesToOwn={!canManage && settings.revenueVisibility === "own"}
+            scopeSalesToOwn={!canManage && revenueVisibility === "own"}
             canManage={canManage}
-            revenueLabel={canManage || settings.revenueVisibility === "all" ? "Total Revenue" : "My Sales"}
+            revenueLabel={canManage || revenueVisibility === "all" ? "Total Revenue" : "My Sales"}
             patronRoster={patronRoster.map((p) => ({
               name: p.characterName ?? "Unknown",
               arrivedAt: p.loggedAt.toISOString(),
             }))}
-            onShiftStaff={activeShifts.map((s) => {
-              const name = resolveDisplayName({
-                characterName: s.membership?.user?.characters?.[0]?.characterName,
-                nickname: s.membership?.nickname,
-                displayName: s.membership?.user?.displayName,
-                discordName: s.membership?.user?.name ?? s.membership?.invitedName,
-              })
-              return {
-                name: name === "Unknown" ? "Staff" : name,
-                role: s.membership?.role ?? "STAFF",
-              }
-            })}
+            onShiftStaff={onShiftStaff}
           />
         ) : (
           <div>

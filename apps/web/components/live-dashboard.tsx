@@ -353,7 +353,7 @@ export function LiveDashboard({
         {showRevenue && (
           <Card className="px-[18px] py-4">
             <StatReadout
-              label="Sales tonight"
+              label={revenueLabel}
               value={`${revenue.toLocaleString()}`}
               subtext="gil"
               icon={<Coins />}

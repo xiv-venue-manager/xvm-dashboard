@@ -26,7 +26,7 @@
 
 ## Behaviour changes to call out in the PR
 
-1. Overview "Open tasks" for non-managers follows the venue's `task_visibility` (set in Settings) instead of the hardcoded "only tasks assigned to me".
+1. (Corrected after final review) Overview "Open tasks" card is manager-only (`{canManage && (...)}`), so the task-visibility change has no visible effect.
 2. Staff page "Tips pool (wk)" follows `sales_visibility`: a staff member at a venue with sales hidden sees 0, where Prisma showed everyone the venue-wide total.
 3. Live page revenue is the venue's posted revenue since the event started (time window). The Prisma version used the event's own transactions, but there is no Prisma-cuid-to-xvm-int event bridge. Staff "own" scoping is now done by xvm-api.
 4. Live page on-shift names lose the character name (see facts above).

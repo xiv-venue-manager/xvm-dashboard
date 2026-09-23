@@ -94,7 +94,10 @@ export async function GET(request: NextRequest, { params }: { params: Promise<{ 
         : Promise.resolve([] as ShiftRow[]),
     ])
     const members = new Map(roster.map((m) => [m.id, m]))
-    items.push(...saleItems(transactions, members), ...shiftItems(shifts, members))
+    items.push(
+      ...saleItems(transactions, members),
+      ...shiftItems(shifts, members).filter((i) => i.timestamp >= windowFrom && i.timestamp < windowTo)
+    )
   }
 
   const trimmed = items

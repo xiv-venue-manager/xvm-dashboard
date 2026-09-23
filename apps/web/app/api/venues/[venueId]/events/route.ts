@@ -8,6 +8,26 @@ import { generateOccurrences, type RecurrenceRule } from "@/lib/recurrence"
 import { validators } from "@/lib/validation"
 import { canManageVenue } from "@/lib/roles"
 import { Prisma, type EventStatus } from "@/generated/prisma/client"
+import { getValidXvmApiToken, invalidateXvmApiCredential, isXvmAuthFailure } from "@/lib/api/xvm-api-store"
+import { getVenue, type EventVisibility } from "@/lib/api/xvm-api"
+
+async function eventVisibilityFor(
+  userId: string,
+  venue: { settings: unknown; xvmApiVenueId: string | null } | null
+): Promise<EventVisibility> {
+  if (!venue?.xvmApiVenueId) {
+    return (venue?.settings as Record<string, unknown> | null)?.eventVisibility === "published" ? "published" : "all"
+  }
+  const token = await getValidXvmApiToken(userId)
+  if (!token) return "published"
+  try {
+    return (await getVenue(token, venue.xvmApiVenueId)).event_visibility
+  } catch (err) {
+    console.error("[events] GET event visibility error:", err)
+    if (isXvmAuthFailure(err)) await invalidateXvmApiCredential(userId)
+    return "published"
+  }
+}
 
 const eventSchema = z.object({
   title: validators.eventTitle,
@@ -118,13 +138,10 @@ export const GET = withRateLimit<{ params: Promise<{ venueId: string }> }>(
         return NextResponse.json({ error: "You don't have access to this venue" }, { status: 403 })
       }
 
-      // Get venue settings
       const venue = await prisma.venue.findUnique({
         where: { id: venueId },
-        select: { settings: true },
+        select: { settings: true, xvmApiVenueId: true },
       })
-
-      const venueSettings = venue?.settings as Record<string, unknown> | undefined
 
       // Get query parameters for filtering
       const searchParams = request.nextUrl.searchParams
@@ -134,14 +151,12 @@ export const GET = withRateLimit<{ params: Promise<{ venueId: string }> }>(
 
       const where: Prisma.EventWhereInput = { venueId }
 
-      // Apply event visibility settings for STAFF members
-      if (membership.role === "STAFF" && venueSettings?.eventVisibility === "published") {
-        // Staff only see published events, hide drafts
-        where.status = "PUBLISHED"
-      }
-
       if (status) {
         where.status = status as EventStatus
+      }
+
+      if (membership.role === "STAFF" && (await eventVisibilityFor(session.user.id, venue)) === "published") {
+        where.status = "PUBLISHED"
       }
 
       if (startDate && endDate) {

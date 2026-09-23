@@ -20,7 +20,7 @@ export async function GET(request: NextRequest, { params }: { params: Promise<{ 
 
   // Verify membership
   const membership = await prisma.membership.findFirst({
-    where: { userId: session.user.id, venueId },
+    where: { userId: session.user.id, venueId, status: "active" },
   })
   if (!membership) {
     return new Response("Forbidden", { status: 403 })

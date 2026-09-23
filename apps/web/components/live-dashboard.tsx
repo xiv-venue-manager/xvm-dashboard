@@ -64,6 +64,7 @@ interface LiveDashboardProps {
   initialPatronCount: number
   initialRevenue: number | null
   initialSaleCount: number
+  revenueUnavailable: boolean
   initialNewTonight: number
   showRevenue: boolean
   revenueLabel: string
@@ -81,6 +82,7 @@ export function LiveDashboard({
   initialPatronCount,
   initialRevenue,
   initialSaleCount,
+  revenueUnavailable,
   initialNewTonight,
   showRevenue,
   revenueLabel,
@@ -150,9 +152,7 @@ export function LiveDashboard({
                 TimelineItem,
                 { type: "sale" | "patron_enter" | "patron_exit" | "shift_start" | "shift_end" }
               > =>
-                (item.type === "sale" &&
-                  showRevenue &&
-                  (!scopeSalesToOwn || item.data.staff?.id === currentUserId)) ||
+                item.type === "sale" ||
                 item.type === "patron_enter" ||
                 item.type === "patron_exit" ||
                 item.type === "shift_start" ||
@@ -174,7 +174,7 @@ export function LiveDashboard({
         )
       })
       .catch(() => {})
-  }, [venueId, event.id, isUpcoming, showRevenue, scopeSalesToOwn, currentUserId])
+  }, [venueId, event.id, isUpcoming])
 
   // SSE
   useEffect(() => {
@@ -187,10 +187,12 @@ export function LiveDashboard({
           return
         }
 
-        if (data.type === "sale" && showRevenue && (!scopeSalesToOwn || data.data.staff?.id === currentUserId)) {
+        if (data.type === "sale") {
           const amt = Number(data.data.amount || 0)
-          setRevenue((prev) => prev + amt)
-          setSaleCount((prev) => prev + 1)
+          if (showRevenue && !revenueUnavailable && (!scopeSalesToOwn || data.data.staff?.id === currentUserId)) {
+            setRevenue((prev) => prev + amt)
+            setSaleCount((prev) => prev + 1)
+          }
           setActivity((prev) =>
             prev.some((a) => a.id === data.id)
               ? prev
@@ -264,7 +266,7 @@ export function LiveDashboard({
     }
     es.onerror = () => setConnected(false)
     return () => es.close()
-  }, [venueId, showRevenue, scopeSalesToOwn, currentUserId])
+  }, [venueId, showRevenue, revenueUnavailable, scopeSalesToOwn, currentUserId])
 
   const fiClass = (type: ActivityItem["type"]) => {
     if (type === "patron_enter")
@@ -354,8 +356,8 @@ export function LiveDashboard({
           <Card className="px-[18px] py-4">
             <StatReadout
               label={revenueLabel}
-              value={`${revenue.toLocaleString()}`}
-              subtext="gil"
+              value={revenueUnavailable ? "—" : `${revenue.toLocaleString()}`}
+              subtext={revenueUnavailable ? "unavailable" : "gil"}
               icon={<Coins />}
               iconVariant="success"
             />
@@ -363,7 +365,7 @@ export function LiveDashboard({
         )}
         {showRevenue && (
           <Card className="px-[18px] py-4">
-            <StatReadout label="Transactions" value={saleCount} icon={<Radio />} iconVariant="blue" />
+            <StatReadout label="Transactions" value={revenueUnavailable ? "—" : saleCount} icon={<Radio />} iconVariant="blue" />
           </Card>
         )}
         <Card className="px-[18px] py-4">

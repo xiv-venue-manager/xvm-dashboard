@@ -101,6 +101,7 @@ export default async function LivePage({ params }: { params: Promise<{ slug: str
       : null
   const revenueDisplay = showRevenue ? (minorUnitsToDollars(eventSummary?.total_revenue ?? 0) ?? 0) : null
   const saleCountDisplay = eventSummary?.transaction_count ?? 0
+  const revenueUnavailable = showRevenue && eventStart !== undefined && eventStart <= now && eventSummary === null
 
   // Patron roster (recent ENTERs, crude in-venue list)
   const patronRoster = activeEvent
@@ -161,6 +162,7 @@ export default async function LivePage({ params }: { params: Promise<{ slug: str
             initialPatronCount={Math.max(0, patronCount)}
             initialRevenue={revenueDisplay}
             initialSaleCount={saleCountDisplay}
+            revenueUnavailable={revenueUnavailable}
             initialNewTonight={newTonightCount}
             showRevenue={showRevenue}
             currentUserId={session.user.id}

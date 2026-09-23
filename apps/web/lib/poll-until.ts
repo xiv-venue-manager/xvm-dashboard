@@ -23,6 +23,9 @@ export async function pollUntil<T>(
 ): Promise<T[] | null> {
   const deadline = Date.now() + timeoutMs
   while (Date.now() < deadline) {
+    // Sleeps before every fetch, including the first - deliberate. The bot
+    // needs a moment to act, so an immediate check would almost always miss
+    // and waste a round trip.
     await sleep(intervalMs)
     if (cancelled?.()) return null
     const list = await fetchList()

@@ -40,7 +40,6 @@ interface EventTemplate {
   title: string
   description: string | null
   eventType: string
-  timezone: string
   defaultStartTime: string
   defaultEndTime: string
   createdBy: {
@@ -81,7 +80,6 @@ export default function EventTemplatesPage() {
     title: "",
     description: "",
     eventType: "OTHER",
-    timezone: "UTC",
     defaultStartTime: "19:00",
     defaultEndTime: "22:00",
   })
@@ -209,7 +207,6 @@ export default function EventTemplatesPage() {
       title: template.title,
       description: template.description || "",
       eventType: template.eventType,
-      timezone: template.timezone,
       defaultStartTime: template.defaultStartTime,
       defaultEndTime: template.defaultEndTime,
     })
@@ -222,7 +219,6 @@ export default function EventTemplatesPage() {
       title: "",
       description: "",
       eventType: "OTHER",
-      timezone: "UTC",
       defaultStartTime: "19:00",
       defaultEndTime: "22:00",
     })

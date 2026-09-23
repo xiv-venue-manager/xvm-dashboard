@@ -169,7 +169,7 @@ export async function createTransaction(venueId: string, staffUserId: string, in
   }
 
   venueEventBus.emit(venueId, {
-    id: String(newTransaction.id),
+    id: `sale_${newTransaction.id}`,
     type: "sale",
     venueId,
     timestamp: newTransaction.created_at,

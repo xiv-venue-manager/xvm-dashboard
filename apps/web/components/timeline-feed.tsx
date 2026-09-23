@@ -145,7 +145,7 @@ export function TimelineFeed({ venueId, initialFilter = "all" }: TimelineFeedPro
     eventSource.onmessage = (e) => {
       try {
         const event = JSON.parse(e.data)
-        if (event.type === "connected") return
+        if (event.type === "connected" || event.type === "sale_total") return
 
         const item: TimelineItem = {
           id: event.id,

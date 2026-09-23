@@ -207,6 +207,12 @@ export function LiveDashboard({
                 ].slice(0, 50)
           )
         }
+
+        if (data.type === "sale_total" && showRevenue && !revenueUnavailable && (!scopeSalesToOwn || data.data.own)) {
+          setRevenue((prev) => prev + Number(data.data.amount || 0))
+          setSaleCount((prev) => prev + 1)
+        }
+
         if (data.type === "patron_enter") {
           setPatronCount((prev) => prev + 1)
           setNewTonight((prev) => prev + 1)

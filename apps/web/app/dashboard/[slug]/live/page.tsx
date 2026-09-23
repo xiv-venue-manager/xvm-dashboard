@@ -166,7 +166,7 @@ export default async function LivePage({ params }: { params: Promise<{ slug: str
             currentUserId={session.user.id}
             scopeSalesToOwn={!canManage && revenueVisibility === "own"}
             canManage={canManage}
-            revenueLabel={canManage || revenueVisibility === "all" ? "Total Revenue" : "My Sales"}
+            revenueLabel={canManage || revenueVisibility === "all" ? "Sales tonight" : "My sales tonight"}
             patronRoster={patronRoster.map((p) => ({
               name: p.characterName ?? "Unknown",
               arrivedAt: p.loggedAt.toISOString(),

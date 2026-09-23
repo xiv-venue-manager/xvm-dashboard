@@ -1,7 +1,7 @@
 "use client"
 
 import { Fragment, useEffect, useState } from "react"
-import { formatHours } from "@/lib/api/position-convert"
+import { formatHours, minorUnitsToDollars } from "@/lib/api/position-convert"
 import { useSession } from "next-auth/react"
 import { useParams, useRouter } from "next/navigation"
 import { Button } from "@/components/ui/button"
@@ -208,11 +208,11 @@ export default function PayrollPage() {
         if (venue) {
           const now = new Date()
           const weekAgo = new Date(now.getTime() - 7 * 24 * 60 * 60 * 1000)
-          const tipsRes = await fetch(`/api/venues/${venue.id}/transactions?type=TIP&from=${weekAgo.toISOString()}`)
+          const tipsRes = await fetch(`/api/venues/${venue.id}/transactions?kind=tip&startDate=${weekAgo.toISOString()}`)
           if (tipsRes.ok) {
-            const tips = await tipsRes.json()
-            const total = (tips.items ?? tips).reduce((sum: number, t: { amount: number }) => sum + Number(t.amount), 0)
-            setTipsTotal(Math.round(total))
+            const { transactions } = (await tipsRes.json()) as { transactions: { amount: number }[] }
+            const totalMinor = transactions.reduce((sum, t) => sum + t.amount, 0)
+            setTipsTotal(Math.round(minorUnitsToDollars(totalMinor) ?? 0))
           }
         }
       } catch {

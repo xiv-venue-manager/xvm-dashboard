@@ -610,26 +610,26 @@ describe("Finance Transactions API", () => {
     void_reason: null,
   }
 
-  it("listFinanceTransactions GETs with from/to/service_id query params", async () => {
+  it("listFinanceTransactions GETs with from/to/kind query params", async () => {
     mockFetchOnce({ ok: true, status: 200, body: [sampleTransaction] })
     const result = await listFinanceTransactions("token", "venue-1", {
       from: "2026-01-01",
       to: "2026-01-31",
-      serviceId: 1,
+      kind: "tip",
     })
     expect(result).toEqual([sampleTransaction])
     const [url] = (fetch as ReturnType<typeof vi.fn>).mock.calls[0]
     expect(url).toContain("/venues/venue-1/finance/transactions?")
     expect(url).toContain("from=2026-01-01")
     expect(url).toContain("to=2026-01-31")
-    expect(url).toContain("service_id=1")
+    expect(url).toContain("kind=tip")
   })
 
-  it("listFinanceTransactions omits service_id when serviceId is not passed", async () => {
+  it("listFinanceTransactions omits kind when not passed", async () => {
     mockFetchOnce({ ok: true, status: 200, body: [sampleTransaction] })
     await listFinanceTransactions("token", "venue-1", { from: "2026-01-01", to: "2026-01-31" })
     const [url] = (fetch as ReturnType<typeof vi.fn>).mock.calls[0]
-    expect(url).not.toContain("service_id")
+    expect(url).not.toContain("kind")
   })
 
   it("createFinanceTransaction POSTs a sale transaction", async () => {

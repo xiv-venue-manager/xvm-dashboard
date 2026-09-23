@@ -222,7 +222,7 @@ export default async function PatronLogsPage({
         {activeTab === "profiles" ? (
           <PatronProfilesTable
             profiles={patronProfiles}
-            venueId={venue.id}
+            venueSlug={venue.slug}
             canModerate={["OWNER", "MANAGER"].includes(userRole)}
           />
         ) : (

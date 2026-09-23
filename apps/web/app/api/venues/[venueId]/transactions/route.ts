@@ -8,6 +8,10 @@ import { createTransaction, createTransactionSchema, InsufficientStockError } fr
 import { getValidXvmApiToken, getValidXvmApiPersonId, xvmApiErrorResponse } from "@/lib/api/xvm-api-store"
 import { listFinanceTransactions } from "@/lib/api/xvm-api"
 
+const LIST_WINDOW_MAX_MS = 60 * 24 * 60 * 60 * 1000
+
+const listKindSchema = z.enum(["sale", "tip", "cover_charge", "other_income", "expense", "payout"]).optional()
+
 async function requireXvmVenueId(venueId: string) {
   const venue = await prisma.venue.findUnique({ where: { id: venueId }, select: { xvmApiVenueId: true } })
   if (!venue?.xvmApiVenueId) {
@@ -39,7 +43,11 @@ export const GET = withRateLimit<{ params: Promise<{ venueId: string }> }>(
     // xvm-api's finance transactions endpoint takes a from/to window, not a
     // Prisma-style cursor, and eventId filtering has no cuid<->int bridge
     // yet (same gap documented in lib/api/transactions.ts's createTransaction).
-    const serviceId = searchParams.get("serviceId")
+    const kindParsed = listKindSchema.safeParse(searchParams.get("kind") ?? undefined)
+    if (!kindParsed.success) {
+      return NextResponse.json({ error: "Invalid kind" }, { status: 400 })
+    }
+    const kind = kindParsed.data
     const startDateParam = searchParams.get("startDate")
     const endDateParam = searchParams.get("endDate")
 
@@ -108,12 +116,12 @@ export const GET = withRateLimit<{ params: Promise<{ venueId: string }> }>(
     if (gate.error) return gate.error
 
     try {
-      const from = startDate?.toISOString() ?? new Date(0).toISOString()
-      const to = endDate?.toISOString() ?? new Date().toISOString()
+      const to = endDate ?? new Date()
+      const from = startDate ?? new Date(to.getTime() - LIST_WINDOW_MAX_MS)
       let transactions = await listFinanceTransactions(token, gate.xvmApiVenueId!, {
-        from,
-        to,
-        serviceId: serviceId ? Number(serviceId) : undefined,
+        from: from.toISOString(),
+        to: to.toISOString(),
+        kind,
       })
 
       // "own" sales visibility restricts STAFF to transactions they

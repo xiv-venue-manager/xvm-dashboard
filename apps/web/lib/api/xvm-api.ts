@@ -2031,11 +2031,11 @@ export interface FinanceTransactionUpdate {
 export async function listFinanceTransactions(
   personToken: string,
   venueId: string,
-  opts: { from: string; to: string; serviceId?: number }
+  opts: { from: string; to: string; kind?: FinanceTransactionKind }
 ): Promise<FinanceTransactionRow[]> {
   if (!process.env.XVM_API_BASE_URL) throw new Error("XVM_API_BASE_URL is not set")
   const params = new URLSearchParams({ from: opts.from, to: opts.to })
-  if (opts.serviceId !== undefined) params.set("service_id", String(opts.serviceId))
+  if (opts.kind !== undefined) params.set("kind", opts.kind)
   return xvmFetch<FinanceTransactionRow[]>(`/venues/${venueId}/finance/transactions?${params}`, {}, personToken)
 }
 

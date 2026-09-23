@@ -1248,6 +1248,11 @@ export async function listShifts(
   return xvmFetch<ShiftRow[]>(`/venues/${venueId}/shifts?${params}`, {}, personToken)
 }
 
+export async function listShiftsOnNow(personToken: string, venueId: string): Promise<ShiftRow[]> {
+  if (!process.env.XVM_API_BASE_URL) throw new Error("XVM_API_BASE_URL is not set")
+  return xvmFetch<ShiftRow[]>(`/venues/${venueId}/shifts/now`, {}, personToken)
+}
+
 // xvm-api rejects a from/to window over 60 days (400, "Windows are capped at
 // 60 days"). Callers wanting a wider range (the shifts calendar's 6-month
 // rolling window) chunk through this instead of listShifts directly.
@@ -2037,6 +2042,27 @@ export async function listFinanceTransactions(
   const params = new URLSearchParams({ from: opts.from, to: opts.to })
   if (opts.kind !== undefined) params.set("kind", opts.kind)
   return xvmFetch<FinanceTransactionRow[]>(`/venues/${venueId}/finance/transactions?${params}`, {}, personToken)
+}
+
+export interface FinanceSummary {
+  window_from: string
+  window_to: string
+  total_revenue: number
+  total_expense: number
+  total_payout: number
+  net: number
+  transaction_count: number
+  category_totals: { category_id: number | null; total: number }[]
+}
+
+export async function getFinanceSummary(
+  personToken: string,
+  venueId: string,
+  opts: { from: string; to: string }
+): Promise<FinanceSummary> {
+  if (!process.env.XVM_API_BASE_URL) throw new Error("XVM_API_BASE_URL is not set")
+  const params = new URLSearchParams({ from: opts.from, to: opts.to })
+  return xvmFetch<FinanceSummary>(`/venues/${venueId}/finance/transactions/summary?${params}`, {}, personToken)
 }
 
 export async function createFinanceTransaction(

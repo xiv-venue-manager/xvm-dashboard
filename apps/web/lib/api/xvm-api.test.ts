@@ -58,6 +58,8 @@ import {
   postPanel,
   listPanelPosts,
   listReactionRoleTemplates,
+  getFinanceSummary,
+  listShiftsOnNow,
   type TaskRow,
   type PublicHours,
   type GiveawayRow,
@@ -788,5 +790,38 @@ describe("Reaction Role Panels API", () => {
     const [url] = (fetch as ReturnType<typeof vi.fn>).mock.calls[0]
     expect(url).toContain("/reaction-role-templates")
     expect(url).not.toContain("/venues/")
+  })
+})
+
+describe("finance summary and on-now shifts", () => {
+  it("getFinanceSummary GETs the summary for a window", async () => {
+    const summary = {
+      window_from: "2026-01-01T00:00:00Z",
+      window_to: "2026-01-08T00:00:00Z",
+      total_revenue: 5000,
+      total_expense: 0,
+      total_payout: 0,
+      net: 5000,
+      transaction_count: 2,
+      category_totals: [],
+    }
+    mockFetchOnce({ ok: true, status: 200, body: summary })
+    const result = await getFinanceSummary("token", "venue-1", {
+      from: "2026-01-01T00:00:00.000Z",
+      to: "2026-01-08T00:00:00.000Z",
+    })
+    expect(result).toEqual(summary)
+    const [url] = (fetch as ReturnType<typeof vi.fn>).mock.calls[0]
+    expect(url).toContain("/venues/venue-1/finance/transactions/summary?")
+    expect(url).toContain("from=2026-01-01T00%3A00%3A00.000Z")
+    expect(url).toContain("to=2026-01-08T00%3A00%3A00.000Z")
+  })
+
+  it("listShiftsOnNow GETs /shifts/now", async () => {
+    mockFetchOnce({ ok: true, status: 200, body: [] })
+    const result = await listShiftsOnNow("token", "venue-1")
+    expect(result).toEqual([])
+    const [url] = (fetch as ReturnType<typeof vi.fn>).mock.calls[0]
+    expect(url).toMatch(/\/venues\/venue-1\/shifts\/now$/)
   })
 })

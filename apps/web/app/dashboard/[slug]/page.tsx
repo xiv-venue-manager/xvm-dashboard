@@ -20,7 +20,7 @@ import { OverviewTasks } from "@/components/overview-tasks"
 import { AnnouncementBanner } from "@/components/announcement-banner"
 import { CharacterLinkNudge } from "@/components/character-link-nudge"
 import { TodayDateLabel } from "@/components/today-date-label"
-import { format, subDays, subWeeks, formatDistanceToNow, addDays } from "date-fns"
+import { format, subDays, subWeeks, formatDistanceToNow } from "date-fns"
 import {
   Radio,
   ArrowRight,
@@ -193,7 +193,7 @@ export default async function VenueDashboardPage({ params }: { params: Promise<{
   const myShiftsFrom = new Date(now.getTime() - 2 * 60 * 60 * 1000)
   const myShifts = (
     await readXvm("overview my shifts", [] as ShiftRow[], (t, v) =>
-      listShifts(t, v, { from: myShiftsFrom.toISOString(), to: addDays(myShiftsFrom, 60).toISOString(), mine: true })
+      listShifts(t, v, { from: myShiftsFrom.toISOString(), to: new Date(myShiftsFrom.getTime() + 60 * 24 * 60 * 60 * 1000).toISOString(), mine: true })
     )
   )
     .flatMap((s) =>

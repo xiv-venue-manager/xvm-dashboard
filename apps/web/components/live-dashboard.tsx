@@ -150,7 +150,9 @@ export function LiveDashboard({
                 TimelineItem,
                 { type: "sale" | "patron_enter" | "patron_exit" | "shift_start" | "shift_end" }
               > =>
-                item.type === "sale" ||
+                (item.type === "sale" &&
+                  showRevenue &&
+                  (!scopeSalesToOwn || item.data.staff?.id === currentUserId)) ||
                 item.type === "patron_enter" ||
                 item.type === "patron_exit" ||
                 item.type === "shift_start" ||
@@ -172,7 +174,7 @@ export function LiveDashboard({
         )
       })
       .catch(() => {})
-  }, [venueId, event.id, isUpcoming])
+  }, [venueId, event.id, isUpcoming, showRevenue, scopeSalesToOwn, currentUserId])
 
   // SSE
   useEffect(() => {
@@ -185,11 +187,10 @@ export function LiveDashboard({
           return
         }
 
-        if (data.type === "sale") {
+        if (data.type === "sale" && showRevenue && (!scopeSalesToOwn || data.data.staff?.id === currentUserId)) {
           const amt = Number(data.data.amount || 0)
-          const isOwnSale = data.data.staff?.id === currentUserId
-          if (showRevenue && (!scopeSalesToOwn || isOwnSale)) setRevenue((prev) => prev + amt)
-          if (!scopeSalesToOwn || isOwnSale) setSaleCount((prev) => prev + 1)
+          setRevenue((prev) => prev + amt)
+          setSaleCount((prev) => prev + 1)
           setActivity((prev) =>
             prev.some((a) => a.id === data.id)
               ? prev
@@ -360,9 +361,11 @@ export function LiveDashboard({
             />
           </Card>
         )}
-        <Card className="px-[18px] py-4">
-          <StatReadout label="Transactions" value={saleCount} icon={<Radio />} iconVariant="blue" />
-        </Card>
+        {showRevenue && (
+          <Card className="px-[18px] py-4">
+            <StatReadout label="Transactions" value={saleCount} icon={<Radio />} iconVariant="blue" />
+          </Card>
+        )}
         <Card className="px-[18px] py-4">
           <StatReadout label="On shift" value={onShiftStaff.length} icon={<Clock />} iconVariant="warning" />
         </Card>

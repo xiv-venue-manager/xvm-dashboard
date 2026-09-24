@@ -1,5 +1,5 @@
 import type { FinanceTransactionRow, MembershipRow, ShiftRow } from "@/lib/api/xvm-api"
-import { minorUnitsToDollars } from "@/lib/api/position-convert"
+import { minorUnitsToGil } from "@/lib/api/position-convert"
 import { resolveDisplayName } from "@/lib/display-name"
 
 export type TimelineApiItem = {
@@ -26,7 +26,7 @@ export function saleItems(rows: FinanceTransactionRow[], members: Map<number, Me
         type: "sale" as const,
         timestamp: new Date(t.created_at),
         data: {
-          amount: minorUnitsToDollars(t.amount) ?? 0,
+          amount: minorUnitsToGil(t.amount) ?? 0,
           customerName: t.customer_name,
           notes: t.notes,
           service: t.service_id !== null ? { id: String(t.service_id), name: t.service_name ?? "" } : null,

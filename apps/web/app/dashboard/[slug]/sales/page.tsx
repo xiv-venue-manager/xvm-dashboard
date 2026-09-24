@@ -10,7 +10,7 @@ import { SalesLogDialog } from "@/components/sales-log-dialog"
 import { TransactionsList, type Transaction } from "@/components/transactions-list"
 import { Alert, AlertDescription } from "@/components/ui/alert"
 import { PageLoading } from "@/components/ui/loading-spinner"
-import { minorUnitsToDollars } from "@/lib/api/position-convert"
+import { minorUnitsToGil } from "@/lib/api/position-convert"
 
 interface FinanceTransactionRow {
   id: number
@@ -42,7 +42,7 @@ const LOOKBACK_DAYS = 30
 function toUiTransaction(row: FinanceTransactionRow): Transaction {
   return {
     id: row.id,
-    amount: minorUnitsToDollars(row.amount) ?? 0,
+    amount: minorUnitsToGil(row.amount) ?? 0,
     serviceId: row.service_id,
     serviceName: row.service_name,
     recordedByPersonId: row.recorded_by_person_id,
@@ -105,7 +105,7 @@ export default function SalesPage({ params }: { params: Promise<{ slug: string }
         setServices(
           servicesData
             .filter((s) => s.is_active)
-            .map((s) => ({ id: s.id, name: s.name, price: minorUnitsToDollars(s.price_minor) ?? 0 }))
+            .map((s) => ({ id: s.id, name: s.name, price: minorUnitsToGil(s.price_minor) ?? 0 }))
         )
 
         // Top-earners resolution: staff route already exposes person id +

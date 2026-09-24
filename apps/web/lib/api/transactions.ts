@@ -12,7 +12,7 @@ import { resolveDisplayName } from "@/lib/display-name"
 import { parseVenueSettings } from "@/lib/types/venue-settings"
 import { getValidXvmApiToken } from "@/lib/api/xvm-api-store"
 import { createFinanceTransaction, getService, XvmApiError, type FinanceTransactionKind } from "@/lib/api/xvm-api"
-import { dollarsToMinorUnits, minorUnitsToDollars } from "@/lib/api/position-convert"
+import { gilToMinorUnits, minorUnitsToGil } from "@/lib/api/position-convert"
 
 /**
  * Shared validation schema for transaction creation. Used by both the
@@ -88,7 +88,7 @@ export async function createTransaction(venueId: string, staffUserId: string, in
   try {
     newTransaction = await createFinanceTransaction(token, xvmApiVenueId, {
       kind: TRANSACTION_KIND_MAP[resolvedType],
-      amount: dollarsToMinorUnits(input.amount)!,
+      amount: gilToMinorUnits(input.amount)!,
       service_id: serviceId,
       customer_name: input.customerName,
       notes: input.notes,
@@ -120,7 +120,7 @@ export async function createTransaction(venueId: string, staffUserId: string, in
     discordName: undefined,
   })
 
-  const amountDollars = minorUnitsToDollars(newTransaction.amount)!
+  const amountDollars = minorUnitsToGil(newTransaction.amount)!
   const serviceForEmbed = newTransaction.service_id
     ? { id: newTransaction.service_id, name: newTransaction.service_name ?? "" }
     : null

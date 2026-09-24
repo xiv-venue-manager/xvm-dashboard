@@ -16,7 +16,7 @@ import {
   listMemberships,
   getMe,
 } from "../lib/api/xvm-api"
-import { hexColorToInt, dollarsToMinorUnits } from "../lib/api/position-convert"
+import { hexColorToInt, gilToMinorUnits } from "../lib/api/position-convert"
 
 const adapter = new PrismaPg({ connectionString: process.env.DATABASE_URL! })
 const prisma = new PrismaClient({ adapter })
@@ -140,7 +140,7 @@ async function main() {
         name: role.name,
         color,
         responsibilities: role.responsibilities,
-        hourly_rate_minor: dollarsToMinorUnits(role.hourlyRate != null ? Number(role.hourlyRate) : null),
+        hourly_rate_minor: gilToMinorUnits(role.hourlyRate != null ? Number(role.hourlyRate) : null),
       }
       console.log(`  [create] Position "${role.name}"`, apply ? "" : "(dry run, not sent)", payload)
       if (apply) {

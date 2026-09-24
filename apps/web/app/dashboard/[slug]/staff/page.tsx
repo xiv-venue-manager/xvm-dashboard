@@ -30,7 +30,7 @@ import {
   type FinanceTransactionRow,
 } from "@/lib/api/xvm-api"
 import { xvmPageReader } from "@/lib/api/xvm-page-read"
-import { minorUnitsToDollars } from "@/lib/api/position-convert"
+import { minorUnitsToGil } from "@/lib/api/position-convert"
 
 import { RoleBadge } from "@/components/role-badge"
 import { StaffVisibilitySettings } from "@/components/staff-visibility-settings"
@@ -162,7 +162,7 @@ export default async function StaffPage({ params }: { params: Promise<{ slug: st
     return sum + (Date.parse(s.scheduled_end) - Date.parse(s.scheduled_start)) / (1000 * 60 * 60)
   }, 0)
   const tipsThisWeek =
-    minorUnitsToDollars(weeklyTransactions.filter((tx) => tx.kind === "tip").reduce((sum, tx) => sum + tx.amount, 0)) ??
+    minorUnitsToGil(weeklyTransactions.filter((tx) => tx.kind === "tip").reduce((sum, tx) => sum + tx.amount, 0)) ??
     0
 
   return (

@@ -17,12 +17,12 @@ export function intColorToHex(value: number | null): string | null {
 // xvm-api's hourly_rate_minor is an int in minor currency units (cents); Prisma's
 // Role.hourlyRate is a Decimal in whole units. Round rather than truncate so a
 // fractional cent from float math doesn't silently shave a cent off someone's rate.
-export function dollarsToMinorUnits(dollars: number | null): number | null {
+export function gilToMinorUnits(dollars: number | null): number | null {
   if (dollars === null) return null
   return Math.round(dollars * 100)
 }
 
-export function minorUnitsToDollars(minor: number | null): number | null {
+export function minorUnitsToGil(minor: number | null): number | null {
   if (minor === null) return null
   return minor / 100
 }
@@ -52,7 +52,7 @@ export function formatHours(hours: number | null): string {
 
 // xvm-api's tax_basis_points is an int (100 = 1%); the dashboard UI and Prisma's
 // VenuePotSettings.taxPercent both use a 0-100 percent. Round rather than truncate
-// for the same reason as dollarsToMinorUnits: a fractional basis point from float
+// for the same reason as gilToMinorUnits: a fractional basis point from float
 // math shouldn't silently shave precision off the stored rate.
 export function percentToBasisPoints(percent: number | null): number | null {
   if (percent === null) return null

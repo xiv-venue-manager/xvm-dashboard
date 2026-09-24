@@ -25,7 +25,7 @@ import { Label } from "@/components/ui/label"
 import { Textarea } from "@/components/ui/textarea"
 import { Edit, Trash2 } from "lucide-react"
 import { formatLocalTime } from "@/components/server-time"
-import { minorUnitsToDollars } from "@/lib/api/position-convert"
+import { minorUnitsToGil } from "@/lib/api/position-convert"
 
 export interface Transaction {
   id: number
@@ -116,7 +116,7 @@ export function TransactionsList({ transactions, venueId, onTransactionsChange }
           t.id === editingTransaction.id
             ? {
                 ...t,
-                amount: minorUnitsToDollars(updated.amount) ?? t.amount,
+                amount: minorUnitsToGil(updated.amount) ?? t.amount,
                 customerName: updated.customer_name,
                 notes: updated.notes,
               }

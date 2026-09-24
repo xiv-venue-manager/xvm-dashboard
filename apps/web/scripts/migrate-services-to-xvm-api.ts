@@ -20,7 +20,7 @@ import {
   grantServicePosition,
   listPositions,
 } from "../lib/api/xvm-api"
-import { dollarsToMinorUnits } from "../lib/api/position-convert"
+import { gilToMinorUnits } from "../lib/api/position-convert"
 
 const adapter = new PrismaPg({ connectionString: process.env.DATABASE_URL! })
 const prisma = new PrismaClient({ adapter })
@@ -130,7 +130,7 @@ async function main() {
         const payload = {
           name: service.name,
           description: service.description,
-          price_minor: dollarsToMinorUnits(Number(service.price)),
+          price_minor: gilToMinorUnits(Number(service.price)),
           category_id: categoryId,
           is_active: service.isActive,
         }

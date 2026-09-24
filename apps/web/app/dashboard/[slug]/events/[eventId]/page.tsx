@@ -15,6 +15,7 @@ import { LocalTime } from "@/components/server-time"
 import { extractPartakeImages, extractPartakeTextBody } from "@/lib/discord-webhook"
 import { renderPartakeProse } from "@/lib/render-partake-prose"
 import { formatVenueLocationShort } from "@/lib/venue-location"
+import { eventHiddenFromStaff } from "@/lib/event-visibility"
 
 const statusColors = {
   DRAFT: "bg-zinc-500",
@@ -77,6 +78,9 @@ export default async function EventDetailsPage({ params }: { params: Promise<{ s
   }
 
   const userRole = venue.memberships[0].role
+  if (await eventHiddenFromStaff(session.user.id, userRole, venue, event.status)) {
+    notFound()
+  }
   const canEdit = ["OWNER", "MANAGER"].includes(userRole)
 
   return (

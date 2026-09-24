@@ -32,7 +32,7 @@ export function saleItems(rows: FinanceTransactionRow[], members: Map<number, Me
           service: t.service_id !== null ? { id: String(t.service_id), name: t.service_name ?? "" } : null,
           event: null,
           staff: member
-            ? { id: String(member.id), name: memberName(member), displayName: null, image: null, characters: [], memberships: [] }
+            ? { membershipId: String(member.id), name: memberName(member), displayName: null, image: null, characters: [], memberships: [] }
             : null,
         },
       }

@@ -4,15 +4,10 @@ import { useEffect, useState } from "react"
 import { Button } from "@/components/ui/button"
 import { Select, SelectContent, SelectItem, SelectTrigger, SelectValue } from "@/components/ui/select"
 import { PageLoading } from "@/components/ui/loading-spinner"
+import { readVisibility, type VisibilityFields } from "@/lib/visibility-settings"
 
 interface StaffVisibilitySettingsProps {
   venueId: string
-}
-
-interface VisibilityFields {
-  taskVisibility: "all" | "assigned" | "assigned_unassigned"
-  salesVisibility: "all" | "own" | "none"
-  eventVisibility: "all" | "published"
 }
 
 const ROWS: {
@@ -54,22 +49,27 @@ const ROWS: {
 
 export function StaffVisibilitySettings({ venueId }: StaffVisibilitySettingsProps) {
   const [values, setValues] = useState<VisibilityFields | null>(null)
+  const [unavailable, setUnavailable] = useState(false)
+  const [attempt, setAttempt] = useState(0)
   const [isSaving, setIsSaving] = useState(false)
   const [error, setError] = useState("")
   const [saved, setSaved] = useState(false)
 
   useEffect(() => {
     fetch(`/api/venues/${venueId}/settings`)
-      .then((res) => res.json())
-      .then((data) =>
-        setValues({
-          taskVisibility: data.taskVisibility ?? "all",
-          salesVisibility: data.salesVisibility ?? "all",
-          eventVisibility: data.eventVisibility ?? "all",
-        })
-      )
-      .catch(() => setError("Failed to load visibility settings"))
-  }, [venueId])
+      .then((res) => (res.ok ? res.json() : null))
+      .then((data) => {
+        const loaded = data ? readVisibility(data) : null
+        if (loaded) setValues(loaded)
+        else setUnavailable(true)
+      })
+      .catch(() => setUnavailable(true))
+  }, [venueId, attempt])
+
+  const retry = () => {
+    setUnavailable(false)
+    setAttempt((n) => n + 1)
+  }
 
   const handleSave = async () => {
     if (!values) return
@@ -92,6 +92,25 @@ export function StaffVisibilitySettings({ venueId }: StaffVisibilitySettingsProp
     } finally {
       setIsSaving(false)
     }
+  }
+
+  if (unavailable) {
+    return (
+      <section className="panel">
+        <div className="ph">
+          <span className="pt">Staff visibility</span>
+        </div>
+        <p className="px-5 py-4 text-sm text-[var(--fg-faint)]">
+          Couldn&apos;t load the current visibility settings from xvm-api, so they can&apos;t be edited right now. Nothing
+          has been changed.
+        </p>
+        <div className="px-5 pb-4">
+          <Button size="sm" variant="outline" onClick={retry}>
+            Try again
+          </Button>
+        </div>
+      </section>
+    )
   }
 
   if (!values) {

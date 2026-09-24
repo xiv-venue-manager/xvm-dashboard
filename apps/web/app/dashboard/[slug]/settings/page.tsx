@@ -34,6 +34,8 @@ import type { VenueSettings } from "@xiv-venue-manager/types"
 import { FFXIV_DISTRICTS } from "@/lib/venue-location"
 import { canManageVenue } from "@/lib/roles"
 
+const SAVE_OFF_TITLE = "Saving is off: this venue's profile couldn't be loaded from xvm-api. Reload the page to try again."
+
 export default function SettingsPage({ params }: { params: Promise<{ slug: string }> }) {
   const router = useRouter()
   const [slug, setSlug] = useState<string>("")
@@ -525,7 +527,12 @@ export default function SettingsPage({ params }: { params: Promise<{ slug: strin
             <VenueEyebrow slug={slug} />
             <h1 className="page-h1">Settings</h1>
           </div>
-          <Button onClick={handleSave} disabled={isSaving || xvmUnavailable} className="self-start shrink-0">
+          <Button
+            onClick={handleSave}
+            disabled={isSaving || xvmUnavailable}
+            title={xvmUnavailable ? SAVE_OFF_TITLE : undefined}
+            className="self-start shrink-0"
+          >
             {isSaving ? "Saving…" : "Save changes"}
           </Button>
         </div>
@@ -1934,7 +1941,14 @@ export default function SettingsPage({ params }: { params: Promise<{ slug: strin
         <div className="fixed bottom-0 left-0 [@media(min-width:1081px)]:left-[300px] right-0 z-50 border-t border-[var(--blue-015)] bg-[#070b14]/95 backdrop-blur-md">
           <div className="px-6 py-3 flex items-center justify-between gap-4">
             <p className="text-sm text-[var(--fg-faint)]">You have unsaved changes</p>
-            <Button variant="cta" size="sm" onClick={handleSave} disabled={isSaving || xvmUnavailable} className="xiv-btn-shimmer">
+            <Button
+              variant="cta"
+              size="sm"
+              onClick={handleSave}
+              disabled={isSaving || xvmUnavailable}
+              title={xvmUnavailable ? SAVE_OFF_TITLE : undefined}
+              className="xiv-btn-shimmer"
+            >
               {isSaving ? "Saving…" : "Save changes"}
             </Button>
           </div>

@@ -1,6 +1,8 @@
 import { NextRequest, NextResponse } from "next/server"
 import { pluginAuthGate } from "@/lib/api/plugin-auth"
 import { prisma } from "@/lib/prisma"
+import { getValidXvmApiToken, xvmApiErrorResponse } from "@/lib/api/xvm-api-store"
+import { listBannedPatrons } from "@/lib/api/xvm-api"
 
 /**
  * GET /api/plugin/patrons/banned?venueId=…
@@ -24,18 +26,31 @@ export async function GET(request: NextRequest) {
       return NextResponse.json({ error: "Invalid venue" }, { status: 400 })
     }
 
-    const bannedPatrons = await prisma.patron.findMany({
-      where: { venueId, isBanned: true },
-      select: { characterName: true, world: true, banReason: true },
-    })
+    const venue = await prisma.venue.findUnique({ where: { id: venueId }, select: { xvmApiVenueId: true } })
+    if (!venue?.xvmApiVenueId) {
+      return NextResponse.json(
+        { error: "not_connected", message: "This venue hasn't been connected to xvm-api yet." },
+        { status: 409 }
+      )
+    }
 
-    return NextResponse.json({
-      bannedPatrons: bannedPatrons.map((p) => ({
-        characterName: p.characterName,
-        world: p.world,
-        reason: p.banReason ?? "",
-      })),
-    })
+    const token = await getValidXvmApiToken(auth.userId)
+    if (!token) {
+      return NextResponse.json({ error: "xvm-api link not established yet" }, { status: 503 })
+    }
+
+    try {
+      const bannedPatrons = await listBannedPatrons(token, venue.xvmApiVenueId)
+      return NextResponse.json({
+        bannedPatrons: bannedPatrons.map((p) => ({
+          characterName: p.character_name,
+          world: p.world,
+          reason: p.ban_reason ?? "",
+        })),
+      })
+    } catch (err) {
+      return xvmApiErrorResponse(err, auth.userId, "[plugin/patrons/banned] error")
+    }
   } catch (error) {
     console.error("[Plugin API] Error fetching banned patrons:", error)
     return NextResponse.json({ error: "Internal server error" }, { status: 500 })

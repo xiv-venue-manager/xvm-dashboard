@@ -8,6 +8,7 @@ import { generateOccurrences, type RecurrenceRule } from "@/lib/recurrence"
 import { validators } from "@/lib/validation"
 import { canManageVenue } from "@/lib/roles"
 import { Prisma, type EventStatus } from "@/generated/prisma/client"
+import { eventVisibilityFor } from "@/lib/event-visibility"
 
 const eventSchema = z.object({
   title: validators.eventTitle,
@@ -118,13 +119,10 @@ export const GET = withRateLimit<{ params: Promise<{ venueId: string }> }>(
         return NextResponse.json({ error: "You don't have access to this venue" }, { status: 403 })
       }
 
-      // Get venue settings
       const venue = await prisma.venue.findUnique({
         where: { id: venueId },
-        select: { settings: true },
+        select: { settings: true, xvmApiVenueId: true },
       })
-
-      const venueSettings = venue?.settings as Record<string, unknown> | undefined
 
       // Get query parameters for filtering
       const searchParams = request.nextUrl.searchParams
@@ -134,14 +132,12 @@ export const GET = withRateLimit<{ params: Promise<{ venueId: string }> }>(
 
       const where: Prisma.EventWhereInput = { venueId }
 
-      // Apply event visibility settings for STAFF members
-      if (membership.role === "STAFF" && venueSettings?.eventVisibility === "published") {
-        // Staff only see published events, hide drafts
-        where.status = "PUBLISHED"
-      }
-
       if (status) {
         where.status = status as EventStatus
+      }
+
+      if (membership.role === "STAFF" && (await eventVisibilityFor(session.user.id, venue)) === "published") {
+        where.status = "PUBLISHED"
       }
 
       if (startDate && endDate) {

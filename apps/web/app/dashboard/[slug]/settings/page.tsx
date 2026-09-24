@@ -73,6 +73,7 @@ export default function SettingsPage({ params }: { params: Promise<{ slug: strin
 
   const [isLoading, setIsLoading] = useState(true)
   const [isSaving, setIsSaving] = useState(false)
+  const [xvmUnavailable, setXvmUnavailable] = useState(false)
   const [error, setError] = useState("")
   const [success, setSuccess] = useState(false)
   const [isDeleting, setIsDeleting] = useState(false)
@@ -158,8 +159,10 @@ export default function SettingsPage({ params }: { params: Promise<{ slug: strin
 
         // Get settings
         const settingsResponse = await fetch(`/api/venues/${venue.id}/settings`)
+        if (!settingsResponse.ok) setXvmUnavailable(true)
         if (settingsResponse.ok) {
           const settingsData = await settingsResponse.json()
+          setXvmUnavailable(!!settingsData.visibilityDegraded)
           setVenueName(settingsData.name ?? "")
           setVenueDescription(settingsData.description ?? "")
           setVenueDistrict(settingsData.district ?? "__none__")
@@ -212,6 +215,7 @@ export default function SettingsPage({ params }: { params: Promise<{ slug: strin
           })
           .catch(() => {})
       } catch (error: unknown) {
+        setXvmUnavailable(true)
         setError(error instanceof Error ? error.message : "Failed to load settings")
       } finally {
         setIsLoading(false)
@@ -252,6 +256,7 @@ export default function SettingsPage({ params }: { params: Promise<{ slug: strin
   ])
 
   const handleSave = async () => {
+    if (xvmUnavailable) return
     setIsSaving(true)
     setError("")
     setSuccess(false)
@@ -520,12 +525,20 @@ export default function SettingsPage({ params }: { params: Promise<{ slug: strin
             <VenueEyebrow slug={slug} />
             <h1 className="page-h1">Settings</h1>
           </div>
-          <Button onClick={handleSave} disabled={isSaving} className="self-start shrink-0">
+          <Button onClick={handleSave} disabled={isSaving || xvmUnavailable} className="self-start shrink-0">
             {isSaving ? "Saving…" : "Save changes"}
           </Button>
         </div>
 
         {/* Alerts */}
+        {xvmUnavailable && (
+          <Alert className="mb-4 bg-destructive/10 border-destructive/20">
+            <AlertDescription>
+              Couldn&apos;t load this venue&apos;s profile and staff visibility from xvm-api, so saving is turned off to
+              avoid overwriting them with blanks. Reload the page to try again.
+            </AlertDescription>
+          </Alert>
+        )}
         {success && (
           <Alert className="mb-4 bg-emerald-500/10 border-emerald-500/20">
             <AlertDescription className="text-emerald-400">Settings saved.</AlertDescription>
@@ -1921,7 +1934,7 @@ export default function SettingsPage({ params }: { params: Promise<{ slug: strin
         <div className="fixed bottom-0 left-0 [@media(min-width:1081px)]:left-[300px] right-0 z-50 border-t border-[var(--blue-015)] bg-[#070b14]/95 backdrop-blur-md">
           <div className="px-6 py-3 flex items-center justify-between gap-4">
             <p className="text-sm text-[var(--fg-faint)]">You have unsaved changes</p>
-            <Button variant="cta" size="sm" onClick={handleSave} disabled={isSaving} className="xiv-btn-shimmer">
+            <Button variant="cta" size="sm" onClick={handleSave} disabled={isSaving || xvmUnavailable} className="xiv-btn-shimmer">
               {isSaving ? "Saving…" : "Save changes"}
             </Button>
           </div>

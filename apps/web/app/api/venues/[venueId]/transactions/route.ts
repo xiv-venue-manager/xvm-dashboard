@@ -5,7 +5,7 @@ import { prisma } from "@/lib/prisma"
 import { z } from "zod"
 import { withRateLimit } from "@/lib/middleware/with-rate-limit"
 import { createTransaction, createTransactionSchema, InsufficientStockError } from "@/lib/api/transactions"
-import { getValidXvmApiToken, getValidXvmApiPersonId, xvmApiErrorResponse } from "@/lib/api/xvm-api-store"
+import { getValidXvmApiToken, xvmApiErrorResponse } from "@/lib/api/xvm-api-store"
 import { listFinanceTransactions } from "@/lib/api/xvm-api"
 
 const LIST_WINDOW_MAX_MS = 60 * 24 * 60 * 60 * 1000
@@ -89,24 +89,6 @@ export const GET = withRateLimit<{ params: Promise<{ venueId: string }> }>(
       return NextResponse.json({ error: "You don't have access to this venue" }, { status: 403 })
     }
 
-    // Get venue settings
-    const venue = await prisma.venue.findUnique({
-      where: { id: venueId },
-      select: { settings: true },
-    })
-
-    const venueSettings = venue?.settings as Record<string, unknown> | undefined
-
-    // Check sales visibility for STAFF members
-    if (membership.role === "STAFF" && venueSettings?.salesVisibility) {
-      const salesVisibility = venueSettings.salesVisibility
-
-      if (salesVisibility === "none") {
-        // Staff have no access to sales page at all
-        return NextResponse.json({ error: "You don't have permission to view sales data" }, { status: 403 })
-      }
-    }
-
     const token = await getValidXvmApiToken(session.user.id)
     if (!token) {
       return NextResponse.json({ error: "xvm-api link not established yet" }, { status: 503 })
@@ -118,20 +100,11 @@ export const GET = withRateLimit<{ params: Promise<{ venueId: string }> }>(
     try {
       const to = endDate ?? new Date()
       const from = startDate ?? new Date(to.getTime() - LIST_WINDOW_MAX_MS)
-      let transactions = await listFinanceTransactions(token, gate.xvmApiVenueId!, {
+      const transactions = await listFinanceTransactions(token, gate.xvmApiVenueId!, {
         from: from.toISOString(),
         to: to.toISOString(),
         kind,
       })
-
-      // "own" sales visibility restricts STAFF to transactions they
-      // personally recorded. xvm-api's list endpoint has no
-      // recorded_by_person_id query param, so this is filtered client-side
-      // against the caller's own xvm-api person id.
-      if (membership.role === "STAFF" && venueSettings?.salesVisibility === "own") {
-        const personId = await getValidXvmApiPersonId(session.user.id)
-        transactions = personId !== null ? transactions.filter((t) => t.recorded_by_person_id === personId) : []
-      }
 
       return NextResponse.json({ transactions, nextCursor: null, hasMore: false })
     } catch (err) {

@@ -20,10 +20,17 @@ import {
   listMemberships,
   listPositions,
   listInvites,
+  listShifts,
+  listShiftsOnNow,
+  listFinanceTransactions,
   type MembershipRow,
   type PositionRow,
   type InviteRow,
+  type ShiftRow,
+  type FinanceTransactionRow,
 } from "@/lib/api/xvm-api"
+import { xvmPageReader } from "@/lib/api/xvm-page-read"
+import { minorUnitsToDollars } from "@/lib/api/position-convert"
 
 import { RoleBadge } from "@/components/role-badge"
 import { StaffVisibilitySettings } from "@/components/staff-visibility-settings"
@@ -137,27 +144,26 @@ export default async function StaffPage({ params }: { params: Promise<{ slug: st
   // eslint-disable-next-line react-hooks/purity
   const weekAgo = new Date(Date.now() - 7 * 24 * 60 * 60 * 1000)
 
-  // Active shifts + weekly stats
-  const [activeShifts, weeklyShifts, weeklyTips] = await Promise.all([
-    prisma.shift.findMany({
-      where: { venueId: venue.id, status: "ACTIVE" },
-      select: { id: true },
-    }),
-    prisma.shift.findMany({
-      where: { venueId: venue.id, scheduledStart: { gte: weekAgo }, status: { in: ["COMPLETED", "ACTIVE"] } },
-      select: { scheduledStart: true, scheduledEnd: true },
-    }),
-    prisma.transaction.aggregate({
-      where: { venueId: venue.id, createdAt: { gte: weekAgo }, type: "TIP" },
-      _sum: { amount: true },
-    }),
+  const statsTo = new Date(weekAgo.getTime() + 7 * 24 * 60 * 60 * 1000)
+  const readXvm = await xvmPageReader(session.user.id, venue.xvmApiVenueId)
+  const [activeShifts, weeklyShifts, weeklyTransactions] = await Promise.all([
+    readXvm("staff page on-now", [] as ShiftRow[], (t, v) => listShiftsOnNow(t, v)),
+    readXvm("staff page weekly shifts", [] as ShiftRow[], (t, v) =>
+      listShifts(t, v, { from: weekAgo.toISOString(), to: statsTo.toISOString() })
+    ),
+    readXvm("staff page weekly tips", [] as FinanceTransactionRow[], (t, v) =>
+      listFinanceTransactions(t, v, { from: weekAgo.toISOString(), to: statsTo.toISOString() })
+    ),
   ])
 
   const hoursThisWeek = weeklyShifts.reduce((sum, s) => {
-    if (!s.scheduledEnd) return sum
-    return sum + (s.scheduledEnd.getTime() - s.scheduledStart.getTime()) / (1000 * 60 * 60)
+    if (s.status !== "completed" && s.status !== "active") return sum
+    if (!s.scheduled_start || !s.scheduled_end || Date.parse(s.scheduled_start) < weekAgo.getTime()) return sum
+    return sum + (Date.parse(s.scheduled_end) - Date.parse(s.scheduled_start)) / (1000 * 60 * 60)
   }, 0)
-  const tipsThisWeek = Number(weeklyTips._sum.amount ?? 0)
+  const tipsThisWeek =
+    minorUnitsToDollars(weeklyTransactions.filter((tx) => tx.kind === "tip").reduce((sum, tx) => sum + tx.amount, 0)) ??
+    0
 
   return (
     <VenueLayout venueSlug={venue.slug} venueName={venue.name} userRole={userRole}>

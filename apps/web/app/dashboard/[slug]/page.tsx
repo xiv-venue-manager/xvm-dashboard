@@ -8,6 +8,10 @@ import { Button } from "@/components/ui/button"
 import { StatReadout } from "@/components/ui/stat-readout"
 import { CrystalDivider } from "@/components/ui/crystal-divider"
 import { prisma } from "@/lib/prisma"
+import { xvmPageReader } from "@/lib/api/xvm-page-read"
+import { getFinanceSummary, listShifts, listTasks, type ShiftRow } from "@/lib/api/xvm-api"
+import { minorUnitsToDollars } from "@/lib/api/position-convert"
+import { intToPriority } from "@/lib/api/task-convert"
 import { VenueLayout } from "@/components/venue-layout"
 import { LocalTimeRange } from "@/components/server-time"
 import { OverviewRevenueChart } from "@/components/overview-revenue-chart"
@@ -50,7 +54,12 @@ export default async function VenueDashboardPage({ params }: { params: Promise<{
   if (!venue || venue.memberships.length === 0) notFound()
 
   const userRole = venue.memberships[0].role
-  const membershipId = venue.memberships[0].id
+  const readXvm = await xvmPageReader(session.user.id, venue.xvmApiVenueId)
+  const revenueBetween = (label: string, from: Date, to: Date) =>
+    readXvm(label, 0, async (t, v) => {
+      const summary = await getFinanceSummary(t, v, { from: from.toISOString(), to: to.toISOString() })
+      return minorUnitsToDollars(summary.total_revenue) ?? 0
+    })
   const canManage = ["OWNER", "MANAGER"].includes(userRole)
 
   // Live event
@@ -72,14 +81,8 @@ export default async function VenueDashboardPage({ params }: { params: Promise<{
 
   if (canManage) {
     const [revThis, revPrev, patronsThis, patronsPrev, upcomingCount] = await Promise.all([
-      prisma.transaction.aggregate({
-        where: { venueId: venue.id, createdAt: { gte: weekAgo } },
-        _sum: { amount: true },
-      }),
-      prisma.transaction.aggregate({
-        where: { venueId: venue.id, createdAt: { gte: twoWeeksAgo, lt: weekAgo } },
-        _sum: { amount: true },
-      }),
+      revenueBetween("overview revenue this week", weekAgo, now),
+      revenueBetween("overview revenue prev week", twoWeeksAgo, weekAgo),
       prisma.patronLog.count({ where: { venueId: venue.id, action: "ENTER", loggedAt: { gte: weekAgo } } }),
       prisma.patronLog.count({
         where: { venueId: venue.id, action: "ENTER", loggedAt: { gte: twoWeeksAgo, lt: weekAgo } },
@@ -89,8 +92,8 @@ export default async function VenueDashboardPage({ params }: { params: Promise<{
       }),
     ])
     kpis = {
-      revenueThisWeek: Number(revThis._sum.amount ?? 0),
-      revenuePrev: Number(revPrev._sum.amount ?? 0),
+      revenueThisWeek: revThis,
+      revenuePrev: revPrev,
       patronsThisWeek: patronsThis,
       patronsPrev: patronsPrev,
       avgAttendance: 0,
@@ -116,16 +119,14 @@ export default async function VenueDashboardPage({ params }: { params: Promise<{
           .slice()
           .reverse()
           .map(async (ev) => {
-            const rev = await prisma.transaction.aggregate({
-              where: {
-                venueId: venue.id,
-                createdAt: { gte: ev.startTime, lt: new Date(ev.startTime.getTime() + 12 * 60 * 60 * 1000) },
-              },
-              _sum: { amount: true },
-            })
+            const revenue = await revenueBetween(
+              "overview event revenue",
+              ev.startTime,
+              new Date(ev.startTime.getTime() + 12 * 60 * 60 * 1000)
+            )
             return {
               label: format(ev.startTime, "d MMM"),
-              revenue: Number(rev._sum.amount ?? 0),
+              revenue,
               isToday: format(ev.startTime, "yyyy-MM-dd") === format(now, "yyyy-MM-dd"),
             }
           })
@@ -165,17 +166,14 @@ export default async function VenueDashboardPage({ params }: { params: Promise<{
     select: { id: true, title: true, startTime: true, endTime: true, eventType: true },
   })
 
-  // Open tasks (all roles see their own; managers see all)
-  const openTasks = await prisma.task.findMany({
-    where: {
-      venueId: venue.id,
-      status: { notIn: ["COMPLETED", "CANCELLED"] },
-      ...(canManage ? {} : { assignedTo: session.user.id }),
-    },
-    orderBy: { createdAt: "asc" },
-    take: 5,
-    select: { id: true, title: true, dueDate: true, priority: true },
-  })
+  const openTasks = await readXvm("overview open tasks", [], async (t, v) =>
+    (await listTasks(t, v)).slice(0, 5).map((task) => ({
+      id: String(task.id),
+      title: task.title,
+      dueDate: task.due_at ? new Date(task.due_at) : null,
+      priority: intToPriority(task.priority),
+    }))
+  )
 
   // Announcements
   const announcements = await prisma.announcement.findMany({
@@ -192,17 +190,22 @@ export default async function VenueDashboardPage({ params }: { params: Promise<{
       where: { userId: session.user.id },
     })) > 0
 
-  // My upcoming shifts
-  const myShifts = await prisma.shift.findMany({
-    where: {
-      venueId: venue.id,
-      membershipId,
-      status: { in: ["SCHEDULED", "ACTIVE"] },
-      scheduledStart: { gte: new Date(now.getTime() - 2 * 60 * 60 * 1000) },
-    },
-    orderBy: { scheduledStart: "asc" },
-    take: 3,
-  })
+  const myShiftsFrom = new Date(now.getTime() - 2 * 60 * 60 * 1000)
+  const myShifts = (
+    await readXvm("overview my shifts", [] as ShiftRow[], (t, v) =>
+      listShifts(t, v, { from: myShiftsFrom.toISOString(), to: new Date(myShiftsFrom.getTime() + 60 * 24 * 60 * 60 * 1000).toISOString(), mine: true })
+    )
+  )
+    .flatMap((s) =>
+      (s.status === "scheduled" || s.status === "active") &&
+      s.scheduled_start &&
+      s.scheduled_end &&
+      Date.parse(s.scheduled_start) >= myShiftsFrom.getTime()
+        ? [{ id: s.id, status: s.status, scheduledStart: new Date(s.scheduled_start), scheduledEnd: new Date(s.scheduled_end) }]
+        : []
+    )
+    .sort((a, b) => a.scheduledStart.getTime() - b.scheduledStart.getTime())
+    .slice(0, 3)
 
   // Delta helpers
   const pct = (current: number, prev: number) => (prev === 0 ? null : Math.round(((current - prev) / prev) * 100))
@@ -491,13 +494,13 @@ export default async function VenueDashboardPage({ params }: { params: Promise<{
               {myShifts.map((shift) => (
                 <Card
                   key={shift.id}
-                  className={`p-4 flex items-center justify-between ${shift.status === "ACTIVE" ? "border-[rgba(16,185,129,0.3)]" : ""}`}
+                  className={`p-4 flex items-center justify-between ${shift.status === "active" ? "border-[rgba(16,185,129,0.3)]" : ""}`}
                 >
                   <p className="text-sm">
                     <LocalTimeRange start={shift.scheduledStart} end={shift.scheduledEnd} />
                   </p>
-                  <Badge variant={shift.status === "ACTIVE" ? "status-open" : "tag"}>
-                    {shift.status === "ACTIVE" ? "On Shift" : "Upcoming"}
+                  <Badge variant={shift.status === "active" ? "status-open" : "tag"}>
+                    {shift.status === "active" ? "On Shift" : "Upcoming"}
                   </Badge>
                 </Card>
               ))}

@@ -16,19 +16,12 @@ import {
   AlertDialogTitle,
   AlertDialogTrigger,
 } from "@/components/ui/alert-dialog"
-import { Check, Copy, Trash2 } from "lucide-react"
+import { Check, Copy, Send, Trash2 } from "lucide-react"
 import { LocalTime } from "@/components/server-time"
-
-interface PendingInvite {
-  id: number
-  role: string
-  invitedName: string | null
-  inviteToken: string | null
-  inviteExpiresAt: Date | null
-}
+import type { PendingInviteShape } from "@/lib/pending-invites"
 
 interface PendingInvitesProps {
-  invites: PendingInvite[]
+  invites: PendingInviteShape[]
   slug: string
   canManageStaff: boolean
 }
@@ -37,19 +30,47 @@ export function PendingInvites({ invites, slug, canManageStaff }: PendingInvites
   const [pendingInvites, setPendingInvites] = useState(invites)
   const [copiedId, setCopiedId] = useState<number | null>(null)
   const [deletingId, setDeletingId] = useState<number | null>(null)
+  const [sendingId, setSendingId] = useState<number | null>(null)
+  const [queuedIds, setQueuedIds] = useState<Set<number>>(new Set())
+  const [sendError, setSendError] = useState<{ id: number; message: string } | null>(null)
 
   const getInviteUrl = (token: string) => {
     if (typeof window === "undefined") return ""
     return `${window.location.origin}/invite/${token}`
   }
 
-  const copyInviteLink = async (invite: PendingInvite) => {
+  const copyInviteLink = async (invite: PendingInviteShape) => {
     if (!invite.inviteToken) return
 
     const url = getInviteUrl(invite.inviteToken)
     await navigator.clipboard.writeText(url)
     setCopiedId(invite.id)
     setTimeout(() => setCopiedId(null), 2000)
+  }
+
+  const sendByDm = async (inviteId: number) => {
+    setSendingId(inviteId)
+    setSendError(null)
+    try {
+      const venueResponse = await fetch(`/api/venues?slug=${slug}`)
+      const venues = await venueResponse.json()
+      const venue = venues.find((v: { slug: string }) => v.slug === slug)
+
+      const response = await fetch(`/api/venues/${venue.id}/staff/invites/${inviteId}/send`, { method: "POST" })
+      if (!response.ok) {
+        const data = await response.json()
+        throw new Error(data.message || data.error || "Failed to send invite")
+      }
+
+      setQueuedIds((prev) => new Set(prev).add(inviteId))
+      setPendingInvites((prev) =>
+        prev.map((inv) => (inv.id === inviteId ? { ...inv, dmFailedAt: null, dmFailure: null } : inv))
+      )
+    } catch (error: unknown) {
+      setSendError({ id: inviteId, message: error instanceof Error ? error.message : "Failed to send invite" })
+    } finally {
+      setSendingId(null)
+    }
   }
 
   const deleteInvite = async (inviteId: number) => {
@@ -109,6 +130,28 @@ export function PendingInvites({ invites, slug, canManageStaff }: PendingInvites
                       )}
                     </p>
 
+                    {invite.declinedAt && (
+                      <p className="text-xs text-muted-foreground mt-2">
+                        <span className="font-medium text-foreground">Declined</span>{" "}
+                        <LocalTime date={new Date(invite.declinedAt)} formatStr="datelong" />
+                        {invite.declineReason ? `: "${invite.declineReason}"` : ""}. They can still accept until the invite
+                        expires.
+                      </p>
+                    )}
+                    {invite.dmFailedAt && (
+                      <p className="text-xs text-amber-400 mt-2">
+                        Couldn&apos;t DM: {invite.dmFailure || "delivery failed"}
+                      </p>
+                    )}
+                    {queuedIds.has(invite.id) && (
+                      <p className="text-xs text-muted-foreground mt-2">
+                        DM queued. You&apos;ll be told on Discord if it can&apos;t be delivered.
+                      </p>
+                    )}
+                    {sendError?.id === invite.id && (
+                      <p className="text-xs text-destructive mt-2">{sendError.message}</p>
+                    )}
+
                     {/* Invite Link */}
                     {invite.inviteToken && (
                       <div className="mt-3">
@@ -146,11 +189,22 @@ export function PendingInvites({ invites, slug, canManageStaff }: PendingInvites
                     <Badge variant="secondary" className="bg-yellow-400/10 text-yellow-400">
                       {invite.role}
                     </Badge>
-                    <Badge variant="outline">Pending</Badge>
+                    <Badge variant="outline">{invite.declinedAt ? "Declined" : "Pending"}</Badge>
                   </div>
 
                   {canManageStaff && (
                     <div className="flex gap-2">
+                      {invite.canSendByDm && (
+                        <Button
+                          size="sm"
+                          variant="outline"
+                          onClick={() => sendByDm(invite.id)}
+                          disabled={sendingId === invite.id}
+                        >
+                          <Send className="h-4 w-4 mr-1" />
+                          {invite.dmFailedAt ? "Try again" : "Send via Discord"}
+                        </Button>
+                      )}
                       <AlertDialog>
                         <AlertDialogTrigger asChild>
                           <Button

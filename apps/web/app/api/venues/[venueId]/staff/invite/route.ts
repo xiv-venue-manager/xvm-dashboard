@@ -4,12 +4,14 @@ import { z } from "zod"
 import { authOptions } from "@/lib/auth"
 import { prisma } from "@/lib/prisma"
 import { withRateLimit } from "@/lib/middleware/with-rate-limit"
+import { validators } from "@/lib/validation"
 import { getValidXvmApiToken, xvmApiErrorResponse } from "@/lib/api/xvm-api-store"
 import { createInvite } from "@/lib/api/xvm-api"
 
 const inviteSchema = z.object({
   role: z.enum(["STAFF", "MANAGER", "OWNER"], { message: "Invalid role" }),
   invitedName: z.string().max(100, "Name too long (max 100 characters)").optional().nullable(),
+  discordId: validators.snowflake.optional().nullable(),
 })
 
 async function requireXvmVenueId(venueId: string) {
@@ -48,11 +50,12 @@ export const POST = withRateLimit<{ params: Promise<{ venueId: string }> }>(
     const gate = await requireXvmVenueId(venueId)
     if (gate.error) return gate.error
 
-    let role: "STAFF" | "MANAGER" | "OWNER", invitedName: string | null | undefined
+    let role: "STAFF" | "MANAGER" | "OWNER", invitedName: string | null | undefined, discordId: string | null | undefined
     try {
       const parsed = inviteSchema.parse(await request.json())
       role = parsed.role
       invitedName = parsed.invitedName
+      discordId = parsed.discordId
     } catch (error) {
       if (error instanceof z.ZodError) {
         return NextResponse.json({ error: "Validation error", details: error.issues }, { status: 400 })
@@ -69,6 +72,7 @@ export const POST = withRateLimit<{ params: Promise<{ venueId: string }> }>(
       const invite = await createInvite(token, gate.xvmApiVenueId!, {
         display_name: invitedName || "Unnamed",
         tier: role.toLowerCase() as "owner" | "manager" | "staff",
+        external_id: discordId || null,
       })
 
       const baseUrl = process.env.NEXTAUTH_URL || `http://localhost:${process.env.PORT || 3000}`

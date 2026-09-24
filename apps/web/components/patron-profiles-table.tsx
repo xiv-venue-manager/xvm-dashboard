@@ -13,8 +13,6 @@ export type PatronProfile = {
   visits: number
   lastSeen: string // ISO
   totalSpent?: number
-  isBanned: boolean
-  banReason: string | null
 }
 
 export function patronTag(visits: number): "regular" | "new" {
@@ -35,15 +33,14 @@ export function PatronProfilesTable({
 }) {
   const [activeTab, setActiveTab] = useState<TabKey>("all")
   const [search, setSearch] = useState("")
-  const localProfiles = profiles
 
   const counts = {
-    all: localProfiles.length,
-    regular: localProfiles.filter((p) => patronTag(p.visits) === "regular").length,
-    new: localProfiles.filter((p) => patronTag(p.visits) === "new").length,
+    all: profiles.length,
+    regular: profiles.filter((p) => patronTag(p.visits) === "regular").length,
+    new: profiles.filter((p) => patronTag(p.visits) === "new").length,
   }
 
-  const visible = localProfiles.filter((p) => {
+  const visible = profiles.filter((p) => {
     if (activeTab !== "all" && patronTag(p.visits) !== activeTab) return false
     if (
       search &&
@@ -71,7 +68,7 @@ export function PatronProfilesTable({
             </span>
           </div>
           <div className="k">Unique patrons</div>
-          <div className="v">{localProfiles.length}</div>
+          <div className="v">{profiles.length}</div>
           <div className="delta flat">all time</div>
         </div>
         <div className="stat">

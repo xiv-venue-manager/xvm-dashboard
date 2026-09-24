@@ -44,10 +44,11 @@ describe("intColorToHex", () => {
   })
 })
 
-describe("gilToMinorUnits / minorUnitsToGil round-trip", () => {
-  it("converts a decimal dollar amount to integer cents and back", () => {
-    expect(gilToMinorUnits(12.5)).toBe(1250)
-    expect(minorUnitsToGil(1250)).toBe(12.5)
+describe("gilToMinorUnits / minorUnitsToGil", () => {
+  it("stores a gil amount as itself, since one minor unit is one gil", () => {
+    expect(gilToMinorUnits(4500)).toBe(4500)
+    expect(minorUnitsToGil(4500)).toBe(4500)
+    expect(minorUnitsToGil(gilToMinorUnits(1000))).toBe(1000)
   })
 
   it("returns null for null input on both directions", () => {
@@ -55,8 +56,14 @@ describe("gilToMinorUnits / minorUnitsToGil round-trip", () => {
     expect(minorUnitsToGil(null)).toBeNull()
   })
 
-  it("rounds to the nearest cent instead of truncating", () => {
-    expect(gilToMinorUnits(12.505)).toBe(1251)
+  it("rounds a fractional amount to the nearest whole gil instead of truncating", () => {
+    expect(gilToMinorUnits(12.5)).toBe(13)
+    expect(gilToMinorUnits(12.4)).toBe(12)
+  })
+
+  it("does not scale by 100, which is what a hundredth-of-a-unit convention would do", () => {
+    expect(gilToMinorUnits(1)).toBe(1)
+    expect(minorUnitsToGil(100)).toBe(100)
   })
 })
 

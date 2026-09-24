@@ -14,17 +14,13 @@ export function intColorToHex(value: number | null): string | null {
   return `#${value.toString(16).padStart(6, "0")}`
 }
 
-// xvm-api's hourly_rate_minor is an int in minor currency units (cents); Prisma's
-// Role.hourlyRate is a Decimal in whole units. Round rather than truncate so a
-// fractional cent from float math doesn't silently shave a cent off someone's rate.
-export function gilToMinorUnits(dollars: number | null): number | null {
-  if (dollars === null) return null
-  return Math.round(dollars * 100)
+export function gilToMinorUnits(gil: number | null): number | null {
+  if (gil === null) return null
+  return Math.round(gil)
 }
 
 export function minorUnitsToGil(minor: number | null): number | null {
-  if (minor === null) return null
-  return minor / 100
+  return minor
 }
 
 // xvm-api's minutes_worked is an int; the dashboard's hoursWorked (and the shift-duration

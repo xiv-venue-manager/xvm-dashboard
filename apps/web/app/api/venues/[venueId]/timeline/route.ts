@@ -2,7 +2,18 @@ import { NextRequest, NextResponse } from "next/server"
 import { getServerSession } from "next-auth"
 import { authOptions } from "@/lib/auth"
 import { prisma } from "@/lib/prisma"
-import { resolveDisplayName } from "@/lib/display-name"
+import { xvmPageReader } from "@/lib/api/xvm-page-read"
+import {
+  listFinanceTransactions,
+  listMemberships,
+  listShifts,
+  type FinanceTransactionRow,
+  type MembershipRow,
+  type ShiftRow,
+} from "@/lib/api/xvm-api"
+import { saleItems, shiftItems, type TimelineApiItem } from "@/lib/timeline-items"
+
+const TIMELINE_WINDOW_MS = 59 * 24 * 60 * 60 * 1000
 
 export async function GET(request: NextRequest, { params }: { params: Promise<{ venueId: string }> }) {
   const session = await getServerSession(authOptions)
@@ -25,74 +36,7 @@ export async function GET(request: NextRequest, { params }: { params: Promise<{ 
     return NextResponse.json({ error: "Forbidden" }, { status: 403 })
   }
 
-  const items: Array<{
-    id: string
-    type: "sale" | "patron_enter" | "patron_exit" | "shift_start" | "shift_end"
-    timestamp: Date
-    data: Record<string, unknown>
-  }> = []
-
-  // Fetch transactions
-  if (!type || type === "sales") {
-    const where: Record<string, unknown> = { venueId }
-    if (cursor) where.createdAt = { lt: new Date(cursor) }
-    if (eventId) where.eventId = eventId
-
-    const transactions = await prisma.transaction.findMany({
-      where,
-      include: {
-        service: { select: { id: true, name: true } },
-        event: { select: { id: true, title: true } },
-        staff: {
-          select: {
-            id: true,
-            name: true,
-            displayName: true,
-            image: true,
-            characters: {
-              orderBy: [{ isPrimary: "desc" }, { createdAt: "asc" }],
-              take: 1,
-              select: { characterName: true },
-            },
-            memberships: {
-              where: { venueId },
-              select: {
-                nickname: true,
-                role: true,
-                customRole: { select: { name: true, color: true } },
-              },
-            },
-          },
-        },
-      },
-      orderBy: { createdAt: "desc" },
-      take: limit,
-    })
-
-    for (const t of transactions) {
-      const resolvedStaffName = t.staff
-        ? resolveDisplayName({
-            characterName: t.staff.characters[0]?.characterName,
-            nickname: t.staff.memberships[0]?.nickname,
-            displayName: t.staff.displayName,
-            discordName: t.staff.name,
-          })
-        : null
-      items.push({
-        id: `sale_${t.id}`,
-        type: "sale",
-        timestamp: t.createdAt,
-        data: {
-          amount: Number(t.amount),
-          customerName: t.customerName,
-          notes: t.notes,
-          service: t.service,
-          event: t.event,
-          staff: t.staff ? { ...t.staff, name: resolvedStaffName } : null,
-        },
-      })
-    }
-  }
+  const items: TimelineApiItem[] = []
 
   // Fetch patron logs
   if (!type || type === "patrons") {
@@ -127,76 +71,39 @@ export async function GET(request: NextRequest, { params }: { params: Promise<{ 
     }
   }
 
-  // Fetch shift events (clock-in / clock-out)
-  if (!type || type === "staff") {
-    const shiftWhere: Record<string, unknown> = {
-      venueId,
-      status: { in: ["ACTIVE", "COMPLETED", "MISSED"] },
-      actualStart: { not: null },
-    }
-    if (cursor) shiftWhere.actualStart = { lt: new Date(cursor), not: null }
+  const venue = await prisma.venue.findUnique({ where: { id: venueId }, select: { xvmApiVenueId: true } })
+  const readXvm = await xvmPageReader(session.user.id, venue?.xvmApiVenueId ?? null)
+  const windowTo = cursor ? new Date(cursor) : new Date()
+  let windowFrom = new Date(windowTo.getTime() - TIMELINE_WINDOW_MS)
+  if (eventId) {
+    const event = await prisma.event.findFirst({ where: { id: eventId, venueId }, select: { startTime: true } })
+    if (event && event.startTime > windowFrom) windowFrom = event.startTime
+  }
+  const range = { from: windowFrom.toISOString(), to: windowTo.toISOString() }
+  const wantSales = !type || type === "sales"
+  const wantShifts = !type || type === "staff"
 
-    const shifts = await prisma.shift.findMany({
-      where: shiftWhere,
-      include: {
-        membership: {
-          include: {
-            user: {
-              select: {
-                id: true,
-                name: true,
-                displayName: true,
-                image: true,
-                characters: {
-                  orderBy: [{ isPrimary: "desc" }, { createdAt: "asc" }],
-                  take: 1,
-                  select: { characterName: true },
-                },
-              },
-            },
-            customRole: { select: { name: true, color: true } },
-          },
-        },
-      },
-      orderBy: { actualStart: "desc" },
-      take: limit,
-    })
-
-    for (const s of shifts) {
-      const staffName = resolveDisplayName({
-        characterName: s.membership?.user?.characters?.[0]?.characterName,
-        nickname: s.membership?.nickname,
-        displayName: s.membership?.user?.displayName,
-        discordName: s.membership?.user?.name,
-      })
-      const roleName = s.membership?.customRole?.name ?? s.membership?.role ?? "Staff"
-
-      // Clock-in event
-      if (s.actualStart) {
-        items.push({
-          id: `shift_start_${s.id}`,
-          type: "shift_start",
-          timestamp: s.actualStart,
-          data: { staffName, roleName, shiftId: s.id },
-        })
-      }
-      // Clock-out event
-      if (s.actualEnd) {
-        items.push({
-          id: `shift_end_${s.id}`,
-          type: "shift_end",
-          timestamp: s.actualEnd,
-          data: { staffName, roleName, shiftId: s.id },
-        })
-      }
-    }
+  if (windowFrom < windowTo && (wantSales || wantShifts)) {
+    const [roster, transactions, shifts] = await Promise.all([
+      readXvm("timeline roster", [] as MembershipRow[], (t, v) => listMemberships(t, v)),
+      wantSales
+        ? readXvm("timeline sales", [] as FinanceTransactionRow[], (t, v) => listFinanceTransactions(t, v, range))
+        : Promise.resolve([] as FinanceTransactionRow[]),
+      wantShifts
+        ? readXvm("timeline shifts", [] as ShiftRow[], (t, v) => listShifts(t, v, range))
+        : Promise.resolve([] as ShiftRow[]),
+    ])
+    const members = new Map(roster.map((m) => [m.id, m]))
+    items.push(
+      ...saleItems(transactions, members),
+      ...shiftItems(shifts, members).filter((i) => i.timestamp >= windowFrom && i.timestamp < windowTo)
+    )
   }
 
-  // Sort merged results by timestamp desc
-  items.sort((a, b) => b.timestamp.getTime() - a.timestamp.getTime())
-
-  // Trim to limit
-  const trimmed = items.slice(0, limit)
+  const trimmed = items
+    .filter((i) => !cursor || i.timestamp < windowTo)
+    .sort((a, b) => b.timestamp.getTime() - a.timestamp.getTime())
+    .slice(0, limit)
   const nextCursor = trimmed.length === limit ? trimmed[trimmed.length - 1].timestamp.toISOString() : null
 
   return NextResponse.json({

@@ -5,7 +5,7 @@ import { EventEmitter } from "events"
 
 export interface VenueEvent {
   id: string
-  type: "sale" | "patron_enter" | "patron_exit" | "room_status"
+  type: "sale" | "sale_total" | "patron_enter" | "patron_exit" | "room_status"
   venueId: string
   timestamp: string
   data: Record<string, unknown>

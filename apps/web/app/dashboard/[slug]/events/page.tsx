@@ -14,6 +14,7 @@ import { format } from "date-fns"
 import { SyncPartakeButton } from "@/components/sync-partake-button"
 import { EndEventButton } from "@/components/end-event-button"
 import { canManageVenue } from "@/lib/roles"
+import { eventVisibilityFor } from "@/lib/event-visibility"
 
 const statusColors = {
   DRAFT: "bg-zinc-500",
@@ -70,6 +71,13 @@ export default async function EventsPage({
     where.status = EventStatus.DRAFT
   } else if (status) {
     where.status = status as EventStatus
+  }
+
+  if (
+    venue.memberships[0].role === "STAFF" &&
+    (await eventVisibilityFor(session.user.id, venue)) === "published"
+  ) {
+    where.status = EventStatus.PUBLISHED
   }
 
   // Get events

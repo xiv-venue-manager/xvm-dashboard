@@ -64,6 +64,7 @@ interface LiveDashboardProps {
   initialPatronCount: number
   initialRevenue: number | null
   initialSaleCount: number
+  revenueUnavailable: boolean
   initialNewTonight: number
   showRevenue: boolean
   revenueLabel: string
@@ -81,6 +82,7 @@ export function LiveDashboard({
   initialPatronCount,
   initialRevenue,
   initialSaleCount,
+  revenueUnavailable,
   initialNewTonight,
   showRevenue,
   revenueLabel,
@@ -187,9 +189,10 @@ export function LiveDashboard({
 
         if (data.type === "sale") {
           const amt = Number(data.data.amount || 0)
-          const isOwnSale = data.data.staff?.id === currentUserId
-          if (showRevenue && (!scopeSalesToOwn || isOwnSale)) setRevenue((prev) => prev + amt)
-          if (!scopeSalesToOwn || isOwnSale) setSaleCount((prev) => prev + 1)
+          if (showRevenue && !revenueUnavailable && (!scopeSalesToOwn || data.data.staff?.id === currentUserId)) {
+            setRevenue((prev) => prev + amt)
+            setSaleCount((prev) => prev + 1)
+          }
           setActivity((prev) =>
             prev.some((a) => a.id === data.id)
               ? prev
@@ -204,6 +207,12 @@ export function LiveDashboard({
                 ].slice(0, 50)
           )
         }
+
+        if (data.type === "sale_total" && showRevenue && !revenueUnavailable && (!scopeSalesToOwn || data.data.own)) {
+          setRevenue((prev) => prev + Number(data.data.amount || 0))
+          setSaleCount((prev) => prev + 1)
+        }
+
         if (data.type === "patron_enter") {
           setPatronCount((prev) => prev + 1)
           setNewTonight((prev) => prev + 1)
@@ -263,7 +272,7 @@ export function LiveDashboard({
     }
     es.onerror = () => setConnected(false)
     return () => es.close()
-  }, [venueId, showRevenue, scopeSalesToOwn, currentUserId])
+  }, [venueId, showRevenue, revenueUnavailable, scopeSalesToOwn, currentUserId])
 
   const fiClass = (type: ActivityItem["type"]) => {
     if (type === "patron_enter")
@@ -352,17 +361,19 @@ export function LiveDashboard({
         {showRevenue && (
           <Card className="px-[18px] py-4">
             <StatReadout
-              label="Sales tonight"
-              value={`${revenue.toLocaleString()}`}
-              subtext="gil"
+              label={revenueLabel}
+              value={revenueUnavailable ? "—" : `${revenue.toLocaleString()}`}
+              subtext={revenueUnavailable ? "unavailable" : "gil"}
               icon={<Coins />}
               iconVariant="success"
             />
           </Card>
         )}
-        <Card className="px-[18px] py-4">
-          <StatReadout label="Transactions" value={saleCount} icon={<Radio />} iconVariant="blue" />
-        </Card>
+        {showRevenue && (
+          <Card className="px-[18px] py-4">
+            <StatReadout label="Transactions" value={revenueUnavailable ? "—" : saleCount} icon={<Radio />} iconVariant="blue" />
+          </Card>
+        )}
         <Card className="px-[18px] py-4">
           <StatReadout label="On shift" value={onShiftStaff.length} icon={<Clock />} iconVariant="warning" />
         </Card>

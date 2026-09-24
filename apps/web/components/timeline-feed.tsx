@@ -25,7 +25,8 @@ interface TimelineShiftData {
 }
 
 interface TimelineSaleStaff {
-  id: string
+  id?: string
+  membershipId?: string
   name: string
   displayName: string | null
   image: string | null

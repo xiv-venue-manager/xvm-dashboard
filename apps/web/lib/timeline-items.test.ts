@@ -33,6 +33,11 @@ describe("saleItems", () => {
     expect(item.data.service).toEqual({ id: "3", name: "Drink" })
     expect((item.data.staff as { name: string }).name).toBe("Nick")
   })
+  it("identifies the seller by membership id, not a user id", () => {
+    const staff = saleItems([tx({ kind: "sale", membership_id: 7 })], members)[0].data.staff as Record<string, unknown>
+    expect(staff.membershipId).toBe("7")
+    expect(staff).not.toHaveProperty("id")
+  })
   it("drops expense and payout rows", () => {
     expect(saleItems([tx({ kind: "expense" }), tx({ kind: "payout" }), tx({ kind: "tip" })], members)).toHaveLength(1)
   })

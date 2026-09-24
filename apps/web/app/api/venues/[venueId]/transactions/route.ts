@@ -8,7 +8,7 @@ import { createTransaction, createTransactionSchema, InsufficientStockError } fr
 import { getValidXvmApiToken, xvmApiErrorResponse } from "@/lib/api/xvm-api-store"
 import { listFinanceTransactions } from "@/lib/api/xvm-api"
 
-const LIST_WINDOW_MAX_MS = 60 * 24 * 60 * 60 * 1000
+const DEFAULT_LIST_WINDOW_MS = 59 * 24 * 60 * 60 * 1000
 
 const listKindSchema = z.enum(["sale", "tip", "cover_charge", "other_income", "expense", "payout"]).optional()
 
@@ -99,7 +99,7 @@ export const GET = withRateLimit<{ params: Promise<{ venueId: string }> }>(
 
     try {
       const to = endDate ?? new Date()
-      const from = startDate ?? new Date(to.getTime() - LIST_WINDOW_MAX_MS)
+      const from = startDate ?? new Date(to.getTime() - DEFAULT_LIST_WINDOW_MS)
       const transactions = await listFinanceTransactions(token, gate.xvmApiVenueId!, {
         from: from.toISOString(),
         to: to.toISOString(),

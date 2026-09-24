@@ -5,6 +5,7 @@ import { prisma } from "@/lib/prisma"
 import { z } from "zod"
 import { withRateLimit } from "@/lib/middleware/with-rate-limit"
 import { validators } from "@/lib/validation"
+import { eventHiddenFromStaff } from "@/lib/event-visibility"
 
 const eventUpdateSchema = z.object({
   title: validators.eventTitle.optional(),
@@ -65,6 +66,14 @@ export const GET = withRateLimit<{ params: Promise<{ venueId: string; eventId: s
       })
 
       if (!event) {
+        return NextResponse.json({ error: "Event not found" }, { status: 404 })
+      }
+
+      const venue = await prisma.venue.findUnique({
+        where: { id: venueId },
+        select: { settings: true, xvmApiVenueId: true },
+      })
+      if (await eventHiddenFromStaff(session.user.id, membership.role, venue, event.status)) {
         return NextResponse.json({ error: "Event not found" }, { status: 404 })
       }
 

@@ -18,3 +18,13 @@ export async function eventVisibilityFor(
     return "published"
   }
 }
+
+export async function eventHiddenFromStaff(
+  userId: string,
+  role: string,
+  venue: { settings: unknown; xvmApiVenueId: string | null } | null,
+  eventStatus: string
+): Promise<boolean> {
+  if (role !== "STAFF" || eventStatus === "PUBLISHED") return false
+  return (await eventVisibilityFor(userId, venue)) === "published"
+}

@@ -45,7 +45,7 @@ import {
 import { PageLoading } from "@/components/ui/loading-spinner"
 import { ItemSearchCombobox } from "@/components/item-search-combobox"
 import { canManageVenue, isVenueOwner } from "@/lib/roles"
-import { minorUnitsToDollars } from "@/lib/api/position-convert"
+import { minorUnitsToGil } from "@/lib/api/position-convert"
 
 interface Role {
   id: number
@@ -168,7 +168,7 @@ export default function ServicesPage({ params }: { params: Promise<{ slug: strin
             id: s.id,
             name: s.name,
             description: s.description,
-            price: minorUnitsToDollars(s.price_minor) ?? 0,
+            price: minorUnitsToGil(s.price_minor) ?? 0,
             category_id: s.category_id,
             isActive: s.is_active,
             position_ids: s.position_ids,
@@ -212,7 +212,7 @@ export default function ServicesPage({ params }: { params: Promise<{ slug: strin
       id: row.id,
       name: row.name,
       description: row.description,
-      price: minorUnitsToDollars(row.price_minor) ?? 0,
+      price: minorUnitsToGil(row.price_minor) ?? 0,
       category_id: row.category_id,
       isActive: row.is_active,
       position_ids: row.position_ids,

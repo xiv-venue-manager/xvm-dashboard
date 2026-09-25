@@ -47,7 +47,7 @@ describe("createTransaction (xvm-api)", () => {
     kind: "sale",
     entry_type: "credit",
     status: "posted",
-    amount: 1000,
+    amount: 4500,
     category_id: null,
     event_id: null,
     service_id: 3,
@@ -72,13 +72,13 @@ describe("createTransaction (xvm-api)", () => {
     const result = await createTransaction("venue1", "user1", {
       serviceId: "3",
       type: "SALE",
-      amount: 10,
+      amount: 4500,
       customerName: "Bob",
     } satisfies CreateTransactionInput)
 
     expect(mockCreateFinanceTransaction).toHaveBeenCalledWith("token123", 42, {
       kind: "sale",
-      amount: 1000,
+      amount: 4500,
       service_id: 3,
       customer_name: "Bob",
       notes: undefined,
@@ -86,7 +86,7 @@ describe("createTransaction (xvm-api)", () => {
     expect(mockGetService).toHaveBeenCalledWith("token123", 42, 3)
     expect(result).toMatchObject({
       id: 7,
-      amount: 10,
+      amount: 4500,
       customerName: "Bob",
       serviceId: 3,
       service: { id: 3, name: "Drink", stockCount: 5 },

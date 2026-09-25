@@ -6,7 +6,7 @@ import { prisma } from "@/lib/prisma"
 import { withRateLimit } from "@/lib/middleware/with-rate-limit"
 import { getValidXvmApiToken, xvmApiErrorResponse } from "@/lib/api/xvm-api-store"
 import { listPayrollChunked, createPayrollEntry, type PayrollEntryRow } from "@/lib/api/xvm-api"
-import { dollarsToMinorUnits, minorUnitsToDollars, hoursToMinutes, minutesToHours } from "@/lib/api/position-convert"
+import { gilToMinorUnits, minorUnitsToGil, hoursToMinutes, minutesToHours } from "@/lib/api/position-convert"
 
 const createPayrollSchema = z
   .object({
@@ -38,10 +38,10 @@ function toDashboardEntry(row: PayrollEntryRow) {
     id: row.id,
     membershipId: row.membership_id,
     paymentType: row.payment_type === "fixed_salary" ? "FIXED_SALARY" : row.payment_type === "hourly" ? "HOURLY" : "POT_SHARE",
-    baseRate: minorUnitsToDollars(row.base_rate_minor),
+    baseRate: minorUnitsToGil(row.base_rate_minor),
     hoursWorked: minutesToHours(row.minutes_worked),
-    bonusAmount: row.bonus_amount_minor !== null ? minorUnitsToDollars(row.bonus_amount_minor) : null,
-    totalAmount: minorUnitsToDollars(row.total_amount_minor),
+    bonusAmount: row.bonus_amount_minor !== null ? minorUnitsToGil(row.bonus_amount_minor) : null,
+    totalAmount: minorUnitsToGil(row.total_amount_minor),
     periodStart: row.period_start,
     periodEnd: row.period_end,
     isPaid: row.is_paid,
@@ -134,9 +134,9 @@ export const POST = withRateLimit<{ params: Promise<{ venueId: string }> }>(
       const row = await createPayrollEntry(token, gate.xvmApiVenueId!, {
         membership_id: data.membershipId,
         payment_type: toPaymentTypeApi(data.paymentType),
-        base_rate_minor: dollarsToMinorUnits(data.baseRate)!,
+        base_rate_minor: gilToMinorUnits(data.baseRate)!,
         minutes_worked: data.hoursWorked !== undefined ? hoursToMinutes(data.hoursWorked) : undefined,
-        bonus_amount_minor: data.bonusAmount !== undefined ? (dollarsToMinorUnits(data.bonusAmount) ?? undefined) : undefined,
+        bonus_amount_minor: data.bonusAmount !== undefined ? (gilToMinorUnits(data.bonusAmount) ?? undefined) : undefined,
         period_start: new Date(data.periodStart).toISOString(),
         period_end: new Date(data.periodEnd).toISOString(),
         notes: data.notes,

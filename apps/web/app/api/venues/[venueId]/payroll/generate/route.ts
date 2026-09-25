@@ -13,7 +13,7 @@ import {
   getVenue,
   type ShiftRow,
 } from "@/lib/api/xvm-api"
-import { dollarsToMinorUnits, minorUnitsToDollars, minutesToHours } from "@/lib/api/position-convert"
+import { gilToMinorUnits, minorUnitsToGil, minutesToHours } from "@/lib/api/position-convert"
 import { endOfLocalDayUtc } from "@/lib/local-day"
 import {
   resolveShiftRate,
@@ -177,12 +177,12 @@ export const GET = withRateLimit<{ params: Promise<{ venueId: string }> }>(
           actualStart: r.shift.actualStart,
           actualEnd: r.shift.actualEnd,
           hoursWorked: r.hours,
-          resolvedRate: r.rateMinorPerHour !== null ? minorUnitsToDollars(r.rateMinorPerHour) : null,
+          resolvedRate: r.rateMinorPerHour !== null ? minorUnitsToGil(r.rateMinorPerHour) : null,
         })),
         summary: {
           shiftCount: eligible.length,
           totalHours,
-          estimatedTotal: unresolved.length === 0 ? minorUnitsToDollars(totalAmountMinor) : null,
+          estimatedTotal: unresolved.length === 0 ? minorUnitsToGil(totalAmountMinor) : null,
           unresolvedShiftCount: unresolved.length,
           entryCount,
         },
@@ -263,7 +263,7 @@ export const POST = withRateLimit<{ params: Promise<{ venueId: string }> }>(
             minutes_worked: minutesWorked,
             bonus_amount_minor:
               index === bonusGroupIndex && data.bonusAmount !== undefined
-                ? (dollarsToMinorUnits(data.bonusAmount) ?? undefined)
+                ? (gilToMinorUnits(data.bonusAmount) ?? undefined)
                 : undefined,
             period_start: start,
             period_end: end,
@@ -271,7 +271,7 @@ export const POST = withRateLimit<{ params: Promise<{ venueId: string }> }>(
           })
           return {
             id: row.id,
-            totalAmount: minorUnitsToDollars(row.total_amount_minor),
+            totalAmount: minorUnitsToGil(row.total_amount_minor),
             hoursWorked: minutesToHours(row.minutes_worked),
           }
         })

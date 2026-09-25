@@ -18,6 +18,7 @@ export default function InviteStaffPage({ params }: { params: Promise<{ slug: st
   const { slug } = use(params)
   const router = useRouter()
   const [name, setName] = useState("")
+  const [discordId, setDiscordId] = useState("")
   const [role, setRole] = useState<"STAFF" | "MANAGER" | "OWNER">("STAFF")
   const [isLoading, setIsLoading] = useState(false)
   const [error, setError] = useState("")
@@ -78,6 +79,7 @@ export default function InviteStaffPage({ params }: { params: Promise<{ slug: st
         body: JSON.stringify({
           role,
           invitedName: name || null,
+          discordId: discordId.trim() || null,
         }),
       })
 
@@ -273,6 +275,26 @@ export default function InviteStaffPage({ params }: { params: Promise<{ slug: st
                   disabled={isLoading}
                 />
                 <p className="text-sm text-muted-foreground">For your reference. Helps you identify pending invites.</p>
+              </div>
+
+              {/* Discord ID (Optional) */}
+              <div className="space-y-2">
+                <Label htmlFor="discordId">
+                  Discord user ID <span className="text-muted-foreground">(optional)</span>
+                </Label>
+                <Input
+                  id="discordId"
+                  type="text"
+                  inputMode="numeric"
+                  placeholder="123456789012345678"
+                  value={discordId}
+                  onChange={(e) => setDiscordId(e.target.value)}
+                  disabled={isLoading}
+                />
+                <p className="text-sm text-muted-foreground">
+                  Lets you send the invite to them as a Discord DM from the pending list. Without it, share the link
+                  yourself.
+                </p>
               </div>
 
               {/* Role Selection */}

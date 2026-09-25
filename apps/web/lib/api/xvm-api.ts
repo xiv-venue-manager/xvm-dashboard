@@ -953,6 +953,10 @@ export interface InviteRow {
   tier: string
   expires_at: string
   invited_by_person_id: number | null
+  declined_at?: string | null
+  decline_reason?: string | null
+  dm_failed_at?: string | null
+  dm_failure?: string | null
 }
 
 export interface InviteIssued extends InviteRow {
@@ -1080,6 +1084,11 @@ export async function createInvite(
 export async function listInvites(personToken: string, venueId: string): Promise<InviteRow[]> {
   if (!process.env.XVM_API_BASE_URL) throw new Error("XVM_API_BASE_URL is not set")
   return xvmFetch<InviteRow[]>(`/venues/${venueId}/invites`, {}, personToken)
+}
+
+export async function sendInviteByDm(personToken: string, venueId: string, inviteId: number): Promise<void> {
+  if (!process.env.XVM_API_BASE_URL) throw new Error("XVM_API_BASE_URL is not set")
+  return xvmFetch<void>(`/venues/${venueId}/invites/${inviteId}/send`, { method: "POST" }, personToken)
 }
 
 export async function rescindInvite(personToken: string, venueId: string, inviteId: number): Promise<void> {

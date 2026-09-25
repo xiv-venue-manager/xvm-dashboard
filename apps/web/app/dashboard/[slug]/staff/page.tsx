@@ -25,12 +25,12 @@ import {
   listFinanceTransactions,
   type MembershipRow,
   type PositionRow,
-  type InviteRow,
   type ShiftRow,
   type FinanceTransactionRow,
 } from "@/lib/api/xvm-api"
 import { xvmPageReader } from "@/lib/api/xvm-page-read"
 import { minorUnitsToGil } from "@/lib/api/position-convert"
+import { toPendingInviteShape, type PendingInviteShape } from "@/lib/pending-invites"
 
 import { RoleBadge } from "@/components/role-badge"
 import { StaffVisibilitySettings } from "@/components/staff-visibility-settings"
@@ -57,27 +57,6 @@ function toStaffShape(member: MembershipRow, positionsById: Map<number, Position
       discordId: member.person.discord_id,
     },
     venueId,
-  }
-}
-
-type PendingInviteShape = {
-  id: number
-  role: string
-  invitedName: string | null
-  inviteToken: string | null
-  inviteExpiresAt: Date | null
-}
-
-// list_invites returns no token (xvm-api only ever hands one out once, at
-// creation) - the "Invite Link" section in PendingInvites just won't render
-// for these, gracefully, via its existing invite.inviteToken guard.
-function toPendingInviteShape(invite: InviteRow): PendingInviteShape {
-  return {
-    id: invite.id,
-    role: invite.tier.toUpperCase(),
-    invitedName: invite.person.display_name,
-    inviteToken: null,
-    inviteExpiresAt: new Date(invite.expires_at),
   }
 }
 

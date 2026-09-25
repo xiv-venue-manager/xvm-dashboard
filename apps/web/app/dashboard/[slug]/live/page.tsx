@@ -18,7 +18,7 @@ import {
   type RevenueVisibility,
   type ShiftRow,
 } from "@/lib/api/xvm-api"
-import { minorUnitsToDollars } from "@/lib/api/position-convert"
+import { minorUnitsToGil } from "@/lib/api/position-convert"
 
 export default async function LivePage({ params }: { params: Promise<{ slug: string }> }) {
   const session = await getServerSession(authOptions)
@@ -99,7 +99,7 @@ export default async function LivePage({ params }: { params: Promise<{ slug: str
           getFinanceSummary(t, v, { from: eventStart.toISOString(), to: now.toISOString() })
         )
       : null
-  const revenueDisplay = showRevenue ? (minorUnitsToDollars(eventSummary?.total_revenue ?? 0) ?? 0) : null
+  const revenueDisplay = showRevenue ? (minorUnitsToGil(eventSummary?.total_revenue ?? 0) ?? 0) : null
   const saleCountDisplay = eventSummary?.transaction_count ?? 0
   const revenueUnavailable = showRevenue && eventStart !== undefined && eventStart <= now && eventSummary === null
 

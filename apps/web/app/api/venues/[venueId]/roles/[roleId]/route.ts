@@ -6,7 +6,7 @@ import { prisma } from "@/lib/prisma"
 import { withRateLimit } from "@/lib/middleware/with-rate-limit"
 import { getValidXvmApiToken, xvmApiErrorResponse } from "@/lib/api/xvm-api-store"
 import { listPositions, updatePosition, deletePosition, type PositionRow } from "@/lib/api/xvm-api"
-import { hexColorToInt, intColorToHex, dollarsToMinorUnits, minorUnitsToDollars } from "@/lib/api/position-convert"
+import { hexColorToInt, intColorToHex, gilToMinorUnits, minorUnitsToGil } from "@/lib/api/position-convert"
 import { validators } from "@/lib/validation"
 
 const updateRoleSchema = z.object({
@@ -22,7 +22,7 @@ function toRoleShape(position: PositionRow) {
     name: position.name,
     color: intColorToHex(position.color),
     responsibilities: position.responsibilities,
-    hourlyRate: minorUnitsToDollars(position.hourly_rate_minor),
+    hourlyRate: minorUnitsToGil(position.hourly_rate_minor),
     potPayoutMode: position.pot_payout_mode,
     contractorSharesPot: position.contractor_shares_pot,
     permissions: null,
@@ -129,7 +129,7 @@ export const PUT = withRateLimit<{ params: Promise<{ venueId: string; roleId: st
         name: data.name,
         color,
         responsibilities: data.responsibilities,
-        hourly_rate_minor: data.hourlyRate !== undefined ? dollarsToMinorUnits(data.hourlyRate) : undefined,
+        hourly_rate_minor: data.hourlyRate !== undefined ? gilToMinorUnits(data.hourlyRate) : undefined,
       })
       return NextResponse.json(toRoleShape(position))
     } catch (err) {

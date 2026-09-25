@@ -10,7 +10,7 @@ import { CrystalDivider } from "@/components/ui/crystal-divider"
 import { prisma } from "@/lib/prisma"
 import { xvmPageReader } from "@/lib/api/xvm-page-read"
 import { getFinanceSummary, listShifts, listTasks, type ShiftRow } from "@/lib/api/xvm-api"
-import { minorUnitsToDollars } from "@/lib/api/position-convert"
+import { minorUnitsToGil } from "@/lib/api/position-convert"
 import { intToPriority } from "@/lib/api/task-convert"
 import { VenueLayout } from "@/components/venue-layout"
 import { LocalTimeRange } from "@/components/server-time"
@@ -58,7 +58,7 @@ export default async function VenueDashboardPage({ params }: { params: Promise<{
   const revenueBetween = (label: string, from: Date, to: Date) =>
     readXvm(label, 0, async (t, v) => {
       const summary = await getFinanceSummary(t, v, { from: from.toISOString(), to: to.toISOString() })
-      return minorUnitsToDollars(summary.total_revenue) ?? 0
+      return minorUnitsToGil(summary.total_revenue) ?? 0
     })
   const canManage = ["OWNER", "MANAGER"].includes(userRole)
 

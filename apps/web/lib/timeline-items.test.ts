@@ -9,7 +9,7 @@ const tx = (over: Partial<FinanceTransactionRow>) =>
   ({
     id: 1,
     kind: "sale",
-    amount: 12345,
+    amount: 4500,
     service_id: 3,
     service_name: "Drink",
     membership_id: 7,
@@ -23,12 +23,12 @@ const shift = (over: Partial<ShiftRow>) =>
   ({ id: 9, membership_id: 7, actual_start: "2026-01-01T09:00:00Z", actual_end: null, ...over }) as unknown as ShiftRow
 
 describe("saleItems", () => {
-  it("maps a revenue transaction into the timeline sale shape in display units", () => {
+  it("maps a revenue transaction into the timeline sale shape as whole gil", () => {
     const [item] = saleItems([tx({})], members)
     expect(item.id).toBe("sale_1")
     expect(item.type).toBe("sale")
     expect(item.timestamp.toISOString()).toBe("2026-01-01T10:00:00.000Z")
-    expect(item.data.amount).toBe(123.45)
+    expect(item.data.amount).toBe(4500)
     expect(item.data.customerName).toBe("Cust")
     expect(item.data.service).toEqual({ id: "3", name: "Drink" })
     expect((item.data.staff as { name: string }).name).toBe("Nick")

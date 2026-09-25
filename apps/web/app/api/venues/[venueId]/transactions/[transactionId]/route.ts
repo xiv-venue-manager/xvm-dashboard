@@ -7,7 +7,7 @@ import { withRateLimit } from "@/lib/middleware/with-rate-limit"
 import { validators } from "@/lib/validation"
 import { getValidXvmApiToken, xvmApiErrorResponse } from "@/lib/api/xvm-api-store"
 import { updateFinanceTransaction, voidFinanceTransaction } from "@/lib/api/xvm-api"
-import { dollarsToMinorUnits } from "@/lib/api/position-convert"
+import { gilToMinorUnits } from "@/lib/api/position-convert"
 
 // serviceId/eventId dropped: re-pointing a posted transaction's service/event
 // after the fact isn't scoped by this cutover.
@@ -72,7 +72,7 @@ export const PATCH = withRateLimit<{ params: Promise<{ venueId: string; transact
 
     try {
       const transaction = await updateFinanceTransaction(token, gate.xvmApiVenueId!, Number(transactionId), {
-        amount: validatedData.amount !== undefined ? (dollarsToMinorUnits(validatedData.amount) ?? undefined) : undefined,
+        amount: validatedData.amount !== undefined ? (gilToMinorUnits(validatedData.amount) ?? undefined) : undefined,
         customer_name: validatedData.customerName,
         notes: validatedData.notes,
       })

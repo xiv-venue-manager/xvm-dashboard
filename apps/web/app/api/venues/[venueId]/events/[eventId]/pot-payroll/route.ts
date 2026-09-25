@@ -122,7 +122,10 @@ export const GET = withRateLimit<{ params: Promise<{ venueId: string; eventId: s
 
       const resolvedAuth = await resolveVenueAndMembership(venueId, session.user.id)
       if ("error" in resolvedAuth) return resolvedAuth.error
-      const { venue } = resolvedAuth
+      const { venue, membership: callerMembership } = resolvedAuth
+      if (!["OWNER", "MANAGER"].includes(callerMembership.role)) {
+        return NextResponse.json({ error: "Only owners and managers can preview pot payroll" }, { status: 403 })
+      }
 
       const event = await prisma.event.findFirst({ where: { id: eventId, venueId: venue.id } })
       if (!event) return NextResponse.json({ error: "Event not found" }, { status: 404 })

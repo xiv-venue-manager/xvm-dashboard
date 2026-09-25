@@ -6,7 +6,7 @@ import { prisma } from "@/lib/prisma"
 import { withRateLimit } from "@/lib/middleware/with-rate-limit"
 import { getValidXvmApiToken, xvmApiErrorResponse } from "@/lib/api/xvm-api-store"
 import { listPositions, createPosition, type PositionRow } from "@/lib/api/xvm-api"
-import { hexColorToInt, intColorToHex, dollarsToMinorUnits, minorUnitsToDollars } from "@/lib/api/position-convert"
+import { hexColorToInt, intColorToHex, gilToMinorUnits, minorUnitsToGil } from "@/lib/api/position-convert"
 import { validators } from "@/lib/validation"
 
 const createRoleSchema = z.object({
@@ -24,7 +24,7 @@ function toRoleShape(position: PositionRow) {
     name: position.name,
     color: intColorToHex(position.color),
     responsibilities: position.responsibilities,
-    hourlyRate: minorUnitsToDollars(position.hourly_rate_minor),
+    hourlyRate: minorUnitsToGil(position.hourly_rate_minor),
     potPayoutMode: position.pot_payout_mode,
     contractorSharesPot: position.contractor_shares_pot,
     permissions: null,
@@ -119,7 +119,7 @@ export const POST = withRateLimit<{ params: Promise<{ venueId: string }> }>(
         name: data.name,
         color,
         responsibilities: data.responsibilities ?? null,
-        hourly_rate_minor: dollarsToMinorUnits(data.hourlyRate ?? null),
+        hourly_rate_minor: gilToMinorUnits(data.hourlyRate ?? null),
       })
       return NextResponse.json(toRoleShape(position), { status: 201 })
     } catch (err) {

@@ -1,7 +1,7 @@
 "use client"
 
 import { Fragment, useEffect, useState } from "react"
-import { formatHours, minorUnitsToDollars } from "@/lib/api/position-convert"
+import { formatHours, minorUnitsToGil } from "@/lib/api/position-convert"
 import { useSession } from "next-auth/react"
 import { useParams, useRouter } from "next/navigation"
 import { Button } from "@/components/ui/button"
@@ -212,7 +212,7 @@ export default function PayrollPage() {
           if (tipsRes.ok) {
             const { transactions } = (await tipsRes.json()) as { transactions: { amount: number }[] }
             const totalMinor = transactions.reduce((sum, t) => sum + t.amount, 0)
-            setTipsTotal(Math.round(minorUnitsToDollars(totalMinor) ?? 0))
+            setTipsTotal(Math.round(minorUnitsToGil(totalMinor) ?? 0))
           }
         }
       } catch {

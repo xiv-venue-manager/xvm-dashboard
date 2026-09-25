@@ -14,7 +14,7 @@ import {
   getVenue,
   type MembershipRow,
 } from "@/lib/api/xvm-api"
-import { minorUnitsToDollars } from "@/lib/api/position-convert"
+import { minorUnitsToGil } from "@/lib/api/position-convert"
 import { endOfLocalDayUtc } from "@/lib/local-day"
 import {
   resolveShiftRate,
@@ -168,7 +168,7 @@ export const GET = withRateLimit<{ params: Promise<{ venueId: string }> }>(
           membershipId: r.member.id,
           shiftCount: r.resolved.length,
           totalHours: r.totalHours,
-          estimatedTotal: r.skipped ? null : minorUnitsToDollars(r.totalAmountMinor),
+          estimatedTotal: r.skipped ? null : minorUnitsToGil(r.totalAmountMinor),
           entryCount: r.skipped ? 0 : groupByRate(r.resolved).size,
           skipped: r.skipped,
           skipReason: r.skipReason,
@@ -242,7 +242,7 @@ export const POST = withRateLimit<{ params: Promise<{ venueId: string }> }>(
             membershipId: r.member.id,
             entryCount: createdTotalsMinor.length,
             totalHours: r.totalHours,
-            totalAmount: minorUnitsToDollars(createdTotalsMinor.reduce((sum, m) => sum + m, 0)),
+            totalAmount: minorUnitsToGil(createdTotalsMinor.reduce((sum, m) => sum + m, 0)),
           }
         })
       )

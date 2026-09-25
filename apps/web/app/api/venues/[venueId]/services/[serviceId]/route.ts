@@ -6,7 +6,7 @@ import { prisma } from "@/lib/prisma"
 import { withRateLimit } from "@/lib/middleware/with-rate-limit"
 import { getValidXvmApiToken, xvmApiErrorResponse } from "@/lib/api/xvm-api-store"
 import { getService, updateService, deleteService } from "@/lib/api/xvm-api"
-import { dollarsToMinorUnits } from "@/lib/api/position-convert"
+import { gilToMinorUnits } from "@/lib/api/position-convert"
 import { validators } from "@/lib/validation"
 
 const updateServiceSchema = z.object({
@@ -104,7 +104,7 @@ export const PATCH = withRateLimit<{ params: Promise<{ venueId: string; serviceI
       const service = await updateService(token, gate.xvmApiVenueId!, Number(serviceId), {
         name: data.name,
         description: data.description,
-        price_minor: data.price !== undefined ? dollarsToMinorUnits(data.price) : undefined,
+        price_minor: data.price !== undefined ? gilToMinorUnits(data.price) : undefined,
         category_id: data.categoryId,
         is_active: data.isActive,
       })

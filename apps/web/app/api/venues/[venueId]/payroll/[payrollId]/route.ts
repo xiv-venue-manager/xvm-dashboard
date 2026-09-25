@@ -6,7 +6,7 @@ import { prisma } from "@/lib/prisma"
 import { withRateLimit } from "@/lib/middleware/with-rate-limit"
 import { getValidXvmApiToken, xvmApiErrorResponse } from "@/lib/api/xvm-api-store"
 import { updatePayrollEntry, deletePayrollEntry, type PayrollEntryRow } from "@/lib/api/xvm-api"
-import { minorUnitsToDollars, minutesToHours } from "@/lib/api/position-convert"
+import { minorUnitsToGil, minutesToHours } from "@/lib/api/position-convert"
 
 const patchSchema = z
   .object({
@@ -20,10 +20,10 @@ function toDashboardEntry(row: PayrollEntryRow) {
     id: row.id,
     membershipId: row.membership_id,
     paymentType: row.payment_type === "fixed_salary" ? "FIXED_SALARY" : row.payment_type === "hourly" ? "HOURLY" : "POT_SHARE",
-    baseRate: minorUnitsToDollars(row.base_rate_minor),
+    baseRate: minorUnitsToGil(row.base_rate_minor),
     hoursWorked: minutesToHours(row.minutes_worked),
-    bonusAmount: row.bonus_amount_minor !== null ? minorUnitsToDollars(row.bonus_amount_minor) : null,
-    totalAmount: minorUnitsToDollars(row.total_amount_minor),
+    bonusAmount: row.bonus_amount_minor !== null ? minorUnitsToGil(row.bonus_amount_minor) : null,
+    totalAmount: minorUnitsToGil(row.total_amount_minor),
     periodStart: row.period_start,
     periodEnd: row.period_end,
     isPaid: row.is_paid,

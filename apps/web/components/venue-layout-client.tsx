@@ -1,6 +1,6 @@
 "use client"
 
-import { ReactNode, useEffect, useRef } from "react"
+import { ReactNode, useEffect } from "react"
 import { useSession } from "next-auth/react"
 import { usePathname } from "next/navigation"
 import { VenueSidebar } from "./venue-sidebar"
@@ -31,17 +31,15 @@ const PAGE_LABELS: Record<string, string> = {
 export function VenueLayoutClient({ children, slug }: VenueLayoutClientProps) {
   const { data: session } = useSession()
   const pathname = usePathname()
-  const { venues, hasFetched, isLoading, getVenueBySlug, refetchVenues } = useVenues()
+  const { venues, hasFetched, isLoading, getVenueBySlug, refetchVenuesOnce } = useVenues()
   const venue = slug ? getVenueBySlug(slug) : undefined
   const venueData = venue && venue.memberships?.[0] ? { name: venue.name, role: venue.memberships[0].role } : null
   const venueMissing = Boolean(slug) && hasFetched && !isLoading && !venueData
-  const refetchedForSlug = useRef<string | null>(null)
 
   useEffect(() => {
-    if (!venueMissing || refetchedForSlug.current === slug) return
-    refetchedForSlug.current = slug
-    refetchVenues()
-  }, [venueMissing, slug, refetchVenues])
+    if (!venueMissing) return
+    refetchVenuesOnce(slug)
+  }, [venueMissing, slug, refetchVenuesOnce])
 
   // Set page title dynamically based on current route
   useEffect(() => {

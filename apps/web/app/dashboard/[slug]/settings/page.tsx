@@ -1074,6 +1074,7 @@ export default function SettingsPage({ params }: { params: Promise<{ slug: strin
                         <p className="text-xs text-[var(--fg-faint)]">
                           Linking imports the listing&apos;s name, description, location, banner and hours onto your
                           venue profile.
+                          {isDirty && " The page reloads afterwards, so your unsaved changes here will be lost."}
                         </p>
                         <div className="flex gap-3">
                           <Button

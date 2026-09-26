@@ -13,6 +13,7 @@ import { parseVenueSettings } from "@/lib/types/venue-settings"
 import { getValidXvmApiToken } from "@/lib/api/xvm-api-store"
 import { createFinanceTransaction, getService, XvmApiError, type FinanceTransactionKind } from "@/lib/api/xvm-api"
 import { gilToMinorUnits, minorUnitsToGil } from "@/lib/api/position-convert"
+import { findLiveEventId } from "@/lib/api/event-window"
 
 /**
  * Shared validation schema for transaction creation. Used by both the
@@ -55,6 +56,16 @@ const TRANSACTION_KIND_MAP: Record<CreateTransactionInput["type"], FinanceTransa
   OTHER: "other_income",
 }
 
+async function resolveEventId(token: string, xvmApiVenueId: string, requested: string | undefined) {
+  if (requested !== undefined && /^\d+$/.test(requested)) return Number(requested)
+  try {
+    return (await findLiveEventId(token, xvmApiVenueId)) ?? undefined
+  } catch (error) {
+    console.error("Failed to resolve the live event for a sale:", error)
+    return undefined
+  }
+}
+
 /**
  * Create a transaction row in xvm-api, fire the sale-logged Discord webhook,
  * and emit the SSE event for the live dashboard. Callers are responsible for
@@ -76,13 +87,10 @@ export async function createTransaction(venueId: string, staffUserId: string, in
     throw new Error(`No valid xvm-api token for user ${staffUserId}`)
   }
 
-  // input.eventId is intentionally dropped here. xvm-api's finance
-  // transactions take an int event_id, but Prisma's Event ids are cuids -
-  // there is no bridge between the two yet (a separate, not-yet-started
-  // cutover). The transaction is created venue-scoped but not event-scoped
-  // for now; this is a known, accepted gap, not something to work around.
   const resolvedType = input.type ?? "SALE"
   const serviceId = input.serviceId ? Number(input.serviceId) : undefined
+
+  const eventId = await resolveEventId(token, xvmApiVenueId, input.eventId)
 
   let newTransaction
   try {
@@ -92,6 +100,7 @@ export async function createTransaction(venueId: string, staffUserId: string, in
       service_id: serviceId,
       customer_name: input.customerName,
       notes: input.notes,
+      event_id: eventId,
     })
   } catch (error) {
     // xvm-api's sale hook refuses an out-of-stock sale with 409 at insert

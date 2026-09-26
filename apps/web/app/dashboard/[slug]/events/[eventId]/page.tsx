@@ -4,18 +4,20 @@ import { redirect, notFound } from "next/navigation"
 import Link from "next/link"
 import { Button } from "@/components/ui/button"
 import { VenueLayout } from "@/components/venue-layout"
-import { Card, CardContent, CardHeader, CardTitle } from "@/components/ui/card"
+import { Card, CardContent, CardDescription, CardHeader, CardTitle } from "@/components/ui/card"
 import { Badge } from "@/components/ui/badge"
 import { prisma } from "@/lib/prisma"
 import { DeleteEventButton } from "@/components/delete-event-button"
 import { CancelSeriesButton } from "@/components/cancel-series-button"
+import { GeneratePotPayrollButton } from "@/components/generate-pot-payroll-button"
 import { LocalTime } from "@/components/server-time"
 import { extractPartakeImages, extractPartakeTextBody } from "@/lib/discord-webhook"
 import { renderPartakeProse } from "@/lib/render-partake-prose"
 import { formatVenueLocationShort } from "@/lib/venue-location"
 import { eventHiddenFromStaff } from "@/lib/event-visibility"
 import { xvmPageReader } from "@/lib/api/xvm-page-read"
-import { getEvent } from "@/lib/api/xvm-api"
+import { getEvent, getPotDistribution, XvmApiError } from "@/lib/api/xvm-api"
+import { eventRevenueGil } from "@/lib/api/event-revenue"
 import { creatorNameOf } from "@/lib/api/event-creator"
 import { toDashboardEventShape } from "@/lib/api/event-shape"
 
@@ -80,6 +82,25 @@ export default async function EventDetailsPage({ params }: { params: Promise<{ s
     notFound()
   }
   const canEdit = ["OWNER", "MANAGER"].includes(userRole)
+
+  const revenue = await readXvm("event-detail revenue", null as number | null, (token, xvmApiVenueId) =>
+    eventRevenueGil(token, xvmApiVenueId, {
+      id: eventId,
+      startTime: new Date(event.startTime),
+      endTime: new Date(event.endTime),
+    })
+  )
+  const potDistribution =
+    event.status === "COMPLETED" && canEdit
+      ? await readXvm("event-detail pot", null, async (token, xvmApiVenueId) => {
+          try {
+            return await getPotDistribution(token, xvmApiVenueId, Number(eventId))
+          } catch (err) {
+            if (err instanceof XvmApiError && err.status === 404) return null
+            throw err
+          }
+        })
+      : null
 
   return (
     <VenueLayout venueSlug={venue.slug} venueName={venue.name} userRole={userRole}>
@@ -173,6 +194,19 @@ export default async function EventDetailsPage({ params }: { params: Promise<{ s
                 </Card>
               )
             })()}
+
+            {revenue !== null && (
+              <Card>
+                <CardHeader>
+                  <CardTitle>Event Metrics</CardTitle>
+                  <CardDescription>Sales logged against this event</CardDescription>
+                </CardHeader>
+                <CardContent>
+                  <p className="text-sm text-muted-foreground">Revenue</p>
+                  <p className="text-2xl font-bold">{revenue > 0 ? `${revenue.toLocaleString()} Gil` : "-"}</p>
+                </CardContent>
+              </Card>
+            )}
           </div>
 
           {/* Sidebar */}
@@ -207,6 +241,30 @@ export default async function EventDetailsPage({ params }: { params: Promise<{ s
                 </div>
               </CardContent>
             </Card>
+
+            {event.status === "COMPLETED" && canEdit && (
+              <Card>
+                <CardHeader>
+                  <CardTitle>Pot Payroll</CardTitle>
+                  <CardDescription>Generate the nightly pot split for this event.</CardDescription>
+                </CardHeader>
+                <CardContent>
+                  <GeneratePotPayrollButton
+                    venueSlug={slug}
+                    eventId={eventId}
+                    existingDistribution={
+                      potDistribution
+                        ? {
+                            generatedAt: potDistribution.generated_at,
+                            recipientCount: potDistribution.recipient_count,
+                            perPersonShare: potDistribution.per_person_share_minor.toLocaleString(),
+                          }
+                        : null
+                    }
+                  />
+                </CardContent>
+              </Card>
+            )}
 
             {/* Partake Source */}
             {event.partakeEventId && (

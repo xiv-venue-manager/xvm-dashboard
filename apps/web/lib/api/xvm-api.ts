@@ -717,6 +717,68 @@ export async function deleteHours(personToken: string, venueId: string, hoursId:
   return xvmFetch<void>(`/venues/${venueId}/hours/${hoursId}`, { method: "DELETE" }, personToken)
 }
 
+// ── FFXIV Venues link API ──────────────────────────────────────
+
+export interface ListingSummary {
+  id: string
+  name: string
+  data_center: string | null
+  world: string | null
+}
+
+export interface ListingLinkRow {
+  ffxivvenues_id: string
+  linked_at: string
+  last_synced_at: string | null
+  unlinked_at: string | null
+}
+
+export interface ListingSyncResult {
+  hours_imported: number
+  hours_skipped: number
+  profile_updated: boolean
+  unlinked: boolean
+  synced_at: string | null
+}
+
+export async function listMyFfxivListings(personToken: string): Promise<ListingSummary[]> {
+  if (!process.env.XVM_API_BASE_URL) throw new Error("XVM_API_BASE_URL is not set")
+  return xvmFetch<ListingSummary[]>("/ffxivvenues/mine", {}, personToken)
+}
+
+export async function getFfxivLink(personToken: string, venueId: string): Promise<ListingLinkRow | null> {
+  if (!process.env.XVM_API_BASE_URL) throw new Error("XVM_API_BASE_URL is not set")
+  try {
+    return await xvmFetch<ListingLinkRow>(`/venues/${venueId}/ffxivvenues`, {}, personToken)
+  } catch (err) {
+    if (err instanceof XvmApiError && err.status === 404) return null
+    throw err
+  }
+}
+
+export async function linkFfxivListing(
+  personToken: string,
+  venueId: string,
+  ffxivvenuesId: string
+): Promise<ListingSyncResult> {
+  if (!process.env.XVM_API_BASE_URL) throw new Error("XVM_API_BASE_URL is not set")
+  return xvmFetch<ListingSyncResult>(
+    `/venues/${venueId}/ffxivvenues/link`,
+    { method: "POST", body: JSON.stringify({ ffxivvenues_id: ffxivvenuesId }) },
+    personToken
+  )
+}
+
+export async function syncFfxivListing(personToken: string, venueId: string): Promise<ListingSyncResult> {
+  if (!process.env.XVM_API_BASE_URL) throw new Error("XVM_API_BASE_URL is not set")
+  return xvmFetch<ListingSyncResult>(`/venues/${venueId}/ffxivvenues/sync`, { method: "POST" }, personToken)
+}
+
+export async function unlinkFfxivListing(personToken: string, venueId: string): Promise<void> {
+  if (!process.env.XVM_API_BASE_URL) throw new Error("XVM_API_BASE_URL is not set")
+  return xvmFetch<void>(`/venues/${venueId}/ffxivvenues/link`, { method: "DELETE" }, personToken)
+}
+
 // from/to are ISO instants; the API caps the window at 60 days and 400s on an
 // inverted or oversized range.
 export async function listOpenings(

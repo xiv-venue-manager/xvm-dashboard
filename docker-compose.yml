@@ -71,7 +71,6 @@ services:
              echo '2,17,32,47 * * * * curl -s -H \"Authorization: Bearer '$$CRON_SECRET'\" http://venue-manager:3000/api/cron/post-partake-events >> /var/log/cron.log 2>&1' >> /etc/crontabs/root &&
              echo '0 0 * * * curl -s -H \"Authorization: Bearer '$$CRON_SECRET'\" http://venue-manager:3000/api/cron/daily-sales-summary >> /var/log/cron.log 2>&1' >> /etc/crontabs/root &&
              echo '3 * * * * curl -s -H \"Authorization: Bearer '$$CRON_SECRET'\" http://venue-manager:3000/api/cron/sync-partake-events >> /var/log/cron.log 2>&1' >> /etc/crontabs/root &&
-             echo '5 */2 * * * curl -s -H \"Authorization: Bearer '$$CRON_SECRET'\" http://venue-manager:3000/api/cron/sync-ffxivvenues-schedule >> /var/log/cron.log 2>&1' >> /etc/crontabs/root &&
              echo '0 8 * * * curl -s -H \"Authorization: Bearer '$$CRON_SECRET'\" http://venue-manager:3000/api/cron/sync-shift-embeds >> /var/log/cron.log 2>&1' >> /etc/crontabs/root &&
              echo '0 20 * * 0 curl -s -H \"Authorization: Bearer '$$CRON_SECRET'\" http://venue-manager:3000/api/cron/weekly-discord-summary >> /var/log/cron.log 2>&1' >> /etc/crontabs/root &&
              echo '0 12 * * * curl -s -H \"Authorization: Bearer '$$CRON_SECRET'\" http://venue-manager:3000/api/cron/partake-daily-digest >> /var/log/cron.log 2>&1' >> /etc/crontabs/root &&

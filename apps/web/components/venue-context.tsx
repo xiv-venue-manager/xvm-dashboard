@@ -16,7 +16,9 @@ interface VenueContextValue {
   venues: Venue[]
   isLoading: boolean
   error: string | null
+  hasFetched: boolean
   fetchVenues: () => Promise<void>
+  refetchVenues: () => Promise<void>
   getVenueBySlug: (slug: string) => Venue | undefined
   invalidateCache: () => void
 }
@@ -34,12 +36,7 @@ export function VenueProvider({ children }: VenueProviderProps) {
   const [error, setError] = useState<string | null>(null)
   const [hasFetched, setHasFetched] = useState(false)
 
-  const fetchVenues = useCallback(async () => {
-    // If already fetched, don't fetch again
-    if (hasFetched && venues.length > 0) {
-      return
-    }
-
+  const loadVenues = useCallback(async () => {
     setIsLoading(true)
     setError(null)
 
@@ -59,7 +56,16 @@ export function VenueProvider({ children }: VenueProviderProps) {
     } finally {
       setIsLoading(false)
     }
-  }, [hasFetched, venues.length])
+  }, [])
+
+  const fetchVenues = useCallback(async () => {
+    // If already fetched, don't fetch again
+    if (hasFetched && venues.length > 0) {
+      return
+    }
+
+    await loadVenues()
+  }, [hasFetched, venues.length, loadVenues])
 
   const getVenueBySlug = useCallback(
     (slug: string) => {
@@ -90,7 +96,9 @@ export function VenueProvider({ children }: VenueProviderProps) {
         venues,
         isLoading,
         error,
+        hasFetched,
         fetchVenues,
+        refetchVenues: loadVenues,
         getVenueBySlug,
         invalidateCache,
       }}

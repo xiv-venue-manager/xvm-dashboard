@@ -132,6 +132,8 @@ export default function SettingsPage({ params }: { params: Promise<{ slug: strin
     if (!slug) return
 
     const fetchSettings = async () => {
+      settingsReadyRef.current = false
+      setIsDirty(false)
       try {
         setIsLoading(true)
         setError("")
@@ -203,7 +205,7 @@ export default function SettingsPage({ params }: { params: Promise<{ slug: strin
           setShiftBotTemplates(settingsData.shiftBot?.templates ?? [])
         }
 
-        loadPotSettings(venue.id)
+        const potLoad = loadPotSettings(venue.id).catch(() => {})
 
         if (venue.xvmApiVenueId) {
           fetch(`/api/venues/${venue.id}/ffxivvenues`)
@@ -212,19 +214,20 @@ export default function SettingsPage({ params }: { params: Promise<{ slug: strin
             .catch(() => setFfxivLink(null))
         }
 
-        fetch(`/api/venues/${venue.id}/inventory-settings`)
+        const inventoryLoad = fetch(`/api/venues/${venue.id}/inventory-settings`)
           .then((r) => (r.ok ? r.json() : null))
           .then((data) => {
             if (!data) return
             setInventoryEnabled(data.settings.enabled)
           })
           .catch(() => {})
+
+        await Promise.all([potLoad, inventoryLoad])
       } catch (error: unknown) {
         setXvmUnavailable(true)
         setError(error instanceof Error ? error.message : "Failed to load settings")
       } finally {
         setIsLoading(false)
-        settingsReadyRef.current = true
       }
     }
 
@@ -259,6 +262,10 @@ export default function SettingsPage({ params }: { params: Promise<{ slug: strin
     potDefaultTipPooled,
     inventoryEnabled,
   ])
+
+  useEffect(() => {
+    if (!isLoading) settingsReadyRef.current = true
+  }, [isLoading])
 
   const handleSave = async () => {
     if (xvmUnavailable) return

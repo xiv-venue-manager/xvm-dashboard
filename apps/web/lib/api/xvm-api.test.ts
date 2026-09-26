@@ -12,6 +12,13 @@ import {
   cancelEvent,
   deleteEvent,
   type EventRow,
+  XvmApiError,
+  getFfxivLink,
+  linkFfxivListing,
+  listMyFfxivListings,
+  syncFfxivListing,
+  unlinkFfxivListing,
+  type ListingLinkRow,
   deleteRoom,
   listTasks,
   createTask,
@@ -1011,6 +1018,65 @@ describe("Events API writes", () => {
     await expect(deleteEvent("token", "venue-1", 7)).resolves.toBeNull()
     const [url, init] = lastCall()
     expect(url).toMatch(/\/venues\/venue-1\/events\/7$/)
+    expect(init.method).toBe("DELETE")
+  })
+})
+
+describe("FFXIV Venues link API", () => {
+  const link: ListingLinkRow = {
+    ffxivvenues_id: "abc123",
+    linked_at: "2026-09-26T10:00:00Z",
+    last_synced_at: null,
+    unlinked_at: null,
+  }
+
+  it("listMyFfxivListings GETs /ffxivvenues/mine", async () => {
+    mockFetchOnce({ ok: true, status: 200, body: [{ id: "abc123", name: "The Lounge", data_center: "Aether", world: "Sargatanas" }] })
+    const result = await listMyFfxivListings("token")
+    expect(result).toHaveLength(1)
+    const [url] = (fetch as ReturnType<typeof vi.fn>).mock.calls[0]
+    expect(url).toContain("/ffxivvenues/mine")
+  })
+
+  it("getFfxivLink returns the link row", async () => {
+    mockFetchOnce({ ok: true, status: 200, body: link })
+    expect(await getFfxivLink("token", "venue-1")).toEqual(link)
+    const [url] = (fetch as ReturnType<typeof vi.fn>).mock.calls[0]
+    expect(url).toContain("/venues/venue-1/ffxivvenues")
+  })
+
+  it("getFfxivLink returns null on 404", async () => {
+    mockFetchOnce({ ok: false, status: 404, body: { detail: "not linked" } })
+    expect(await getFfxivLink("token", "venue-1")).toBeNull()
+  })
+
+  it("getFfxivLink rethrows other errors", async () => {
+    mockFetchOnce({ ok: false, status: 502, body: { detail: "upstream" } })
+    await expect(getFfxivLink("token", "venue-1")).rejects.toBeInstanceOf(XvmApiError)
+  })
+
+  it("linkFfxivListing POSTs the listing id", async () => {
+    mockFetchOnce({ ok: true, status: 201, body: { hours_imported: 3, hours_skipped: 0, profile_updated: true, unlinked: false, synced_at: null } })
+    await linkFfxivListing("token", "venue-1", "abc123")
+    const [url, init] = (fetch as ReturnType<typeof vi.fn>).mock.calls[0]
+    expect(url).toContain("/venues/venue-1/ffxivvenues/link")
+    expect(init.method).toBe("POST")
+    expect(JSON.parse(init.body)).toEqual({ ffxivvenues_id: "abc123" })
+  })
+
+  it("syncFfxivListing POSTs to /sync", async () => {
+    mockFetchOnce({ ok: true, status: 200, body: { hours_imported: 3, hours_skipped: 0, profile_updated: false, unlinked: false, synced_at: null } })
+    await syncFfxivListing("token", "venue-1")
+    const [url, init] = (fetch as ReturnType<typeof vi.fn>).mock.calls[0]
+    expect(url).toContain("/venues/venue-1/ffxivvenues/sync")
+    expect(init.method).toBe("POST")
+  })
+
+  it("unlinkFfxivListing DELETEs the link", async () => {
+    ;(fetch as ReturnType<typeof vi.fn>).mockResolvedValueOnce({ ok: true, status: 204, text: async () => "" } as unknown as Response)
+    await expect(unlinkFfxivListing("token", "venue-1")).resolves.toBeNull()
+    const [url, init] = (fetch as ReturnType<typeof vi.fn>).mock.calls[0]
+    expect(url).toContain("/venues/venue-1/ffxivvenues/link")
     expect(init.method).toBe("DELETE")
   })
 })

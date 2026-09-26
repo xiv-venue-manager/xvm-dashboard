@@ -2398,12 +2398,76 @@ export interface FinanceTransactionUpdate {
 export async function listFinanceTransactions(
   personToken: string,
   venueId: string,
-  opts: { from: string; to: string; kind?: FinanceTransactionKind }
+  opts: { from: string; to: string; kind?: FinanceTransactionKind; eventId?: number }
 ): Promise<FinanceTransactionRow[]> {
   if (!process.env.XVM_API_BASE_URL) throw new Error("XVM_API_BASE_URL is not set")
   const params = new URLSearchParams({ from: opts.from, to: opts.to })
   if (opts.kind !== undefined) params.set("kind", opts.kind)
+  if (opts.eventId !== undefined) params.set("event_id", String(opts.eventId))
   return xvmFetch<FinanceTransactionRow[]>(`/venues/${venueId}/finance/transactions?${params}`, {}, personToken)
+}
+
+export interface PotRecipient {
+  membership_id: number
+  share_minor: number
+}
+
+export interface PotPreview {
+  event_id: number
+  tax_basis_points: number
+  include_sales_in_pot: boolean
+  default_tip_pooled: boolean
+  regular_sales_minor: number
+  contractor_sales_minor: number
+  pooled_tips_minor: number
+  unattributed_sales_minor: number
+  unattributed_tips_minor: number
+  pot_total_minor: number
+  recipient_count: number
+  per_person_share_minor: number
+  recipients: PotRecipient[]
+  contractor_payouts: { membership_id: number; gross_minor: number; payout_minor: number }[]
+  kept_tips: PotRecipient[]
+}
+
+export interface PotDistributionRow {
+  id: number
+  event_id: number
+  regular_sales_minor: number
+  contractor_sales_minor: number
+  pooled_tips_minor: number
+  tax_basis_points: number
+  pot_total_minor: number
+  recipient_count: number
+  per_person_share_minor: number
+  generated_by_person_id: number | null
+  generated_at: string
+  voided_at: string | null
+  voided_by_person_id: number | null
+  void_reason: string | null
+}
+
+export async function previewPot(personToken: string, venueId: string, eventId: number): Promise<PotPreview> {
+  if (!process.env.XVM_API_BASE_URL) throw new Error("XVM_API_BASE_URL is not set")
+  return xvmFetch<PotPreview>(`/venues/${venueId}/finance/events/${eventId}/pot`, {}, personToken)
+}
+
+export async function generatePot(personToken: string, venueId: string, eventId: number): Promise<PotDistributionRow> {
+  if (!process.env.XVM_API_BASE_URL) throw new Error("XVM_API_BASE_URL is not set")
+  return xvmFetch<PotDistributionRow>(
+    `/venues/${venueId}/finance/events/${eventId}/pot`,
+    { method: "POST" },
+    personToken
+  )
+}
+
+export async function getPotDistribution(
+  personToken: string,
+  venueId: string,
+  eventId: number
+): Promise<PotDistributionRow> {
+  if (!process.env.XVM_API_BASE_URL) throw new Error("XVM_API_BASE_URL is not set")
+  return xvmFetch<PotDistributionRow>(`/venues/${venueId}/finance/events/${eventId}/pot/distribution`, {}, personToken)
 }
 
 export interface FinanceSummary {

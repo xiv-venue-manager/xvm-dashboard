@@ -6,8 +6,21 @@ import { prisma } from "@/lib/prisma"
 import { VenueLayout } from "@/components/venue-layout"
 import { PatronLogsManager } from "@/components/patron-logs-manager"
 import { PatronProfilesTable, type PatronProfile } from "@/components/patron-profiles-table"
+import { xvmPageReader } from "@/lib/api/xvm-page-read"
+import {
+  listMemberships,
+  listPatronLogs,
+  listPatrons,
+  type MembershipRow,
+  type PatronLogRow,
+  type PatronSummary,
+} from "@/lib/api/xvm-api"
+import { listEventsInRange, type PageEvent } from "@/lib/api/event-window"
+import { resolveDisplayName } from "@/lib/display-name"
 
 const PAGE_LIMIT = 200
+const DAY_MS = 24 * 60 * 60 * 1000
+const MAX_WINDOW_MS = 59 * DAY_MS
 
 type SearchParams = {
   tab?: string
@@ -44,141 +57,63 @@ export default async function PatronLogsPage({
   if (!["OWNER", "MANAGER"].includes(userRole)) notFound()
 
   const activeTab = sp.tab === "log" ? "log" : "profiles"
+  const readXvm = await xvmPageReader(session.user.id, venue.xvmApiVenueId)
 
-  // ── Profiles tab: aggregate patron visits ────────────────────────────
+  const patrons = await readXvm("patron logs patrons", [] as PatronSummary[], (t, v) => listPatrons(t, v))
+
   let patronProfiles: PatronProfile[] = []
-
   if (activeTab === "profiles") {
-    const grouped = await prisma.patronLog.groupBy({
-      by: ["characterName", "world"],
-      where: {
-        venueId: venue.id,
-        characterName: { not: null },
-        wasWorking: false,
-        action: "ENTER",
-      },
-      _count: { _all: true },
-      _max: { timestamp: true },
-      orderBy: { characterName: "asc" },
-      take: 500,
-    })
-    // Ensure a canonical Patron row exists for every distinct character
-    // seen in this venue's logs, then pull id/ban status for the profile list.
-    const distinctPairs = grouped
-      .filter((r) => r.characterName)
-      .map((r) => ({ characterName: r.characterName!, world: r.world ?? "" }))
-
-    if (distinctPairs.length > 0) {
-      await prisma.patron.createMany({
-        data: distinctPairs.map((p) => ({
-          venueId: venue.id,
-          characterName: p.characterName,
-          world: p.world,
-        })),
-        skipDuplicates: true,
-      })
-    }
-
-    const patronRecords = await prisma.patron.findMany({
-      where: { venueId: venue.id },
-      select: { id: true, characterName: true, world: true },
-    })
-    const patronMap = new Map(patronRecords.map((p) => [`${p.characterName}|${p.world}`, p]))
-
-    // Total spent: match transaction.customerName to characterName (fuzzy)
-    const spendGroups = await prisma.transaction.groupBy({
-      by: ["customerName"],
-      where: { venueId: venue.id, customerName: { not: null } },
-      _sum: { amount: true },
-      orderBy: { customerName: "asc" },
-      take: 2000,
-    })
-    const spendMap = new Map(spendGroups.map((s) => [s.customerName!.toLowerCase().trim(), Number(s._sum.amount ?? 0)]))
-
-    patronProfiles = grouped
-      .filter((r) => r.characterName)
-      .sort((a, b) => b._count._all - a._count._all)
-      .map((r) => {
-        const key = `${r.characterName}|${r.world ?? ""}`
-        const patron = patronMap.get(key)
-        return {
-          id: patron?.id ?? "",
-          characterName: r.characterName!,
-          world: r.world ?? "",
-          visits: r._count._all,
-          lastSeen: (r._max.timestamp ?? new Date()).toISOString(),
-          totalSpent: spendMap.get(r.characterName!.toLowerCase().trim()) ?? 0,
-        }
-      })
+    patronProfiles = patrons
+      .filter((p) => p.visits > 0)
+      .sort((a, b) => b.visits - a.visits)
+      .slice(0, 500)
+      .map((p) => ({
+        id: String(p.id),
+        characterName: p.character_name,
+        world: p.world,
+        visits: p.visits,
+        lastSeen: p.last_seen ?? p.created_at,
+      }))
   }
 
-  // ── Log tab: existing filtered query ─────────────────────────────────
   const now = new Date()
-  const defaultFrom = new Date(now.getTime() - 7 * 24 * 60 * 60 * 1000)
-  const from = sp.from ? new Date(sp.from) : defaultFrom
+  const requestedFrom = sp.from ? new Date(sp.from) : new Date(now.getTime() - 7 * DAY_MS)
   const to = sp.to ? new Date(sp.to) : now
+  const earliest = new Date(to.getTime() - MAX_WINDOW_MS)
+  const windowClamped = requestedFrom < earliest
+  const from = windowClamped ? earliest : requestedFrom
+  const eventFilter = sp.eventId && /^\d+$/.test(sp.eventId) ? Number(sp.eventId) : undefined
 
-  const where: {
-    venueId: string
-    eventId?: string
-    timestamp?: { gte?: Date; lte?: Date }
-    characterName?: string
-    wasWorking?: boolean
-  } = { venueId: venue.id }
+  let logs: PatronLogRow[] = []
+  let events: PageEvent[] = []
+  let roster: MembershipRow[] = []
+  if (activeTab === "log") {
+    ;[logs, events, roster] = await Promise.all([
+      readXvm("patron logs rows", [] as PatronLogRow[], (t, v) =>
+        listPatronLogs(t, v, {
+          ...(eventFilter === undefined ? { from: from.toISOString(), to: to.toISOString() } : { eventId: eventFilter }),
+          character: sp.character || undefined,
+          classification: sp.classification === "staff" || sp.classification === "patron" ? sp.classification : undefined,
+          limit: PAGE_LIMIT,
+        })
+      ),
+      readXvm("patron logs events", [] as PageEvent[], (t, v) =>
+        listEventsInRange(t, v, new Date(now.getTime() - 90 * DAY_MS), now, { now })
+      ),
+      readXvm("patron logs roster", [] as MembershipRow[], (t, v) => listMemberships(t, v)),
+    ])
+  }
 
-  if (sp.eventId) where.eventId = sp.eventId
-  if (sp.character) where.characterName = sp.character
-  if (sp.classification === "staff") where.wasWorking = true
-  if (sp.classification === "patron") where.wasWorking = false
-  if (!sp.eventId) where.timestamp = { gte: from, lte: to }
-
-  const [logs, events, staff, distinctCharacters] = await Promise.all([
-    prisma.patronLog.findMany({
-      where,
-      orderBy: { timestamp: "desc" },
-      take: PAGE_LIMIT,
-      include: {
-        workingUser: { select: { id: true, name: true } },
-        reclassifiedBy: { select: { id: true, name: true } },
-        event: { select: { id: true, title: true } },
-      },
-    }),
-    prisma.event.findMany({
-      where: {
-        venueId: venue.id,
-        startTime: { gte: new Date(now.getTime() - 90 * 24 * 60 * 60 * 1000) },
-      },
-      orderBy: { startTime: "desc" },
-      select: { id: true, title: true, startTime: true, endTime: true },
-      take: 100,
-    }),
-    prisma.membership.findMany({
-      where: { venueId: venue.id, status: "active" },
-      include: { user: { select: { id: true, name: true } } },
-      orderBy: { user: { name: "asc" } },
-    }),
-    prisma.patronLog.findMany({
-      where: { venueId: venue.id, characterName: { not: null } },
-      distinct: ["characterName"],
-      select: { characterName: true, world: true },
-      orderBy: { characterName: "asc" },
-      take: 500,
-    }),
-  ])
-
-  const characterUserMap = await prisma.userCharacter.findMany({
-    where: {
-      OR: logs
-        .filter((l) => l.characterName && l.world)
-        .map((l) => ({ characterName: l.characterName!, world: l.world! })),
-    },
-    select: {
-      characterName: true,
-      world: true,
-      userId: true,
-      user: { select: { name: true } },
-    },
-  })
+  const nameByPersonId = new Map(
+    roster.map((m) => [
+      m.person.id,
+      resolveDisplayName({ nickname: m.nickname, displayName: m.person.display_name }),
+    ])
+  )
+  const realEvents = events.filter((e) => e.id !== null).reverse()
+  const eventTitleById = new Map(realEvents.map((e) => [e.id as string, e.title]))
+  const personRef = (id: number | null) =>
+    id === null ? null : { id: String(id), name: nameByPersonId.get(id) ?? "Unknown" }
 
   return (
     <VenueLayout venueSlug={venue.slug} venueName={venue.name} userRole={userRole}>
@@ -224,46 +159,52 @@ export default async function PatronLogsPage({
             canModerate={["OWNER", "MANAGER"].includes(userRole)}
           />
         ) : (
-          <PatronLogsManager
-            venueId={venue.id}
-            logs={logs.map((l) => ({
-              id: l.id,
-              timestamp: l.timestamp.toISOString(),
-              characterName: l.characterName,
-              world: l.world,
-              action: l.action,
-              wasWorking: l.wasWorking,
-              workingUser: l.workingUser,
-              event: l.event,
-              reclassifiedAt: l.reclassifiedAt?.toISOString() ?? null,
-              reclassifiedBy: l.reclassifiedBy,
-              reclassifyReason: l.reclassifyReason,
-            }))}
-            events={events.map((e) => ({
-              id: e.id,
-              title: e.title,
-              startTime: e.startTime.toISOString(),
-              endTime: e.endTime?.toISOString() ?? null,
-            }))}
-            staff={staff.filter((m) => m.user).map((m) => ({ id: m.user!.id, name: m.user!.name ?? "(no name)" }))}
-            characters={distinctCharacters
-              .filter((c) => c.characterName)
-              .map((c) => ({ name: c.characterName!, world: c.world ?? "" }))}
-            characterUserMap={characterUserMap.map((c) => ({
-              characterName: c.characterName,
-              world: c.world,
-              userId: c.userId,
-              userName: c.user?.name ?? "(no name)",
-            }))}
-            initialFilters={{
-              eventId: sp.eventId ?? "",
-              from: from.toISOString().slice(0, 10),
-              to: to.toISOString().slice(0, 10),
-              character: sp.character ?? "",
-              classification: sp.classification ?? "all",
-            }}
-            limitHit={logs.length === PAGE_LIMIT}
-          />
+          <>
+            {windowClamped && (
+              <p className="text-sm text-muted-foreground mb-4">
+                Showing the 59 days before {to.toISOString().slice(0, 10)}. The log reads at most 59 days at a time.
+              </p>
+            )}
+            <PatronLogsManager
+              venueId={venue.id}
+              logs={logs.map((l) => ({
+                id: String(l.id),
+                timestamp: l.ts,
+                characterName: l.character_name,
+                world: l.world,
+                action: l.action.toUpperCase(),
+                wasWorking: l.was_working,
+                workingUser: personRef(l.working_person_id),
+                event:
+                  l.event_id === null
+                    ? null
+                    : { id: String(l.event_id), title: eventTitleById.get(String(l.event_id)) ?? "Event" },
+                reclassifiedAt: l.reclassified_at,
+                reclassifiedBy: personRef(l.reclassified_by_person_id),
+                reclassifyReason: l.reclassify_reason,
+              }))}
+              events={realEvents.map((e) => ({
+                id: e.id as string,
+                title: e.title,
+                startTime: e.startTime.toISOString(),
+                endTime: e.endTime.toISOString(),
+              }))}
+              staff={roster.map((m) => ({
+                id: String(m.person.id),
+                name: resolveDisplayName({ nickname: m.nickname, displayName: m.person.display_name }),
+              }))}
+              characters={patrons.slice(0, 500).map((p) => ({ name: p.character_name, world: p.world }))}
+              characterUserMap={[]}
+              initialFilters={{
+                eventId: sp.eventId ?? "",
+                from: from.toISOString().slice(0, 10),
+                to: to.toISOString().slice(0, 10),
+                character: sp.character ?? "",
+                classification: sp.classification ?? "all",
+              }}
+              limitHit={logs.length === PAGE_LIMIT}
+            />
+          </>
         )}
       </div>
     </VenueLayout>

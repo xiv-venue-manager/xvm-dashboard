@@ -8,6 +8,7 @@ import {
   logPatronVisit,
   listPatronLogs,
   getPatronPresence,
+  reclassifyPatronLogs,
   materializeEvent,
   endEventSeries,
   updateEvent,
@@ -1065,5 +1066,28 @@ describe("Patron door API", () => {
     mockFetchOnce({ ok: true, status: 200, body: presence })
     expect(await getPatronPresence("token", "venue-1")).toEqual(presence)
     expect(lastCall()[0]).toMatch(/\/venues\/venue-1\/patrons\/present$/)
+  })
+
+  it("listPatronLogs sends the character filter", async () => {
+    mockFetchOnce({ ok: true, status: 200, body: [] })
+    await listPatronLogs("token", "venue-1", { from: "a", to: "b", character: "Test Char", classification: "staff" })
+    const params = new URL(lastCall()[0]).searchParams
+    expect(params.get("character")).toBe("Test Char")
+    expect(params.get("classification")).toBe("staff")
+  })
+
+  it("reclassifyPatronLogs PATCHes the batch", async () => {
+    mockFetchOnce({ ok: true, status: 200, body: { updated: 2 } })
+    const result = await reclassifyPatronLogs("token", "venue-1", {
+      log_ids: [1, 2],
+      was_working: true,
+      working_person_id: 9,
+      reason: "on shift",
+    })
+    expect(result).toEqual({ updated: 2 })
+    const [url, init] = lastCall()
+    expect(url).toMatch(/\/venues\/venue-1\/patrons\/logs\/reclassify$/)
+    expect(init.method).toBe("PATCH")
+    expect(JSON.parse(init.body)).toEqual({ log_ids: [1, 2], was_working: true, working_person_id: 9, reason: "on shift" })
   })
 })

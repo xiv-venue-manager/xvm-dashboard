@@ -1,6 +1,9 @@
 import { describe, it, expect, vi, beforeEach } from "vitest"
 
 import {
+  listEvents,
+  getEvent,
+  type EventRow,
   deleteRoom,
   listTasks,
   createTask,
@@ -823,5 +826,56 @@ describe("finance summary and on-now shifts", () => {
     expect(result).toEqual([])
     const [url] = (fetch as ReturnType<typeof vi.fn>).mock.calls[0]
     expect(url).toMatch(/\/venues\/venue-1\/shifts\/now$/)
+  })
+})
+
+describe("Events API reads", () => {
+  const eventRow: EventRow = {
+    id: 7,
+    title: "Karaoke Night",
+    description: null,
+    event_type: "PERFORMANCE",
+    location: null,
+    image_url: null,
+    starts_at: "2026-10-03T19:00:00Z",
+    ends_at: "2026-10-03T22:00:00Z",
+    scheduled_at: null,
+    published_at: "2026-09-30T12:00:00Z",
+    cancelled_at: null,
+    cancel_reason: null,
+    recurrence_rule_id: null,
+    partake_event_id: null,
+    created_by_person_id: 3,
+    created_at: "2026-09-30T11:00:00Z",
+    updated_at: "2026-09-30T12:00:00Z",
+  }
+
+  it("listEvents GETs the window and can include cancelled events", async () => {
+    mockFetchOnce({ ok: true, status: 200, body: [] })
+    await listEvents("token", "venue-1", {
+      from: "2026-10-01T00:00:00Z",
+      to: "2026-10-08T00:00:00Z",
+      includeCancelled: true,
+    })
+    const [url] = (fetch as ReturnType<typeof vi.fn>).mock.calls[0]
+    expect(url).toContain("/venues/venue-1/events?")
+    expect(url).toContain("from=2026-10-01T00%3A00%3A00Z")
+    expect(url).toContain("to=2026-10-08T00%3A00%3A00Z")
+    expect(url).toContain("include_cancelled=true")
+  })
+
+  it("listEvents leaves include_cancelled off by default", async () => {
+    mockFetchOnce({ ok: true, status: 200, body: [] })
+    await listEvents("token", "venue-1", { from: "2026-10-01T00:00:00Z", to: "2026-10-08T00:00:00Z" })
+    const [url] = (fetch as ReturnType<typeof vi.fn>).mock.calls[0]
+    expect(url).not.toContain("include_cancelled")
+  })
+
+  it("getEvent GETs /events/{id}", async () => {
+    mockFetchOnce({ ok: true, status: 200, body: eventRow })
+    const result = await getEvent("token", "venue-1", 7)
+    expect(result).toEqual(eventRow)
+    const [url] = (fetch as ReturnType<typeof vi.fn>).mock.calls[0]
+    expect(url).toMatch(/\/venues\/venue-1\/events\/7$/)
   })
 })

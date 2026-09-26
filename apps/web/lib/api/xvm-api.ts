@@ -1551,6 +1551,61 @@ export async function deleteEventTemplate(personToken: string, venueId: string, 
   return xvmFetch<void>(`/venues/${venueId}/events/templates/${templateId}`, { method: "DELETE" }, personToken)
 }
 
+// ── Events API ────────────────────────────────────────────────────
+
+export interface EventRow {
+  id: number
+  title: string
+  description: string | null
+  event_type: string | null
+  location: string | null
+  image_url: string | null
+  starts_at: string
+  ends_at: string
+  scheduled_at: string | null
+  published_at: string | null
+  cancelled_at: string | null
+  cancel_reason: string | null
+  recurrence_rule_id: number | null
+  partake_event_id: number | null
+  created_by_person_id: number | null
+  created_at: string
+  updated_at: string
+}
+
+export interface EventItem {
+  materialized: boolean
+  id: number | null
+  recurrence_rule_id: number | null
+  scheduled_at: string | null
+  title: string
+  description: string | null
+  event_type: string | null
+  location: string | null
+  image_url: string | null
+  starts_at: string
+  ends_at: string
+  published_at: string | null
+  cancelled_at: string | null
+  cancel_reason: string | null
+}
+
+export async function listEvents(
+  personToken: string,
+  venueId: string,
+  opts: { from: string; to: string; includeCancelled?: boolean }
+): Promise<EventItem[]> {
+  if (!process.env.XVM_API_BASE_URL) throw new Error("XVM_API_BASE_URL is not set")
+  const params = new URLSearchParams({ from: opts.from, to: opts.to })
+  if (opts.includeCancelled) params.set("include_cancelled", "true")
+  return xvmFetch<EventItem[]>(`/venues/${venueId}/events?${params}`, {}, personToken)
+}
+
+export async function getEvent(personToken: string, venueId: string, eventId: number): Promise<EventRow> {
+  if (!process.env.XVM_API_BASE_URL) throw new Error("XVM_API_BASE_URL is not set")
+  return xvmFetch<EventRow>(`/venues/${venueId}/events/${eventId}`, {}, personToken)
+}
+
 // ── Patrons API ────────────────────────────────────────────────
 
 export interface PatronRow {

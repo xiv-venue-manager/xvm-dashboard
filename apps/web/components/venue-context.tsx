@@ -1,6 +1,6 @@
 "use client"
 
-import { createContext, useContext, ReactNode, useState, useCallback, useEffect } from "react"
+import { createContext, useContext, ReactNode, useState, useCallback, useEffect, useRef } from "react"
 import { useSession } from "next-auth/react"
 
 interface Venue {
@@ -16,7 +16,9 @@ interface VenueContextValue {
   venues: Venue[]
   isLoading: boolean
   error: string | null
+  hasFetched: boolean
   fetchVenues: () => Promise<void>
+  refetchVenuesOnce: (slug: string) => Promise<void>
   getVenueBySlug: (slug: string) => Venue | undefined
   invalidateCache: () => void
 }
@@ -34,12 +36,10 @@ export function VenueProvider({ children }: VenueProviderProps) {
   const [error, setError] = useState<string | null>(null)
   const [hasFetched, setHasFetched] = useState(false)
 
-  const fetchVenues = useCallback(async () => {
-    // If already fetched, don't fetch again
-    if (hasFetched && venues.length > 0) {
-      return
-    }
+  const inFlight = useRef<Promise<void> | null>(null)
+  const refetchedSlugs = useRef(new Set<string>())
 
+  const runLoad = useCallback(async () => {
     setIsLoading(true)
     setError(null)
 
@@ -59,7 +59,34 @@ export function VenueProvider({ children }: VenueProviderProps) {
     } finally {
       setIsLoading(false)
     }
-  }, [hasFetched, venues.length])
+  }, [])
+
+  const loadVenues = useCallback(() => {
+    if (!inFlight.current) {
+      inFlight.current = runLoad().finally(() => {
+        inFlight.current = null
+      })
+    }
+    return inFlight.current
+  }, [runLoad])
+
+  const refetchVenuesOnce = useCallback(
+    (slug: string) => {
+      if (refetchedSlugs.current.has(slug)) return Promise.resolve()
+      refetchedSlugs.current.add(slug)
+      return loadVenues()
+    },
+    [loadVenues]
+  )
+
+  const fetchVenues = useCallback(async () => {
+    // If already fetched, don't fetch again
+    if (hasFetched && venues.length > 0) {
+      return
+    }
+
+    await loadVenues()
+  }, [hasFetched, venues.length, loadVenues])
 
   const getVenueBySlug = useCallback(
     (slug: string) => {
@@ -78,8 +105,6 @@ export function VenueProvider({ children }: VenueProviderProps) {
   // edge) and pollutes the console.
   useEffect(() => {
     if (status === "authenticated" && !hasFetched) {
-      // Genuine data fetch (sets loading/error/venues state), not derivable from props/state during render.
-      // eslint-disable-next-line react-hooks/set-state-in-effect
       fetchVenues()
     }
   }, [status, hasFetched, fetchVenues])
@@ -90,7 +115,9 @@ export function VenueProvider({ children }: VenueProviderProps) {
         venues,
         isLoading,
         error,
+        hasFetched,
         fetchVenues,
+        refetchVenuesOnce,
         getVenueBySlug,
         invalidateCache,
       }}

@@ -109,7 +109,7 @@ export function LiveDashboard({
       const res = await fetch(`/api/venues/${venueId}/events/${event.id}`, {
         method: "PATCH",
         headers: { "Content-Type": "application/json" },
-        body: JSON.stringify({ status: "COMPLETED" }),
+        body: JSON.stringify({ endTime: new Date().toISOString() }),
       })
       if (!res.ok) {
         const body = await res.json().catch(() => ({}))

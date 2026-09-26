@@ -38,6 +38,7 @@ This is phase 1 of the Events cutover scoped on 2026-09-26. The order is:
   - `POST /series/{rule_id}/end` with `{ cancel_future, reason }` returning `{ cancelled: number }`
   - `GET /{event_id}`, `PATCH /{event_id}`, `POST /{event_id}/publish`, `POST /{event_id}/cancel` with `{ reason }`, and `DELETE /{event_id}` (204)
   - Templates already live at `/events/templates` and are already in the client.
+- **Deleting is for drafts only.** `DELETE /{event_id}` on a published event returns 409 "Cannot delete a published event." (found by the Task 4 contract check). A published event is cancelled instead. The dashboard's current delete route deletes at any status, so phase 2 must decide how the UI maps onto this.
 - **`EventRow`** has `id: int`, `title`, `description`, `event_type`, `location`, `image_url`, `starts_at`, `ends_at`, `scheduled_at`, `published_at`, `cancelled_at`, `cancel_reason`, `recurrence_rule_id`, `partake_event_id`, `created_by_person_id`, `created_at`, `updated_at`. There is no persisted status, timezone, attendance or revenue.
 - **`EventItem`** (the list's item) adds `materialized: bool` and lets `id` be null for virtual, not-yet-created occurrences. It has the same four status fields as `EventRow`.
 - **The API's live rule** (`PatronLogService._live_event_id`): published, not cancelled, `starts_at <= now <= ends_at`, newest start first. The helper follows it, which differs from the old cron by one instant: an event whose `ends_at` equals `now` is `ACTIVE` here and was `COMPLETED` there. Nothing depends on that instant.
@@ -631,7 +632,7 @@ Copy the printed secret (shown once). Then start the API: `uv run python -m api 
 ```ts
 import {
   exchangeToken, createVenue, createEvent, getEvent, listEvents, updateEvent, publishEvent,
-  cancelEvent, deleteEvent, createEventSeries, materializeEvent, endEventSeries,
+  cancelEvent, deleteEvent, createEventSeries, materializeEvent, endEventSeries, XvmApiError,
 } from "@/lib/api/xvm-api"
 import { deriveEventStatus } from "@/lib/api/event-status"
 
@@ -645,7 +646,7 @@ const iso = (ms: number) => new Date(ms).toISOString()
 async function main() {
   const now = Date.now()
   const { secret: token } = await exchangeToken("100000000000000001", "Contract Check")
-  const venue = await createVenue(token, { name: "Contract Venue", data_center: "Aether", world: "Cactuar" })
+  const venue = await createVenue(token, { name: `Contract Venue ${now}`, data_center: "Aether", world: "Cactuar" })
   const v = venue.id
 
   const live = await createEvent(token, v, {
@@ -696,10 +697,17 @@ async function main() {
     check("endEventSeries reports a cancelled count", typeof ended.cancelled === "number", `${ended.cancelled}`)
   }
 
-  await deleteEvent(token, v, live.id)
+  const disposable = await createEvent(token, v, {
+    title: "Disposable draft", starts_at: iso(now + 72 * hour), ends_at: iso(now + 75 * hour),
+  })
+  await deleteEvent(token, v, disposable.id)
   let gone = false
-  try { await getEvent(token, v, live.id) } catch { gone = true }
-  check("deleteEvent removes the event", gone)
+  try { await getEvent(token, v, disposable.id) } catch { gone = true }
+  check("deleteEvent removes a draft", gone)
+
+  let refused = 0
+  try { await deleteEvent(token, v, live.id) } catch (err) { refused = err instanceof XvmApiError ? err.status : -1 }
+  check("deleting a published event is refused with 409", refused === 409, `status ${refused}`)
 }
 
 main().then(() => { console.log(results.join("\n")); process.exit(results.some((r) => r.startsWith("FAIL")) ? 1 : 0) })

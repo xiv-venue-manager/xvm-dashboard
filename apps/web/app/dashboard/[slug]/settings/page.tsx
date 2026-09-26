@@ -35,6 +35,7 @@ import type { ListingLinkRow, ListingSummary } from "@/lib/api/xvm-api"
 import { FFXIV_DISTRICTS } from "@/lib/venue-location"
 import { canManageVenue } from "@/lib/roles"
 
+const SETTINGS_LOAD_TIMEOUT_MS = 8000
 const SAVE_OFF_MESSAGE = "Saving is off: this venue's profile couldn't be loaded from xvm-api. Reload the page to try again."
 
 export default function SettingsPage({ params }: { params: Promise<{ slug: string }> }) {
@@ -214,7 +215,9 @@ export default function SettingsPage({ params }: { params: Promise<{ slug: strin
             .catch(() => setFfxivLink(null))
         }
 
-        const inventoryLoad = fetch(`/api/venues/${venue.id}/inventory-settings`)
+        const inventoryLoad = fetch(`/api/venues/${venue.id}/inventory-settings`, {
+          signal: AbortSignal.timeout(SETTINGS_LOAD_TIMEOUT_MS),
+        })
           .then((r) => (r.ok ? r.json() : null))
           .then((data) => {
             if (!data) return
@@ -263,6 +266,7 @@ export default function SettingsPage({ params }: { params: Promise<{ slug: strin
     inventoryEnabled,
   ])
 
+  // Must stay below the dirty effect: the commit that carries the loaded values has to run that effect while the ref is still false.
   useEffect(() => {
     if (!isLoading) settingsReadyRef.current = true
   }, [isLoading])
@@ -452,7 +456,7 @@ export default function SettingsPage({ params }: { params: Promise<{ slug: strin
   }
 
   async function loadPotSettings(id: string) {
-    const r = await fetch(`/api/venues/${id}/pot-settings`)
+    const r = await fetch(`/api/venues/${id}/pot-settings`, { signal: AbortSignal.timeout(SETTINGS_LOAD_TIMEOUT_MS) })
     if (!r.ok) return
     const data = await r.json()
     setPotTaxPercent(data.settings.taxPercent)

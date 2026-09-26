@@ -1,6 +1,17 @@
 import { describe, it, expect, vi, beforeEach } from "vitest"
 
 import {
+  listEvents,
+  getEvent,
+  createEvent,
+  createEventSeries,
+  materializeEvent,
+  endEventSeries,
+  updateEvent,
+  publishEvent,
+  cancelEvent,
+  deleteEvent,
+  type EventRow,
   deleteRoom,
   listTasks,
   createTask,
@@ -823,5 +834,183 @@ describe("finance summary and on-now shifts", () => {
     expect(result).toEqual([])
     const [url] = (fetch as ReturnType<typeof vi.fn>).mock.calls[0]
     expect(url).toMatch(/\/venues\/venue-1\/shifts\/now$/)
+  })
+})
+
+describe("Events API reads", () => {
+  const eventRow: EventRow = {
+    id: 7,
+    title: "Karaoke Night",
+    description: null,
+    event_type: "PERFORMANCE",
+    location: null,
+    image_url: null,
+    starts_at: "2026-10-03T19:00:00Z",
+    ends_at: "2026-10-03T22:00:00Z",
+    scheduled_at: null,
+    published_at: "2026-09-30T12:00:00Z",
+    cancelled_at: null,
+    cancel_reason: null,
+    recurrence_rule_id: null,
+    partake_event_id: null,
+    created_by_person_id: 3,
+    created_at: "2026-09-30T11:00:00Z",
+    updated_at: "2026-09-30T12:00:00Z",
+  }
+
+  it("listEvents GETs the window and can include cancelled events", async () => {
+    mockFetchOnce({ ok: true, status: 200, body: [] })
+    await listEvents("token", "venue-1", {
+      from: "2026-10-01T00:00:00Z",
+      to: "2026-10-08T00:00:00Z",
+      includeCancelled: true,
+    })
+    const [url] = (fetch as ReturnType<typeof vi.fn>).mock.calls[0]
+    expect(url).toContain("/venues/venue-1/events?")
+    expect(url).toContain("from=2026-10-01T00%3A00%3A00Z")
+    expect(url).toContain("to=2026-10-08T00%3A00%3A00Z")
+    expect(url).toContain("include_cancelled=true")
+  })
+
+  it("listEvents leaves include_cancelled off by default", async () => {
+    mockFetchOnce({ ok: true, status: 200, body: [] })
+    await listEvents("token", "venue-1", { from: "2026-10-01T00:00:00Z", to: "2026-10-08T00:00:00Z" })
+    const [url] = (fetch as ReturnType<typeof vi.fn>).mock.calls[0]
+    expect(url).not.toContain("include_cancelled")
+  })
+
+  it("getEvent GETs /events/{id}", async () => {
+    mockFetchOnce({ ok: true, status: 200, body: eventRow })
+    const result = await getEvent("token", "venue-1", 7)
+    expect(result).toEqual(eventRow)
+    const [url] = (fetch as ReturnType<typeof vi.fn>).mock.calls[0]
+    expect(url).toMatch(/\/venues\/venue-1\/events\/7$/)
+  })
+})
+
+describe("Events API writes", () => {
+  const eventRow: EventRow = {
+    id: 7,
+    title: "Karaoke Night",
+    description: null,
+    event_type: "PERFORMANCE",
+    location: null,
+    image_url: null,
+    starts_at: "2026-10-03T19:00:00Z",
+    ends_at: "2026-10-03T22:00:00Z",
+    scheduled_at: null,
+    published_at: null,
+    cancelled_at: null,
+    cancel_reason: null,
+    recurrence_rule_id: null,
+    partake_event_id: null,
+    created_by_person_id: 3,
+    created_at: "2026-09-30T11:00:00Z",
+    updated_at: "2026-09-30T11:00:00Z",
+  }
+
+  const lastCall = () => (fetch as ReturnType<typeof vi.fn>).mock.calls[0]
+
+  it("createEvent POSTs the event", async () => {
+    mockFetchOnce({ ok: true, status: 201, body: eventRow })
+    const result = await createEvent("token", "venue-1", {
+      title: "Karaoke Night",
+      event_type: "PERFORMANCE",
+      starts_at: "2026-10-03T19:00:00Z",
+      ends_at: "2026-10-03T22:00:00Z",
+      publish: true,
+    })
+    expect(result).toEqual(eventRow)
+    const [url, init] = lastCall()
+    expect(url).toMatch(/\/venues\/venue-1\/events$/)
+    expect(init.method).toBe("POST")
+    expect(JSON.parse(init.body)).toEqual({
+      title: "Karaoke Night",
+      event_type: "PERFORMANCE",
+      starts_at: "2026-10-03T19:00:00Z",
+      ends_at: "2026-10-03T22:00:00Z",
+      publish: true,
+    })
+  })
+
+  it("createEventSeries POSTs to /events/series and returns the rule and seed", async () => {
+    const rule = {
+      interval: "weekly",
+      weekday: 4,
+      day_of_month: null,
+      week_of_month: null,
+      start_minute_of_day: 1140,
+      duration_minutes: 180,
+      timezone: "UTC",
+      anchor_date: "2026-10-02",
+      ends_on: null,
+      ends_after_count: null,
+      enabled: true,
+    }
+    mockFetchOnce({ ok: true, status: 201, body: { rule, seed: eventRow } })
+    const result = await createEventSeries("token", "venue-1", {
+      title: "Karaoke Night",
+      interval: "weekly",
+      weekday: 4,
+      start_minute_of_day: 1140,
+      duration_minutes: 180,
+      anchor_date: "2026-10-02",
+    })
+    expect(result.rule.interval).toBe("weekly")
+    expect(result.seed.id).toBe(7)
+    const [url, init] = lastCall()
+    expect(url).toMatch(/\/venues\/venue-1\/events\/series$/)
+    expect(init.method).toBe("POST")
+  })
+
+  it("materializeEvent POSTs the rule and scheduled time", async () => {
+    mockFetchOnce({ ok: true, status: 200, body: eventRow })
+    await materializeEvent("token", "venue-1", { recurrence_rule_id: 5, scheduled_at: "2026-10-09T19:00:00Z" })
+    const [url, init] = lastCall()
+    expect(url).toMatch(/\/venues\/venue-1\/events\/materialize$/)
+    expect(JSON.parse(init.body)).toEqual({ recurrence_rule_id: 5, scheduled_at: "2026-10-09T19:00:00Z" })
+  })
+
+  it("endEventSeries POSTs to /series/{rule}/end and returns the cancelled count", async () => {
+    mockFetchOnce({ ok: true, status: 200, body: { cancelled: 3 } })
+    const result = await endEventSeries("token", "venue-1", 5, { cancel_future: true, reason: "Moving venue" })
+    expect(result).toEqual({ cancelled: 3 })
+    const [url, init] = lastCall()
+    expect(url).toMatch(/\/venues\/venue-1\/events\/series\/5\/end$/)
+    expect(JSON.parse(init.body)).toEqual({ cancel_future: true, reason: "Moving venue" })
+  })
+
+  it("updateEvent PATCHes only the given fields", async () => {
+    mockFetchOnce({ ok: true, status: 200, body: eventRow })
+    await updateEvent("token", "venue-1", 7, { title: "Karaoke Night 2" })
+    const [url, init] = lastCall()
+    expect(url).toMatch(/\/venues\/venue-1\/events\/7$/)
+    expect(init.method).toBe("PATCH")
+    expect(JSON.parse(init.body)).toEqual({ title: "Karaoke Night 2" })
+  })
+
+  it("publishEvent POSTs to /publish with no body", async () => {
+    mockFetchOnce({ ok: true, status: 200, body: eventRow })
+    await publishEvent("token", "venue-1", 7)
+    const [url, init] = lastCall()
+    expect(url).toMatch(/\/venues\/venue-1\/events\/7\/publish$/)
+    expect(init.method).toBe("POST")
+    expect(init.body).toBeUndefined()
+  })
+
+  it("cancelEvent POSTs the reason", async () => {
+    mockFetchOnce({ ok: true, status: 200, body: eventRow })
+    await cancelEvent("token", "venue-1", 7, { reason: "Host unwell" })
+    const [url, init] = lastCall()
+    expect(url).toMatch(/\/venues\/venue-1\/events\/7\/cancel$/)
+    expect(JSON.parse(init.body)).toEqual({ reason: "Host unwell" })
+  })
+
+  it("deleteEvent DELETEs and returns nothing", async () => {
+    ;(fetch as ReturnType<typeof vi.fn>).mockResolvedValueOnce({ ok: true, status: 204, text: async () => "" } as unknown as Response)
+    await expect(deleteEvent("token", "venue-1", 7)).resolves.toBeNull()
+    const [url, init] = lastCall()
+    expect(url).toMatch(/\/venues\/venue-1\/events\/7$/)
+    expect(init.method).toBe("DELETE")
   })
 })

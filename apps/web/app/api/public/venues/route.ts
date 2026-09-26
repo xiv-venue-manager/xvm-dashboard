@@ -25,7 +25,6 @@ export async function GET(req: NextRequest) {
       dataCenter: true,
       world: true,
       settings: true,
-      ffxivVenueId: true,
       xvmApiVenueId: true,
       shifts: {
         where: {
@@ -88,7 +87,6 @@ export async function GET(req: NextRequest) {
       logoUrl: xvmProfile?.logo_url ?? null,
       bannerUrl: xvmProfile?.banner_url ?? null,
       isAdult: settings.isAdult ?? false,
-      ffxivVenuesId: v.ffxivVenueId,
       openSince: activeShift ? (activeShift.actualStart ?? activeShift.scheduledStart) : null,
       scheduledEnd: activeShift?.scheduledEnd ?? tonightShift?.scheduledEnd ?? null,
       nextOpen: tonightShift?.scheduledStart ?? null,

@@ -35,8 +35,6 @@ const updateSettingsSchema = z.object({
   discordWebhookUrl: z.string().url().optional().or(z.literal("")),
   // Partake integration
   partakeTeamId: z.number().int().positive().nullable().optional(),
-  // ffxivvenues.com integration
-  ffxivVenueId: z.string().nullable().optional(),
   // Venue type
   venueType: z
     .enum([
@@ -119,11 +117,8 @@ export const GET = withRateLimit<{ params: Promise<{ venueId: string }> }>(
           discordWebhookUrl: true,
           partakeTeamId: true,
           venueType: true,
-          ffxivVenueId: true,
-          ffxivVenueLinkedAt: true,
           froggeToken: true,
           xvmApiVenueId: true,
-          venueSchedule: { select: { syncedAt: true } },
         },
       })
 
@@ -136,10 +131,7 @@ export const GET = withRateLimit<{ params: Promise<{ venueId: string }> }>(
         discordWebhookUrl: venue.discordWebhookUrl,
         partakeTeamId: venue.partakeTeamId,
         venueType: venue.venueType,
-        ffxivVenueId: venue.ffxivVenueId,
-        ffxivVenueLinkedAt: venue.ffxivVenueLinkedAt,
         froggeToken: venue.froggeToken,
-        ffxivVenueSyncedAt: venue.venueSchedule?.syncedAt ?? null,
       }
 
       // Visibility settings and venue type are being migrated to xvm-api - it's the
@@ -259,7 +251,6 @@ export const PUT = withRateLimit<{ params: Promise<{ venueId: string }> }>(
         discordWebhookUrl,
         partakeTeamId,
         venueType,
-        ffxivVenueId,
         taskVisibility,
         salesVisibility,
         revenueVisibility,
@@ -313,30 +304,18 @@ export const PUT = withRateLimit<{ params: Promise<{ venueId: string }> }>(
           ...(partakeTeamId !== undefined && {
             partakeTeamId: partakeTeamId,
           }),
-          ...(ffxivVenueId !== undefined && {
-            ffxivVenueId: ffxivVenueId,
-            ffxivVenueLinkedAt: ffxivVenueId ? new Date() : null,
-            ffxivVenueLinkedBy: ffxivVenueId ? session.user.id : null,
-          }),
         },
         select: {
           settings: true,
           discordWebhookUrl: true,
           partakeTeamId: true,
-          ffxivVenueId: true,
         },
       })
-
-      // If unlinking, remove synced schedule data
-      if (ffxivVenueId === null) {
-        await prisma.venueSchedule.deleteMany({ where: { venueId } })
-      }
 
       const putResponseBody: Record<string, unknown> = {
         ...parseVenueSettings(updatedVenue.settings),
         discordWebhookUrl: updatedVenue.discordWebhookUrl,
         partakeTeamId: updatedVenue.partakeTeamId,
-        ffxivVenueId: updatedVenue.ffxivVenueId,
         venueType: venue.venueType,
       }
 

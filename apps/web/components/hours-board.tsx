@@ -20,6 +20,8 @@ import type { HoursCreate, HoursRow } from "@/lib/api/xvm-api"
 
 const NOT_CONNECTED_MESSAGE = "Ask the venue owner to connect this venue to xvm-api first."
 
+const FFXIVVENUES_SOURCE = "ffxivvenues"
+
 const WEEKDAY_NAMES = ["Monday", "Tuesday", "Wednesday", "Thursday", "Friday", "Saturday", "Sunday"]
 const WEEK_OF_MONTH_NAMES: Record<number, string> = { "-1": "last", "1": "1st", "2": "2nd", "3": "3rd", "4": "4th", "5": "5th" }
 
@@ -256,9 +258,12 @@ export function HoursBoard({
               <div className="min-w-0">
                 <p className="font-medium truncate">{row.label || describeRule(row)}</p>
                 {row.label && <p className="text-muted-foreground text-sm truncate">{describeRule(row)}</p>}
+                {row.source === FFXIVVENUES_SOURCE && (
+                  <p className="text-muted-foreground text-xs">Synced from FFXIV Venues, read only</p>
+                )}
               </div>
               <div className="flex items-center gap-3 flex-shrink-0">
-                {canManage ? (
+                {canManage && row.source !== FFXIVVENUES_SOURCE ? (
                   <>
                     <Switch
                       checked={row.rule.enabled}

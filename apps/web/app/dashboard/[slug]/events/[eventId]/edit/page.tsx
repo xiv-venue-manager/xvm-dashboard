@@ -37,9 +37,13 @@ interface Event {
   status: string
   startTime: string
   endTime: string
-  attendanceCount?: number
-  revenue?: number
 }
+
+const selectableStatuses = (current: string) => [
+  current,
+  ...(current === "DRAFT" ? ["PUBLISHED"] : []),
+  ...(current !== "CANCELLED" && current !== "COMPLETED" ? ["CANCELLED"] : []),
+]
 
 export default function EditEventPage() {
   const router = useRouter()
@@ -112,10 +116,6 @@ export default function EditEventPage() {
       status: selectedStatus,
       startTime: startTime.toISOString(),
       endTime: endTime.toISOString(),
-      attendanceCount: formData.get("attendanceCount")
-        ? parseInt(formData.get("attendanceCount") as string)
-        : undefined,
-      revenue: formData.get("revenue") ? parseFloat(formData.get("revenue") as string) : undefined,
     }
 
     try {
@@ -133,7 +133,7 @@ export default function EditEventPage() {
 
       if (!response.ok) {
         const error = await response.json()
-        throw new Error(error.message || "Failed to update event")
+        throw new Error(error.error || error.message || "Failed to update event")
       }
 
       router.push(`/dashboard/${slug}/events/${eventId}`)
@@ -224,38 +224,13 @@ export default function EditEventPage() {
                     <SelectValue />
                   </SelectTrigger>
                   <SelectContent>
-                    {EVENT_STATUSES.map((status) => (
+                    {EVENT_STATUSES.filter((status) => selectableStatuses(event.status).includes(status.value)).map((status) => (
                       <SelectItem key={status.value} value={status.value}>
                         {status.label}
                       </SelectItem>
                     ))}
                   </SelectContent>
                 </Select>
-              </div>
-
-              {/* Metrics */}
-              <div className="grid grid-cols-2 gap-4">
-                <div className="space-y-2">
-                  <Label htmlFor="attendanceCount">Attendance Count</Label>
-                  <Input
-                    id="attendanceCount"
-                    name="attendanceCount"
-                    type="number"
-                    defaultValue={event.attendanceCount}
-                    min="0"
-                  />
-                </div>
-                <div className="space-y-2">
-                  <Label htmlFor="revenue">Revenue (Gil)</Label>
-                  <Input
-                    id="revenue"
-                    name="revenue"
-                    type="number"
-                    step="0.01"
-                    defaultValue={event.revenue?.toString()}
-                    min="0"
-                  />
-                </div>
               </div>
 
               {/* Error Message */}

@@ -6,7 +6,6 @@ import { Button } from "@/components/ui/button"
 import { Card, CardContent, CardDescription, CardHeader, CardTitle } from "@/components/ui/card"
 import { Badge } from "@/components/ui/badge"
 import { prisma } from "@/lib/prisma"
-import { Prisma, EventStatus } from "@/generated/prisma/client"
 import { EventsCalendar } from "@/components/events-calendar"
 import { VenueLayout } from "@/components/venue-layout"
 import { LocalTime } from "@/components/server-time"
@@ -15,6 +14,13 @@ import { SyncPartakeButton } from "@/components/sync-partake-button"
 import { EndEventButton } from "@/components/end-event-button"
 import { canManageVenue } from "@/lib/roles"
 import { eventVisibilityFor } from "@/lib/event-visibility"
+import { xvmPageReader } from "@/lib/api/xvm-page-read"
+import { listEvents } from "@/lib/api/xvm-api"
+import { toDashboardEventShape, type DashboardEvent } from "@/lib/api/event-shape"
+
+const LIST_WINDOW_DAYS = 30
+
+const eventKey = (event: DashboardEvent) => event.id ?? `${event.recurrenceRuleId}-${event.startTime}`
 
 const statusColors = {
   DRAFT: "bg-zinc-500",
@@ -65,39 +71,31 @@ export default async function EventsPage({
     notFound()
   }
 
-  // Build where clause — drafts view filters by DRAFT status
-  const where: Prisma.EventWhereInput = { venueId: venue.id }
-  if (view === "drafts") {
-    where.status = EventStatus.DRAFT
-  } else if (status) {
-    where.status = status as EventStatus
+  const now = new Date()
+  const readXvm = await xvmPageReader(session.user.id, venue.xvmApiVenueId)
+  let events: DashboardEvent[] = await readXvm("events-list", [] as DashboardEvent[], async (token, xvmApiVenueId) => {
+    const items = await listEvents(token, xvmApiVenueId, {
+      from: new Date(now.getTime() - LIST_WINDOW_DAYS * 86400000).toISOString(),
+      to: new Date(now.getTime() + LIST_WINDOW_DAYS * 86400000).toISOString(),
+      includeCancelled: true,
+    })
+    return items.map((item) => toDashboardEventShape(item, { now }))
+  })
+
+  if (status) {
+    events = events.filter((event) => event.status === status)
   }
 
   if (
     venue.memberships[0].role === "STAFF" &&
     (await eventVisibilityFor(session.user.id, venue)) === "published"
   ) {
-    where.status = EventStatus.PUBLISHED
+    events = events.filter((event) => event.status !== "DRAFT")
   }
 
-  // Get events
-  const events = await prisma.event.findMany({
-    where,
-    include: {
-      createdBy: { select: { name: true } },
-      _count: { select: { patronLogs: true } },
-      parentEvent: { select: { recurrenceRule: true } },
-    },
-    orderBy: { startTime: "asc" },
-  })
-
-  // Separate upcoming, past, and draft events
-  const now = new Date()
-  const upcomingEvents = events.filter(
-    (e: (typeof events)[number]) => new Date(e.startTime) >= now && e.status !== "DRAFT"
-  )
-  const pastEvents = events.filter((e: (typeof events)[number]) => new Date(e.startTime) < now && e.status !== "DRAFT")
-  const draftEvents = events.filter((e: (typeof events)[number]) => e.status === "DRAFT")
+  const upcomingEvents = events.filter((e) => new Date(e.startTime) >= now && e.status !== "DRAFT")
+  const pastEvents = events.filter((e) => new Date(e.startTime) < now && e.status !== "DRAFT")
+  const draftEvents = events.filter((e) => e.status === "DRAFT")
 
   const userRole = venue.memberships[0].role
 
@@ -171,9 +169,9 @@ export default async function EventsPage({
               </div>
             ) : (
               <div className="grid grid-cols-1 gap-3">
-                {draftEvents.map((event: (typeof draftEvents)[number]) => (
+                {draftEvents.map((event: DashboardEvent) => (
                   <div
-                    key={event.id}
+                    key={eventKey(event)}
                     className="xiv-card rounded-xl p-4 flex gap-4 transition-all hover:border-[rgba(0,180,255,0.4)]"
                   >
                     <div className="w-10 flex-shrink-0 text-center pt-0.5">
@@ -198,14 +196,16 @@ export default async function EventsPage({
                         <LocalTime date={event.startTime} formatStr="datelong" /> ·{" "}
                         <LocalTime date={event.startTime} formatStr="time" />
                       </p>
-                      <div className="flex gap-2 mt-3">
-                        <Button asChild variant="cta" size="sm">
-                          <Link href={`/dashboard/${slug}/events/${event.id}/edit`}>Edit draft</Link>
-                        </Button>
-                        <Button asChild variant="outline" size="sm">
-                          <Link href={`/dashboard/${slug}/events/${event.id}`}>Preview</Link>
-                        </Button>
-                      </div>
+                      {event.id !== null && (
+                        <div className="flex gap-2 mt-3">
+                          <Button asChild variant="cta" size="sm">
+                            <Link href={`/dashboard/${slug}/events/${event.id}/edit`}>Edit draft</Link>
+                          </Button>
+                          <Button asChild variant="outline" size="sm">
+                            <Link href={`/dashboard/${slug}/events/${event.id}`}>Preview</Link>
+                          </Button>
+                        </div>
+                      )}
                     </div>
                   </div>
                 ))}
@@ -220,7 +220,7 @@ export default async function EventsPage({
               </div>
             ) : (
               (() => {
-                const grouped = pastEvents.reduce((acc: Record<string, typeof pastEvents>, event) => {
+                const grouped = pastEvents.reduce((acc: Record<string, DashboardEvent[]>, event) => {
                   const key = format(new Date(event.startTime), "MMMM yyyy")
                   if (!acc[key]) acc[key] = []
                   acc[key].push(event)
@@ -238,14 +238,14 @@ export default async function EventsPage({
                           <span className="text-xs text-muted-foreground">{monthEvents.length}</span>
                         </div>
                         <div className="panel">
-                          {monthEvents.map((event: (typeof pastEvents)[number]) => (
+                          {monthEvents.map((event: DashboardEvent) => (
                             <div
-                              key={event.id}
+                              key={eventKey(event)}
                               className="border-b border-[var(--blue-008)] last:border-b-0 hover:bg-[var(--blue-004)] transition-colors"
                             >
                               <div className="event-row opacity-75 hover:opacity-100 transition-opacity">
                                 <Link
-                                  href={`/dashboard/${slug}/events/${event.id}`}
+                                  href={event.id === null ? "#" : `/dashboard/${slug}/events/${event.id}`}
                                   className="flex items-center gap-[18px] flex-1 min-w-0"
                                 >
                                   <div className="datebox off">
@@ -269,7 +269,7 @@ export default async function EventsPage({
                                   <Badge className={statusColors[event.status as keyof typeof statusColors]}>
                                     {event.status}
                                   </Badge>
-                                  {event.status === "ACTIVE" && canManageVenue(userRole) && (
+                                  {event.status === "ACTIVE" && event.id !== null && canManageVenue(userRole) && (
                                     <EndEventButton venueId={venue.id} eventId={event.id} />
                                   )}
                                 </div>
@@ -294,9 +294,9 @@ export default async function EventsPage({
                 </div>
               ) : (
                 <div className="panel">
-                  {upcomingEvents.map((event: (typeof upcomingEvents)[number]) => (
+                  {upcomingEvents.map((event: DashboardEvent) => (
                     <div
-                      key={event.id}
+                      key={eventKey(event)}
                       className="event-row border-b border-[var(--blue-008)] last:border-b-0 hover:bg-[var(--blue-004)] transition-colors"
                     >
                       <div className="datebox">
@@ -319,7 +319,7 @@ export default async function EventsPage({
                               Partake
                             </Badge>
                           )}
-                          {(event.recurrenceRule || event.parentEventId) && (
+                          {event.recurrenceRuleId !== null && (
                             <Badge variant="outline" className="border-[rgba(0,180,255,0.25)] text-[var(--fg-subtle)]">
                               ↻ Recurring
                             </Badge>
@@ -336,28 +336,23 @@ export default async function EventsPage({
                               </>
                             )}
                           </span>
-                          {(event.attendanceCount || event.partakeAttendeeCount || event._count.patronLogs > 0) && (
-                            <span className="meta">
-                              {event.attendanceCount
-                                ? `${event.attendanceCount} attended`
-                                : event.partakeAttendeeCount
-                                  ? `${event.partakeAttendeeCount} RSVP via Partake`
-                                  : `${event._count.patronLogs} patron logs`}
-                            </span>
-                          )}
                           {event.location && <span className="meta truncate max-w-[200px]">{event.location}</span>}
                         </div>
                       </div>
                       <div className="ev-right">
-                        {event.status === "ACTIVE" && canManageVenue(userRole) && (
+                        {event.status === "ACTIVE" && event.id !== null && canManageVenue(userRole) && (
                           <EndEventButton venueId={venue.id} eventId={event.id} />
                         )}
-                        <Button asChild variant="outline" size="sm">
-                          <Link href={`/dashboard/${slug}/events/${event.id}`}>View</Link>
-                        </Button>
-                        <Button asChild variant="outline" size="sm">
-                          <Link href={`/dashboard/${slug}/events/${event.id}/edit`}>Edit</Link>
-                        </Button>
+                        {event.id !== null && (
+                          <>
+                            <Button asChild variant="outline" size="sm">
+                              <Link href={`/dashboard/${slug}/events/${event.id}`}>View</Link>
+                            </Button>
+                            <Button asChild variant="outline" size="sm">
+                              <Link href={`/dashboard/${slug}/events/${event.id}/edit`}>Edit</Link>
+                            </Button>
+                          </>
+                        )}
                       </div>
                     </div>
                   ))}

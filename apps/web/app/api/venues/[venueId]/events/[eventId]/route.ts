@@ -11,13 +11,12 @@ import {
   cancelEvent,
   deleteEvent,
   getEvent,
-  listMemberships,
   publishEvent,
   updateEvent,
-  type EventRow,
   type EventUpdateData,
 } from "@/lib/api/xvm-api"
 import { deriveEventStatus } from "@/lib/api/event-status"
+import { creatorNameOf } from "@/lib/api/event-creator"
 import { planStatusChange, toDashboardEventShape } from "@/lib/api/event-shape"
 
 const isoDate = z
@@ -77,17 +76,6 @@ async function authorize(context: RouteContext | undefined) {
     venue,
     xvmApiVenueId: venue.xvmApiVenueId,
     eventId: Number(eventId),
-  }
-}
-
-async function creatorNameOf(token: string, xvmApiVenueId: string, event: EventRow): Promise<string | null> {
-  if (event.created_by_person_id === null) return null
-  try {
-    const memberships = await listMemberships(token, xvmApiVenueId)
-    return memberships.find((m) => m.person.id === event.created_by_person_id)?.person.display_name ?? null
-  } catch (err) {
-    console.error("[events] creator lookup error:", err)
-    return null
   }
 }
 

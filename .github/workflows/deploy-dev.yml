@@ -24,7 +24,7 @@ concurrency:
 jobs:
   deploy:
     runs-on: self-hosted
-    timeout-minutes: 15
+    timeout-minutes: 25
     env:
       DEPLOY_REF: ${{ inputs.ref || 'dev' }}
       ACCEPT_DATA_LOSS: ${{ inputs.accept_data_loss && 'true' || 'false' }}

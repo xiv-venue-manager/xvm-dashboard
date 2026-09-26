@@ -102,7 +102,8 @@ export function VenueProvider({ children }: VenueProviderProps) {
 
   // Auto-fetch on mount once authenticated. Skipping on the public landing
   // page avoids a wasted /api/venues call that returns 401 (or HTML at the
-  // edge) and pollutes the console.
+  // edge) and pollutes the console. It cannot loop: hasFetched gates it, and
+  // refetchedSlugs caps the per-slug refetch to one.
   useEffect(() => {
     if (status === "authenticated" && !hasFetched) {
       fetchVenues()

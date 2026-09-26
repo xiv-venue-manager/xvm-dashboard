@@ -18,7 +18,6 @@ interface EventTemplate {
   title: string
   description: string | null
   eventType: string
-  timezone: string
   defaultStartTime: string
   defaultEndTime: string
 }

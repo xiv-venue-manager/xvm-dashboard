@@ -1782,6 +1782,74 @@ export async function unbanPatron(personToken: string, venueId: string, patronId
   return xvmFetch<PatronRow>(`/venues/${venueId}/patrons/${patronId}/ban`, { method: "DELETE" }, personToken)
 }
 
+export type PatronAction = "enter" | "leave" | "present"
+
+export interface VisitLogData {
+  character_name: string
+  world: string
+  action: PatronAction
+  ts: string
+}
+
+export interface VisitLogged {
+  id: number
+  deduped: boolean
+  action: PatronAction
+  was_working: boolean
+  event_id: number | null
+}
+
+export interface PatronLogRow {
+  id: number
+  character_name: string | null
+  world: string | null
+  action: PatronAction | "headcount"
+  count_change: number | null
+  event_id: number | null
+  ts: string
+  logged_at: string
+  logged_by_person_id: number | null
+  was_working: boolean
+  working_person_id: number | null
+  reclassified_at: string | null
+  reclassified_by_person_id: number | null
+  reclassify_reason: string | null
+}
+
+export interface PatronPresence {
+  count: number
+  present: { character_name: string; world: string; was_working: boolean; since: string }[]
+}
+
+export async function logPatronVisit(personToken: string, venueId: string, data: VisitLogData): Promise<VisitLogged> {
+  if (!process.env.XVM_API_BASE_URL) throw new Error("XVM_API_BASE_URL is not set")
+  return xvmFetch<VisitLogged>(
+    `/venues/${venueId}/patrons/visits`,
+    { method: "POST", body: JSON.stringify(data) },
+    personToken
+  )
+}
+
+export async function listPatronLogs(
+  personToken: string,
+  venueId: string,
+  opts: { from?: string; to?: string; eventId?: number; classification?: "staff" | "patron"; limit?: number }
+): Promise<PatronLogRow[]> {
+  if (!process.env.XVM_API_BASE_URL) throw new Error("XVM_API_BASE_URL is not set")
+  const params = new URLSearchParams()
+  if (opts.from !== undefined) params.set("from", opts.from)
+  if (opts.to !== undefined) params.set("to", opts.to)
+  if (opts.eventId !== undefined) params.set("event_id", String(opts.eventId))
+  if (opts.classification !== undefined) params.set("classification", opts.classification)
+  if (opts.limit !== undefined) params.set("limit", String(opts.limit))
+  return xvmFetch<PatronLogRow[]>(`/venues/${venueId}/patrons/logs?${params}`, {}, personToken)
+}
+
+export async function getPatronPresence(personToken: string, venueId: string): Promise<PatronPresence> {
+  if (!process.env.XVM_API_BASE_URL) throw new Error("XVM_API_BASE_URL is not set")
+  return xvmFetch<PatronPresence>(`/venues/${venueId}/patrons/present`, {}, personToken)
+}
+
 export interface BannedRow {
   character_name: string
   world: string

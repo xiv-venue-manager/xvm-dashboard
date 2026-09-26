@@ -1,16 +1,12 @@
 import { NextRequest, NextResponse } from "next/server"
 import { pluginAuthGate } from "@/lib/api/plugin-auth"
-import { prisma } from "@/lib/prisma"
+import { pluginXvmContext } from "@/lib/api/plugin-xvm"
+import { xvmApiErrorResponse } from "@/lib/api/xvm-api-store"
+import { listEventsInRange } from "@/lib/api/event-window"
 
-/**
- * GET /api/plugin/events/active?venueId=...
- *
- * Returns the currently-active event at the given venue (startTime ≤ now ≤
- * endTime, status PUBLISHED or ACTIVE). Used by the Dalamud plugin to gate
- * patron-visit sync when `syncOnlyDuringEvents` is enabled - the plugin
- * caches the result for ~60s per venue, so analytics stay attributed to
- * the right event without hammering this endpoint.
- */
+const LOOKBACK_MS = 2 * 24 * 60 * 60 * 1000
+const LOOKAHEAD_MS = 24 * 60 * 60 * 1000
+
 export async function GET(request: NextRequest) {
   try {
     const gate = await pluginAuthGate(request, "read")
@@ -23,30 +19,28 @@ export async function GET(request: NextRequest) {
       return NextResponse.json({ error: "Missing venueId" }, { status: 400 })
     }
 
-    // Venue scoping - the API key must be authorized for this venue. This
-    // mirrors the same gate used by other /api/plugin/* routes.
     if (!auth.venues.includes(venueId)) {
       return NextResponse.json({ error: "Venue not authorized for this key" }, { status: 403 })
     }
 
-    const now = new Date()
-    const event = await prisma.event.findFirst({
-      where: {
-        venueId,
-        startTime: { lte: now },
-        endTime: { gte: now },
-        status: { in: ["PUBLISHED", "ACTIVE"] },
-      },
-      orderBy: { startTime: "desc" },
-      select: {
-        id: true,
-        title: true,
-        startTime: true,
-        endTime: true,
-        status: true,
-      },
-    })
+    const context = await pluginXvmContext(auth.userId, venueId)
+    if ("error" in context) return context.error
 
+    const now = new Date()
+    let events
+    try {
+      events = await listEventsInRange(
+        context.token,
+        context.xvmApiVenueId,
+        new Date(now.getTime() - LOOKBACK_MS),
+        new Date(now.getTime() + LOOKAHEAD_MS),
+        { now }
+      )
+    } catch (err) {
+      return xvmApiErrorResponse(err, auth.userId, "[Plugin API] active event error")
+    }
+
+    const event = events.filter((e) => e.status === "ACTIVE").pop()
     if (!event) {
       return NextResponse.json({ active: false })
     }

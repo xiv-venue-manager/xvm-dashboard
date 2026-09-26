@@ -3,22 +3,41 @@ name: deploy-dev
 on:
   push:
     branches: [dev]
+  workflow_dispatch:
+    inputs:
+      ref:
+        description: Branch to deploy to dev.xivvenuemanager.com
+        required: true
+        default: dev
 
 permissions:
   contents: read
+
+concurrency:
+  group: deploy-dev
+  cancel-in-progress: false
 
 jobs:
   deploy:
     runs-on: self-hosted
     timeout-minutes: 15
+    env:
+      # The input reaches the shell as an environment variable, never as interpolated script text.
+      DEPLOY_REF: ${{ inputs.ref || 'dev' }}
     steps:
-      - name: Pull latest dev
+      - name: Pull branch
         run: |
+          set -euo pipefail
+          [[ "$DEPLOY_REF" =~ ^[A-Za-z0-9][A-Za-z0-9._/-]*$ ]] || { echo "Invalid branch name: $DEPLOY_REF"; exit 1; }
           cd /home/server/xiv-app-dev
-          git fetch origin dev
-          git reset --hard origin/dev
+          git fetch origin "+refs/heads/$DEPLOY_REF:refs/remotes/origin/$DEPLOY_REF"
+          git reset --hard "origin/$DEPLOY_REF"
 
       - name: Rebuild and restart dev container
         run: |
           cd /home/server/xiv-app
           docker compose --profile dev up -d --build venue-manager-dev
+
+      - name: Record deployed revision
+        run: |
+          echo "Deployed \`$DEPLOY_REF\` at $(git -C /home/server/xiv-app-dev rev-parse --short HEAD)" >> "$GITHUB_STEP_SUMMARY"

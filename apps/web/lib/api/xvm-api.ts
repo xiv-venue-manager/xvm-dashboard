@@ -1833,16 +1833,44 @@ export async function logPatronVisit(personToken: string, venueId: string, data:
 export async function listPatronLogs(
   personToken: string,
   venueId: string,
-  opts: { from?: string; to?: string; eventId?: number; classification?: "staff" | "patron"; limit?: number }
+  opts: {
+    from?: string
+    to?: string
+    eventId?: number
+    character?: string
+    classification?: "staff" | "patron"
+    limit?: number
+  }
 ): Promise<PatronLogRow[]> {
   if (!process.env.XVM_API_BASE_URL) throw new Error("XVM_API_BASE_URL is not set")
   const params = new URLSearchParams()
   if (opts.from !== undefined) params.set("from", opts.from)
   if (opts.to !== undefined) params.set("to", opts.to)
   if (opts.eventId !== undefined) params.set("event_id", String(opts.eventId))
+  if (opts.character !== undefined) params.set("character", opts.character)
   if (opts.classification !== undefined) params.set("classification", opts.classification)
   if (opts.limit !== undefined) params.set("limit", String(opts.limit))
   return xvmFetch<PatronLogRow[]>(`/venues/${venueId}/patrons/logs?${params}`, {}, personToken)
+}
+
+export interface ReclassifyData {
+  log_ids: number[]
+  was_working: boolean
+  working_person_id: number | null
+  reason?: string | null
+}
+
+export async function reclassifyPatronLogs(
+  personToken: string,
+  venueId: string,
+  data: ReclassifyData
+): Promise<{ updated: number }> {
+  if (!process.env.XVM_API_BASE_URL) throw new Error("XVM_API_BASE_URL is not set")
+  return xvmFetch<{ updated: number }>(
+    `/venues/${venueId}/patrons/logs/reclassify`,
+    { method: "PATCH", body: JSON.stringify(data) },
+    personToken
+  )
 }
 
 export async function getPatronPresence(personToken: string, venueId: string): Promise<PatronPresence> {

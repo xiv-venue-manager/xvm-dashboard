@@ -400,13 +400,9 @@ export default function SettingsPage({ params }: { params: Promise<{ slug: strin
       })
       const body = await res.json().catch(() => null)
       if (!res.ok) throw new Error(body?.error ?? "Failed to link")
-      const linkRes = await fetch(`/api/venues/${venueId}/ffxivvenues`)
-      setFfxivLink(linkRes.ok ? await linkRes.json() : null)
-      setFfxivListings(null)
-      setFfxivSelected("")
+      window.location.reload()
     } catch (e) {
       setFfxivError(e instanceof Error ? e.message : "Failed to link")
-    } finally {
       setFfxivLoading(false)
     }
   }
@@ -417,6 +413,7 @@ export default function SettingsPage({ params }: { params: Promise<{ slug: strin
     try {
       const res = await fetch(`/api/venues/${venueId}/ffxivvenues/sync`, { method: "POST" })
       const body = await res.json().catch(() => null)
+      if (res.status === 404 || res.status === 409) setFfxivLink(null)
       if (!res.ok) throw new Error(body?.error ?? "Sync failed")
       if (body?.unlinked) {
         setFfxivLink(null)
@@ -435,7 +432,7 @@ export default function SettingsPage({ params }: { params: Promise<{ slug: strin
     setFfxivError(null)
     try {
       const res = await fetch(`/api/venues/${venueId}/ffxivvenues`, { method: "DELETE" })
-      if (!res.ok && res.status !== 204) {
+      if (!res.ok && res.status !== 204 && res.status !== 404) {
         const body = await res.json().catch(() => null)
         throw new Error(body?.error ?? "Failed to unlink")
       }

@@ -1,6 +1,7 @@
 "use client"
 
 import { useState } from "react"
+import { shiftEventIdField } from "@/lib/shift-event-options"
 import { Button } from "@/components/ui/button"
 import {
   Dialog,
@@ -30,6 +31,7 @@ interface RoleOption {
 interface EventOption {
   id: string
   name: string
+  startsAt: string
 }
 
 interface ShiftPrefill {
@@ -114,7 +116,7 @@ export function CreateShiftDialog({
           scheduledStart,
           scheduledEnd,
           notes: notes || undefined,
-          ...(eventId ? { eventId } : {}),
+          ...shiftEventIdField(eventId),
         }),
       })
 
@@ -256,7 +258,12 @@ export function CreateShiftDialog({
                   <SelectContent>
                     {events.map((e) => (
                       <SelectItem key={e.id} value={e.id}>
-                        {e.name}
+                        {e.name} ·{" "}
+                        {new Date(e.startsAt).toLocaleDateString(undefined, {
+                          weekday: "short",
+                          day: "numeric",
+                          month: "short",
+                        })}
                       </SelectItem>
                     ))}
                   </SelectContent>

@@ -1,4 +1,4 @@
-import { NextRequest, NextResponse } from "next/server"
+import { NextResponse } from "next/server"
 import { getServerSession } from "next-auth"
 import { authOptions } from "@/lib/auth"
 import { prisma } from "@/lib/prisma"
@@ -6,155 +6,154 @@ import { z } from "zod"
 import { withRateLimit } from "@/lib/middleware/with-rate-limit"
 import { validators } from "@/lib/validation"
 import { eventHiddenFromStaff } from "@/lib/event-visibility"
+import { getValidXvmApiToken, xvmApiErrorResponse } from "@/lib/api/xvm-api-store"
+import {
+  cancelEvent,
+  deleteEvent,
+  getEvent,
+  publishEvent,
+  updateEvent,
+  type EventUpdateData,
+} from "@/lib/api/xvm-api"
+import { deriveEventStatus } from "@/lib/api/event-status"
+import { creatorNameOf } from "@/lib/api/event-creator"
+import { planStatusChange, toDashboardEventShape } from "@/lib/api/event-shape"
+
+const isoDate = z
+  .string()
+  .refine((value) => !Number.isNaN(new Date(value).getTime()), "Invalid date")
+  .transform((value) => new Date(value))
 
 const eventUpdateSchema = z.object({
   title: validators.eventTitle.optional(),
   description: validators.eventDescription,
   eventType: z.enum(["PERFORMANCE", "GAME_NIGHT", "SPECIAL", "SOCIAL", "PRIVATE", "OTHER"]).optional(),
   status: z.enum(["DRAFT", "PUBLISHED", "ACTIVE", "COMPLETED", "CANCELLED"]).optional(),
-  startTime: z
-    .string()
-    .transform((str) => new Date(str))
-    .optional(),
-  endTime: z
-    .string()
-    .transform((str) => new Date(str))
-    .optional(),
-  timezone: z.string().optional(),
-  attendanceCount: z.number().optional(),
-  revenue: z.number().optional(),
+  startTime: isoDate.optional(),
+  endTime: isoDate.optional(),
 })
 
-export const GET = withRateLimit<{ params: Promise<{ venueId: string; eventId: string }> }>(
-  async (request, context) => {
-    if (!context?.params) {
-      return NextResponse.json({ error: "Invalid request" }, { status: 400 })
+type RouteContext = { params: Promise<{ venueId: string; eventId: string }> }
+
+async function authorize(context: RouteContext | undefined) {
+  if (!context?.params) {
+    return { error: NextResponse.json({ error: "Invalid request" }, { status: 400 }) }
+  }
+
+  const session = await getServerSession(authOptions)
+  if (!session?.user?.id) {
+    return { error: NextResponse.json({ error: "Unauthorized" }, { status: 401 }) }
+  }
+
+  const token = await getValidXvmApiToken(session.user.id)
+  if (!token) {
+    return { error: NextResponse.json({ error: "xvm-api link not established yet" }, { status: 503 }) }
+  }
+
+  const { venueId, eventId } = await context.params
+
+  if (!/^\d+$/.test(eventId)) {
+    return { error: NextResponse.json({ error: "Event not found" }, { status: 404 }) }
+  }
+
+  const venue = await prisma.venue.findUnique({
+    where: { id: venueId },
+    select: { xvmApiVenueId: true, settings: true },
+  })
+  if (!venue?.xvmApiVenueId) {
+    return {
+      error: NextResponse.json(
+        { error: "not_connected", message: "This venue hasn't been connected to xvm-api yet." },
+        { status: 409 }
+      ),
+    }
+  }
+
+  return {
+    userId: session.user.id,
+    token,
+    venueId,
+    venue,
+    xvmApiVenueId: venue.xvmApiVenueId,
+    eventId: Number(eventId),
+  }
+}
+
+export const GET = withRateLimit<RouteContext>(
+  async (_request, context) => {
+    const auth = await authorize(context)
+    if (auth.error) return auth.error
+
+    const membership = await prisma.membership.findFirst({
+      where: { userId: auth.userId, venueId: auth.venueId, status: "active" },
+    })
+    if (!membership) {
+      return NextResponse.json({ error: "Access denied" }, { status: 403 })
     }
 
     try {
-      const session = await getServerSession(authOptions)
-      if (!session?.user?.id) {
-        return NextResponse.json({ error: "Unauthorized" }, { status: 401 })
-      }
-
-      const { params } = context
-      const { venueId, eventId } = await params
-
-      // Check access
-      const membership = await prisma.membership.findFirst({
-        where: {
-          userId: session.user.id,
-          venueId,
-          status: "active",
-        },
+      const event = await getEvent(auth.token, auth.xvmApiVenueId, auth.eventId)
+      const shape = toDashboardEventShape(event, {
+        creatorName: await creatorNameOf(auth.token, auth.xvmApiVenueId, event),
       })
-
-      if (!membership) {
-        return NextResponse.json({ error: "Access denied" }, { status: 403 })
-      }
-
-      const event = await prisma.event.findUnique({
-        where: { id: eventId, venueId },
-        include: {
-          createdBy: {
-            select: {
-              name: true,
-              image: true,
-            },
-          },
-        },
-      })
-
-      if (!event) {
+      const shownStatus = shape.status === "DRAFT" ? "DRAFT" : "PUBLISHED"
+      if (await eventHiddenFromStaff(auth.userId, membership.role, auth.venue, shownStatus)) {
         return NextResponse.json({ error: "Event not found" }, { status: 404 })
       }
-
-      const venue = await prisma.venue.findUnique({
-        where: { id: venueId },
-        select: { settings: true, xvmApiVenueId: true },
-      })
-      if (await eventHiddenFromStaff(session.user.id, membership.role, venue, event.status)) {
-        return NextResponse.json({ error: "Event not found" }, { status: 404 })
-      }
-
-      return NextResponse.json(event)
-    } catch (error) {
-      console.error("Error fetching event:", error)
-      return NextResponse.json({ error: "Internal server error" }, { status: 500 })
+      return NextResponse.json(shape)
+    } catch (err) {
+      return xvmApiErrorResponse(err, auth.userId, "[events] GET error")
     }
   },
   { requests: 60, window: "1 m" }
 )
 
-export const PUT = withRateLimit<{ params: Promise<{ venueId: string; eventId: string }> }>(
+export const PUT = withRateLimit<RouteContext>(
   async (request, context) => {
-    if (!context?.params) {
+    const auth = await authorize(context)
+    if (auth.error) return auth.error
+
+    let data: z.infer<typeof eventUpdateSchema>
+    try {
+      data = eventUpdateSchema.parse(await request.json())
+    } catch (err) {
+      if (err instanceof z.ZodError) {
+        return NextResponse.json({ error: "Validation error", details: err.issues }, { status: 400 })
+      }
       return NextResponse.json({ error: "Invalid request" }, { status: 400 })
     }
 
     try {
-      const session = await getServerSession(authOptions)
-      if (!session?.user?.id) {
-        return NextResponse.json({ error: "Unauthorized" }, { status: 401 })
+      let event = await getEvent(auth.token, auth.xvmApiVenueId, auth.eventId)
+
+      const fields: EventUpdateData = {}
+      if (data.title !== undefined && data.title !== event.title) fields.title = data.title
+      if (data.description !== undefined && (data.description || null) !== event.description) {
+        fields.description = data.description
+      }
+      if (data.eventType !== undefined && data.eventType !== event.event_type) fields.event_type = data.eventType
+      if (data.startTime !== undefined && data.startTime.getTime() !== new Date(event.starts_at).getTime()) {
+        fields.starts_at = data.startTime.toISOString()
+      }
+      if (data.endTime !== undefined && data.endTime.getTime() !== new Date(event.ends_at).getTime()) {
+        fields.ends_at = data.endTime.toISOString()
+      }
+      const change = planStatusChange(deriveEventStatus(event), data.status)
+      if (change.action === "reject") {
+        return NextResponse.json({ error: change.message }, { status: 400 })
       }
 
-      const { params } = context
-      const { venueId, eventId } = await params
-
-      // Check permissions
-      const membership = await prisma.membership.findFirst({
-        where: {
-          userId: session.user.id,
-          venueId,
-          status: "active",
-        },
-      })
-
-      if (!membership || !["OWNER", "MANAGER"].includes(membership.role)) {
-        return NextResponse.json({ error: "You don't have permission to edit events" }, { status: 403 })
+      if (Object.keys(fields).length > 0) {
+        event = await updateEvent(auth.token, auth.xvmApiVenueId, auth.eventId, fields)
       }
-
-      const body = await request.json()
-      const validatedData = eventUpdateSchema.parse(body)
-
-      // If marking event as COMPLETED, auto-calculate attendance and revenue
-      if (validatedData.status === "COMPLETED") {
-        // Calculate final patron count from logs
-        const patronLogs = await prisma.patronLog.findMany({
-          where: { eventId },
-          select: { countChange: true },
-        })
-        const finalPatronCount = patronLogs.reduce((sum, log) => sum + (log.countChange ?? 0), 0)
-
-        // Calculate total revenue from transactions
-        const transactions = await prisma.transaction.findMany({
-          where: { eventId },
-          select: { amount: true },
-        })
-        const totalRevenue = transactions.reduce((sum, t) => sum + Number(t.amount), 0)
-
-        // Only set if not manually provided
-        if (validatedData.attendanceCount === undefined && finalPatronCount > 0) {
-          validatedData.attendanceCount = Math.max(0, finalPatronCount)
-        }
-        if (validatedData.revenue === undefined && totalRevenue > 0) {
-          validatedData.revenue = totalRevenue
-        }
+      if (change.action === "publish") {
+        event = await publishEvent(auth.token, auth.xvmApiVenueId, auth.eventId)
+      } else if (change.action === "cancel") {
+        event = await cancelEvent(auth.token, auth.xvmApiVenueId, auth.eventId, { reason: null })
       }
-
-      const event = await prisma.event.update({
-        where: { id: eventId, venueId },
-        data: validatedData,
-      })
-
-      return NextResponse.json(event)
-    } catch (error) {
-      if (error instanceof z.ZodError) {
-        return NextResponse.json({ error: "Validation error", details: error.issues }, { status: 400 })
-      }
-
-      console.error("Error updating event:", error)
-      return NextResponse.json({ error: "Internal server error" }, { status: 500 })
+      return NextResponse.json(toDashboardEventShape(event))
+    } catch (err) {
+      return xvmApiErrorResponse(err, auth.userId, "[events] PUT error")
     }
   },
   { requests: 20, window: "1 m" }
@@ -162,42 +161,16 @@ export const PUT = withRateLimit<{ params: Promise<{ venueId: string; eventId: s
 
 export const PATCH = PUT
 
-export const DELETE = withRateLimit<{ params: Promise<{ venueId: string; eventId: string }> }>(
-  async (request, context) => {
-    if (!context?.params) {
-      return NextResponse.json({ error: "Invalid request" }, { status: 400 })
-    }
+export const DELETE = withRateLimit<RouteContext>(
+  async (_request, context) => {
+    const auth = await authorize(context)
+    if (auth.error) return auth.error
 
     try {
-      const session = await getServerSession(authOptions)
-      if (!session?.user?.id) {
-        return NextResponse.json({ error: "Unauthorized" }, { status: 401 })
-      }
-
-      const { params } = context
-      const { venueId, eventId } = await params
-
-      // Check permissions
-      const membership = await prisma.membership.findFirst({
-        where: {
-          userId: session.user.id,
-          venueId,
-          status: "active",
-        },
-      })
-
-      if (!membership || !["OWNER", "MANAGER"].includes(membership.role)) {
-        return NextResponse.json({ error: "You don't have permission to delete events" }, { status: 403 })
-      }
-
-      await prisma.event.delete({
-        where: { id: eventId, venueId },
-      })
-
+      await deleteEvent(auth.token, auth.xvmApiVenueId, auth.eventId)
       return NextResponse.json({ success: true })
-    } catch (error) {
-      console.error("Error deleting event:", error)
-      return NextResponse.json({ error: "Internal server error" }, { status: 500 })
+    } catch (err) {
+      return xvmApiErrorResponse(err, auth.userId, "[events] DELETE error")
     }
   },
   { requests: 5, window: "1 m" }

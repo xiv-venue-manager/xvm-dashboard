@@ -4,18 +4,20 @@ import { redirect, notFound } from "next/navigation"
 import Link from "next/link"
 import { Button } from "@/components/ui/button"
 import { VenueLayout } from "@/components/venue-layout"
-import { Card, CardContent, CardDescription, CardHeader, CardTitle } from "@/components/ui/card"
+import { Card, CardContent, CardHeader, CardTitle } from "@/components/ui/card"
 import { Badge } from "@/components/ui/badge"
 import { prisma } from "@/lib/prisma"
 import { DeleteEventButton } from "@/components/delete-event-button"
 import { CancelSeriesButton } from "@/components/cancel-series-button"
-import { GeneratePotPayrollButton } from "@/components/generate-pot-payroll-button"
-import { EventAttendanceChart } from "@/components/event-attendance-chart"
 import { LocalTime } from "@/components/server-time"
 import { extractPartakeImages, extractPartakeTextBody } from "@/lib/discord-webhook"
 import { renderPartakeProse } from "@/lib/render-partake-prose"
 import { formatVenueLocationShort } from "@/lib/venue-location"
 import { eventHiddenFromStaff } from "@/lib/event-visibility"
+import { xvmPageReader } from "@/lib/api/xvm-page-read"
+import { getEvent } from "@/lib/api/xvm-api"
+import { creatorNameOf } from "@/lib/api/event-creator"
+import { toDashboardEventShape } from "@/lib/api/event-shape"
 
 const statusColors = {
   DRAFT: "bg-zinc-500",
@@ -59,18 +61,14 @@ export default async function EventDetailsPage({ params }: { params: Promise<{ s
     notFound()
   }
 
-  // Get event
-  const event = await prisma.event.findUnique({
-    where: { id: eventId, venueId: venue.id },
-    include: {
-      createdBy: {
-        select: {
-          name: true,
-          image: true,
-        },
-      },
-      potDistribution: true,
-    },
+  if (!/^\d+$/.test(eventId)) {
+    notFound()
+  }
+
+  const readXvm = await xvmPageReader(session.user.id, venue.xvmApiVenueId)
+  const event = await readXvm("event-detail", null, async (token, xvmApiVenueId) => {
+    const row = await getEvent(token, xvmApiVenueId, Number(eventId))
+    return toDashboardEventShape(row, { creatorName: await creatorNameOf(token, xvmApiVenueId, row) })
   })
 
   if (!event) {
@@ -78,7 +76,7 @@ export default async function EventDetailsPage({ params }: { params: Promise<{ s
   }
 
   const userRole = venue.memberships[0].role
-  if (await eventHiddenFromStaff(session.user.id, userRole, venue, event.status)) {
+  if (await eventHiddenFromStaff(session.user.id, userRole, venue, event.status === "DRAFT" ? "DRAFT" : "PUBLISHED")) {
     notFound()
   }
   const canEdit = ["OWNER", "MANAGER"].includes(userRole)
@@ -98,14 +96,14 @@ export default async function EventDetailsPage({ params }: { params: Promise<{ s
                   Partake
                 </Badge>
               )}
-              {(event.recurrenceRule || event.parentEventId) && (
+              {event.recurrenceRuleId !== null && (
                 <Badge variant="outline" className="border-[rgba(0,180,255,0.25)] text-[var(--fg-subtle)]">
                   ↻ Recurring
                 </Badge>
               )}
             </div>
             <p className="text-sm text-muted-foreground">
-              {event.partakeEventId ? "Synced from Partake.gg" : `Created by ${event.createdBy.name}`}
+              {event.partakeEventId ? "Synced from Partake.gg" : event.createdBy ? `Created by ${event.createdBy.name}` : null}
             </p>
           </div>
           <div className="flex flex-wrap gap-2 shrink-0">
@@ -117,10 +115,10 @@ export default async function EventDetailsPage({ params }: { params: Promise<{ s
                 <Button size="sm" asChild>
                   <Link href={`/dashboard/${slug}/events/${eventId}/edit`}>Edit</Link>
                 </Button>
-                {(event.recurrenceRule || event.parentEventId) && (
+                {event.recurrenceRuleId !== null && (
                   <CancelSeriesButton venueId={venue.id} eventId={eventId} venueSlug={slug} />
                 )}
-                <DeleteEventButton venueId={venue.id} eventId={eventId} venueSlug={slug} />
+                {event.status === "DRAFT" && <DeleteEventButton venueId={venue.id} eventId={eventId} venueSlug={slug} />}
               </>
             )}
           </div>
@@ -175,43 +173,6 @@ export default async function EventDetailsPage({ params }: { params: Promise<{ s
                 </Card>
               )
             })()}
-
-            {/* Metrics */}
-            <Card>
-              <CardHeader>
-                <CardTitle>Event Metrics</CardTitle>
-                <CardDescription>Final totals after event completion</CardDescription>
-              </CardHeader>
-              <CardContent className={`grid gap-4 grid-cols-2 ${event.partakeAttendeeCount ? "sm:grid-cols-3" : ""}`}>
-                <div>
-                  <p className="text-sm text-muted-foreground">Final Attendance</p>
-                  <p className="text-2xl font-bold">{event.attendanceCount || "-"}</p>
-                  <p className="text-xs text-muted-foreground mt-1">From patron tracking</p>
-                </div>
-                {event.partakeAttendeeCount && (
-                  <div>
-                    <p className="text-sm text-muted-foreground">Partake RSVPs</p>
-                    <p className="text-2xl font-bold text-[var(--xiv-blue)]">{event.partakeAttendeeCount}</p>
-                    <p className="text-xs text-muted-foreground mt-1">From Partake.gg</p>
-                  </div>
-                )}
-                <div>
-                  <p className="text-sm text-muted-foreground">Revenue</p>
-                  <p className="text-2xl font-bold">{event.revenue ? `${event.revenue} Gil` : "-"}</p>
-                  <p className="text-xs text-muted-foreground mt-1">From transactions</p>
-                </div>
-              </CardContent>
-            </Card>
-
-            {/* Attendance chart - Show for published and active events */}
-            {(event.status === "PUBLISHED" || event.status === "ACTIVE") && (
-              <div className="space-y-6">
-                <EventAttendanceChart venueId={venue.id} eventId={eventId} />
-              </div>
-            )}
-
-            {/* Show chart for completed events too, but not the live tracker */}
-            {event.status === "COMPLETED" && <EventAttendanceChart venueId={venue.id} eventId={eventId} />}
           </div>
 
           {/* Sidebar */}
@@ -246,31 +207,6 @@ export default async function EventDetailsPage({ params }: { params: Promise<{ s
                 </div>
               </CardContent>
             </Card>
-
-            {/* Pot Payroll */}
-            {event.status === "COMPLETED" && canEdit && (
-              <Card>
-                <CardHeader>
-                  <CardTitle>Pot Payroll</CardTitle>
-                  <CardDescription>Generate the nightly pot split for this event.</CardDescription>
-                </CardHeader>
-                <CardContent>
-                  <GeneratePotPayrollButton
-                    venueSlug={slug}
-                    eventId={eventId}
-                    existingDistribution={
-                      event.potDistribution
-                        ? {
-                            generatedAt: event.potDistribution.generatedAt.toISOString(),
-                            recipientCount: event.potDistribution.recipientCount,
-                            perPersonShare: event.potDistribution.perPersonShare.toString(),
-                          }
-                        : null
-                    }
-                  />
-                </CardContent>
-              </Card>
-            )}
 
             {/* Partake Source */}
             {event.partakeEventId && (

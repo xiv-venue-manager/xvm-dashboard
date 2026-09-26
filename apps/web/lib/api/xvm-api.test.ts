@@ -5,6 +5,8 @@ import {
   getEvent,
   createEvent,
   createEventSeries,
+  listPatronLogs,
+  reclassifyPatronLogs,
   materializeEvent,
   endEventSeries,
   updateEvent,
@@ -1078,5 +1080,50 @@ describe("FFXIV Venues link API", () => {
     const [url, init] = (fetch as ReturnType<typeof vi.fn>).mock.calls[0]
     expect(url).toContain("/venues/venue-1/ffxivvenues/link")
     expect(init.method).toBe("DELETE")
+  })
+})
+
+describe("Patron logs API", () => {
+  const lastCall = () => (fetch as ReturnType<typeof vi.fn>).mock.calls[0]
+
+  it("listPatronLogs sends only the filters it is given", async () => {
+    mockFetchOnce({ ok: true, status: 200, body: [] })
+    await listPatronLogs("token", "venue-1", { from: "2026-10-01T00:00:00Z", to: "2026-10-02T00:00:00Z", limit: 50 })
+    const url = new URL(lastCall()[0])
+    expect(url.pathname).toMatch(/\/venues\/venue-1\/patrons\/logs$/)
+    expect(Object.fromEntries(url.searchParams)).toEqual({
+      from: "2026-10-01T00:00:00Z",
+      to: "2026-10-02T00:00:00Z",
+      limit: "50",
+    })
+  })
+
+  it("listPatronLogs filters by event id without a window", async () => {
+    mockFetchOnce({ ok: true, status: 200, body: [] })
+    await listPatronLogs("token", "venue-1", { eventId: 12 })
+    expect(new URL(lastCall()[0]).searchParams.get("event_id")).toBe("12")
+  })
+
+  it("listPatronLogs sends the character filter", async () => {
+    mockFetchOnce({ ok: true, status: 200, body: [] })
+    await listPatronLogs("token", "venue-1", { from: "a", to: "b", character: "Test Char", classification: "staff" })
+    const params = new URL(lastCall()[0]).searchParams
+    expect(params.get("character")).toBe("Test Char")
+    expect(params.get("classification")).toBe("staff")
+  })
+
+  it("reclassifyPatronLogs PATCHes the batch", async () => {
+    mockFetchOnce({ ok: true, status: 200, body: { updated: 2 } })
+    const result = await reclassifyPatronLogs("token", "venue-1", {
+      log_ids: [1, 2],
+      was_working: true,
+      working_person_id: 9,
+      reason: "on shift",
+    })
+    expect(result).toEqual({ updated: 2 })
+    const [url, init] = lastCall()
+    expect(url).toMatch(/\/venues\/venue-1\/patrons\/logs\/reclassify$/)
+    expect(init.method).toBe("PATCH")
+    expect(JSON.parse(init.body)).toEqual({ log_ids: [1, 2], was_working: true, working_person_id: 9, reason: "on shift" })
   })
 })

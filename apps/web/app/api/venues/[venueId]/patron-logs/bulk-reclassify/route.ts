@@ -1,15 +1,19 @@
-import { NextRequest, NextResponse } from "next/server"
+import { NextResponse } from "next/server"
 import { getServerSession } from "next-auth"
 import { authOptions } from "@/lib/auth"
 import { prisma } from "@/lib/prisma"
 import { z } from "zod"
 import { withRateLimit } from "@/lib/middleware/with-rate-limit"
+import { getValidXvmApiToken, xvmApiErrorResponse } from "@/lib/api/xvm-api-store"
+import { reclassifyPatronLogs } from "@/lib/api/xvm-api"
+
+const numericId = z.string().regex(/^\d+$/, "Invalid id")
 
 const bulkReclassifySchema = z
   .object({
-    logIds: z.array(z.string().min(1)).min(1).max(500),
+    logIds: z.array(numericId).min(1).max(500),
     wasWorking: z.boolean(),
-    workingUserId: z.string().nullable(),
+    workingUserId: numericId.nullable(),
     reason: z.string().max(500).optional(),
   })
   .refine((d) => !d.wasWorking || !!d.workingUserId, {
@@ -23,73 +27,46 @@ export const PATCH = withRateLimit<{ params: Promise<{ venueId: string }> }>(
       return NextResponse.json({ error: "Invalid request" }, { status: 400 })
     }
 
+    const session = await getServerSession(authOptions)
+    if (!session?.user?.id) {
+      return NextResponse.json({ error: "Unauthorized" }, { status: 401 })
+    }
+
+    const token = await getValidXvmApiToken(session.user.id)
+    if (!token) {
+      return NextResponse.json({ error: "xvm-api link not established yet" }, { status: 503 })
+    }
+
+    const { venueId } = await context.params
+
+    const venue = await prisma.venue.findUnique({ where: { id: venueId }, select: { xvmApiVenueId: true } })
+    if (!venue?.xvmApiVenueId) {
+      return NextResponse.json(
+        { error: "not_connected", message: "This venue hasn't been connected to xvm-api yet." },
+        { status: 409 }
+      )
+    }
+
+    let data: z.infer<typeof bulkReclassifySchema>
     try {
-      const session = await getServerSession(authOptions)
-      if (!session?.user?.id) {
-        return NextResponse.json({ error: "Unauthorized" }, { status: 401 })
-      }
-
-      const { venueId } = await context.params
-
-      const venue = await prisma.venue.findUnique({ where: { id: venueId } })
-      if (!venue) {
-        return NextResponse.json({ error: "Venue not found" }, { status: 404 })
-      }
-
-      const membership = await prisma.membership.findFirst({
-        where: { userId: session.user.id, venueId: venue.id, status: "active" },
-      })
-      if (!membership || !["OWNER", "MANAGER"].includes(membership.role)) {
-        return NextResponse.json({ error: "Owner or Manager role required" }, { status: 403 })
-      }
-
-      const body = await request.json()
-      const { logIds, wasWorking, workingUserId, reason } = bulkReclassifySchema.parse(body)
-
-      // If assigning to a user, ensure that user is a member of this venue.
-      if (wasWorking && workingUserId) {
-        const targetMembership = await prisma.membership.findFirst({
-          where: { userId: workingUserId, venueId: venue.id, status: "active" },
-        })
-        if (!targetMembership) {
-          return NextResponse.json({ error: "Target user is not an active member of this venue" }, { status: 400 })
-        }
-      }
-
-      // Verify every log belongs to this venue (prevents cross-venue tampering).
-      const logs = await prisma.patronLog.findMany({
-        where: { id: { in: logIds }, venueId: venue.id },
-        select: { id: true },
-      })
-      if (logs.length !== logIds.length) {
-        return NextResponse.json(
-          {
-            error: "Some logs were not found in this venue",
-            found: logs.length,
-            requested: logIds.length,
-          },
-          { status: 400 }
-        )
-      }
-
-      const result = await prisma.patronLog.updateMany({
-        where: { id: { in: logIds }, venueId: venue.id },
-        data: {
-          wasWorking,
-          workingUserId: wasWorking ? workingUserId : null,
-          reclassifiedAt: new Date(),
-          reclassifiedById: session.user.id,
-          reclassifyReason: reason ?? null,
-        },
-      })
-
-      return NextResponse.json({ updated: result.count })
+      data = bulkReclassifySchema.parse(await request.json())
     } catch (err) {
       if (err instanceof z.ZodError) {
         return NextResponse.json({ error: "Invalid request", details: err.flatten() }, { status: 400 })
       }
-      console.error("[bulk-reclassify] error:", err)
-      return NextResponse.json({ error: "Internal server error" }, { status: 500 })
+      return NextResponse.json({ error: "Invalid request" }, { status: 400 })
+    }
+
+    try {
+      const result = await reclassifyPatronLogs(token, venue.xvmApiVenueId, {
+        log_ids: data.logIds.map(Number),
+        was_working: data.wasWorking,
+        working_person_id: data.wasWorking && data.workingUserId ? Number(data.workingUserId) : null,
+        reason: data.reason ?? null,
+      })
+      return NextResponse.json({ updated: result.updated })
+    } catch (err) {
+      return xvmApiErrorResponse(err, session.user.id, "[bulk-reclassify] error")
     }
   },
   { requests: 30, window: "1 m" }

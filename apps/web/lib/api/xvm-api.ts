@@ -1652,6 +1652,8 @@ export interface EventItem {
   cancel_reason: string | null
 }
 
+export const EVENT_LIST_WINDOW_MS = 59 * 24 * 60 * 60 * 1000
+
 export async function listEvents(
   personToken: string,
   venueId: string,

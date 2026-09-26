@@ -28,10 +28,15 @@ jobs:
       - name: Pull branch
         run: |
           set -euo pipefail
-          [[ "$DEPLOY_REF" =~ ^[A-Za-z0-9][A-Za-z0-9._/-]*$ ]] || { echo "Invalid branch name: $DEPLOY_REF"; exit 1; }
+          [[ "$DEPLOY_REF" =~ ^[A-Za-z0-9][A-Za-z0-9._/-]*$ ]] || { echo "Invalid branch name: $DEPLOY_REF (letters, digits, . _ / - only)"; exit 1; }
           cd /home/server/xiv-app-dev
           git fetch origin "+refs/heads/$DEPLOY_REF:refs/remotes/origin/$DEPLOY_REF"
-          git reset --hard "origin/$DEPLOY_REF"
+          if [ "$DEPLOY_REF" = dev ]; then
+            git checkout -f dev
+            git reset --hard origin/dev
+          else
+            git checkout -f --detach "origin/$DEPLOY_REF"
+          fi
 
       - name: Rebuild and restart dev container
         run: |

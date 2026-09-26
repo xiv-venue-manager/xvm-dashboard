@@ -14,10 +14,6 @@ const createTemplateSchema = z.object({
   title: validators.eventTitle,
   description: validators.eventDescription,
   eventType: z.enum(["PERFORMANCE", "GAME_NIGHT", "SPECIAL", "SOCIAL", "PRIVATE", "OTHER"]),
-  // Accepted for backward compatibility with the existing form (always "UTC" today,
-  // no UI control sends anything else) - xvm-api's templates have no timezone field,
-  // so this is parsed and silently dropped, not persisted anywhere.
-  timezone: z.string().optional(),
   defaultStartTime: z.string().regex(HHMM_PATTERN, "Invalid time format. Use HH:MM").default("19:00"),
   defaultEndTime: z.string().regex(HHMM_PATTERN, "Invalid time format. Use HH:MM").default("22:00"),
 })

@@ -1606,6 +1606,140 @@ export async function getEvent(personToken: string, venueId: string, eventId: nu
   return xvmFetch<EventRow>(`/venues/${venueId}/events/${eventId}`, {}, personToken)
 }
 
+export interface EventCreateData {
+  title: string
+  description?: string | null
+  event_type?: string | null
+  location?: string | null
+  publish?: boolean
+  starts_at: string
+  ends_at: string
+}
+
+export interface EventSeriesCreateData {
+  title: string
+  description?: string | null
+  event_type?: string | null
+  location?: string | null
+  publish?: boolean
+  interval: string
+  weekday?: number | null
+  day_of_month?: number | null
+  week_of_month?: number | null
+  start_minute_of_day: number
+  duration_minutes: number
+  timezone?: string | null
+  anchor_date: string
+  ends_on?: string | null
+  ends_after_count?: number | null
+}
+
+export interface EventSeriesRow {
+  rule: RuleRow
+  seed: EventRow
+}
+
+export interface EventUpdateData {
+  title?: string
+  description?: string | null
+  event_type?: string | null
+  location?: string | null
+  starts_at?: string
+  ends_at?: string
+}
+
+export interface EventSeriesEndData {
+  cancel_future?: boolean
+  reason?: string | null
+}
+
+export interface EventSeriesEnded {
+  cancelled: number
+}
+
+export async function createEvent(personToken: string, venueId: string, data: EventCreateData): Promise<EventRow> {
+  if (!process.env.XVM_API_BASE_URL) throw new Error("XVM_API_BASE_URL is not set")
+  return xvmFetch<EventRow>(`/venues/${venueId}/events`, { method: "POST", body: JSON.stringify(data) }, personToken)
+}
+
+export async function createEventSeries(
+  personToken: string,
+  venueId: string,
+  data: EventSeriesCreateData
+): Promise<EventSeriesRow> {
+  if (!process.env.XVM_API_BASE_URL) throw new Error("XVM_API_BASE_URL is not set")
+  return xvmFetch<EventSeriesRow>(
+    `/venues/${venueId}/events/series`,
+    { method: "POST", body: JSON.stringify(data) },
+    personToken
+  )
+}
+
+export async function materializeEvent(
+  personToken: string,
+  venueId: string,
+  data: { recurrence_rule_id: number; scheduled_at: string }
+): Promise<EventRow> {
+  if (!process.env.XVM_API_BASE_URL) throw new Error("XVM_API_BASE_URL is not set")
+  return xvmFetch<EventRow>(
+    `/venues/${venueId}/events/materialize`,
+    { method: "POST", body: JSON.stringify(data) },
+    personToken
+  )
+}
+
+export async function endEventSeries(
+  personToken: string,
+  venueId: string,
+  ruleId: number,
+  data: EventSeriesEndData
+): Promise<EventSeriesEnded> {
+  if (!process.env.XVM_API_BASE_URL) throw new Error("XVM_API_BASE_URL is not set")
+  return xvmFetch<EventSeriesEnded>(
+    `/venues/${venueId}/events/series/${ruleId}/end`,
+    { method: "POST", body: JSON.stringify(data) },
+    personToken
+  )
+}
+
+export async function updateEvent(
+  personToken: string,
+  venueId: string,
+  eventId: number,
+  data: EventUpdateData
+): Promise<EventRow> {
+  if (!process.env.XVM_API_BASE_URL) throw new Error("XVM_API_BASE_URL is not set")
+  return xvmFetch<EventRow>(
+    `/venues/${venueId}/events/${eventId}`,
+    { method: "PATCH", body: JSON.stringify(data) },
+    personToken
+  )
+}
+
+export async function publishEvent(personToken: string, venueId: string, eventId: number): Promise<EventRow> {
+  if (!process.env.XVM_API_BASE_URL) throw new Error("XVM_API_BASE_URL is not set")
+  return xvmFetch<EventRow>(`/venues/${venueId}/events/${eventId}/publish`, { method: "POST" }, personToken)
+}
+
+export async function cancelEvent(
+  personToken: string,
+  venueId: string,
+  eventId: number,
+  data: { reason?: string | null }
+): Promise<EventRow> {
+  if (!process.env.XVM_API_BASE_URL) throw new Error("XVM_API_BASE_URL is not set")
+  return xvmFetch<EventRow>(
+    `/venues/${venueId}/events/${eventId}/cancel`,
+    { method: "POST", body: JSON.stringify(data) },
+    personToken
+  )
+}
+
+export async function deleteEvent(personToken: string, venueId: string, eventId: number): Promise<void> {
+  if (!process.env.XVM_API_BASE_URL) throw new Error("XVM_API_BASE_URL is not set")
+  return xvmFetch<void>(`/venues/${venueId}/events/${eventId}`, { method: "DELETE" }, personToken)
+}
+
 // ── Patrons API ────────────────────────────────────────────────
 
 export interface PatronRow {

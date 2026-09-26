@@ -49,6 +49,22 @@ export async function listEventsInRange(
     .sort((a, b) => a.startTime.getTime() - b.startTime.getTime())
 }
 
+export async function findLiveEventId(
+  token: string,
+  xvmApiVenueId: string,
+  now: Date = new Date()
+): Promise<number | null> {
+  const events = await listEventsInRange(
+    token,
+    xvmApiVenueId,
+    new Date(now.getTime() - 2 * 24 * 60 * 60 * 1000),
+    new Date(now.getTime() + 24 * 60 * 60 * 1000),
+    { now }
+  )
+  const live = events.filter((e) => e.status === "ACTIVE" && e.id !== null).pop()
+  return live ? Number(live.id) : null
+}
+
 export async function materializeIfVirtual(token: string, xvmApiVenueId: string, event: PageEvent): Promise<PageEvent> {
   if (event.id !== null || event.recurrenceRuleId === null || event.scheduledAt === null) return event
   const row = await materializeEvent(token, xvmApiVenueId, {

@@ -1,7 +1,14 @@
 import { describe, it, expect, vi, beforeEach } from "vitest"
 
-const { mockVenueFindUnique, mockMembershipFindFirst, mockGetValidXvmApiToken, mockCreateFinanceTransaction, mockGetService } =
-  vi.hoisted(() => ({
+const {
+  mockVenueFindUnique,
+  mockMembershipFindFirst,
+  mockGetValidXvmApiToken,
+  mockCreateFinanceTransaction,
+  mockGetService,
+  mockListEvents,
+} = vi.hoisted(() => ({
+    mockListEvents: vi.fn(),
     mockVenueFindUnique: vi.fn(),
     mockMembershipFindFirst: vi.fn(),
     mockGetValidXvmApiToken: vi.fn(),
@@ -22,6 +29,7 @@ vi.mock("@/lib/api/xvm-api", async (importOriginal) => {
     ...actual,
     createFinanceTransaction: mockCreateFinanceTransaction,
     getService: mockGetService,
+    listEvents: mockListEvents,
   }
 })
 vi.mock("@/lib/sse/venue-events", () => ({ venueEventBus: { emit: vi.fn() } }))
@@ -40,6 +48,7 @@ describe("createTransaction (xvm-api)", () => {
     mockVenueFindUnique.mockResolvedValue({ xvmApiVenueId: 42, discordWebhookUrl: null, settings: null })
     mockMembershipFindFirst.mockResolvedValue({ nickname: "Bobby" })
     mockGetValidXvmApiToken.mockResolvedValue("token123")
+    mockListEvents.mockResolvedValue([])
   })
 
   const financeTransactionResponse = {
@@ -143,5 +152,68 @@ describe("createTransaction (xvm-api)", () => {
 
     await expect(call).rejects.toThrow(InsufficientStockError)
     await expect(call).rejects.toThrow("Potion is out of stock")
+  })
+
+  describe("event attribution", () => {
+    const hours = (h: number) => new Date(Date.now() + h * 3600000).toISOString()
+    const liveItem = (id: number) => ({
+      materialized: true,
+      id,
+      recurrence_rule_id: null,
+      scheduled_at: null,
+      title: "Live",
+      description: null,
+      event_type: "SOCIAL",
+      location: null,
+      image_url: null,
+      starts_at: hours(-1),
+      ends_at: hours(2),
+      published_at: hours(-24),
+      cancelled_at: null,
+      cancel_reason: null,
+    })
+    const sale = { type: "SALE", amount: 100, customerName: "Bob" } satisfies CreateTransactionInput
+
+    beforeEach(() => {
+      mockCreateFinanceTransaction.mockResolvedValue(financeTransactionResponse)
+    })
+
+    it("uses a numeric event id from the caller without looking anything up", async () => {
+      await createTransaction("venue1", "user1", { ...sale, eventId: "12" })
+      expect(mockCreateFinanceTransaction.mock.calls[0][2].event_id).toBe(12)
+      expect(mockListEvents).not.toHaveBeenCalled()
+    })
+
+    it("attributes the sale to the running event when the caller sends none", async () => {
+      mockListEvents.mockResolvedValue([liveItem(31)])
+      await createTransaction("venue1", "user1", sale)
+      expect(mockCreateFinanceTransaction.mock.calls[0][2].event_id).toBe(31)
+    })
+
+    it("ignores an old cuid event id and falls back to the running event", async () => {
+      mockListEvents.mockResolvedValue([liveItem(31)])
+      await createTransaction("venue1", "user1", { ...sale, eventId: "cmabc123xyz" })
+      expect(mockCreateFinanceTransaction.mock.calls[0][2].event_id).toBe(31)
+    })
+
+    it("leaves the sale unattributed when nothing is running", async () => {
+      await createTransaction("venue1", "user1", sale)
+      expect(mockCreateFinanceTransaction.mock.calls[0][2].event_id).toBeUndefined()
+    })
+
+    it("still records the sale when the live event lookup fails", async () => {
+      mockListEvents.mockRejectedValue(new Error("xvm-api unavailable"))
+      const spy = vi.spyOn(console, "error").mockImplementation(() => {})
+      const result = await createTransaction("venue1", "user1", sale)
+      expect(result.id).toBe(7)
+      expect(mockCreateFinanceTransaction.mock.calls[0][2].event_id).toBeUndefined()
+      spy.mockRestore()
+    })
+
+    it("skips a running occurrence that has no row yet", async () => {
+      mockListEvents.mockResolvedValue([{ ...liveItem(0), id: null, materialized: false, recurrence_rule_id: 3 }])
+      await createTransaction("venue1", "user1", sale)
+      expect(mockCreateFinanceTransaction.mock.calls[0][2].event_id).toBeUndefined()
+    })
   })
 })

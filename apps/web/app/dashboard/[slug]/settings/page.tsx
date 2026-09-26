@@ -1034,18 +1034,29 @@ export default function SettingsPage({ params }: { params: Promise<{ slug: strin
                     </>
                   ) : ffxivListings ? (
                     ffxivListings.length === 0 ? (
-                      <p className="text-xs text-[var(--fg-faint)]">
-                        No listings found. Ask to be added as a manager on{" "}
-                        <a
-                          href="https://ffxivvenues.com"
-                          target="_blank"
-                          rel="noopener noreferrer"
-                          className="text-[var(--xiv-blue)] hover:underline"
+                      <>
+                        <p className="text-xs text-[var(--fg-faint)]">
+                          No listings found. Ask to be added as a manager on{" "}
+                          <a
+                            href="https://ffxivvenues.com"
+                            target="_blank"
+                            rel="noopener noreferrer"
+                            className="text-[var(--xiv-blue)] hover:underline"
+                          >
+                            ffxivvenues.com
+                          </a>
+                          , then try again.
+                        </p>
+                        <Button
+                          type="button"
+                          variant="outline-blue"
+                          size="sm"
+                          onClick={handleFfxivLoadListings}
+                          disabled={ffxivLoading}
                         >
-                          ffxivvenues.com
-                        </a>
-                        , then try again.
-                      </p>
+                          {ffxivLoading ? "Retrying…" : "Retry"}
+                        </Button>
+                      </>
                     ) : (
                       <>
                         <select

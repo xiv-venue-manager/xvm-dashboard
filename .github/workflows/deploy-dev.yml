@@ -42,23 +42,28 @@ jobs:
             git checkout -f --detach "origin/$DEPLOY_REF"
           fi
 
+      - name: Build dev image
+        run: |
+          cd /home/server/xiv-app
+          docker compose --profile dev build venue-manager-dev
+
       - name: Sync dev database schema
         run: |
           set -euo pipefail
           env_file=/home/server/xiv-app-dev/.env.dev
           export DATABASE_URL="$(sed -n 's/^DATABASE_URL=//p' "$env_file" | tail -n 1 | tr -d "\"'\r")"
-          [[ "$DATABASE_URL" =~ ^postgresql://dashboard_dev:([^@[:space:]]+)@postgres:5432/dashboard_dev$ ]] || { echo "Refusing to sync: DATABASE_URL in $env_file is not the dashboard_dev database on postgres:5432"; exit 1; }
+          [[ "$DATABASE_URL" =~ ^postgresql://dashboard_dev:([A-Za-z0-9._~-]+)@postgres:5432/dashboard_dev$ ]] || { echo "Refusing to sync: DATABASE_URL in $env_file is not the dashboard_dev database on postgres:5432, or its password uses characters outside A-Z a-z 0-9 . _ ~ -"; exit 1; }
           push_flag=""
           if [ "$ACCEPT_DATA_LOSS" = true ]; then
             export PGPASSWORD="${BASH_REMATCH[1]}"
             mkdir -p /home/server/backups
             backup="/home/server/backups/dashboard_dev-$(date +%Y%m%d-%H%M%S).sql"
-            (umask 077; docker exec -e PGPASSWORD postgres pg_dump -U dashboard_dev -h localhost dashboard_dev > "$backup")
-            [ -s "$backup" ] || { echo "Backup is empty, stopping before the push"; exit 1; }
+            (umask 077; docker exec -e PGPASSWORD postgres pg_dump -U dashboard_dev -h localhost dashboard_dev > "$backup") || { rm -f "$backup"; echo "Backup failed, stopping before the push"; exit 1; }
+            [ -s "$backup" ] || { rm -f "$backup"; echo "Backup is empty, stopping before the push"; exit 1; }
             echo "Data loss accepted. Backup: $backup" | tee -a "$GITHUB_STEP_SUMMARY"
             push_flag=--accept-data-loss
           fi
-          network="$(docker inspect -f '{{range $name, $_ := .NetworkSettings.Networks}}{{$name}}{{end}}' postgres)"
+          network="$(docker inspect -f '{{range $name, $_ := .NetworkSettings.Networks}}{{println $name}}{{end}}' postgres | head -n 1)"
           cd /home/server/xiv-app-dev
           docker build --quiet --target deps -f apps/web/Dockerfile -t dashboard-dev-schema-sync .
           docker run --rm --network "$network" -e DATABASE_URL \
@@ -66,10 +71,10 @@ jobs:
             -v "$PWD/apps/web/prisma.config.ts:/app/apps/web/prisma.config.ts:ro" \
             -w /app/apps/web dashboard-dev-schema-sync npx prisma db push $push_flag
 
-      - name: Rebuild and restart dev container
+      - name: Restart dev container
         run: |
           cd /home/server/xiv-app
-          docker compose --profile dev up -d --build venue-manager-dev
+          docker compose --profile dev up -d venue-manager-dev
 
       - name: Record deployed revision
         run: |

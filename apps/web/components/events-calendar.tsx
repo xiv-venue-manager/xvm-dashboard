@@ -18,10 +18,10 @@ import Link from "next/link"
 import { ChevronLeft, ChevronRight } from "lucide-react"
 
 interface Event {
-  id: string
+  id: string | null
   title: string
-  startTime: Date
-  endTime: Date
+  startTime: Date | string
+  endTime: Date | string
   status: string
   eventType: string
 }
@@ -109,11 +109,20 @@ export function EventsCalendar({ events, venueSlug }: EventsCalendarProps) {
                     <div className="text-sm font-semibold mb-1">{format(day, "d")}</div>
                     <div className="space-y-1">
                       {dayEvents.slice(0, 3).map((event) => (
-                        <Link key={event.id} href={`/dashboard/${venueSlug}/events/${event.id}`} className="block">
-                          <div className="text-xs p-1 rounded bg-primary/10 hover:bg-primary/20 transition-colors truncate">
+                        event.id === null ? (
+                          <div
+                            key={`${event.title}-${String(event.startTime)}`}
+                            className="text-xs p-1 rounded bg-primary/5 truncate"
+                          >
                             {format(new Date(event.startTime), "HH:mm")} {event.title}
                           </div>
-                        </Link>
+                        ) : (
+                          <Link key={event.id} href={`/dashboard/${venueSlug}/events/${event.id}`} className="block">
+                            <div className="text-xs p-1 rounded bg-primary/10 hover:bg-primary/20 transition-colors truncate">
+                              {format(new Date(event.startTime), "HH:mm")} {event.title}
+                            </div>
+                          </Link>
+                        )
                       ))}
                       {dayEvents.length > 3 && (
                         <div className="text-xs text-muted-foreground">+{dayEvents.length - 3} more</div>

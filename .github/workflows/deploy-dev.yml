@@ -9,6 +9,10 @@ on:
         description: Branch to deploy to dev.xivvenuemanager.com
         required: true
         default: dev
+      accept_data_loss:
+        description: Back up dashboard_dev, then let the schema push drop data
+        type: boolean
+        default: false
 
 permissions:
   contents: read
@@ -23,6 +27,7 @@ jobs:
     timeout-minutes: 15
     env:
       DEPLOY_REF: ${{ inputs.ref || 'dev' }}
+      ACCEPT_DATA_LOSS: ${{ inputs.accept_data_loss && 'true' || 'false' }}
     steps:
       - name: Pull branch
         run: |
@@ -42,14 +47,24 @@ jobs:
           set -euo pipefail
           env_file=/home/server/xiv-app-dev/.env.dev
           export DATABASE_URL="$(sed -n 's/^DATABASE_URL=//p' "$env_file" | tail -n 1 | tr -d "\"'\r")"
-          [[ "$DATABASE_URL" =~ ^postgresql://dashboard_dev:[^@[:space:]]+@postgres:5432/dashboard_dev$ ]] || { echo "Refusing to sync: DATABASE_URL in $env_file is not the dashboard_dev database on postgres:5432"; exit 1; }
+          [[ "$DATABASE_URL" =~ ^postgresql://dashboard_dev:([^@[:space:]]+)@postgres:5432/dashboard_dev$ ]] || { echo "Refusing to sync: DATABASE_URL in $env_file is not the dashboard_dev database on postgres:5432"; exit 1; }
+          push_flag=""
+          if [ "$ACCEPT_DATA_LOSS" = true ]; then
+            export PGPASSWORD="${BASH_REMATCH[1]}"
+            mkdir -p /home/server/backups
+            backup="/home/server/backups/dashboard_dev-$(date +%Y%m%d-%H%M%S).sql"
+            (umask 077; docker exec -e PGPASSWORD postgres pg_dump -U dashboard_dev -h localhost dashboard_dev > "$backup")
+            [ -s "$backup" ] || { echo "Backup is empty, stopping before the push"; exit 1; }
+            echo "Data loss accepted. Backup: $backup" | tee -a "$GITHUB_STEP_SUMMARY"
+            push_flag=--accept-data-loss
+          fi
           network="$(docker inspect -f '{{range $name, $_ := .NetworkSettings.Networks}}{{$name}}{{end}}' postgres)"
           cd /home/server/xiv-app-dev
           docker build --quiet --target deps -f apps/web/Dockerfile -t dashboard-dev-schema-sync .
           docker run --rm --network "$network" -e DATABASE_URL \
             -v "$PWD/apps/web/prisma:/app/apps/web/prisma:ro" \
             -v "$PWD/apps/web/prisma.config.ts:/app/apps/web/prisma.config.ts:ro" \
-            -w /app/apps/web dashboard-dev-schema-sync npx prisma db push
+            -w /app/apps/web dashboard-dev-schema-sync npx prisma db push $push_flag
 
       - name: Rebuild and restart dev container
         run: |

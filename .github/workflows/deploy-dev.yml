@@ -65,7 +65,10 @@ jobs:
           fi
           network="$(docker inspect -f '{{range $name, $_ := .NetworkSettings.Networks}}{{println $name}}{{end}}' postgres | head -n 1)"
           cd /home/server/xiv-app-dev
+          old_image="$(docker image inspect -f '{{.Id}}' dashboard-dev-schema-sync 2>/dev/null || true)"
           docker build --quiet --target deps -f apps/web/Dockerfile -t dashboard-dev-schema-sync .
+          new_image="$(docker image inspect -f '{{.Id}}' dashboard-dev-schema-sync)"
+          if [ -n "$old_image" ] && [ "$old_image" != "$new_image" ]; then docker rmi "$old_image" >/dev/null || true; fi
           docker run --rm --network "$network" -e DATABASE_URL \
             -v "$PWD/apps/web/prisma:/app/apps/web/prisma:ro" \
             -v "$PWD/apps/web/prisma.config.ts:/app/apps/web/prisma.config.ts:ro" \

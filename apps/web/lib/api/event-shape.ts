@@ -50,28 +50,53 @@ export function toDashboardEventShape(
   }
 }
 
-const MONDAY_FIRST_WEEKDAY = [6, 0, 1, 2, 3, 4, 5]
+const WEEKDAY_INDEX: Record<string, number> = { Mon: 0, Tue: 1, Wed: 2, Thu: 3, Fri: 4, Sat: 5, Sun: 6 }
+
+function localParts(instant: Date, timeZone: string) {
+  const parts = Object.fromEntries(
+    new Intl.DateTimeFormat("en-US", {
+      timeZone,
+      hourCycle: "h23",
+      year: "numeric",
+      month: "2-digit",
+      day: "2-digit",
+      hour: "2-digit",
+      minute: "2-digit",
+      weekday: "short",
+    })
+      .formatToParts(instant)
+      .map((part) => [part.type, part.value])
+  )
+  return {
+    date: `${parts.year}-${parts.month}-${parts.day}`,
+    day: Number(parts.day),
+    minuteOfDay: Number(parts.hour) * 60 + Number(parts.minute),
+    weekday: WEEKDAY_INDEX[parts.weekday],
+  }
+}
 
 export function toSeriesCreateData(
   base: Pick<EventSeriesCreateData, "title" | "description" | "event_type" | "location" | "publish">,
   rule: RecurrenceRule,
   startTime: Date,
-  endTime: Date
+  endTime: Date,
+  timeZone = "UTC"
 ): EventSeriesCreateData {
+  const local = localParts(startTime, timeZone)
   const common = {
     ...base,
-    start_minute_of_day: startTime.getUTCHours() * 60 + startTime.getUTCMinutes(),
+    start_minute_of_day: local.minuteOfDay,
     duration_minutes: Math.round((endTime.getTime() - startTime.getTime()) / 60000),
-    timezone: "UTC",
-    anchor_date: startTime.toISOString().slice(0, 10),
+    timezone: timeZone,
+    anchor_date: local.date,
   }
   if (rule === "MONTHLY") {
-    return { ...common, interval: "monthly_by_date", day_of_month: startTime.getUTCDate() }
+    return { ...common, interval: "monthly_by_date", day_of_month: local.day }
   }
   return {
     ...common,
     interval: rule === "WEEKLY" ? "weekly" : "biweekly",
-    weekday: MONDAY_FIRST_WEEKDAY[startTime.getUTCDay()],
+    weekday: local.weekday,
   }
 }
 

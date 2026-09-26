@@ -92,6 +92,29 @@ describe("toSeriesCreateData", () => {
     })
   })
 
+  it("computes the rule in the given zone so the local wall time survives daylight saving", () => {
+    const start = new Date("2026-10-03T03:00:00Z")
+    const data = toSeriesCreateData(base, "WEEKLY", start, new Date("2026-10-03T06:00:00Z"), "America/Los_Angeles")
+    expect(data).toMatchObject({
+      timezone: "America/Los_Angeles",
+      start_minute_of_day: 20 * 60,
+      weekday: 4,
+      anchor_date: "2026-10-02",
+    })
+  })
+
+  it("uses the local day of month for MONTHLY when the zone is on the previous day", () => {
+    const start = new Date("2026-11-01T03:00:00Z")
+    expect(toSeriesCreateData(base, "MONTHLY", start, new Date("2026-11-01T06:00:00Z"), "America/Los_Angeles")).toMatchObject({
+      day_of_month: 31,
+      anchor_date: "2026-10-31",
+    })
+  })
+
+  it("rejects an unknown zone", () => {
+    expect(() => toSeriesCreateData(base, "WEEKLY", friday, end, "Not/AZone")).toThrow(RangeError)
+  })
+
   it("maps MONTHLY to monthly_by_date on the start's day of month, matching the old addMonths rule", () => {
     const data = toSeriesCreateData(base, "MONTHLY", friday, end)
     expect(data).toMatchObject({ interval: "monthly_by_date", day_of_month: 2 })

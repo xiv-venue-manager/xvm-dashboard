@@ -17,6 +17,7 @@ export interface DashboardEvent {
   partakeEventId: number | null
   recurrenceRuleId: number | null
   cancelReason: string | null
+  scheduledAt: string | null
   createdBy: { name: string; image: null } | null
   attendanceCount: null
   partakeAttendeeCount: null
@@ -43,6 +44,7 @@ export function toDashboardEventShape(
     partakeEventId: row?.partake_event_id ?? null,
     recurrenceRuleId: event.recurrence_rule_id,
     cancelReason: event.cancel_reason,
+    scheduledAt: event.scheduled_at,
     createdBy: options.creatorName ? { name: options.creatorName, image: null } : null,
     attendanceCount: null,
     partakeAttendeeCount: null,

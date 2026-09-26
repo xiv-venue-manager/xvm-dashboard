@@ -20,6 +20,7 @@ import { OverviewTasks } from "@/components/overview-tasks"
 import { AnnouncementBanner } from "@/components/announcement-banner"
 import { CharacterLinkNudge } from "@/components/character-link-nudge"
 import { TodayDateLabel } from "@/components/today-date-label"
+import { listEventsInRange, type PageEvent } from "@/lib/api/event-window"
 import { format, subDays, subWeeks, formatDistanceToNow } from "date-fns"
 import {
   Radio,
@@ -33,6 +34,8 @@ import {
   ChevronRight,
   Clock,
 } from "lucide-react"
+
+const EVENT_WINDOW_MS = 60 * 24 * 60 * 60 * 1000
 
 export default async function VenueDashboardPage({ params }: { params: Promise<{ slug: string }> }) {
   const session = await getServerSession(authOptions)
@@ -62,11 +65,14 @@ export default async function VenueDashboardPage({ params }: { params: Promise<{
     })
   const canManage = ["OWNER", "MANAGER"].includes(userRole)
 
-  // Live event
-  const liveEvent = await prisma.event.findFirst({
-    where: { venueId: venue.id, status: "ACTIVE" },
-    select: { id: true, title: true, startTime: true },
-  })
+  const windowEvents = await readXvm("overview events", [] as PageEvent[], (t, v) =>
+    listEventsInRange(t, v, new Date(now.getTime() - EVENT_WINDOW_MS), new Date(now.getTime() + EVENT_WINDOW_MS), {
+      now,
+    })
+  )
+  const isOpenOrUpcoming = (e: PageEvent) => e.status === "PUBLISHED" || e.status === "ACTIVE"
+
+  const liveEvent = windowEvents.find((e) => e.status === "ACTIVE") ?? null
 
   // KPI data (owner/manager only)
   let kpis = {
@@ -87,9 +93,7 @@ export default async function VenueDashboardPage({ params }: { params: Promise<{
       prisma.patronLog.count({
         where: { venueId: venue.id, action: "ENTER", loggedAt: { gte: twoWeeksAgo, lt: weekAgo } },
       }),
-      prisma.event.count({
-        where: { venueId: venue.id, startTime: { gte: now }, status: { in: ["PUBLISHED", "ACTIVE"] } },
-      }),
+      Promise.resolve(windowEvents.filter((e) => e.startTime >= now && isOpenOrUpcoming(e)).length),
     ])
     kpis = {
       revenueThisWeek: revThis,
@@ -104,12 +108,10 @@ export default async function VenueDashboardPage({ params }: { params: Promise<{
 
   // Recent events for chart + table (last 8)
   const recentEvents = canManage
-    ? await prisma.event.findMany({
-        where: { venueId: venue.id, status: { in: ["COMPLETED", "ACTIVE"] }, startTime: { lte: now } },
-        orderBy: { startTime: "desc" },
-        take: 8,
-        select: { id: true, title: true, startTime: true, status: true, eventType: true },
-      })
+    ? windowEvents
+        .filter((e) => e.id !== null && (e.status === "COMPLETED" || e.status === "ACTIVE") && e.startTime <= now)
+        .sort((a, b) => b.startTime.getTime() - a.startTime.getTime())
+        .slice(0, 8)
     : []
 
   // Revenue per event for chart
@@ -160,11 +162,7 @@ export default async function VenueDashboardPage({ params }: { params: Promise<{
   }))
 
   // Next upcoming event
-  const nextEvent = await prisma.event.findFirst({
-    where: { venueId: venue.id, startTime: { gte: now }, status: { in: ["PUBLISHED", "ACTIVE"] } },
-    orderBy: { startTime: "asc" },
-    select: { id: true, title: true, startTime: true, endTime: true, eventType: true },
-  })
+  const nextEvent = windowEvents.find((e) => e.startTime >= now && isOpenOrUpcoming(e)) ?? null
 
   const openTasks = await readXvm("overview open tasks", [], async (t, v) =>
     (await listTasks(t, v)).slice(0, 5).map((task) => ({
@@ -359,11 +357,13 @@ export default async function VenueDashboardPage({ params }: { params: Promise<{
                   <Badge variant="tag" className="text-[10px]">
                     {nextEvent.eventType}
                   </Badge>
-                  <Button asChild variant="outline-blue" size="sm">
-                    <Link href={`/dashboard/${slug}/events/${nextEvent.id}`}>
-                      <Cog className="h-3.5 w-3.5" /> Manage
-                    </Link>
-                  </Button>
+                  {nextEvent.id !== null && (
+                    <Button asChild variant="outline-blue" size="sm">
+                      <Link href={`/dashboard/${slug}/events/${nextEvent.id}`}>
+                        <Cog className="h-3.5 w-3.5" /> Manage
+                      </Link>
+                    </Button>
+                  )}
                 </div>
               </div>
             ) : (

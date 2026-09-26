@@ -118,7 +118,7 @@ export default async function EventDetailsPage({ params }: { params: Promise<{ s
                 {event.recurrenceRuleId !== null && (
                   <CancelSeriesButton venueId={venue.id} eventId={eventId} venueSlug={slug} />
                 )}
-                <DeleteEventButton venueId={venue.id} eventId={eventId} venueSlug={slug} />
+                {event.status === "DRAFT" && <DeleteEventButton venueId={venue.id} eventId={eventId} venueSlug={slug} />}
               </>
             )}
           </div>

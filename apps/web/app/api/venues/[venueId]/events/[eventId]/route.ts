@@ -123,15 +123,21 @@ export const PUT = withRateLimit<RouteContext>(
       return NextResponse.json({ error: "Invalid request" }, { status: 400 })
     }
 
-    const fields: EventUpdateData = {}
-    if (data.title !== undefined) fields.title = data.title
-    if (data.description !== undefined) fields.description = data.description
-    if (data.eventType !== undefined) fields.event_type = data.eventType
-    if (data.startTime !== undefined) fields.starts_at = data.startTime.toISOString()
-    if (data.endTime !== undefined) fields.ends_at = data.endTime.toISOString()
-
     try {
       let event = await getEvent(auth.token, auth.xvmApiVenueId, auth.eventId)
+
+      const fields: EventUpdateData = {}
+      if (data.title !== undefined && data.title !== event.title) fields.title = data.title
+      if (data.description !== undefined && (data.description || null) !== event.description) {
+        fields.description = data.description
+      }
+      if (data.eventType !== undefined && data.eventType !== event.event_type) fields.event_type = data.eventType
+      if (data.startTime !== undefined && data.startTime.getTime() !== new Date(event.starts_at).getTime()) {
+        fields.starts_at = data.startTime.toISOString()
+      }
+      if (data.endTime !== undefined && data.endTime.getTime() !== new Date(event.ends_at).getTime()) {
+        fields.ends_at = data.endTime.toISOString()
+      }
       const change = planStatusChange(deriveEventStatus(event), data.status)
       if (change.action === "reject") {
         return NextResponse.json({ error: change.message }, { status: 400 })

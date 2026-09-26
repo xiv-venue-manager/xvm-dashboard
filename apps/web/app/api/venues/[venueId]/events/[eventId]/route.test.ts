@@ -148,6 +148,20 @@ describe("PUT", () => {
     expect(m.cancelEvent).not.toHaveBeenCalled()
   })
 
+  it("skips the update when the form sends the values already stored, so a cancelled event can still be saved", async () => {
+    const current = row({ cancelled_at: future(-1) })
+    m.getEvent.mockResolvedValue(current)
+    const res = await call(PUT, "7", {
+      title: current.title,
+      eventType: current.event_type,
+      startTime: current.starts_at,
+      endTime: current.ends_at,
+      status: "CANCELLED",
+    })
+    expect(res.status).toBe(200)
+    expect(m.updateEvent).not.toHaveBeenCalled()
+  })
+
   it("rejects an impossible status change before writing anything", async () => {
     m.getEvent.mockResolvedValue(row({ published_at: future(-1) }))
     const res = await call(PUT, "7", { title: "New", status: "DRAFT" })

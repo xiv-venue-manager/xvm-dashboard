@@ -75,6 +75,13 @@ export const POST = withRateLimit<{ params: Promise<{ venueId: string }> }>(
       return NextResponse.json({ error: "Invalid request" }, { status: 400 })
     }
 
+    const timeZone = data.timezone ?? "UTC"
+    try {
+      new Intl.DateTimeFormat("en-US", { timeZone })
+    } catch {
+      return NextResponse.json({ error: "Validation error", details: [{ message: "Unknown timezone" }] }, { status: 400 })
+    }
+
     const base = {
       title: data.title,
       description: data.description ?? null,
@@ -88,7 +95,7 @@ export const POST = withRateLimit<{ params: Promise<{ venueId: string }> }>(
             await createEventSeries(
               token,
               gate.xvmApiVenueId,
-              toSeriesCreateData(base, data.recurrenceRule, data.startTime, data.endTime)
+              toSeriesCreateData(base, data.recurrenceRule, data.startTime, data.endTime, timeZone)
             )
           ).seed
         : await createEvent(token, gate.xvmApiVenueId, {

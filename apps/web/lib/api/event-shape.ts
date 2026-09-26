@@ -74,3 +74,22 @@ export function toSeriesCreateData(
     weekday: MONDAY_FIRST_WEEKDAY[startTime.getUTCDay()],
   }
 }
+
+export type StatusChange =
+  | { action: "none" }
+  | { action: "publish" }
+  | { action: "cancel" }
+  | { action: "reject"; message: string }
+
+export function planStatusChange(current: EventStatus, desired: EventStatus | undefined): StatusChange {
+  if (desired === undefined || desired === current) return { action: "none" }
+  if (desired === "PUBLISHED") {
+    if (current === "DRAFT") return { action: "publish" }
+    if (current === "ACTIVE" || current === "COMPLETED") return { action: "none" }
+  }
+  if (desired === "CANCELLED") return { action: "cancel" }
+  return {
+    action: "reject",
+    message: `Status can't be set to ${desired}. It follows from publishing, cancelling and the event times.`,
+  }
+}

@@ -1,5 +1,5 @@
 import { describe, it, expect } from "vitest"
-import { toDashboardEventShape, toSeriesCreateData } from "./event-shape"
+import { planStatusChange, toDashboardEventShape, toSeriesCreateData } from "./event-shape"
 import type { EventItem, EventRow } from "@/lib/api/xvm-api"
 
 const row: EventRow = {
@@ -96,5 +96,30 @@ describe("toSeriesCreateData", () => {
     const data = toSeriesCreateData(base, "MONTHLY", friday, end)
     expect(data).toMatchObject({ interval: "monthly_by_date", day_of_month: 2 })
     expect(data.weekday).toBeUndefined()
+  })
+})
+
+describe("planStatusChange", () => {
+  it("does nothing when the status is unset or already current", () => {
+    expect(planStatusChange("DRAFT", undefined)).toEqual({ action: "none" })
+    expect(planStatusChange("ACTIVE", "ACTIVE")).toEqual({ action: "none" })
+  })
+
+  it("publishes a draft and treats PUBLISHED on a started event as unchanged", () => {
+    expect(planStatusChange("DRAFT", "PUBLISHED")).toEqual({ action: "publish" })
+    expect(planStatusChange("ACTIVE", "PUBLISHED")).toEqual({ action: "none" })
+    expect(planStatusChange("COMPLETED", "PUBLISHED")).toEqual({ action: "none" })
+  })
+
+  it("cancels from any live state", () => {
+    expect(planStatusChange("DRAFT", "CANCELLED")).toEqual({ action: "cancel" })
+    expect(planStatusChange("PUBLISHED", "CANCELLED")).toEqual({ action: "cancel" })
+  })
+
+  it("rejects unpublishing, un-cancelling and writing derived states", () => {
+    expect(planStatusChange("PUBLISHED", "DRAFT").action).toBe("reject")
+    expect(planStatusChange("CANCELLED", "PUBLISHED").action).toBe("reject")
+    expect(planStatusChange("PUBLISHED", "COMPLETED").action).toBe("reject")
+    expect(planStatusChange("PUBLISHED", "ACTIVE").action).toBe("reject")
   })
 })

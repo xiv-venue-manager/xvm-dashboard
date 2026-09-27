@@ -8,7 +8,16 @@ import { CreateShiftDialog } from "@/components/create-shift-dialog"
 import { ShiftsCalendar } from "@/components/shifts-calendar"
 import { ShiftsWeekView } from "@/components/shifts-week-view"
 import { getValidXvmApiToken } from "@/lib/api/xvm-api-store"
-import { listShifts, listShiftsChunked, listShiftStaffAndRoles, listMemberships, listPositions, getMe } from "@/lib/api/xvm-api"
+import {
+  listEvents,
+  listShifts,
+  listShiftsChunked,
+  listShiftStaffAndRoles,
+  listMemberships,
+  listPositions,
+  getMe,
+} from "@/lib/api/xvm-api"
+import { toShiftEventOptions, type ShiftEventOption } from "@/lib/shift-event-options"
 import { toShiftRow, type ShiftRow, type StaffNameLookup } from "@/lib/shift-format"
 
 // Week start = Monday in UTC (FFXIV server time = UTC)
@@ -153,13 +162,17 @@ export default async function ShiftsPage({
 
   const { staff: staffForDialog, roles: venueRoles } = await listShiftStaffAndRoles(token, xvmApiVenueId)
 
-  const venueEvents = await prisma.event.findMany({
-    where: { venueId: venue.id },
-    select: { id: true, title: true },
-    orderBy: { startTime: "desc" },
-    take: 50,
-  })
-  const eventsForDialog = venueEvents.map((e) => ({ id: e.id, name: e.title }))
+  let eventsForDialog: ShiftEventOption[] = []
+  try {
+    eventsForDialog = toShiftEventOptions(
+      await listEvents(token, xvmApiVenueId, {
+        from: new Date(now.getTime() - 14 * 24 * 60 * 60 * 1000).toISOString(),
+        to: new Date(now.getTime() + 45 * 24 * 60 * 60 * 1000).toISOString(),
+      })
+    )
+  } catch (error) {
+    console.error("[shifts] event picker read error:", error)
+  }
 
   return (
     <VenueLayout venueSlug={venue.slug} venueName={venue.name} userRole={userRole}>

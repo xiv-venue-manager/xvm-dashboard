@@ -43,6 +43,7 @@ interface RoleOption {
 interface EventOption {
   id: string
   name: string
+  startsAt: string
 }
 
 const statusBadge: Record<string, string> = {

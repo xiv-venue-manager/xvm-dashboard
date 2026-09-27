@@ -1,7 +1,12 @@
 import { listEvents, materializeEvent } from "@/lib/api/xvm-api"
 import { toDashboardEventShape, type DashboardEvent } from "@/lib/api/event-shape"
 
-const LIST_WINDOW_MS = 60 * 24 * 60 * 60 * 1000
+// 59, not 60: xvm-api's list-window cap is 60 days, and this chunk width is sent
+// straight through as one request's from/to - landing exactly on the cap means every
+// chunk 400s the moment the cap tightens by even a day. Mirrors EVENT_LIST_WINDOW_MS
+// in xvm-api.ts (#99); duplicated here rather than imported since that PR hasn't
+// merged yet - collapse to one shared constant once it has.
+const LIST_WINDOW_MS = 59 * 24 * 60 * 60 * 1000
 
 export interface PageEvent extends Omit<DashboardEvent, "startTime" | "endTime"> {
   startTime: Date

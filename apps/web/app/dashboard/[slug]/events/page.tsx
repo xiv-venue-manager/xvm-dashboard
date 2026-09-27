@@ -15,10 +15,8 @@ import { EndEventButton } from "@/components/end-event-button"
 import { canManageVenue } from "@/lib/roles"
 import { eventVisibilityFor } from "@/lib/event-visibility"
 import { xvmPageReader } from "@/lib/api/xvm-page-read"
-import { listEvents } from "@/lib/api/xvm-api"
+import { listEvents, EVENT_LIST_WINDOW_MS } from "@/lib/api/xvm-api"
 import { toDashboardEventShape, type DashboardEvent } from "@/lib/api/event-shape"
-
-const LIST_WINDOW_DAYS = 30
 
 const eventKey = (event: DashboardEvent) => event.id ?? `${event.recurrenceRuleId}-${event.startTime}`
 
@@ -75,8 +73,8 @@ export default async function EventsPage({
   const readXvm = await xvmPageReader(session.user.id, venue.xvmApiVenueId)
   let events: DashboardEvent[] = await readXvm("events-list", [] as DashboardEvent[], async (token, xvmApiVenueId) => {
     const items = await listEvents(token, xvmApiVenueId, {
-      from: new Date(now.getTime() - LIST_WINDOW_DAYS * 86400000).toISOString(),
-      to: new Date(now.getTime() + LIST_WINDOW_DAYS * 86400000).toISOString(),
+      from: new Date(now.getTime() - EVENT_LIST_WINDOW_MS / 2).toISOString(),
+      to: new Date(now.getTime() + EVENT_LIST_WINDOW_MS / 2).toISOString(),
       includeCancelled: true,
     })
     return items.map((item) => toDashboardEventShape(item, { now }))

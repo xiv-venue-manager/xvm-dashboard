@@ -128,14 +128,14 @@ describe("POST", () => {
 })
 
 describe("GET", () => {
-  it("defaults to a 60 day window around now and includes cancelled events", async () => {
+  it("defaults to a 59 day window around now and includes cancelled events", async () => {
     m.listEvents.mockResolvedValue([item()])
     const res = await call(GET)
     expect(res.status).toBe(200)
     const [, , params] = m.listEvents.mock.calls[0]
     expect(params.includeCancelled).toBe(true)
     const span = new Date(params.to).getTime() - new Date(params.from).getTime()
-    expect(span).toBe(60 * 86400000)
+    expect(span).toBe(59 * 86400000)
   })
 
   it("filters by derived status", async () => {

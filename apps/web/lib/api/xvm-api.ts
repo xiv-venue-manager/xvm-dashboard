@@ -1652,6 +1652,9 @@ export interface EventItem {
   cancel_reason: string | null
 }
 
+// Total from-to span, split in half on each side of "now" - not per-side like the two
+// independent LIST_WINDOW_DAYS constants this replaces. 59 days keeps that under xvm-api's
+// 60-day list-window cap with a day of margin, instead of landing on it exactly.
 export const EVENT_LIST_WINDOW_MS = 59 * 24 * 60 * 60 * 1000
 
 export async function listEvents(

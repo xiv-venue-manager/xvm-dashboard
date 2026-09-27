@@ -8,6 +8,7 @@ import { VenueLayout } from "@/components/venue-layout"
 import { LiveDashboard } from "@/components/live-dashboard"
 import { resolveDisplayName } from "@/lib/display-name"
 import { xvmPageReader } from "@/lib/api/xvm-page-read"
+import { listEventsInRange, materializeIfVirtual, type PageEvent } from "@/lib/api/event-window"
 import {
   getVenue,
   getFinanceSummary,
@@ -47,32 +48,23 @@ export default async function LivePage({ params }: { params: Promise<{ slug: str
   )
   const showRevenue = canManage || revenueVisibility !== "hide"
 
-  // Find the currently active event (or the next upcoming one)
   const now = new Date()
-  let activeEvent = await prisma.event.findFirst({
-    where: {
-      venueId: venue.id,
-      status: "ACTIVE",
-    },
-  })
-
-  // If no active event, check for one starting within 30 minutes
-  let isUpcoming = false
-  if (!activeEvent) {
-    const soon = new Date(now.getTime() + 30 * 60 * 1000)
-    const upcoming = await prisma.event.findFirst({
-      where: {
-        venueId: venue.id,
-        status: "PUBLISHED",
-        startTime: { lte: soon, gte: now },
-      },
-      orderBy: { startTime: "asc" },
+  const soon = new Date(now.getTime() + 30 * 60 * 1000)
+  const nearbyEvents = await readXvm("live page events", [] as PageEvent[], (t, v) =>
+    listEventsInRange(t, v, new Date(now.getTime() - 2 * 24 * 60 * 60 * 1000), new Date(now.getTime() + 24 * 60 * 60 * 1000), {
+      now,
     })
-    if (upcoming) {
-      activeEvent = upcoming
-      isUpcoming = true
-    }
-  }
+  )
+  const running = nearbyEvents.find((e) => e.status === "ACTIVE")
+  const upcoming = running
+    ? undefined
+    : nearbyEvents.find((e) => e.status === "PUBLISHED" && e.startTime >= now && e.startTime <= soon)
+  const isUpcoming = upcoming !== undefined
+  const pickedEvent = running ?? upcoming
+  const activeEvent =
+    pickedEvent && canManage
+      ? await readXvm("live page materialize", pickedEvent, (t, v) => materializeIfVirtual(t, v, pickedEvent))
+      : pickedEvent
 
   // Get current patron count
   const patronCount = activeEvent
@@ -151,7 +143,7 @@ export default async function LivePage({ params }: { params: Promise<{ slug: str
           <LiveDashboard
             venueId={venue.id}
             event={{
-              id: activeEvent.id,
+              id: activeEvent.id ?? "",
               title: activeEvent.title,
               eventType: activeEvent.eventType,
               startTime: activeEvent.startTime.toISOString(),

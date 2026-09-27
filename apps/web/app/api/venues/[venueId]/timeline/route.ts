@@ -4,6 +4,7 @@ import { authOptions } from "@/lib/auth"
 import { prisma } from "@/lib/prisma"
 import { xvmPageReader } from "@/lib/api/xvm-page-read"
 import {
+  getEvent,
   listFinanceTransactions,
   listMemberships,
   listShifts,
@@ -76,8 +77,10 @@ export async function GET(request: NextRequest, { params }: { params: Promise<{ 
   const windowTo = cursor ? new Date(cursor) : new Date()
   let windowFrom = new Date(windowTo.getTime() - TIMELINE_WINDOW_MS)
   if (eventId) {
-    const event = await prisma.event.findFirst({ where: { id: eventId, venueId }, select: { startTime: true } })
-    if (event && event.startTime > windowFrom) windowFrom = event.startTime
+    const event = /^\d+$/.test(eventId)
+      ? await readXvm("timeline event", null, (t, v) => getEvent(t, v, Number(eventId)))
+      : null
+    if (event && new Date(event.starts_at) > windowFrom) windowFrom = new Date(event.starts_at)
   }
   const range = { from: windowFrom.toISOString(), to: windowTo.toISOString() }
   const wantSales = !type || type === "sales"

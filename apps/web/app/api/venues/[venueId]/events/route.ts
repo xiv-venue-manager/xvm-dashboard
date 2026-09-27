@@ -4,89 +4,108 @@ import { authOptions } from "@/lib/auth"
 import { prisma } from "@/lib/prisma"
 import { z } from "zod"
 import { withRateLimit } from "@/lib/middleware/with-rate-limit"
-import { generateOccurrences, type RecurrenceRule } from "@/lib/recurrence"
 import { validators } from "@/lib/validation"
-import { canManageVenue } from "@/lib/roles"
-import { Prisma, type EventStatus } from "@/generated/prisma/client"
 import { eventVisibilityFor } from "@/lib/event-visibility"
+import { getValidXvmApiToken, xvmApiErrorResponse } from "@/lib/api/xvm-api-store"
+import { createEvent, createEventSeries, listEvents } from "@/lib/api/xvm-api"
+import { toDashboardEventShape, toSeriesCreateData } from "@/lib/api/event-shape"
+
+const isoDate = z
+  .string()
+  .refine((value) => !Number.isNaN(new Date(value).getTime()), "Invalid date")
+  .transform((value) => new Date(value))
 
 const eventSchema = z.object({
   title: validators.eventTitle,
   description: validators.eventDescription,
   eventType: z.enum(["PERFORMANCE", "GAME_NIGHT", "SPECIAL", "SOCIAL", "PRIVATE", "OTHER"]),
-  status: z.enum(["DRAFT", "PUBLISHED", "ACTIVE", "COMPLETED", "CANCELLED"]).default("DRAFT"),
-  startTime: z.string().transform((str) => new Date(str)),
-  endTime: z.string().transform((str) => new Date(str)),
-  timezone: z.string().default("UTC"),
+  status: z.enum(["DRAFT", "PUBLISHED"]).default("DRAFT"),
+  startTime: isoDate,
+  endTime: isoDate,
+  timezone: z.string().optional(),
   recurrenceRule: z.enum(["WEEKLY", "BIWEEKLY", "MONTHLY"]).optional(),
 })
+
+const LIST_WINDOW_DAYS = 30
+
+async function requireXvmVenueId(venueId: string) {
+  const venue = await prisma.venue.findUnique({
+    where: { id: venueId },
+    select: { xvmApiVenueId: true, settings: true },
+  })
+  if (!venue?.xvmApiVenueId) {
+    return {
+      error: NextResponse.json(
+        { error: "not_connected", message: "This venue hasn't been connected to xvm-api yet." },
+        { status: 409 }
+      ),
+    }
+  }
+  return { venue, xvmApiVenueId: venue.xvmApiVenueId }
+}
 
 export const POST = withRateLimit<{ params: Promise<{ venueId: string }> }>(
   async (request: NextRequest, context) => {
     if (!context?.params) {
       return NextResponse.json({ error: "Invalid request" }, { status: 400 })
     }
-    const { params } = context
+
+    const session = await getServerSession(authOptions)
+    if (!session?.user?.id) {
+      return NextResponse.json({ error: "Unauthorized" }, { status: 401 })
+    }
+
+    const token = await getValidXvmApiToken(session.user.id)
+    if (!token) {
+      return NextResponse.json({ error: "xvm-api link not established yet" }, { status: 503 })
+    }
+
+    const { venueId } = await context.params
+
+    const gate = await requireXvmVenueId(venueId)
+    if (gate.error) return gate.error
+
+    let data: z.infer<typeof eventSchema>
     try {
-      const session = await getServerSession(authOptions)
-      if (!session?.user?.id) {
-        return NextResponse.json({ error: "Unauthorized" }, { status: 401 })
+      data = eventSchema.parse(await request.json())
+    } catch (err) {
+      if (err instanceof z.ZodError) {
+        return NextResponse.json({ error: "Validation error", details: err.issues }, { status: 400 })
       }
+      return NextResponse.json({ error: "Invalid request" }, { status: 400 })
+    }
 
-      const { venueId } = await params
+    const timeZone = data.timezone ?? "UTC"
+    try {
+      new Intl.DateTimeFormat("en-US", { timeZone })
+    } catch {
+      return NextResponse.json({ error: "Validation error", details: [{ message: "Unknown timezone" }] }, { status: 400 })
+    }
 
-      // Check if user has permission to create events in this venue
-      const membership = await prisma.membership.findFirst({
-        where: {
-          userId: session.user.id,
-          venueId,
-          status: "active",
-        },
-      })
+    const base = {
+      title: data.title,
+      description: data.description ?? null,
+      event_type: data.eventType,
+      publish: data.status === "PUBLISHED",
+    }
 
-      if (!membership || !canManageVenue(membership.role)) {
-        return NextResponse.json({ error: "You don't have permission to create events" }, { status: 403 })
-      }
-
-      const body = await request.json()
-      const validatedData = eventSchema.parse(body)
-      const { recurrenceRule, ...eventData } = validatedData
-
-      const event = await prisma.event.create({
-        data: {
-          ...eventData,
-          recurrenceRule: recurrenceRule ?? null,
-          venueId,
-          createdById: session.user.id,
-        },
-      })
-
-      if (recurrenceRule) {
-        const occurrences = generateOccurrences(event.startTime, event.endTime, recurrenceRule as RecurrenceRule, 8)
-        await prisma.event.createMany({
-          data: occurrences.map((o) => ({
-            title: event.title,
-            description: event.description,
-            eventType: event.eventType,
-            status: event.status,
-            timezone: event.timezone,
-            venueId,
-            createdById: session.user.id,
-            parentEventId: event.id,
-            startTime: o.startTime,
-            endTime: o.endTime,
-          })),
-        })
-      }
-
-      return NextResponse.json(event, { status: 201 })
-    } catch (error) {
-      if (error instanceof z.ZodError) {
-        return NextResponse.json({ error: "Validation error", details: error.issues }, { status: 400 })
-      }
-
-      console.error("Error creating event:", error)
-      return NextResponse.json({ error: "Internal server error" }, { status: 500 })
+    try {
+      const event = data.recurrenceRule
+        ? (
+            await createEventSeries(
+              token,
+              gate.xvmApiVenueId,
+              toSeriesCreateData(base, data.recurrenceRule, data.startTime, data.endTime, timeZone)
+            )
+          ).seed
+        : await createEvent(token, gate.xvmApiVenueId, {
+            ...base,
+            starts_at: data.startTime.toISOString(),
+            ends_at: data.endTime.toISOString(),
+          })
+      return NextResponse.json(toDashboardEventShape(event), { status: 201 })
+    } catch (err) {
+      return xvmApiErrorResponse(err, session.user.id, "[events] POST error")
     }
   },
   { requests: 10, window: "1 m" }
@@ -97,75 +116,57 @@ export const GET = withRateLimit<{ params: Promise<{ venueId: string }> }>(
     if (!context?.params) {
       return NextResponse.json({ error: "Invalid request" }, { status: 400 })
     }
-    const { params } = context
+
+    const session = await getServerSession(authOptions)
+    if (!session?.user?.id) {
+      return NextResponse.json({ error: "Unauthorized" }, { status: 401 })
+    }
+
+    const token = await getValidXvmApiToken(session.user.id)
+    if (!token) {
+      return NextResponse.json({ error: "xvm-api link not established yet" }, { status: 503 })
+    }
+
+    const { venueId } = await context.params
+
+    const gate = await requireXvmVenueId(venueId)
+    if (gate.error) return gate.error
+
+    const membership = await prisma.membership.findFirst({
+      where: { userId: session.user.id, venueId, status: "active" },
+    })
+    if (!membership) {
+      return NextResponse.json({ error: "You don't have access to this venue" }, { status: 403 })
+    }
+
+    const searchParams = request.nextUrl.searchParams
+    const status = searchParams.get("status")
+    const startDate = searchParams.get("startDate")
+    const endDate = searchParams.get("endDate")
+
+    const now = new Date()
+    const from = startDate ? new Date(startDate) : new Date(now.getTime() - LIST_WINDOW_DAYS * 86400000)
+    const to = endDate ? new Date(endDate) : new Date(now.getTime() + LIST_WINDOW_DAYS * 86400000)
+    if (Number.isNaN(from.getTime()) || Number.isNaN(to.getTime())) {
+      return NextResponse.json({ error: "Invalid date range" }, { status: 400 })
+    }
+
     try {
-      const session = await getServerSession(authOptions)
-      if (!session?.user?.id) {
-        return NextResponse.json({ error: "Unauthorized" }, { status: 401 })
-      }
-
-      const { venueId } = await params
-
-      // Check if user has access to this venue
-      const membership = await prisma.membership.findFirst({
-        where: {
-          userId: session.user.id,
-          venueId,
-          status: "active",
-        },
+      const items = await listEvents(token, gate.xvmApiVenueId, {
+        from: from.toISOString(),
+        to: to.toISOString(),
+        includeCancelled: true,
       })
-
-      if (!membership) {
-        return NextResponse.json({ error: "You don't have access to this venue" }, { status: 403 })
-      }
-
-      const venue = await prisma.venue.findUnique({
-        where: { id: venueId },
-        select: { settings: true, xvmApiVenueId: true },
-      })
-
-      // Get query parameters for filtering
-      const searchParams = request.nextUrl.searchParams
-      const status = searchParams.get("status")
-      const startDate = searchParams.get("startDate")
-      const endDate = searchParams.get("endDate")
-
-      const where: Prisma.EventWhereInput = { venueId }
-
+      let events = items.map((item) => toDashboardEventShape(item, { now }))
       if (status) {
-        where.status = status as EventStatus
+        events = events.filter((event) => event.status === status)
       }
-
-      if (membership.role === "STAFF" && (await eventVisibilityFor(session.user.id, venue)) === "published") {
-        where.status = "PUBLISHED"
+      if (membership.role === "STAFF" && (await eventVisibilityFor(session.user.id, gate.venue)) === "published") {
+        events = events.filter((event) => event.status !== "DRAFT")
       }
-
-      if (startDate && endDate) {
-        where.startTime = {
-          gte: new Date(startDate),
-          lte: new Date(endDate),
-        }
-      }
-
-      const events = await prisma.event.findMany({
-        where,
-        include: {
-          createdBy: {
-            select: {
-              name: true,
-              image: true,
-            },
-          },
-        },
-        orderBy: {
-          startTime: "asc",
-        },
-      })
-
       return NextResponse.json(events)
-    } catch (error) {
-      console.error("Error fetching events:", error)
-      return NextResponse.json({ error: "Internal server error" }, { status: 500 })
+    } catch (err) {
+      return xvmApiErrorResponse(err, session.user.id, "[events] GET error")
     }
   },
   { requests: 60, window: "1 m" }

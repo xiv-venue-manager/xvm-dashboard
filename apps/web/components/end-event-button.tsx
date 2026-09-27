@@ -34,7 +34,7 @@ export function EndEventButton({ venueId, eventId }: EndEventButtonProps) {
       const res = await fetch(`/api/venues/${venueId}/events/${eventId}`, {
         method: "PATCH",
         headers: { "Content-Type": "application/json" },
-        body: JSON.stringify({ status: "COMPLETED" }),
+        body: JSON.stringify({ endTime: new Date().toISOString() }),
       })
       if (!res.ok) {
         const data = await res.json()
@@ -66,8 +66,7 @@ export function EndEventButton({ venueId, eventId }: EndEventButtonProps) {
         <AlertDialogHeader>
           <AlertDialogTitle>End this event now?</AlertDialogTitle>
           <AlertDialogDescription>
-            Marks it Completed and locks in attendance/revenue from what&apos;s logged so far, instead of waiting for
-            its scheduled end time.
+            Moves its end time to now, so it counts as Completed instead of waiting for its scheduled end time.
           </AlertDialogDescription>
         </AlertDialogHeader>
         {error && <p className="text-sm text-destructive">{error}</p>}

@@ -7,7 +7,7 @@ import { withRateLimit } from "@/lib/middleware/with-rate-limit"
 import { validators } from "@/lib/validation"
 import { eventVisibilityFor } from "@/lib/event-visibility"
 import { getValidXvmApiToken, xvmApiErrorResponse } from "@/lib/api/xvm-api-store"
-import { createEvent, createEventSeries, listEvents } from "@/lib/api/xvm-api"
+import { createEvent, createEventSeries, listEvents, EVENT_LIST_WINDOW_MS } from "@/lib/api/xvm-api"
 import { toDashboardEventShape, toSeriesCreateData } from "@/lib/api/event-shape"
 
 const isoDate = z
@@ -25,8 +25,6 @@ const eventSchema = z.object({
   timezone: z.string().optional(),
   recurrenceRule: z.enum(["WEEKLY", "BIWEEKLY", "MONTHLY"]).optional(),
 })
-
-const LIST_WINDOW_DAYS = 30
 
 async function requireXvmVenueId(venueId: string) {
   const venue = await prisma.venue.findUnique({
@@ -145,8 +143,8 @@ export const GET = withRateLimit<{ params: Promise<{ venueId: string }> }>(
     const endDate = searchParams.get("endDate")
 
     const now = new Date()
-    const from = startDate ? new Date(startDate) : new Date(now.getTime() - LIST_WINDOW_DAYS * 86400000)
-    const to = endDate ? new Date(endDate) : new Date(now.getTime() + LIST_WINDOW_DAYS * 86400000)
+    const from = startDate ? new Date(startDate) : new Date(now.getTime() - EVENT_LIST_WINDOW_MS / 2)
+    const to = endDate ? new Date(endDate) : new Date(now.getTime() + EVENT_LIST_WINDOW_MS / 2)
     if (Number.isNaN(from.getTime()) || Number.isNaN(to.getTime())) {
       return NextResponse.json({ error: "Invalid date range" }, { status: 400 })
     }

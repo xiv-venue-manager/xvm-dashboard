@@ -37,13 +37,13 @@ beforeEach(() => {
 })
 
 describe("listEventsInRange", () => {
-  it("makes one call for a range within the 60 day cap", async () => {
+  it("makes one call for a range within the 59 day cap", async () => {
     const from = new Date("2026-10-01T00:00:00Z")
-    await listEventsInRange("tok", "xv-1", from, new Date(from.getTime() + 60 * DAY))
+    await listEventsInRange("tok", "xv-1", from, new Date(from.getTime() + 59 * DAY))
     expect(mockListEvents).toHaveBeenCalledTimes(1)
   })
 
-  it("splits a longer range into contiguous windows of at most 60 days", async () => {
+  it("splits a longer range into contiguous windows of at most 59 days", async () => {
     const from = new Date("2026-06-01T00:00:00Z")
     const to = new Date(from.getTime() + 150 * DAY)
     await listEventsInRange("tok", "xv-1", from, to)
@@ -52,7 +52,7 @@ describe("listEventsInRange", () => {
     expect(calls[0][0]).toEqual(from)
     expect(calls[2][1]).toEqual(to)
     for (let i = 1; i < calls.length; i++) expect(calls[i][0]).toEqual(calls[i - 1][1])
-    for (const [start, end] of calls) expect(end.getTime() - start.getTime()).toBeLessThanOrEqual(60 * DAY)
+    for (const [start, end] of calls) expect(end.getTime() - start.getTime()).toBeLessThanOrEqual(59 * DAY)
   })
 
   it("dedupes an event returned by two windows and sorts by start", async () => {

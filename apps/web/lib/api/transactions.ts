@@ -56,6 +56,7 @@ const TRANSACTION_KIND_MAP: Record<CreateTransactionInput["type"], FinanceTransa
   OTHER: "other_income",
 }
 
+// A non-numeric id (an old cuid) is replaced by the live event, not dropped; a running draft never matches because ACTIVE needs published_at
 async function resolveEventId(token: string, xvmApiVenueId: string, requested: string | undefined) {
   if (requested !== undefined && /^\d+$/.test(requested)) return Number(requested)
   try {

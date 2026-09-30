@@ -1849,6 +1849,68 @@ export async function unbanPatron(personToken: string, venueId: string, patronId
   return xvmFetch<PatronRow>(`/venues/${venueId}/patrons/${patronId}/ban`, { method: "DELETE" }, personToken)
 }
 
+export type PatronAction = "enter" | "leave" | "present"
+
+export interface PatronLogRow {
+  id: number
+  character_name: string | null
+  world: string | null
+  action: PatronAction | "headcount"
+  count_change: number | null
+  event_id: number | null
+  ts: string
+  logged_at: string
+  logged_by_person_id: number | null
+  was_working: boolean
+  working_person_id: number | null
+  reclassified_at: string | null
+  reclassified_by_person_id: number | null
+  reclassify_reason: string | null
+}
+
+export async function listPatronLogs(
+  personToken: string,
+  venueId: string,
+  opts: {
+    from?: string
+    to?: string
+    eventId?: number
+    character?: string
+    classification?: "staff" | "patron"
+    limit?: number
+  }
+): Promise<PatronLogRow[]> {
+  if (!process.env.XVM_API_BASE_URL) throw new Error("XVM_API_BASE_URL is not set")
+  const params = new URLSearchParams()
+  if (opts.from !== undefined) params.set("from", opts.from)
+  if (opts.to !== undefined) params.set("to", opts.to)
+  if (opts.eventId !== undefined) params.set("event_id", String(opts.eventId))
+  if (opts.character !== undefined) params.set("character", opts.character)
+  if (opts.classification !== undefined) params.set("classification", opts.classification)
+  if (opts.limit !== undefined) params.set("limit", String(opts.limit))
+  return xvmFetch<PatronLogRow[]>(`/venues/${venueId}/patrons/logs?${params}`, {}, personToken)
+}
+
+export interface ReclassifyData {
+  log_ids: number[]
+  was_working: boolean
+  working_person_id: number | null
+  reason?: string | null
+}
+
+export async function reclassifyPatronLogs(
+  personToken: string,
+  venueId: string,
+  data: ReclassifyData
+): Promise<{ updated: number }> {
+  if (!process.env.XVM_API_BASE_URL) throw new Error("XVM_API_BASE_URL is not set")
+  return xvmFetch<{ updated: number }>(
+    `/venues/${venueId}/patrons/logs/reclassify`,
+    { method: "PATCH", body: JSON.stringify(data) },
+    personToken
+  )
+}
+
 export interface BannedRow {
   character_name: string
   world: string

@@ -20,7 +20,14 @@ import {
 } from "@/components/ui/alert-dialog"
 import { Select, SelectContent, SelectItem, SelectTrigger, SelectValue } from "@/components/ui/select"
 import { Layers, Plus, Trash2 } from "lucide-react"
-import { MAX_TEMPLATE_OPTIONS } from "@/lib/api/reaction-role-template-input"
+import {
+  MAX_TEMPLATE_DESCRIPTION,
+  MAX_TEMPLATE_EMOJI,
+  MAX_TEMPLATE_NAME,
+  MAX_TEMPLATE_OPTIONS,
+  MAX_TEMPLATE_ROLE_NAME,
+  MAX_TEMPLATE_TITLE,
+} from "@/lib/api/reaction-role-template-limits"
 import type { ReactionRoleMessageType, TemplateOptionRow, TemplateRow } from "@/lib/api/xvm-api"
 
 const MESSAGE_TYPES: { value: ReactionRoleMessageType; label: string }[] = [
@@ -187,7 +194,7 @@ export default function AdminReactionRoleTemplatesPage() {
             <Input
               id="new-name"
               value={draft.name}
-              maxLength={100}
+              maxLength={MAX_TEMPLATE_NAME}
               onChange={(e) => setDraft({ ...draft, name: e.target.value })}
             />
           </div>
@@ -196,7 +203,7 @@ export default function AdminReactionRoleTemplatesPage() {
             <Input
               id="new-title"
               value={draft.title}
-              maxLength={100}
+              maxLength={MAX_TEMPLATE_TITLE}
               onChange={(e) => setDraft({ ...draft, title: e.target.value })}
             />
           </div>
@@ -206,7 +213,7 @@ export default function AdminReactionRoleTemplatesPage() {
           <Input
             id="new-description"
             value={draft.description}
-            maxLength={2000}
+            maxLength={MAX_TEMPLATE_DESCRIPTION}
             onChange={(e) => setDraft({ ...draft, description: e.target.value })}
           />
         </div>
@@ -281,6 +288,22 @@ function TemplateCard({
     message_type: template.message_type,
   })
 
+  // Only what this card actually changed. These fields are seeded once and the
+  // list reloads after every mutation, so sending the whole row would write a
+  // stale copy of the fields nobody here touched over another admin's edit.
+  const patch = () => {
+    const next: Record<string, unknown> = {}
+    const name = fields.name.trim()
+    const title = fields.title.trim()
+    const description = fields.description.trim() || null
+    if (name !== template.name) next.name = name
+    if (title !== template.title) next.title = title
+    if (description !== (template.description ?? null)) next.description = description
+    if (fields.message_type !== template.message_type) next.message_type = fields.message_type
+    return next
+  }
+
+  const dirty = Object.keys(patch()).length > 0
   const atCap = template.options.length >= MAX_TEMPLATE_OPTIONS
 
   return (
@@ -288,18 +311,18 @@ function TemplateCard({
       <div className="grid gap-3 md:grid-cols-2">
         <div className="flex flex-col gap-1.5">
           <Label>Name (picker label)</Label>
-          <Input value={fields.name} maxLength={100} onChange={(e) => setFields({ ...fields, name: e.target.value })} />
+          <Input value={fields.name} maxLength={MAX_TEMPLATE_NAME} onChange={(e) => setFields({ ...fields, name: e.target.value })} />
         </div>
         <div className="flex flex-col gap-1.5">
           <Label>Panel title</Label>
-          <Input value={fields.title} maxLength={100} onChange={(e) => setFields({ ...fields, title: e.target.value })} />
+          <Input value={fields.title} maxLength={MAX_TEMPLATE_TITLE} onChange={(e) => setFields({ ...fields, title: e.target.value })} />
         </div>
       </div>
       <div className="mt-3 flex flex-col gap-1.5">
         <Label>Description</Label>
         <Input
           value={fields.description}
-          maxLength={2000}
+          maxLength={MAX_TEMPLATE_DESCRIPTION}
           onChange={(e) => setFields({ ...fields, description: e.target.value })}
         />
       </div>
@@ -325,15 +348,8 @@ function TemplateCard({
         <Button
           variant="outline"
           size="sm"
-          disabled={busy || !fields.name.trim() || !fields.title.trim()}
-          onClick={() =>
-            onSave({
-              name: fields.name.trim(),
-              title: fields.title.trim(),
-              description: fields.description.trim() || null,
-              message_type: fields.message_type,
-            })
-          }
+          disabled={busy || !dirty || !fields.name.trim() || !fields.title.trim()}
+          onClick={() => onSave(patch())}
         >
           Save
         </Button>
@@ -396,14 +412,14 @@ function TemplateCard({
             <Input
               placeholder="Emoji"
               value={optionDraft.emoji}
-              maxLength={100}
+              maxLength={MAX_TEMPLATE_EMOJI}
               onChange={(e) => onOptionDraftChange({ ...optionDraft, emoji: e.target.value })}
               className="w-24"
             />
             <Input
               placeholder="Role name"
               value={optionDraft.name}
-              maxLength={100}
+              maxLength={MAX_TEMPLATE_ROLE_NAME}
               onChange={(e) => onOptionDraftChange({ ...optionDraft, name: e.target.value })}
               className="min-w-[10rem] flex-1"
             />
@@ -451,6 +467,19 @@ function OptionRow({
     emoji: option.emoji ?? "",
   })
 
+  // Same reasoning as the template card: send only what changed here.
+  const patch = () => {
+    const next: Record<string, unknown> = {}
+    const name = fields.name.trim()
+    const emoji = fields.emoji.trim() || null
+    if (name !== option.name) next.name = name
+    if (toInt(fields.color) !== option.color) next.color = toInt(fields.color)
+    if (emoji !== (option.emoji ?? null)) next.emoji = emoji
+    return next
+  }
+
+  const dirty = Object.keys(patch()).length > 0
+
   return (
     <div className="flex flex-wrap items-center gap-2 rounded-xl border border-[var(--blue-015)] bg-[var(--card)] p-2.5">
       <input
@@ -463,24 +492,22 @@ function OptionRow({
       <Input
         aria-label={`Emoji for ${option.name}`}
         value={fields.emoji}
-        maxLength={100}
+        maxLength={MAX_TEMPLATE_EMOJI}
         onChange={(e) => setFields({ ...fields, emoji: e.target.value })}
         className="w-24"
       />
       <Input
         aria-label={`Name for ${option.name}`}
         value={fields.name}
-        maxLength={100}
+        maxLength={MAX_TEMPLATE_ROLE_NAME}
         onChange={(e) => setFields({ ...fields, name: e.target.value })}
         className="min-w-[10rem] flex-1"
       />
       <Button
         variant="outline"
         size="sm"
-        disabled={busy || !fields.name.trim()}
-        onClick={() =>
-          onSave({ name: fields.name.trim(), color: toInt(fields.color), emoji: fields.emoji.trim() || null })
-        }
+        disabled={busy || !dirty || !fields.name.trim()}
+        onClick={() => onSave(patch())}
       >
         Save
       </Button>

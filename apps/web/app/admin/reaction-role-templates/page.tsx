@@ -38,6 +38,9 @@ const MESSAGE_TYPES: { value: ReactionRoleMessageType; label: string }[] = [
 
 const BASE = "/api/admin/reaction-role-templates"
 
+type TemplateField = "name" | "title" | "description" | "message_type"
+type OptionField = "name" | "color" | "emoji"
+
 const toHex = (color: number) => `#${color.toString(16).padStart(6, "0")}`
 const toInt = (hex: string) => parseInt(hex.replace("#", ""), 16)
 
@@ -93,14 +96,16 @@ export default function AdminReactionRoleTemplatesPage() {
     }
   }, [status, load])
 
-  const run = async (action: () => Promise<void>) => {
+  const run = async (action: () => Promise<void>): Promise<boolean> => {
     setBusy(true)
     setError(null)
     try {
       await action()
       await load()
+      return true
     } catch (err) {
       setError(err instanceof Error ? err.message : "Something went wrong")
+      return false
     } finally {
       setBusy(false)
     }
@@ -275,35 +280,40 @@ function TemplateCard({
   busy: boolean
   optionDraft: typeof emptyOption
   onOptionDraftChange: (value: typeof emptyOption) => void
-  onSave: (data: Record<string, unknown>) => void
+  onSave: (data: Record<string, unknown>) => Promise<boolean>
   onDelete: () => void
   onAddOption: (data: Record<string, unknown>) => void
-  onSaveOption: (option: TemplateOptionRow, data: Record<string, unknown>) => void
+  onSaveOption: (option: TemplateOptionRow, data: Record<string, unknown>) => Promise<boolean>
   onDeleteOption: (option: TemplateOptionRow) => void
 }) {
-  const [fields, setFields] = useState({
+  // Only the fields this admin typed into. Anything untouched renders straight
+  // from the prop, so a reload showing another admin's edit is displayed rather
+  // than shadowed - and the save below can never carry a value nobody here set.
+  // Diffing local state against the prop does not work: the prop refreshes on
+  // every reload while the local copy does not, so an untouched field reads as
+  // changed and overwrites the newer value.
+  const [edits, setEdits] = useState<Partial<Record<TemplateField, string>>>({})
+
+  const live: Record<TemplateField, string> = {
     name: template.name,
     title: template.title,
     description: template.description ?? "",
     message_type: template.message_type,
-  })
-
-  // Only what this card actually changed. These fields are seeded once and the
-  // list reloads after every mutation, so sending the whole row would write a
-  // stale copy of the fields nobody here touched over another admin's edit.
-  const patch = () => {
-    const next: Record<string, unknown> = {}
-    const name = fields.name.trim()
-    const title = fields.title.trim()
-    const description = fields.description.trim() || null
-    if (name !== template.name) next.name = name
-    if (title !== template.title) next.title = title
-    if (description !== (template.description ?? null)) next.description = description
-    if (fields.message_type !== template.message_type) next.message_type = fields.message_type
-    return next
   }
 
-  const dirty = Object.keys(patch()).length > 0
+  const valueOf = (field: TemplateField) => edits[field] ?? live[field]
+  const setField = (field: TemplateField, value: string) => setEdits((prev) => ({ ...prev, [field]: value }))
+
+  const patch = () =>
+    Object.fromEntries(
+      (Object.keys(edits) as TemplateField[]).map((field) =>
+        field === "description"
+          ? ["description", valueOf(field).trim() || null]
+          : [field, field === "message_type" ? valueOf(field) : valueOf(field).trim()]
+      )
+    )
+
+  const dirty = Object.keys(edits).length > 0
   const atCap = template.options.length >= MAX_TEMPLATE_OPTIONS
 
   return (
@@ -311,27 +321,27 @@ function TemplateCard({
       <div className="grid gap-3 md:grid-cols-2">
         <div className="flex flex-col gap-1.5">
           <Label>Name (picker label)</Label>
-          <Input value={fields.name} maxLength={MAX_TEMPLATE_NAME} onChange={(e) => setFields({ ...fields, name: e.target.value })} />
+          <Input value={valueOf("name")} maxLength={MAX_TEMPLATE_NAME} onChange={(e) => setField("name", e.target.value)} />
         </div>
         <div className="flex flex-col gap-1.5">
           <Label>Panel title</Label>
-          <Input value={fields.title} maxLength={MAX_TEMPLATE_TITLE} onChange={(e) => setFields({ ...fields, title: e.target.value })} />
+          <Input value={valueOf("title")} maxLength={MAX_TEMPLATE_TITLE} onChange={(e) => setField("title", e.target.value)} />
         </div>
       </div>
       <div className="mt-3 flex flex-col gap-1.5">
         <Label>Description</Label>
         <Input
-          value={fields.description}
+          value={valueOf("description")}
           maxLength={MAX_TEMPLATE_DESCRIPTION}
-          onChange={(e) => setFields({ ...fields, description: e.target.value })}
+          onChange={(e) => setField("description", e.target.value)}
         />
       </div>
       <div className="mt-3 flex flex-wrap items-end gap-3">
         <div className="flex flex-col gap-1.5">
           <Label>Message type</Label>
           <Select
-            value={fields.message_type}
-            onValueChange={(value) => setFields({ ...fields, message_type: value as ReactionRoleMessageType })}
+            value={valueOf("message_type")}
+            onValueChange={(value) => setField("message_type", value)}
           >
             <SelectTrigger className="w-[20rem]">
               <SelectValue />
@@ -348,8 +358,8 @@ function TemplateCard({
         <Button
           variant="outline"
           size="sm"
-          disabled={busy || !dirty || !fields.name.trim() || !fields.title.trim()}
-          onClick={() => onSave(patch())}
+          disabled={busy || !dirty || !valueOf("name").trim() || !valueOf("title").trim()}
+          onClick={() => void onSave(patch()).then((ok) => ok && setEdits({}))}
         >
           Save
         </Button>
@@ -458,56 +468,62 @@ function OptionRow({
 }: {
   option: TemplateOptionRow
   busy: boolean
-  onSave: (data: Record<string, unknown>) => void
+  onSave: (data: Record<string, unknown>) => Promise<boolean>
   onDelete: () => void
 }) {
-  const [fields, setFields] = useState({
+  // Touched-only, same reasoning as the template card.
+  const [edits, setEdits] = useState<Partial<Record<OptionField, string>>>({})
+
+  const live: Record<OptionField, string> = {
     name: option.name,
     color: toHex(option.color),
     emoji: option.emoji ?? "",
-  })
-
-  // Same reasoning as the template card: send only what changed here.
-  const patch = () => {
-    const next: Record<string, unknown> = {}
-    const name = fields.name.trim()
-    const emoji = fields.emoji.trim() || null
-    if (name !== option.name) next.name = name
-    if (toInt(fields.color) !== option.color) next.color = toInt(fields.color)
-    if (emoji !== (option.emoji ?? null)) next.emoji = emoji
-    return next
   }
 
-  const dirty = Object.keys(patch()).length > 0
+  const valueOf = (field: OptionField) => edits[field] ?? live[field]
+  const setField = (field: OptionField, value: string) => setEdits((prev) => ({ ...prev, [field]: value }))
+
+  const patch = () =>
+    Object.fromEntries(
+      (Object.keys(edits) as OptionField[]).map((field) =>
+        field === "color"
+          ? ["color", toInt(valueOf("color"))]
+          : field === "emoji"
+            ? ["emoji", valueOf("emoji").trim() || null]
+            : ["name", valueOf("name").trim()]
+      )
+    )
+
+  const dirty = Object.keys(edits).length > 0
 
   return (
     <div className="flex flex-wrap items-center gap-2 rounded-xl border border-[var(--blue-015)] bg-[var(--card)] p-2.5">
       <input
         type="color"
         aria-label={`Colour for ${option.name}`}
-        value={fields.color}
-        onChange={(e) => setFields({ ...fields, color: e.target.value })}
+        value={valueOf("color")}
+        onChange={(e) => setField("color", e.target.value)}
         className="h-9 w-10 flex-none cursor-pointer rounded border border-[var(--blue-015)] bg-transparent"
       />
       <Input
         aria-label={`Emoji for ${option.name}`}
-        value={fields.emoji}
+        value={valueOf("emoji")}
         maxLength={MAX_TEMPLATE_EMOJI}
-        onChange={(e) => setFields({ ...fields, emoji: e.target.value })}
+        onChange={(e) => setField("emoji", e.target.value)}
         className="w-24"
       />
       <Input
         aria-label={`Name for ${option.name}`}
-        value={fields.name}
+        value={valueOf("name")}
         maxLength={MAX_TEMPLATE_ROLE_NAME}
-        onChange={(e) => setFields({ ...fields, name: e.target.value })}
+        onChange={(e) => setField("name", e.target.value)}
         className="min-w-[10rem] flex-1"
       />
       <Button
         variant="outline"
         size="sm"
-        disabled={busy || !dirty || !fields.name.trim()}
-        onClick={() => onSave(patch())}
+        disabled={busy || !dirty || !valueOf("name").trim()}
+        onClick={() => void onSave(patch()).then((ok) => ok && setEdits({}))}
       >
         Save
       </Button>

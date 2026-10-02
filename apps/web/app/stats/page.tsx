@@ -43,7 +43,7 @@ export default async function StatsPage() {
     )
   }
 
-  const todayDOW = new Date().getUTCDay() // 0=Sun
+  const todayDOW = (new Date().getUTCDay() + 6) % 7 // 0=Mon, matching busiestNights
   const maxDC = stats.dcBreakdown[0]?.count || 1
 
   const venueTypes =

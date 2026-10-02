@@ -816,6 +816,20 @@ export async function getPublicHours(venueId: string, days?: number): Promise<Pu
   return xvmFetch<PublicHours>(`/public/venues/${venueId}/hours${params}`, { next: { revalidate: 60 } })
 }
 
+export interface PublicPlatformStats {
+  venues_total: number
+  events_total: number
+  events_last_7d: number
+  events_partake_linked: number
+  events_by_weekday_hour_last_90d: number[][]
+  generated_at: string
+}
+
+export async function getPublicPlatformStats(): Promise<PublicPlatformStats> {
+  if (!process.env.XVM_API_BASE_URL) throw new Error("XVM_API_BASE_URL is not set")
+  return xvmFetch<PublicPlatformStats>("/public/stats")
+}
+
 export interface PublicVenue {
   id: string
   slug: string
@@ -1170,7 +1184,7 @@ export interface InvitePreview {
 // preview lookup for the pre-signin invite screen.
 export async function getInvitePreview(token: string): Promise<InvitePreview> {
   if (!process.env.XVM_API_BASE_URL) throw new Error("XVM_API_BASE_URL is not set")
-  return xvmFetch<InvitePreview>(`/invites/${token}`)
+  return xvmFetch<InvitePreview>(`/public/invites/${encodeURIComponent(token)}`)
 }
 
 // Not venue-scoped - the invitee isn't a member yet, so this takes a bare

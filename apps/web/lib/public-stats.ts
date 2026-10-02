@@ -1,5 +1,6 @@
 import { prisma } from "@/lib/prisma"
 import { getOrSet, cacheKeys, cacheTTL } from "@/lib/redis-cache"
+import { getPublicPlatformStats } from "@/lib/api/xvm-api"
 
 export interface PublicStats {
   venuesTotal: number
@@ -29,27 +30,23 @@ async function computeStats(): Promise<PublicStats> {
   const since7d = new Date(Date.now() - 7 * 24 * 60 * 60 * 1000)
 
   const [
-    venuesTotal,
+    platform,
     activeVenueIds,
     pluginInstalls,
-    eventsTotal,
-    eventsThisWeek,
     patronEntriesTotal,
     salesAgg,
     shiftsTotal,
     shiftsThisWeek,
     newVenuesThisWeek,
     tasksCompleted,
-    partakeEventsSynced,
     dcRows,
     dcCounts,
-    recentEvents,
     firstVenue,
     lastSale,
     lastPatron,
     venueTypeCounts,
   ] = await Promise.all([
-    prisma.venue.count({ where: { isActive: true } }),
+    getPublicPlatformStats(),
     prisma.venue.findMany({
       where: {
         isActive: true,
@@ -62,26 +59,18 @@ async function computeStats(): Promise<PublicStats> {
       select: { id: true },
     }),
     prisma.apiKey.count({ where: { revokedAt: null } }),
-    prisma.event.count(),
-    prisma.event.count({ where: { startTime: { gte: since7d } } }),
     prisma.patronLog.count(),
     prisma.transaction.aggregate({ _count: true, _sum: { amount: true } }),
     prisma.shift.count(),
     prisma.shift.count({ where: { createdAt: { gte: since7d } } }),
     prisma.venue.count({ where: { isActive: true, createdAt: { gte: since7d } } }),
     prisma.task.count({ where: { completedAt: { not: null } } }),
-    prisma.event.count({ where: { partakeEventId: { not: null } } }),
     prisma.venue.findMany({ where: { isActive: true }, select: { dataCenter: true }, distinct: ["dataCenter"] }),
     prisma.venue.groupBy({
       by: ["dataCenter"],
       where: { isActive: true },
       _count: { _all: true },
       orderBy: { _count: { dataCenter: "desc" } },
-    }),
-    // For busiest nights: events in last 90 days with their start times
-    prisma.event.findMany({
-      where: { startTime: { gte: new Date(Date.now() - 90 * 24 * 60 * 60 * 1000) } },
-      select: { startTime: true },
     }),
     prisma.venue.findFirst({ where: { isActive: true }, orderBy: { createdAt: "asc" }, select: { createdAt: true } }),
     prisma.transaction.findFirst({ orderBy: { createdAt: "desc" }, select: { createdAt: true } }),
@@ -94,10 +83,9 @@ async function computeStats(): Promise<PublicStats> {
     }),
   ])
 
-  // Busiest nights: count events per UTC day-of-week
-  const dayNames = ["Sun", "Mon", "Tue", "Wed", "Thu", "Fri", "Sat"]
-  const dayCounts = new Array(7).fill(0)
-  for (const { startTime } of recentEvents) dayCounts[startTime.getUTCDay()]++
+  // Busiest nights: xvm-api's weekday-by-hour grid, Monday first, in each venue's own time
+  const dayNames = ["Mon", "Tue", "Wed", "Thu", "Fri", "Sat", "Sun"]
+  const dayCounts = platform.events_by_weekday_hour_last_90d.map((hours) => hours.reduce((sum, n) => sum + n, 0))
   const maxDay = Math.max(...dayCounts, 1)
   const busiestNights = dayNames.map((day, i) => ({
     day,
@@ -130,18 +118,18 @@ async function computeStats(): Promise<PublicStats> {
       .sort((a, b) => b.getTime() - a.getTime())[0] ?? null
 
   return {
-    venuesTotal,
+    venuesTotal: platform.venues_total,
     venuesActive30d: activeVenueIds.length,
     pluginInstalls,
-    eventsTotal,
-    eventsThisWeek,
+    eventsTotal: platform.events_total,
+    eventsThisWeek: platform.events_last_7d,
     patronEntriesTotal,
     salesTotal: salesAgg._count,
     shiftsTotal,
     shiftsThisWeek,
     newVenuesThisWeek,
     tasksCompleted,
-    partakeEventsSynced,
+    partakeEventsSynced: platform.events_partake_linked,
     gilTracked: Number(salesAgg._sum.amount ?? 0),
     dataCenters: dcRows.length,
     dcBreakdown: dcCounts.map((r) => ({ dataCenter: r.dataCenter, count: r._count._all })),

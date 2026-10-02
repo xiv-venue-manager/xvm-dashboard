@@ -31,6 +31,8 @@ import {
   cancelTask,
   getPublicHoursBatch,
   getPublicHoursForVenues,
+  getInvitePreview,
+  getPublicPlatformStats,
   PUBLIC_HOURS_BATCH_MAX,
   listGiveaways,
   createGiveaway,
@@ -204,6 +206,34 @@ describe("Public hours batch", () => {
     expect(result.venues.vn_b.open_now.open).toBe(false)
     const [url] = (fetch as ReturnType<typeof vi.fn>).mock.calls[0]
     expect(decodeURIComponent(url)).toContain("/public/venues/hours?ids=vn_a,vn_b")
+  })
+
+  it("getInvitePreview GETs the public invite path, unauthenticated", async () => {
+    mockFetchOnce({
+      ok: true,
+      status: 200,
+      body: { venue: { name: "Gilded Cage", slug: "gilded-cage" }, tier: "staff", invited_name: "Jane", invited_by_name: null, expires_at: "2026-11-01T00:00:00Z" },
+    })
+    const result = await getInvitePreview("tok/en")
+    expect(result.venue.slug).toBe("gilded-cage")
+    const [url, init] = (fetch as ReturnType<typeof vi.fn>).mock.calls[0]
+    expect(url).toMatch(/\/public\/invites\/tok%2Fen$/)
+    expect(init.headers.Authorization).toBeUndefined()
+  })
+
+  it("getPublicPlatformStats GETs /public/stats, unauthenticated", async () => {
+    const grid = Array.from({ length: 7 }, () => new Array(24).fill(0))
+    mockFetchOnce({
+      ok: true,
+      status: 200,
+      body: { venues_total: 2, events_total: 4, events_last_7d: 1, events_partake_linked: 1, events_by_weekday_hour_last_90d: grid, generated_at: "2026-10-02T00:00:00Z" },
+    })
+    const result = await getPublicPlatformStats()
+    expect(result.events_total).toBe(4)
+    expect(result.events_by_weekday_hour_last_90d).toHaveLength(7)
+    const [url, init] = (fetch as ReturnType<typeof vi.fn>).mock.calls[0]
+    expect(url).toMatch(/\/public\/stats$/)
+    expect(init.headers.Authorization).toBeUndefined()
   })
 
   it("getPublicHoursBatch returns an empty map without fetching for zero ids", async () => {

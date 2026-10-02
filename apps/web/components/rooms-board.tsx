@@ -786,11 +786,12 @@ export function RoomsBoard({ venueId, canManage, rooms, froggeConnected }: { ven
               type="button"
               size="sm"
               variant="outline-blue"
-              disabled={postingDiscord}
+              disabled
               onClick={postToDiscord}
+              title="Posting rooms to Discord isn't available yet"
               className="ml-auto"
             >
-              {postingDiscord ? "Posting…" : "Post to Discord"}
+              {postingDiscord ? "Posting…" : "Post to Discord (coming soon)"}
             </Button>
           )}
         </div>

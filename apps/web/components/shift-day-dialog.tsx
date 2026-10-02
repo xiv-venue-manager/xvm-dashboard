@@ -100,7 +100,6 @@ export function ShiftDayDialog({
                       shiftId={shift.id}
                       venueId={venueId}
                       timeLabel={`${hourLabelFor(shift.scheduledStart, timeZone)}–${hourLabelFor(shift.scheduledEnd, timeZone)}`}
-                      canClaim={!canManage}
                     />
                     {canManage && (
                       <CreateShiftDialog

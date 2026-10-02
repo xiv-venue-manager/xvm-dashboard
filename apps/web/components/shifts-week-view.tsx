@@ -359,7 +359,6 @@ export function ShiftsWeekView(props: ShiftsWeekViewProps) {
                           shiftId={shift.id}
                           venueId={props.venueId}
                           timeLabel={`${hourLabelOf(shift.scheduledStart)}–${hourLabelOf(shift.scheduledEnd)}${shift.roleName ? ` · ${shift.roleName}` : ""}`}
-                          canClaim={!props.canManage}
                         />
                         {props.canManage &&
                           duplicateShiftDialog(shift, { mode: "open", roleId: shift.roleId ?? undefined })}

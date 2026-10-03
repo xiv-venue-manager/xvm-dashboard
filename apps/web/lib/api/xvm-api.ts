@@ -816,6 +816,32 @@ export async function getPublicHours(venueId: string, days?: number): Promise<Pu
   return xvmFetch<PublicHours>(`/public/venues/${venueId}/hours${params}`, { next: { revalidate: 60 } })
 }
 
+export interface PublicPlatformStats {
+  venues_total: number
+  venues_active_last_30d: number
+  venues_created_last_7d: number
+  venues_by_data_center: Record<string, number>
+  venues_by_type: Record<string, number>
+  first_venue_at: string | null
+  events_total: number
+  events_last_7d: number
+  events_partake_linked: number
+  events_by_weekday_hour_last_90d: number[][]
+  plugin_installs: number
+  patron_entries_total: number
+  shifts_total: number
+  shifts_created_last_7d: number
+  tasks_completed: number
+  transactions_by_kind: Record<string, { count: number; amount_sum: number }>
+  last_activity_at: string | null
+  generated_at: string
+}
+
+export async function getPublicPlatformStats(): Promise<PublicPlatformStats> {
+  if (!process.env.XVM_API_BASE_URL) throw new Error("XVM_API_BASE_URL is not set")
+  return xvmFetch<PublicPlatformStats>("/public/stats")
+}
+
 export interface PublicVenue {
   id: string
   slug: string
@@ -1170,7 +1196,7 @@ export interface InvitePreview {
 // preview lookup for the pre-signin invite screen.
 export async function getInvitePreview(token: string): Promise<InvitePreview> {
   if (!process.env.XVM_API_BASE_URL) throw new Error("XVM_API_BASE_URL is not set")
-  return xvmFetch<InvitePreview>(`/invites/${token}`)
+  return xvmFetch<InvitePreview>(`/public/invites/${encodeURIComponent(token)}`)
 }
 
 // Not venue-scoped - the invitee isn't a member yet, so this takes a bare

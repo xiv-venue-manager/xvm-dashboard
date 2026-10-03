@@ -460,6 +460,8 @@ export interface PanelPostRow {
   posted_at: string | null
 }
 
+export type ReactionRoleMessageType = "normal" | "unique" | "verify"
+
 export interface TemplateOptionRow {
   id: number
   name: string
@@ -473,7 +475,7 @@ export interface TemplateRow {
   name: string
   title: string
   description: string | null
-  message_type: "normal" | "unique" | "verify"
+  message_type: ReactionRoleMessageType
   options: TemplateOptionRow[]
   created_at: string
   updated_at: string
@@ -637,10 +639,108 @@ export async function listPanelPosts(personToken: string, venueId: string, panel
 }
 
 // Not venue-scoped in xvm-api - templates are a flat, platform-wide catalog
-// (admin_router with no prefix). Read-only here; creation is platform-admin-only.
+// (admin_router with no prefix). The reads below are open to any member; every
+// write sits under /admin and needs the caller's platform_admin scope.
 export async function listReactionRoleTemplates(personToken: string): Promise<TemplateRow[]> {
   if (!process.env.XVM_API_BASE_URL) throw new Error("XVM_API_BASE_URL is not set")
   return xvmFetch<TemplateRow[]>("/reaction-role-templates", {}, personToken)
+}
+
+export async function getReactionRoleTemplate(personToken: string, templateId: number): Promise<TemplateRow> {
+  if (!process.env.XVM_API_BASE_URL) throw new Error("XVM_API_BASE_URL is not set")
+  return xvmFetch<TemplateRow>(`/reaction-role-templates/${templateId}`, {}, personToken)
+}
+
+export interface TemplateOptionCreateData {
+  name: string
+  color: number
+  emoji?: string | null
+}
+
+export interface TemplateCreateData {
+  name: string
+  title: string
+  description?: string | null
+  message_type?: ReactionRoleMessageType
+  options?: TemplateOptionCreateData[]
+}
+
+export type TemplateUpdateData = Partial<Omit<TemplateCreateData, "options">>
+
+export type TemplateOptionUpdateData = Partial<TemplateOptionCreateData>
+
+export async function createReactionRoleTemplate(
+  personToken: string,
+  data: TemplateCreateData
+): Promise<TemplateRow> {
+  if (!process.env.XVM_API_BASE_URL) throw new Error("XVM_API_BASE_URL is not set")
+  return xvmFetch<TemplateRow>(
+    "/admin/reaction-role-templates",
+    { method: "POST", body: JSON.stringify(data) },
+    personToken
+  )
+}
+
+export async function updateReactionRoleTemplate(
+  personToken: string,
+  templateId: number,
+  data: TemplateUpdateData
+): Promise<TemplateRow> {
+  if (!process.env.XVM_API_BASE_URL) throw new Error("XVM_API_BASE_URL is not set")
+  return xvmFetch<TemplateRow>(
+    `/admin/reaction-role-templates/${templateId}`,
+    { method: "PATCH", body: JSON.stringify(data) },
+    personToken
+  )
+}
+
+export async function deleteReactionRoleTemplate(personToken: string, templateId: number): Promise<void> {
+  if (!process.env.XVM_API_BASE_URL) throw new Error("XVM_API_BASE_URL is not set")
+  return xvmFetch<void>(
+    `/admin/reaction-role-templates/${templateId}`,
+    { method: "DELETE" },
+    personToken
+  )
+}
+
+export async function addReactionRoleTemplateOption(
+  personToken: string,
+  templateId: number,
+  data: TemplateOptionCreateData
+): Promise<TemplateOptionRow> {
+  if (!process.env.XVM_API_BASE_URL) throw new Error("XVM_API_BASE_URL is not set")
+  return xvmFetch<TemplateOptionRow>(
+    `/admin/reaction-role-templates/${templateId}/options`,
+    { method: "POST", body: JSON.stringify(data) },
+    personToken
+  )
+}
+
+export async function updateReactionRoleTemplateOption(
+  personToken: string,
+  templateId: number,
+  optionId: number,
+  data: TemplateOptionUpdateData
+): Promise<TemplateOptionRow> {
+  if (!process.env.XVM_API_BASE_URL) throw new Error("XVM_API_BASE_URL is not set")
+  return xvmFetch<TemplateOptionRow>(
+    `/admin/reaction-role-templates/${templateId}/options/${optionId}`,
+    { method: "PATCH", body: JSON.stringify(data) },
+    personToken
+  )
+}
+
+export async function deleteReactionRoleTemplateOption(
+  personToken: string,
+  templateId: number,
+  optionId: number
+): Promise<void> {
+  if (!process.env.XVM_API_BASE_URL) throw new Error("XVM_API_BASE_URL is not set")
+  return xvmFetch<void>(
+    `/admin/reaction-role-templates/${templateId}/options/${optionId}`,
+    { method: "DELETE" },
+    personToken
+  )
 }
 
 export async function deleteRoomImage(

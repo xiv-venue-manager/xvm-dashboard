@@ -194,20 +194,7 @@ describe("Tasks API", () => {
   })
 })
 
-describe("Public hours batch", () => {
-  function publicHours(open: boolean): PublicHours {
-    return { open_now: { open, current: null, next: null }, rules: [], upcoming: [] }
-  }
-
-  it("getPublicHoursBatch GETs /public/venues/hours with comma-separated ids", async () => {
-    mockFetchOnce({ ok: true, status: 200, body: { venues: { vn_a: publicHours(true), vn_b: publicHours(false) } } })
-    const result = await getPublicHoursBatch(["vn_a", "vn_b"])
-    expect(result.venues.vn_a.open_now.open).toBe(true)
-    expect(result.venues.vn_b.open_now.open).toBe(false)
-    const [url] = (fetch as ReturnType<typeof vi.fn>).mock.calls[0]
-    expect(decodeURIComponent(url)).toContain("/public/venues/hours?ids=vn_a,vn_b")
-  })
-
+describe("Public stats and invite preview", () => {
   it("getInvitePreview GETs the public invite path, unauthenticated", async () => {
     mockFetchOnce({
       ok: true,
@@ -234,6 +221,21 @@ describe("Public hours batch", () => {
     const [url, init] = (fetch as ReturnType<typeof vi.fn>).mock.calls[0]
     expect(url).toMatch(/\/public\/stats$/)
     expect(init.headers.Authorization).toBeUndefined()
+  })
+})
+
+describe("Public hours batch", () => {
+  function publicHours(open: boolean): PublicHours {
+    return { open_now: { open, current: null, next: null }, rules: [], upcoming: [] }
+  }
+
+  it("getPublicHoursBatch GETs /public/venues/hours with comma-separated ids", async () => {
+    mockFetchOnce({ ok: true, status: 200, body: { venues: { vn_a: publicHours(true), vn_b: publicHours(false) } } })
+    const result = await getPublicHoursBatch(["vn_a", "vn_b"])
+    expect(result.venues.vn_a.open_now.open).toBe(true)
+    expect(result.venues.vn_b.open_now.open).toBe(false)
+    const [url] = (fetch as ReturnType<typeof vi.fn>).mock.calls[0]
+    expect(decodeURIComponent(url)).toContain("/public/venues/hours?ids=vn_a,vn_b")
   })
 
   it("getPublicHoursBatch returns an empty map without fetching for zero ids", async () => {

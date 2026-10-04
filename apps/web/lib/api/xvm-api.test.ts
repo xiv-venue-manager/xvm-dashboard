@@ -6,6 +6,7 @@ import {
   createEvent,
   createEventSeries,
   listPatronLogs,
+  getVenueFollowers,
   reclassifyPatronLogs,
   materializeEvent,
   endEventSeries,
@@ -1134,6 +1135,25 @@ describe("Patron logs API", () => {
     mockFetchOnce({ ok: true, status: 200, body: [] })
     await listPatronLogs("token", "venue-1", { eventId: 12 })
     expect(new URL(lastCall()[0]).searchParams.get("event_id")).toBe("12")
+  })
+
+  it("listPatronLogs sends the paging cursor", async () => {
+    mockFetchOnce({ ok: true, status: 200, body: [] })
+    await listPatronLogs("token", "venue-1", { eventId: 12, classification: "patron", before: 340, limit: 200 })
+    expect(Object.fromEntries(new URL(lastCall()[0]).searchParams)).toEqual({
+      event_id: "12",
+      classification: "patron",
+      before: "340",
+      limit: "200",
+    })
+  })
+
+  it("getVenueFollowers reads the count with a small page by default", async () => {
+    mockFetchOnce({ ok: true, status: 200, body: { count: 4, followers: [] } })
+    await expect(getVenueFollowers("token", "venue-1")).resolves.toEqual({ count: 4, followers: [] })
+    const url = new URL(lastCall()[0])
+    expect(url.pathname).toMatch(/\/venues\/venue-1\/followers$/)
+    expect(url.searchParams.get("limit")).toBe("1")
   })
 
   it("listPatronLogs sends the character filter", async () => {

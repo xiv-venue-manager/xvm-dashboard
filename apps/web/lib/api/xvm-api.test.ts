@@ -5,8 +5,10 @@ import {
   getEvent,
   createEvent,
   createEventSeries,
+  logPatronVisit,
   listPatronLogs,
   reclassifyPatronLogs,
+  getPatronPresence,
   materializeEvent,
   endEventSeries,
   updateEvent,
@@ -1118,6 +1120,27 @@ describe("FFXIV Venues link API", () => {
 describe("Patron logs API", () => {
   const lastCall = () => (fetch as ReturnType<typeof vi.fn>).mock.calls[0]
 
+  it("logPatronVisit POSTs the crossing and returns the API's event tag", async () => {
+    const logged = { id: 5, deduped: false, action: "enter", was_working: false, event_id: 12 }
+    mockFetchOnce({ ok: true, status: 201, body: logged })
+    const result = await logPatronVisit("token", "venue-1", {
+      character_name: "Test Char",
+      world: "Cactuar",
+      action: "enter",
+      ts: "2026-10-03T19:05:00Z",
+    })
+    expect(result).toEqual(logged)
+    const [url, init] = lastCall()
+    expect(url).toMatch(/\/venues\/venue-1\/patrons\/visits$/)
+    expect(init.method).toBe("POST")
+    expect(JSON.parse(init.body)).toEqual({
+      character_name: "Test Char",
+      world: "Cactuar",
+      action: "enter",
+      ts: "2026-10-03T19:05:00Z",
+    })
+  })
+
   it("listPatronLogs sends only the filters it is given", async () => {
     mockFetchOnce({ ok: true, status: 200, body: [] })
     await listPatronLogs("token", "venue-1", { from: "2026-10-01T00:00:00Z", to: "2026-10-02T00:00:00Z", limit: 50 })
@@ -1157,5 +1180,12 @@ describe("Patron logs API", () => {
     expect(url).toMatch(/\/venues\/venue-1\/patrons\/logs\/reclassify$/)
     expect(init.method).toBe("PATCH")
     expect(JSON.parse(init.body)).toEqual({ log_ids: [1, 2], was_working: true, working_person_id: 9, reason: "on shift" })
+  })
+
+  it("getPatronPresence GETs who is inside", async () => {
+    const presence = { count: 1, present: [{ character_name: "A", world: "B", was_working: false, since: "2026-10-03T19:05:00Z" }] }
+    mockFetchOnce({ ok: true, status: 200, body: presence })
+    expect(await getPatronPresence("token", "venue-1")).toEqual(presence)
+    expect(lastCall()[0]).toMatch(/\/venues\/venue-1\/patrons\/present$/)
   })
 })

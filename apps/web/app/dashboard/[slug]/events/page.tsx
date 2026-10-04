@@ -12,11 +12,13 @@ import { LocalTime } from "@/components/server-time"
 import { format } from "date-fns"
 import { SyncPartakeButton } from "@/components/sync-partake-button"
 import { EndEventButton } from "@/components/end-event-button"
+import { EventLink } from "@/components/event-link"
 import { canManageVenue } from "@/lib/roles"
 import { eventVisibilityFor } from "@/lib/event-visibility"
 import { xvmPageReader } from "@/lib/api/xvm-page-read"
 import { listEvents, EVENT_LIST_WINDOW_MS } from "@/lib/api/xvm-api"
 import { toDashboardEventShape, type DashboardEvent } from "@/lib/api/event-shape"
+import { eventHref } from "@/lib/api/event-link"
 
 const eventKey = (event: DashboardEvent) => event.id ?? `${event.recurrenceRuleId}-${event.startTime}`
 
@@ -96,6 +98,7 @@ export default async function EventsPage({
   const draftEvents = events.filter((e) => e.status === "DRAFT")
 
   const userRole = venue.memberships[0].role
+  const target = { slug, venueId: venue.id, canMaterialize: canManageVenue(userRole) }
 
   return (
     <VenueLayout venueSlug={venue.slug} venueName={venue.name} userRole={userRole}>
@@ -156,7 +159,7 @@ export default async function EventsPage({
         </div>
 
         {view === "calendar" ? (
-          <EventsCalendar events={events} venueSlug={slug} />
+          <EventsCalendar events={events.map((event) => ({ ...event, href: eventHref(target, event) }))} />
         ) : view === "drafts" ? (
           <>
             {draftEvents.length === 0 ? (
@@ -194,13 +197,13 @@ export default async function EventsPage({
                         <LocalTime date={event.startTime} formatStr="datelong" /> ·{" "}
                         <LocalTime date={event.startTime} formatStr="time" />
                       </p>
-                      {event.id !== null && (
+                      {eventHref(target, event) !== null && (
                         <div className="flex gap-2 mt-3">
                           <Button asChild variant="cta" size="sm">
-                            <Link href={`/dashboard/${slug}/events/${event.id}/edit`}>Edit draft</Link>
+                            <EventLink href={eventHref(target, event, "edit")!}>Edit draft</EventLink>
                           </Button>
                           <Button asChild variant="outline" size="sm">
-                            <Link href={`/dashboard/${slug}/events/${event.id}`}>Preview</Link>
+                            <EventLink href={eventHref(target, event)!}>Preview</EventLink>
                           </Button>
                         </div>
                       )}
@@ -242,8 +245,8 @@ export default async function EventsPage({
                               className="border-b border-[var(--blue-008)] last:border-b-0 hover:bg-[var(--blue-004)] transition-colors"
                             >
                               <div className="event-row opacity-75 hover:opacity-100 transition-opacity">
-                                <Link
-                                  href={event.id === null ? "#" : `/dashboard/${slug}/events/${event.id}`}
+                                <EventLink
+                                  href={eventHref(target, event) ?? "#"}
                                   className="flex items-center gap-[18px] flex-1 min-w-0"
                                 >
                                   <div className="datebox off">
@@ -262,7 +265,7 @@ export default async function EventsPage({
                                       </span>
                                     </div>
                                   </div>
-                                </Link>
+                                </EventLink>
                                 <div className="ev-right">
                                   <Badge className={statusColors[event.status as keyof typeof statusColors]}>
                                     {event.status}
@@ -341,13 +344,13 @@ export default async function EventsPage({
                         {event.status === "ACTIVE" && event.id !== null && canManageVenue(userRole) && (
                           <EndEventButton venueId={venue.id} eventId={event.id} />
                         )}
-                        {event.id !== null && (
+                        {eventHref(target, event) !== null && (
                           <>
                             <Button asChild variant="outline" size="sm">
-                              <Link href={`/dashboard/${slug}/events/${event.id}`}>View</Link>
+                              <EventLink href={eventHref(target, event)!}>View</EventLink>
                             </Button>
                             <Button asChild variant="outline" size="sm">
-                              <Link href={`/dashboard/${slug}/events/${event.id}/edit`}>Edit</Link>
+                              <EventLink href={eventHref(target, event, "edit")!}>Edit</EventLink>
                             </Button>
                           </>
                         )}

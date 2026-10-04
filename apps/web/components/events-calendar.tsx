@@ -14,11 +14,12 @@ import {
 import { Button } from "@/components/ui/button"
 import { Card, CardContent } from "@/components/ui/card"
 import { Badge } from "@/components/ui/badge"
-import Link from "next/link"
+import { EventLink } from "@/components/event-link"
 import { ChevronLeft, ChevronRight } from "lucide-react"
 
 interface Event {
   id: string | null
+  href: string | null
   title: string
   startTime: Date | string
   endTime: Date | string
@@ -28,10 +29,9 @@ interface Event {
 
 interface EventsCalendarProps {
   events: Event[]
-  venueSlug: string
 }
 
-export function EventsCalendar({ events, venueSlug }: EventsCalendarProps) {
+export function EventsCalendar({ events }: EventsCalendarProps) {
   const [currentDate, setCurrentDate] = useState(new Date())
 
   const monthStart = startOfMonth(currentDate)
@@ -109,7 +109,7 @@ export function EventsCalendar({ events, venueSlug }: EventsCalendarProps) {
                     <div className="text-sm font-semibold mb-1">{format(day, "d")}</div>
                     <div className="space-y-1">
                       {dayEvents.slice(0, 3).map((event) => (
-                        event.id === null ? (
+                        event.href === null ? (
                           <div
                             key={`${event.title}-${String(event.startTime)}`}
                             className="text-xs p-1 rounded bg-primary/5 truncate"
@@ -117,11 +117,11 @@ export function EventsCalendar({ events, venueSlug }: EventsCalendarProps) {
                             {format(new Date(event.startTime), "HH:mm")} {event.title}
                           </div>
                         ) : (
-                          <Link key={event.id} href={`/dashboard/${venueSlug}/events/${event.id}`} className="block">
+                          <EventLink key={event.href} href={event.href} className="block">
                             <div className="text-xs p-1 rounded bg-primary/10 hover:bg-primary/20 transition-colors truncate">
                               {format(new Date(event.startTime), "HH:mm")} {event.title}
                             </div>
-                          </Link>
+                          </EventLink>
                         )
                       ))}
                       {dayEvents.length > 3 && (

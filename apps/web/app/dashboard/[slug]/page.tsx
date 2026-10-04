@@ -19,6 +19,8 @@ import { formatGil } from "@/lib/format"
 import { OverviewTasks } from "@/components/overview-tasks"
 import { AnnouncementBanner } from "@/components/announcement-banner"
 import { CharacterLinkNudge } from "@/components/character-link-nudge"
+import { EventLink } from "@/components/event-link"
+import { eventHref } from "@/lib/api/event-link"
 import { TodayDateLabel } from "@/components/today-date-label"
 import { listEventsInRange, type PageEvent } from "@/lib/api/event-window"
 import { format, subDays, subWeeks, formatDistanceToNow } from "date-fns"
@@ -163,6 +165,7 @@ export default async function VenueDashboardPage({ params }: { params: Promise<{
 
   // Next upcoming event
   const nextEvent = windowEvents.find((e) => e.startTime >= now && isOpenOrUpcoming(e)) ?? null
+  const nextEventHref = nextEvent ? eventHref({ slug, venueId: venue.id, canMaterialize: canManage }, nextEvent) : null
 
   const openTasks = await readXvm("overview open tasks", [], async (t, v) =>
     (await listTasks(t, v)).slice(0, 5).map((task) => ({
@@ -357,11 +360,11 @@ export default async function VenueDashboardPage({ params }: { params: Promise<{
                   <Badge variant="tag" className="text-[10px]">
                     {nextEvent.eventType}
                   </Badge>
-                  {nextEvent.id !== null && (
+                  {nextEventHref !== null && (
                     <Button asChild variant="outline-blue" size="sm">
-                      <Link href={`/dashboard/${slug}/events/${nextEvent.id}`}>
+                      <EventLink href={nextEventHref}>
                         <Cog className="h-3.5 w-3.5" /> Manage
-                      </Link>
+                      </EventLink>
                     </Button>
                   )}
                 </div>

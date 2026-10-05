@@ -44,6 +44,7 @@ const CHUNK_MS = 59 * DAY_MS
 const ALL_PERIOD_DAYS = 365
 const FUTURE_DAYS = 59
 const CHART_EVENTS = 10
+const DOOR_EVENTS = 20
 
 const periodDays = (period: AnalyticsPeriod) => (period === "all" ? ALL_PERIOD_DAYS : period === "90d" ? 90 : 30)
 const eventLimit = (period: AnalyticsPeriod) => (period === "all" ? 100 : period === "90d" ? 40 : 20)
@@ -81,11 +82,21 @@ export async function fetchMoneyInputs(
   return { events, rows: [...rows.values()], payroll }
 }
 
-export function buildMoneyAnalytics(inputs: MoneyInputs, period: AnalyticsPeriod, now: Date): MoneyAnalytics {
-  const events = inputs.events
+export function recentEvents(inputs: Pick<MoneyInputs, "events">, period: AnalyticsPeriod): PageEvent[] {
+  return inputs.events
     .filter((event) => event.id !== null)
     .sort((a, b) => b.startTime.getTime() - a.startTime.getTime())
     .slice(0, eventLimit(period))
+}
+
+export function recentDoorEvents(inputs: Pick<MoneyInputs, "events">, period: AnalyticsPeriod): PageEvent[] {
+  return recentEvents(inputs, period)
+    .filter((event) => event.status === "COMPLETED" || event.status === "ACTIVE")
+    .slice(0, DOOR_EVENTS)
+}
+
+export function buildMoneyAnalytics(inputs: MoneyInputs, period: AnalyticsPeriod, now: Date): MoneyAnalytics {
+  const events = recentEvents(inputs, period)
   const revenueRows = inputs.rows.filter((row) => row.entry_type === "revenue" && row.status === "posted")
   const paid = inputs.payroll.filter((entry) => entry.is_paid)
 

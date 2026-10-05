@@ -4,7 +4,8 @@ import { authOptions } from "@/lib/auth"
 import { prisma } from "@/lib/prisma"
 import { withRateLimit } from "@/lib/middleware/with-rate-limit"
 import { subDays } from "date-fns"
-import { getRecentEventsFinancialSummary } from "@/lib/financial-calculations"
+import { getValidXvmApiToken, xvmApiErrorResponse } from "@/lib/api/xvm-api-store"
+import { buildMoneyAnalytics, fetchMoneyInputs, type AnalyticsPeriod } from "@/lib/api/analytics-money"
 import { canManageVenue } from "@/lib/roles"
 
 /**
@@ -54,21 +55,38 @@ export const GET = withRateLimit<{ params: Promise<{ venueId: string }> }>(
         return NextResponse.json({ error: "Only owners and managers can view analytics" }, { status: 403 })
       }
 
+      if (!venue.xvmApiVenueId) {
+        return NextResponse.json(
+          { error: "not_connected", message: "This venue hasn't been connected to xvm-api yet." },
+          { status: 409 }
+        )
+      }
+
+      const token = await getValidXvmApiToken(session.user.id)
+      if (!token) {
+        return NextResponse.json({ error: "xvm-api link not established yet" }, { status: 503 })
+      }
+
       const now = new Date()
-      const past30Days = subDays(now, 30)
 
       // Period filter from query string
       const { searchParams } = new URL(request.url)
-      const period = searchParams.get("period") ?? "30d"
+      const requestedPeriod = searchParams.get("period")
+      const period: AnalyticsPeriod = requestedPeriod === "90d" || requestedPeriod === "all" ? requestedPeriod : "30d"
       const periodStart = period === "90d" ? subDays(now, 90) : period === "all" ? undefined : subDays(now, 30)
       const eventLimit = period === "all" ? 100 : period === "90d" ? 40 : 20
+
+      let money
+      try {
+        money = buildMoneyAnalytics(await fetchMoneyInputs(token, venue.xvmApiVenueId, period, now), period, now)
+      } catch (err) {
+        return xvmApiErrorResponse(err, session.user.id, "[analytics] xvm-api read error")
+      }
 
       // Fetch all data in parallel for better performance
       const [
         allEvents,
-        allTransactions,
         allPatronLogs,
-        allPayrollEntries,
         followerCount,
         followersByMonth,
         patronVisits,
@@ -90,24 +108,6 @@ export const GET = withRateLimit<{ params: Promise<{ venueId: string }> }>(
           take: eventLimit,
         }),
 
-        // Get all transactions with service info
-        prisma.transaction.findMany({
-          where: { venueId: venue.id },
-          select: {
-            id: true,
-            amount: true,
-            eventId: true,
-            createdAt: true,
-            service: {
-              select: {
-                id: true,
-                name: true,
-              },
-            },
-          },
-          orderBy: { createdAt: "desc" },
-        }),
-
         // Get all patron logs
         prisma.patronLog.findMany({
           where: { venueId: venue.id },
@@ -118,21 +118,6 @@ export const GET = withRateLimit<{ params: Promise<{ venueId: string }> }>(
             timestamp: true,
           },
           orderBy: { timestamp: "asc" },
-        }),
-
-        // Get all paid payroll entries
-        prisma.payrollEntry.findMany({
-          where: {
-            venueId: venue.id,
-            isPaid: true, // Only paid payroll counts as actual expense
-          },
-          select: {
-            id: true,
-            totalAmount: true,
-            periodStart: true,
-            periodEnd: true,
-          },
-          orderBy: { periodEnd: "desc" },
         }),
 
         // Follower count
@@ -166,73 +151,8 @@ export const GET = withRateLimit<{ params: Promise<{ venueId: string }> }>(
       // Process events for different views
       const completedOrActiveEvents = allEvents.filter((e) => e.status === "COMPLETED" || e.status === "ACTIVE")
 
-      // Last 10 events for revenue chart
-      const last10Events = completedOrActiveEvents.slice(0, 10).reverse()
-
       // Last 7 events for patron chart
       const last7Events = completedOrActiveEvents.slice(0, 7).reverse()
-
-      // Calculate revenue and payroll per event
-      const revenueByEvent = last10Events.map((event) => {
-        const eventTransactions = allTransactions.filter((t) => t.eventId === event.id)
-        const revenue = eventTransactions.reduce((sum, t) => sum + Number(t.amount), 0)
-
-        // Calculate payroll for this event.
-        // TODO(payroll-alloc): payroll entries are period-scoped, not event-scoped.
-        // When a payroll period covers multiple events (e.g. weekly payroll with
-        // several event-days, or any multi-day period), the full payroll amount
-        // is charged against each event in the period and the summary totals
-        // double/triple-count. Safe today because typical usage is 1 event per
-        // payroll period, but revisit (pro-rate, first-event-only, or separate
-        // period-level card) if multi-event periods become common.
-        const eventDate = new Date(event.startTime)
-        const eventDayStart = new Date(eventDate.getFullYear(), eventDate.getMonth(), eventDate.getDate())
-
-        const eventPayroll = allPayrollEntries.filter((entry) => {
-          const periodStart = new Date(entry.periodStart)
-          const periodEnd = new Date(entry.periodEnd)
-
-          // Set to start of day for comparison
-          const periodStartDay = new Date(periodStart.getFullYear(), periodStart.getMonth(), periodStart.getDate())
-          const periodEndDay = new Date(periodEnd.getFullYear(), periodEnd.getMonth(), periodEnd.getDate())
-
-          // Check if event day falls within period (inclusive)
-          return eventDayStart >= periodStartDay && eventDayStart <= periodEndDay
-        })
-
-        const payroll = eventPayroll.reduce((sum, entry) => sum + Number(entry.totalAmount), 0)
-
-        const netProfit = revenue - payroll
-
-        return {
-          eventId: event.id,
-          eventTitle: event.title,
-          startTime: event.startTime,
-          revenue,
-          payroll,
-          netProfit,
-        }
-      })
-
-      // Calculate service revenue breakdown
-      const serviceMap = new Map<string, { name: string; revenue: number }>()
-      allTransactions.forEach((t) => {
-        if (t.service) {
-          const existing = serviceMap.get(t.service.id)
-          if (existing) {
-            existing.revenue += Number(t.amount)
-          } else {
-            serviceMap.set(t.service.id, {
-              name: t.service.name,
-              revenue: Number(t.amount),
-            })
-          }
-        }
-      })
-
-      const serviceRevenue = Array.from(serviceMap.values())
-        .sort((a, b) => b.revenue - a.revenue)
-        .slice(0, 5) // Top 5 services
 
       // Calculate patron data per event
       const patronByEvent = last7Events.map((event) => {
@@ -309,16 +229,6 @@ export const GET = withRateLimit<{ params: Promise<{ venueId: string }> }>(
         }))
         .sort((a, b) => a.time.localeCompare(b.time))
 
-      // Calculate event statistics
-      const recentEvents = allEvents.filter((e) => new Date(e.startTime) >= past30Days)
-
-      const eventStats = {
-        total: allEvents.length,
-        upcoming: allEvents.filter((e) => new Date(e.startTime) > now).length,
-        completed: allEvents.filter((e) => e.status === "COMPLETED").length,
-        recentCount: recentEvents.length,
-      }
-
       // Patron mix — categorise by visit count
       const mixNew = patronVisits.filter((p) => p._count._all <= 2).length
       const mixRegular = patronVisits.filter((p) => p._count._all >= 3 && p._count._all <= 9).length
@@ -340,16 +250,9 @@ export const GET = withRateLimit<{ params: Promise<{ venueId: string }> }>(
         pct: Math.round((dayTotals[i] / maxDay) * 100),
       }))
 
-      // Calculate totals
-      const totalRevenue = revenueByEvent.reduce((sum, e) => sum + e.revenue, 0)
       const totalPatrons = patronByEvent.reduce((sum, e) => sum + e.peakPatrons, 0)
-      const totalTransactions = allTransactions.length
-      const avgSpend = totalTransactions > 0 ? Math.round(totalRevenue / totalTransactions) : 0
       // Repeat rate: patrons with 3+ visits / total unique patrons
       const repeatRate = mixTotal > 1 ? Math.round(((mixRegular + mixVip) / mixTotal) * 100) : 0
-
-      // Calculate financial summary (revenue vs payroll for last 10 events)
-      const financialSummary = await getRecentEventsFinancialSummary(venue.id, 10)
 
       return NextResponse.json({
         venueId: venue.id,
@@ -357,23 +260,13 @@ export const GET = withRateLimit<{ params: Promise<{ venueId: string }> }>(
 
         // Summary stats
         summary: {
-          totalRevenue,
-          avgRevenuePerEvent: revenueByEvent.length > 0 ? Math.round(totalRevenue / revenueByEvent.length) : 0,
+          ...money.summary,
           totalPatrons,
-          avgSpend,
           repeatRate,
-          totalTransactions,
-          ...eventStats,
         },
 
         // Financial summary (profit/loss analysis)
-        financial: {
-          totalRevenue: financialSummary.totalRevenue,
-          totalPayroll: financialSummary.totalPayroll,
-          netProfit: financialSummary.netProfit,
-          profitMargin: financialSummary.profitMargin,
-          payrollAsPercentOfRevenue: financialSummary.payrollAsPercentOfRevenue,
-        },
+        financial: money.financial,
 
         // Mobile followers
         followers: {
@@ -386,8 +279,8 @@ export const GET = withRateLimit<{ params: Promise<{ venueId: string }> }>(
         },
 
         // Chart data
-        revenueByEvent,
-        serviceRevenue,
+        revenueByEvent: money.revenueByEvent,
+        serviceRevenue: money.serviceRevenue,
         patronByEvent,
         attendanceByHour,
 

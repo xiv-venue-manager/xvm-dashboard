@@ -95,7 +95,7 @@ export default function AnalyticsPage() {
           return
         }
         const data = await response.json()
-        throw new Error(data.error || "Failed to fetch analytics")
+        throw new Error(data.message || data.error || "Failed to fetch analytics")
       }
 
       const data: AnalyticsData = await response.json()

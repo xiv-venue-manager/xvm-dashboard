@@ -1932,6 +1932,7 @@ export async function listPatronLogs(
     eventId?: number
     character?: string
     classification?: "staff" | "patron"
+    before?: number
     limit?: number
   }
 ): Promise<PatronLogRow[]> {
@@ -1942,8 +1943,19 @@ export async function listPatronLogs(
   if (opts.eventId !== undefined) params.set("event_id", String(opts.eventId))
   if (opts.character !== undefined) params.set("character", opts.character)
   if (opts.classification !== undefined) params.set("classification", opts.classification)
+  if (opts.before !== undefined) params.set("before", String(opts.before))
   if (opts.limit !== undefined) params.set("limit", String(opts.limit))
   return xvmFetch<PatronLogRow[]>(`/venues/${venueId}/patrons/logs?${params}`, {}, personToken)
+}
+
+export interface VenueFollowers {
+  count: number
+  followers: { person_id: number; display_name: string; followed_at: string }[]
+}
+
+export async function getVenueFollowers(personToken: string, venueId: string, limit = 1): Promise<VenueFollowers> {
+  if (!process.env.XVM_API_BASE_URL) throw new Error("XVM_API_BASE_URL is not set")
+  return xvmFetch<VenueFollowers>(`/venues/${venueId}/followers?limit=${limit}`, {}, personToken)
 }
 
 export interface ReclassifyData {

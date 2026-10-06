@@ -6,10 +6,9 @@ export type XvmPageRead = <T>(
   call: (token: string, xvmApiVenueId: string) => Promise<T>
 ) => Promise<T>
 
-export async function xvmPageReader(userId: string, xvmApiVenueId: string | null): Promise<XvmPageRead> {
-  const token = xvmApiVenueId ? await getValidXvmApiToken(userId) : null
+function readerFor(userId: string, token: string | null, xvmApiVenueId: string): XvmPageRead {
   return async (label, fallback, call) => {
-    if (!token || !xvmApiVenueId) return fallback
+    if (!token) return fallback
     try {
       return await call(token, xvmApiVenueId)
     } catch (err) {
@@ -18,4 +17,13 @@ export async function xvmPageReader(userId: string, xvmApiVenueId: string | null
       return fallback
     }
   }
+}
+
+export async function xvmPageReader(userId: string, xvmApiVenueId: string | null): Promise<XvmPageRead> {
+  const token = xvmApiVenueId ? await getValidXvmApiToken(userId) : null
+  return readerFor(userId, token, xvmApiVenueId ?? "")
+}
+
+export async function xvmPersonReader(userId: string): Promise<XvmPageRead> {
+  return readerFor(userId, await getValidXvmApiToken(userId), "")
 }

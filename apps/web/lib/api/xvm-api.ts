@@ -2891,3 +2891,38 @@ export async function listStockMovements(
   )
 }
 
+
+// ── Shouts ─────────────────────────────────────────────────────
+
+export interface ShoutRow {
+  id: number
+  label: string
+  fields: Record<string, unknown>
+  template_id: string
+  separator_id: string
+  decor_id: string
+  created_at: string
+}
+
+export interface ShoutData {
+  label: string
+  fields: Record<string, unknown>
+  template_id: string
+  separator_id?: string
+  decor_id?: string
+}
+
+export async function listShouts(personToken: string): Promise<ShoutRow[]> {
+  if (!process.env.XVM_API_BASE_URL) throw new Error("XVM_API_BASE_URL is not set")
+  return xvmFetch<ShoutRow[]>("/me/shouts", {}, personToken)
+}
+
+export async function createShout(personToken: string, data: ShoutData): Promise<ShoutRow> {
+  if (!process.env.XVM_API_BASE_URL) throw new Error("XVM_API_BASE_URL is not set")
+  return xvmFetch<ShoutRow>("/me/shouts", { method: "POST", body: JSON.stringify(data) }, personToken)
+}
+
+export async function deleteShout(personToken: string, shoutId: number): Promise<void> {
+  if (!process.env.XVM_API_BASE_URL) throw new Error("XVM_API_BASE_URL is not set")
+  return xvmFetch<void>(`/me/shouts/${shoutId}`, { method: "DELETE" }, personToken)
+}

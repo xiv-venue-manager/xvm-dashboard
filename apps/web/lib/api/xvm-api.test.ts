@@ -7,6 +7,9 @@ import {
   createEventSeries,
   logPatronVisit,
   listPatronLogs,
+  listShouts,
+  createShout,
+  deleteShout,
   getVenueFollowers,
   reclassifyPatronLogs,
   getPatronPresence,
@@ -1169,6 +1172,29 @@ describe("Patron logs API", () => {
       before: "340",
       limit: "200",
     })
+  })
+
+  it("listShouts reads the caller's saved shouts", async () => {
+    mockFetchOnce({ ok: true, status: 200, body: [] })
+    await expect(listShouts("token")).resolves.toEqual([])
+    expect(new URL(lastCall()[0]).pathname).toMatch(/\/me\/shouts$/)
+  })
+
+  it("createShout posts the shout and leaves unset catalog ids out", async () => {
+    mockFetchOnce({ ok: true, status: 201, body: { id: 1 } })
+    await createShout("token", { label: "Open", fields: { a: 1 }, template_id: "open-now" })
+    const [url, init] = lastCall()
+    expect(new URL(url).pathname).toMatch(/\/me\/shouts$/)
+    expect(init.method).toBe("POST")
+    expect(JSON.parse(init.body)).toEqual({ label: "Open", fields: { a: 1 }, template_id: "open-now" })
+  })
+
+  it("deleteShout deletes by numeric id", async () => {
+    mockFetchOnce({ ok: true, status: 204, body: null })
+    await deleteShout("token", 9)
+    const [url, init] = lastCall()
+    expect(new URL(url).pathname).toMatch(/\/me\/shouts\/9$/)
+    expect(init.method).toBe("DELETE")
   })
 
   it("getVenueFollowers reads the count with a small page by default", async () => {

@@ -1,10 +1,20 @@
 import { NextRequest, NextResponse } from "next/server"
 import { getServerSession } from "next-auth"
+import { z } from "zod"
 import { authOptions } from "@/lib/auth"
-import { prisma } from "@/lib/prisma"
+import { getValidXvmApiToken, xvmApiErrorResponse } from "@/lib/api/xvm-api-store"
+import { createShout, listShouts } from "@/lib/api/xvm-api"
+import { toShoutShape } from "@/lib/api/shout-shape"
 
 const SHOUT_ORIGIN = "https://shout.xivvenuemanager.com"
-const MAX_SHOUTS = 50
+
+const shoutSchema = z.object({
+  label: z.string().trim().min(1),
+  fields: z.record(z.string(), z.unknown()),
+  templateId: z.string().min(1),
+  separatorId: z.string().min(1).optional(),
+  decorId: z.string().min(1).optional(),
+})
 
 function cors(res: NextResponse) {
   res.headers.set("Access-Control-Allow-Origin", SHOUT_ORIGIN)
@@ -22,55 +32,38 @@ export async function GET() {
   const session = await getServerSession(authOptions)
   if (!session?.user?.id) return cors(NextResponse.json({ error: "Unauthorized" }, { status: 401 }))
 
-  const shouts = await prisma.shoutTemplate.findMany({
-    where: { userId: session.user.id },
-    orderBy: { createdAt: "desc" },
-    select: {
-      id: true,
-      label: true,
-      fields: true,
-      templateId: true,
-      separatorId: true,
-      decorId: true,
-      createdAt: true,
-    },
-  })
+  const token = await getValidXvmApiToken(session.user.id)
+  if (!token) return cors(NextResponse.json({ error: "xvm-api link not established yet" }, { status: 503 }))
 
-  return cors(NextResponse.json(shouts))
+  try {
+    const shouts = await listShouts(token)
+    return cors(NextResponse.json(shouts.map(toShoutShape)))
+  } catch (err) {
+    return cors(await xvmApiErrorResponse(err, session.user.id, "[shouts] list error"))
+  }
 }
 
 export async function POST(req: NextRequest) {
   const session = await getServerSession(authOptions)
   if (!session?.user?.id) return cors(NextResponse.json({ error: "Unauthorized" }, { status: 401 }))
 
-  const count = await prisma.shoutTemplate.count({ where: { userId: session.user.id } })
-  if (count >= MAX_SHOUTS) return cors(NextResponse.json({ error: "Maximum saved shouts reached." }, { status: 400 }))
+  const token = await getValidXvmApiToken(session.user.id)
+  if (!token) return cors(NextResponse.json({ error: "xvm-api link not established yet" }, { status: 503 }))
 
-  const body = await req.json()
-  const { label, fields, templateId, separatorId, decorId } = body
-  if (!label?.trim() || !fields || !templateId) {
-    return cors(NextResponse.json({ error: "Missing required fields." }, { status: 400 }))
-  }
+  const parsed = shoutSchema.safeParse(await req.json().catch(() => null))
+  if (!parsed.success) return cors(NextResponse.json({ error: "Missing required fields." }, { status: 400 }))
+  const { label, fields, templateId, separatorId, decorId } = parsed.data
 
-  const shout = await prisma.shoutTemplate.create({
-    data: {
-      userId: session.user.id,
-      label: label.trim(),
+  try {
+    const shout = await createShout(token, {
+      label,
       fields,
-      templateId,
-      separatorId: separatorId ?? "dot",
-      decorId: decorId ?? "diamond",
-    },
-    select: {
-      id: true,
-      label: true,
-      fields: true,
-      templateId: true,
-      separatorId: true,
-      decorId: true,
-      createdAt: true,
-    },
-  })
-
-  return cors(NextResponse.json(shout, { status: 201 }))
+      template_id: templateId,
+      separator_id: separatorId,
+      decor_id: decorId,
+    })
+    return cors(NextResponse.json(toShoutShape(shout), { status: 201 }))
+  } catch (err) {
+    return cors(await xvmApiErrorResponse(err, session.user.id, "[shouts] create error"))
+  }
 }

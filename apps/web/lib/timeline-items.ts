@@ -1,4 +1,4 @@
-import type { FinanceTransactionRow, MembershipRow, ShiftRow } from "@/lib/api/xvm-api"
+import type { FinanceTransactionRow, MembershipRow, PatronLogRow, ShiftRow } from "@/lib/api/xvm-api"
 import { minorUnitsToGil } from "@/lib/api/position-convert"
 import { resolveDisplayName } from "@/lib/display-name"
 
@@ -37,6 +37,25 @@ export function saleItems(rows: FinanceTransactionRow[], members: Map<number, Me
         },
       }
     })
+}
+
+export function patronItems(rows: PatronLogRow[]): TimelineApiItem[] {
+  return rows.map((r) => {
+    const left = r.action === "leave" || (r.count_change ?? 0) < 0
+    return {
+      id: `patron_${r.id}`,
+      type: left ? ("patron_exit" as const) : ("patron_enter" as const),
+      timestamp: new Date(r.ts),
+      data: {
+        characterName: r.character_name,
+        world: r.world,
+        action: left ? "LEAVE" : "ENTER",
+        countChange: r.count_change,
+        event: null,
+        loggedBy: null,
+      },
+    }
+  })
 }
 
 export function shiftItems(rows: ShiftRow[], members: Map<number, MembershipRow>): TimelineApiItem[] {

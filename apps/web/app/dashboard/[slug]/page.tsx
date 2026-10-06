@@ -9,7 +9,8 @@ import { StatReadout } from "@/components/ui/stat-readout"
 import { CrystalDivider } from "@/components/ui/crystal-divider"
 import { prisma } from "@/lib/prisma"
 import { xvmPageReader } from "@/lib/api/xvm-page-read"
-import { getFinanceSummary, listShifts, listTasks, type ShiftRow } from "@/lib/api/xvm-api"
+import { getFinanceSummary, getPatronLogSummary, listShifts, listTasks, type ShiftRow } from "@/lib/api/xvm-api"
+import { listAllPatronLogs } from "@/lib/api/patron-logs"
 import { minorUnitsToGil } from "@/lib/api/position-convert"
 import { intToPriority } from "@/lib/api/task-convert"
 import { VenueLayout } from "@/components/venue-layout"
@@ -86,20 +87,30 @@ export default async function VenueDashboardPage({ params }: { params: Promise<{
   }
 
   if (canManage) {
-    const [revThis, revPrev, patronsThis, patronsPrev, upcomingCount] = await Promise.all([
+    const [revThis, revPrev, patronWeeks, upcomingCount] = await Promise.all([
       revenueBetween("overview revenue this week", weekAgo, now),
       revenueBetween("overview revenue prev week", twoWeeksAgo, weekAgo),
-      prisma.patronLog.count({ where: { venueId: venue.id, action: "ENTER", loggedAt: { gte: weekAgo } } }),
-      prisma.patronLog.count({
-        where: { venueId: venue.id, action: "ENTER", loggedAt: { gte: twoWeeksAgo, lt: weekAgo } },
+      readXvm("overview patron weeks", { thisWeek: 0, prev: 0 }, async (t, v) => {
+        const logs = await listAllPatronLogs(t, v, {
+          from: twoWeeksAgo.toISOString(),
+          to: now.toISOString(),
+          classification: "patron",
+        })
+        const weeks = { thisWeek: 0, prev: 0 }
+        for (const log of logs) {
+          const entered = Math.max(0, log.count_change ?? 0)
+          if (new Date(log.ts) >= weekAgo) weeks.thisWeek += entered
+          else weeks.prev += entered
+        }
+        return weeks
       }),
       Promise.resolve(windowEvents.filter((e) => e.startTime >= now && isOpenOrUpcoming(e)).length),
     ])
     kpis = {
       revenueThisWeek: revThis,
       revenuePrev: revPrev,
-      patronsThisWeek: patronsThis,
-      patronsPrev: patronsPrev,
+      patronsThisWeek: patronWeeks.thisWeek,
+      patronsPrev: patronWeeks.prev,
       avgAttendance: 0,
       upcomingCount: upcomingCount,
       newFollowers: venue._count.follows,
@@ -140,13 +151,7 @@ export default async function VenueDashboardPage({ params }: { params: Promise<{
   if (canManage && recentEvents.length > 0) {
     const patPerEvent = await Promise.all(
       recentEvents.map((ev) =>
-        prisma.patronLog.count({
-          where: {
-            venueId: venue.id,
-            action: "ENTER",
-            loggedAt: { gte: ev.startTime, lt: new Date(ev.startTime.getTime() + 12 * 60 * 60 * 1000) },
-          },
-        })
+        readXvm("overview event attendance", 0, async (t, v) => (await getPatronLogSummary(t, v, Number(ev.id))).attendance)
       )
     )
     patronsPerEvent.push(...patPerEvent)

@@ -3,6 +3,9 @@ import { getServerSession } from "next-auth"
 import { authOptions } from "@/lib/auth"
 import { prisma } from "@/lib/prisma"
 import { withRateLimit } from "@/lib/middleware/with-rate-limit"
+import { xvmPageReader } from "@/lib/api/xvm-page-read"
+import { getEvent, type PatronLogRow } from "@/lib/api/xvm-api"
+import { listAllPatronLogs } from "@/lib/api/patron-logs"
 
 /**
  * GET - Get attendance data for a specific event formatted for charts
@@ -36,36 +39,22 @@ export const GET = withRateLimit<{ params: Promise<{ venueId: string; eventId: s
         return NextResponse.json({ error: "You don't have access to this venue" }, { status: 403 })
       }
 
-      // Verify the event exists and belongs to this venue
-      const event = await prisma.event.findFirst({
-        where: {
-          id: eventId,
-          venueId,
-        },
-        select: {
-          id: true,
-          startTime: true,
-          endTime: true,
-        },
-      })
+      const venue = await prisma.venue.findUnique({ where: { id: venueId }, select: { xvmApiVenueId: true } })
+      const readXvm = await xvmPageReader(session.user.id, venue?.xvmApiVenueId ?? null)
 
+      if (!/^\d+$/.test(eventId)) {
+        return NextResponse.json({ error: "Event not found" }, { status: 404 })
+      }
+      const event = await readXvm("attendance event", null, (t, v) => getEvent(t, v, Number(eventId)))
       if (!event) {
         return NextResponse.json({ error: "Event not found" }, { status: 404 })
       }
 
-      // Get all patron logs for this event
-      const logs = await prisma.patronLog.findMany({
-        where: {
-          venueId,
-          eventId,
-        },
-        orderBy: { timestamp: "asc" },
-        select: {
-          timestamp: true,
-          countChange: true,
-          action: true,
-        },
-      })
+      const logs = (
+        await readXvm("attendance logs", [] as PatronLogRow[], (t, v) =>
+          listAllPatronLogs(t, v, { eventId: Number(eventId), classification: "patron" })
+        )
+      ).sort((a, b) => new Date(a.ts).getTime() - new Date(b.ts).getTime() || a.id - b.id)
 
       // If no logs, return empty array
       if (logs.length === 0) {
@@ -75,9 +64,9 @@ export const GET = withRateLimit<{ params: Promise<{ venueId: string; eventId: s
       // Build time-series data showing cumulative count at each log point
       let runningCount = 0
       const attendanceData = logs.map((log) => {
-        runningCount += log.countChange ?? 0
+        runningCount += log.count_change ?? 0
         return {
-          time: log.timestamp.toISOString(),
+          time: new Date(log.ts).toISOString(),
           count: Math.max(0, runningCount), // Never show negative
         }
       })

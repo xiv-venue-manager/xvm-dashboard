@@ -12,10 +12,16 @@ import { listEventsInRange, materializeIfVirtual, type PageEvent } from "@/lib/a
 import {
   getVenue,
   getFinanceSummary,
+  getPatronLogSummary,
+  getPatronPresence,
   listShiftsOnNow,
   listMemberships,
+  listPatrons,
   type FinanceSummary,
   type MembershipRow,
+  type PatronLogSummary,
+  type PatronPresence,
+  type PatronSummary,
   type RevenueVisibility,
   type ShiftRow,
 } from "@/lib/api/xvm-api"
@@ -66,23 +72,17 @@ export default async function LivePage({ params }: { params: Promise<{ slug: str
       ? await readXvm("live page materialize", pickedEvent, (t, v) => materializeIfVirtual(t, v, pickedEvent))
       : pickedEvent
 
-  // Get current patron count
-  const patronCount = activeEvent
-    ? (await prisma.patronLog.count({
-        where: {
-          venueId: venue.id,
-          action: "ENTER",
-          timestamp: { gte: activeEvent.startTime },
-        },
-      })) -
-      (await prisma.patronLog.count({
-        where: {
-          venueId: venue.id,
-          action: "LEAVE",
-          timestamp: { gte: activeEvent.startTime },
-        },
-      }))
-    : 0
+  const numericEventId = activeEvent && /^\d+$/.test(String(activeEvent.id)) ? Number(activeEvent.id) : null
+  const [doorSummary, presence, patrons] = await Promise.all([
+    numericEventId !== null
+      ? readXvm<PatronLogSummary | null>("live page door summary", null, (t, v) =>
+          getPatronLogSummary(t, v, numericEventId)
+        )
+      : null,
+    activeEvent ? readXvm<PatronPresence | null>("live page presence", null, (t, v) => getPatronPresence(t, v)) : null,
+    activeEvent ? readXvm("live page patrons", [] as PatronSummary[], (t, v) => listPatrons(t, v)) : [],
+  ])
+  const patronCount = doorSummary ? doorSummary.entries - doorSummary.exits : 0
 
   const eventStart = activeEvent?.startTime
   const eventSummary =
@@ -95,15 +95,10 @@ export default async function LivePage({ params }: { params: Promise<{ slug: str
   const saleCountDisplay = eventSummary?.transaction_count ?? 0
   const revenueUnavailable = showRevenue && eventStart !== undefined && eventStart <= now && eventSummary === null
 
-  // Patron roster (recent ENTERs, crude in-venue list)
-  const patronRoster = activeEvent
-    ? await prisma.patronLog.findMany({
-        where: { venueId: venue.id, action: "ENTER", loggedAt: { gte: activeEvent.startTime } },
-        orderBy: { loggedAt: "desc" },
-        take: 20,
-        select: { characterName: true, loggedAt: true },
-      })
-    : []
+  const patronRoster = (presence?.present ?? [])
+    .filter((p) => !p.was_working)
+    .sort((x, y) => new Date(y.since).getTime() - new Date(x.since).getTime())
+    .slice(0, 20)
 
   const [onNow, roster] = await Promise.all([
     readXvm("live page on-now", [] as ShiftRow[], (t, v) => listShiftsOnNow(t, v)),
@@ -116,11 +111,8 @@ export default async function LivePage({ params }: { params: Promise<{ slug: str
     return { name: name === "Unknown" ? "Staff" : name, role: member?.effective_tier.toUpperCase() ?? "STAFF" }
   })
 
-  // New patrons tonight (first visit this event)
   const newTonightCount = activeEvent
-    ? await prisma.patronLog.count({
-        where: { venueId: venue.id, action: "ENTER", loggedAt: { gte: activeEvent.startTime } },
-      })
+    ? patrons.filter((p) => p.visits > 0 && new Date(p.created_at) >= activeEvent.startTime).length
     : 0
 
   return (
@@ -162,8 +154,8 @@ export default async function LivePage({ params }: { params: Promise<{ slug: str
             canManage={canManage}
             revenueLabel={canManage || revenueVisibility === "all" ? "Sales tonight" : "My sales tonight"}
             patronRoster={patronRoster.map((p) => ({
-              name: p.characterName ?? "Unknown",
-              arrivedAt: p.loggedAt.toISOString(),
+              name: p.character_name || "Unknown",
+              arrivedAt: p.since,
             }))}
             onShiftStaff={onShiftStaff}
           />

@@ -7,12 +7,14 @@ import {
   getEvent,
   listFinanceTransactions,
   listMemberships,
+  listPatronLogs,
   listShifts,
   type FinanceTransactionRow,
   type MembershipRow,
+  type PatronLogRow,
   type ShiftRow,
 } from "@/lib/api/xvm-api"
-import { saleItems, shiftItems, type TimelineApiItem } from "@/lib/timeline-items"
+import { patronItems, saleItems, shiftItems, type TimelineApiItem } from "@/lib/timeline-items"
 
 const TIMELINE_WINDOW_MS = 59 * 24 * 60 * 60 * 1000
 
@@ -39,39 +41,6 @@ export async function GET(request: NextRequest, { params }: { params: Promise<{ 
 
   const items: TimelineApiItem[] = []
 
-  // Fetch patron logs
-  if (!type || type === "patrons") {
-    const where: Record<string, unknown> = { venueId }
-    if (cursor) where.timestamp = { lt: new Date(cursor) }
-    if (eventId) where.eventId = eventId
-
-    const patronLogs = await prisma.patronLog.findMany({
-      where,
-      include: {
-        event: { select: { id: true, title: true } },
-        staff: { select: { id: true, name: true } },
-      },
-      orderBy: { timestamp: "desc" },
-      take: limit,
-    })
-
-    for (const p of patronLogs) {
-      items.push({
-        id: `patron_${p.id}`,
-        type: p.action === "ENTER" ? "patron_enter" : "patron_exit",
-        timestamp: p.timestamp,
-        data: {
-          characterName: p.characterName,
-          world: p.world,
-          action: p.action,
-          countChange: p.countChange,
-          event: p.event,
-          loggedBy: p.staff,
-        },
-      })
-    }
-  }
-
   const venue = await prisma.venue.findUnique({ where: { id: venueId }, select: { xvmApiVenueId: true } })
   const readXvm = await xvmPageReader(session.user.id, venue?.xvmApiVenueId ?? null)
   const windowTo = cursor ? new Date(cursor) : new Date()
@@ -85,9 +54,10 @@ export async function GET(request: NextRequest, { params }: { params: Promise<{ 
   const range = { from: windowFrom.toISOString(), to: windowTo.toISOString() }
   const wantSales = !type || type === "sales"
   const wantShifts = !type || type === "staff"
+  const wantPatrons = (!type || type === "patrons") && (!eventId || /^\d+$/.test(eventId))
 
-  if (windowFrom < windowTo && (wantSales || wantShifts)) {
-    const [roster, transactions, shifts] = await Promise.all([
+  if (windowFrom < windowTo && (wantSales || wantShifts || wantPatrons)) {
+    const [roster, transactions, shifts, patronLogs] = await Promise.all([
       readXvm("timeline roster", [] as MembershipRow[], (t, v) => listMemberships(t, v)),
       wantSales
         ? readXvm("timeline sales", [] as FinanceTransactionRow[], (t, v) => listFinanceTransactions(t, v, range))
@@ -95,9 +65,15 @@ export async function GET(request: NextRequest, { params }: { params: Promise<{ 
       wantShifts
         ? readXvm("timeline shifts", [] as ShiftRow[], (t, v) => listShifts(t, v, range))
         : Promise.resolve([] as ShiftRow[]),
+      wantPatrons
+        ? readXvm("timeline patrons", [] as PatronLogRow[], (t, v) =>
+            listPatronLogs(t, v, { ...range, eventId: eventId ? Number(eventId) : undefined, limit })
+          )
+        : Promise.resolve([] as PatronLogRow[]),
     ])
     const members = new Map(roster.map((m) => [m.id, m]))
     items.push(
+      ...patronItems(patronLogs).filter((i) => i.timestamp >= windowFrom && i.timestamp < windowTo),
       ...saleItems(transactions, members),
       ...shiftItems(shifts, members).filter((i) => i.timestamp >= windowFrom && i.timestamp < windowTo)
     )

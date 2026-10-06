@@ -8,6 +8,11 @@ import {
   logPatronVisit,
   listPatronLogs,
   getPatronLogSummary,
+  listMyAnnouncements,
+  dismissAnnouncement,
+  listAnnouncements,
+  createAnnouncement,
+  deleteAnnouncement,
   listShouts,
   createShout,
   deleteShout,
@@ -1182,6 +1187,43 @@ describe("Patron logs API", () => {
     const url = new URL(lastCall()[0])
     expect(url.pathname).toMatch(/\/venues\/venue-1\/patrons\/logs\/summary$/)
     expect(url.searchParams.get("event_id")).toBe("12")
+  })
+
+  it("listMyAnnouncements reads the caller's live banner", async () => {
+    mockFetchOnce({ ok: true, status: 200, body: [] })
+    await expect(listMyAnnouncements("token")).resolves.toEqual([])
+    expect(new URL(lastCall()[0]).pathname).toMatch(/\/me\/announcements$/)
+  })
+
+  it("dismissAnnouncement posts to the dismiss path", async () => {
+    mockFetchOnce({ ok: true, status: 204, body: null })
+    await dismissAnnouncement("token", 5)
+    const [url, init] = lastCall()
+    expect(new URL(url).pathname).toMatch(/\/me\/announcements\/5\/dismiss$/)
+    expect(init.method).toBe("POST")
+  })
+
+  it("listAnnouncements reads the admin list", async () => {
+    mockFetchOnce({ ok: true, status: 200, body: [] })
+    await listAnnouncements("token")
+    expect(new URL(lastCall()[0]).pathname).toMatch(/\/admin\/announcements$/)
+  })
+
+  it("createAnnouncement posts the announcement", async () => {
+    mockFetchOnce({ ok: true, status: 201, body: { id: 1 } })
+    await createAnnouncement("token", { title: "T", message: "M", link: null, link_label: null, expires_at: null })
+    const [url, init] = lastCall()
+    expect(new URL(url).pathname).toMatch(/\/admin\/announcements$/)
+    expect(init.method).toBe("POST")
+    expect(JSON.parse(init.body)).toEqual({ title: "T", message: "M", link: null, link_label: null, expires_at: null })
+  })
+
+  it("deleteAnnouncement deletes by numeric id", async () => {
+    mockFetchOnce({ ok: true, status: 204, body: null })
+    await deleteAnnouncement("token", 7)
+    const [url, init] = lastCall()
+    expect(new URL(url).pathname).toMatch(/\/admin\/announcements\/7$/)
+    expect(init.method).toBe("DELETE")
   })
 
   it("listShouts reads the caller's saved shouts", async () => {

@@ -6,6 +6,9 @@ import { Button } from "@/components/ui/button"
 import { prisma } from "@/lib/prisma"
 import { Building2, Users, ChevronRight, Plus } from "lucide-react"
 import { AnnouncementBanner } from "@/components/announcement-banner"
+import { xvmPersonReader } from "@/lib/api/xvm-page-read"
+import { listMyAnnouncements, type AnnouncementRow } from "@/lib/api/xvm-api"
+import { toAnnouncementShape } from "@/lib/api/announcement-shape"
 import { CharacterLinkNudge } from "@/components/character-link-nudge"
 
 const roleColors: Record<string, string> = {
@@ -21,15 +24,10 @@ export default async function DashboardPage() {
     redirect("/auth/signin")
   }
 
-  const now = new Date()
-  const announcements = await prisma.announcement.findMany({
-    where: {
-      OR: [{ expiresAt: null }, { expiresAt: { gt: now } }],
-      dismissals: { none: { userId: session.user.id } },
-    },
-    select: { id: true, title: true, message: true, link: true, linkLabel: true },
-    orderBy: { createdAt: "desc" },
-  })
+  const readPerson = await xvmPersonReader(session.user.id)
+  const announcements = (await readPerson("dashboard announcements", [] as AnnouncementRow[], (t) => listMyAnnouncements(t))).map(
+    toAnnouncementShape
+  )
 
   const hasLinkedCharacter =
     (await prisma.userCharacter.count({

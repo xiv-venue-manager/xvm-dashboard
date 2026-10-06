@@ -2909,6 +2909,53 @@ export async function listStockMovements(
 }
 
 
+// ── Announcements ──────────────────────────────────────────────
+
+export interface AnnouncementRow {
+  id: number
+  title: string
+  message: string
+  link: string | null
+  link_label: string | null
+  starts_at: string
+  expires_at: string | null
+  created_by_person_id: number | null
+  created_at: string
+}
+
+export interface AnnouncementData {
+  title: string
+  message: string
+  link?: string | null
+  link_label?: string | null
+  expires_at?: string | null
+}
+
+export async function listMyAnnouncements(personToken: string): Promise<AnnouncementRow[]> {
+  if (!process.env.XVM_API_BASE_URL) throw new Error("XVM_API_BASE_URL is not set")
+  return xvmFetch<AnnouncementRow[]>("/me/announcements", {}, personToken)
+}
+
+export async function dismissAnnouncement(personToken: string, announcementId: number): Promise<void> {
+  if (!process.env.XVM_API_BASE_URL) throw new Error("XVM_API_BASE_URL is not set")
+  return xvmFetch<void>(`/me/announcements/${announcementId}/dismiss`, { method: "POST" }, personToken)
+}
+
+export async function listAnnouncements(personToken: string): Promise<AnnouncementRow[]> {
+  if (!process.env.XVM_API_BASE_URL) throw new Error("XVM_API_BASE_URL is not set")
+  return xvmFetch<AnnouncementRow[]>("/admin/announcements", {}, personToken)
+}
+
+export async function createAnnouncement(personToken: string, data: AnnouncementData): Promise<AnnouncementRow> {
+  if (!process.env.XVM_API_BASE_URL) throw new Error("XVM_API_BASE_URL is not set")
+  return xvmFetch<AnnouncementRow>("/admin/announcements", { method: "POST", body: JSON.stringify(data) }, personToken)
+}
+
+export async function deleteAnnouncement(personToken: string, announcementId: number): Promise<void> {
+  if (!process.env.XVM_API_BASE_URL) throw new Error("XVM_API_BASE_URL is not set")
+  return xvmFetch<void>(`/admin/announcements/${announcementId}`, { method: "DELETE" }, personToken)
+}
+
 // ── Shouts ─────────────────────────────────────────────────────
 
 export interface ShoutRow {

@@ -8,9 +8,18 @@ import { Button } from "@/components/ui/button"
 import { StatReadout } from "@/components/ui/stat-readout"
 import { CrystalDivider } from "@/components/ui/crystal-divider"
 import { prisma } from "@/lib/prisma"
-import { xvmPageReader } from "@/lib/api/xvm-page-read"
-import { getFinanceSummary, getPatronLogSummary, listShifts, listTasks, type ShiftRow } from "@/lib/api/xvm-api"
+import { xvmPageReader, xvmPersonReader } from "@/lib/api/xvm-page-read"
+import {
+  getFinanceSummary,
+  getPatronLogSummary,
+  listMyAnnouncements,
+  listShifts,
+  listTasks,
+  type AnnouncementRow,
+  type ShiftRow,
+} from "@/lib/api/xvm-api"
 import { listAllPatronLogs } from "@/lib/api/patron-logs"
+import { toAnnouncementShape } from "@/lib/api/announcement-shape"
 import { minorUnitsToGil } from "@/lib/api/position-convert"
 import { intToPriority } from "@/lib/api/task-convert"
 import { VenueLayout } from "@/components/venue-layout"
@@ -178,15 +187,10 @@ export default async function VenueDashboardPage({ params }: { params: Promise<{
     }))
   )
 
-  // Announcements
-  const announcements = await prisma.announcement.findMany({
-    where: {
-      OR: [{ expiresAt: null }, { expiresAt: { gt: now } }],
-      dismissals: { none: { userId: session.user.id } },
-    },
-    select: { id: true, title: true, message: true, link: true, linkLabel: true },
-    orderBy: { createdAt: "desc" },
-  })
+  const readPerson = await xvmPersonReader(session.user.id)
+  const announcements = (await readPerson("overview announcements", [] as AnnouncementRow[], (t) => listMyAnnouncements(t))).map(
+    toAnnouncementShape
+  )
 
   const hasLinkedCharacter =
     (await prisma.userCharacter.count({

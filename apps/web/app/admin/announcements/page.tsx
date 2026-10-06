@@ -3,6 +3,7 @@
 import { useEffect, useState } from "react"
 import { useSession } from "next-auth/react"
 import { useRouter } from "next/navigation"
+import Link from "next/link"
 import { Button } from "@/components/ui/button"
 import { Input } from "@/components/ui/input"
 import { Textarea } from "@/components/ui/textarea"
@@ -21,6 +22,7 @@ import {
 } from "@/components/ui/alert-dialog"
 import { Megaphone, Trash2, Plus, X } from "lucide-react"
 import { format } from "date-fns"
+import { adminLoadErrorMessage } from "@/lib/admin-load-error"
 
 interface Announcement {
   id: string
@@ -43,6 +45,7 @@ export default function AdminAnnouncementsPage() {
   const [submitting, setSubmitting] = useState(false)
   const [showForm, setShowForm] = useState(false)
   const [error, setError] = useState<string | null>(null)
+  const [loadError, setLoadError] = useState<string | null>(null)
 
   useEffect(() => {
     if (status === "unauthenticated") router.push("/auth/signin")
@@ -51,11 +54,13 @@ export default function AdminAnnouncementsPage() {
   useEffect(() => {
     if (status !== "authenticated") return
     fetch("/api/admin/announcements")
-      .then((r) => (r.ok ? r.json() : Promise.reject()))
-      .then(setAnnouncements)
-      .catch(() => router.push("/dashboard"))
+      .then(async (r) => {
+        if (!r.ok) return setLoadError(adminLoadErrorMessage(r.status))
+        setAnnouncements(await r.json())
+      })
+      .catch(() => setLoadError("Couldn't reach the server."))
       .finally(() => setLoading(false))
-  }, [status, router])
+  }, [status])
 
   async function submit(e: React.FormEvent) {
     e.preventDefault()
@@ -93,6 +98,19 @@ export default function AdminAnnouncementsPage() {
   }
 
   if (loading) return <PageLoading />
+
+  if (loadError) {
+    return (
+      <div className="page-inner max-w-3xl">
+        <div className="xiv-card rounded-xl p-8 text-center space-y-4">
+          <p className="text-sm text-muted-foreground">{loadError}</p>
+          <Button asChild variant="outline">
+            <Link href="/dashboard">Back to the dashboard</Link>
+          </Button>
+        </div>
+      </div>
+    )
+  }
 
   return (
     <div className="page-inner max-w-3xl">

@@ -72,7 +72,14 @@ describe("xvmPersonReader", () => {
     const read = await xvmPersonReader("user-1")
     const call = vi.fn().mockResolvedValue(42)
     expect(await read("t", 7, call)).toBe(42)
-    expect(call.mock.calls[0][0]).toBe("tok")
+    expect(call).toHaveBeenCalledWith("tok")
+  })
+
+  it("cannot be handed a call that needs a venue id", async () => {
+    mockGetToken.mockResolvedValue("tok")
+    const read = await xvmPersonReader("user-1")
+    // @ts-expect-error a person read has no venue id to give a venue-scoped call
+    await read("t", "", (token: string, venueId: string) => Promise.resolve(token + venueId))
   })
 
   it("returns the fallback and invalidates the credential on a 401", async () => {

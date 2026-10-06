@@ -11,7 +11,7 @@ vi.mock("@/lib/api/xvm-api-store", () => ({
   isXvmAuthFailure: (err: unknown) => (err as { status?: number }).status === 401,
 }))
 
-import { xvmPageReader } from "./xvm-page-read"
+import { xvmPageReader, xvmPersonReader } from "./xvm-page-read"
 
 beforeEach(() => {
   vi.clearAllMocks()
@@ -55,5 +55,30 @@ describe("xvmPageReader", () => {
     const read = await xvmPageReader("user-1", "venue-1")
     expect(await read("t", 7, () => Promise.reject({ status: 403 }))).toBe(7)
     expect(mockInvalidate).not.toHaveBeenCalled()
+  })
+})
+
+describe("xvmPersonReader", () => {
+  it("returns the fallback when the user has no xvm-api token", async () => {
+    mockGetToken.mockResolvedValue(null)
+    const read = await xvmPersonReader("user-1")
+    const call = vi.fn()
+    expect(await read("t", 7, call)).toBe(7)
+    expect(call).not.toHaveBeenCalled()
+  })
+
+  it("needs no venue: it calls with the token and returns the result", async () => {
+    mockGetToken.mockResolvedValue("tok")
+    const read = await xvmPersonReader("user-1")
+    const call = vi.fn().mockResolvedValue(42)
+    expect(await read("t", 7, call)).toBe(42)
+    expect(call.mock.calls[0][0]).toBe("tok")
+  })
+
+  it("returns the fallback and invalidates the credential on a 401", async () => {
+    mockGetToken.mockResolvedValue("tok")
+    const read = await xvmPersonReader("user-1")
+    expect(await read("t", 7, () => Promise.reject({ status: 401 }))).toBe(7)
+    expect(mockInvalidate).toHaveBeenCalledWith("user-1")
   })
 })

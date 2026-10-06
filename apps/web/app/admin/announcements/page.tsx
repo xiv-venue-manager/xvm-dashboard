@@ -30,14 +30,12 @@ interface Announcement {
   linkLabel: string | null
   expiresAt: string | null
   createdAt: string
-  author: { name: string | null }
-  _count: { dismissals: number }
 }
 
 const empty = { title: "", message: "", link: "", linkLabel: "", expiresAt: "" }
 
 export default function AdminAnnouncementsPage() {
-  const { data: session, status } = useSession()
+  const { status } = useSession()
   const router = useRouter()
   const [announcements, setAnnouncements] = useState<Announcement[]>([])
   const [loading, setLoading] = useState(true)
@@ -81,10 +79,7 @@ export default function AdminAnnouncementsPage() {
         return
       }
       const created = await res.json()
-      setAnnouncements((prev) => [
-        { ...created, author: { name: session?.user?.name ?? null }, _count: { dismissals: 0 } },
-        ...prev,
-      ])
+      setAnnouncements((prev) => [created, ...prev])
       setForm(empty)
       setShowForm(false)
     } finally {
@@ -214,7 +209,7 @@ export default function AdminAnnouncementsPage() {
                   </a>
                 )}
                 <p className="text-xs text-[var(--fg-faint)] mt-2">
-                  {format(new Date(a.createdAt), "d MMM yyyy")} · {a._count.dismissals} dismissed
+                  {format(new Date(a.createdAt), "d MMM yyyy")}
                   {a.expiresAt && ` · expires ${format(new Date(a.expiresAt), "d MMM yyyy")}`}
                 </p>
               </div>

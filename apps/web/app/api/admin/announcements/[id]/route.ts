@@ -1,32 +1,26 @@
-import { NextRequest, NextResponse } from "next/server"
-import { getServerSession, type Session } from "next-auth"
+import { NextResponse } from "next/server"
+import { getServerSession } from "next-auth"
 import { authOptions } from "@/lib/auth"
-import { prisma } from "@/lib/prisma"
 import { withRateLimit } from "@/lib/middleware/with-rate-limit"
-
-async function requireAdmin(session: Session | null) {
-  if (!session?.user?.id) return false
-  const user = await prisma.user.findUnique({
-    where: { id: session.user.id },
-    select: { isAdmin: true },
-  })
-  return user?.isAdmin ?? false
-}
+import { getValidXvmApiToken, xvmApiErrorResponse } from "@/lib/api/xvm-api-store"
+import { deleteAnnouncement } from "@/lib/api/xvm-api"
 
 export const DELETE = withRateLimit<{ params: Promise<{ id: string }> }>(
   async (request, context) => {
-    try {
-      const session = await getServerSession(authOptions)
-      if (!(await requireAdmin(session))) {
-        return NextResponse.json({ error: "Forbidden" }, { status: 403 })
-      }
+    const session = await getServerSession(authOptions)
+    if (!session?.user?.id) return NextResponse.json({ error: "Forbidden" }, { status: 403 })
 
-      const { id } = await context!.params
-      await prisma.announcement.delete({ where: { id } })
+    const token = await getValidXvmApiToken(session.user.id)
+    if (!token) return NextResponse.json({ error: "xvm-api link not established yet" }, { status: 503 })
+
+    const { id } = await context!.params
+    if (!/^\d+$/.test(id)) return NextResponse.json({ error: "Not found" }, { status: 404 })
+
+    try {
+      await deleteAnnouncement(token, Number(id))
       return NextResponse.json({ success: true })
-    } catch (error) {
-      console.error("Error deleting announcement:", error)
-      return NextResponse.json({ error: "Internal server error" }, { status: 500 })
+    } catch (err) {
+      return xvmApiErrorResponse(err, session.user.id, "[announcements] delete error")
     }
   },
   { requests: 20, window: "1 m" }

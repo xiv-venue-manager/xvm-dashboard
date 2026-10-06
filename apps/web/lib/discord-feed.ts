@@ -34,16 +34,6 @@ export function postPartakeDigest(events: { title: string; startTime: Date; venu
   )
 }
 
-export function postWeeklySummary(stats: {
-  newVenues: number
-  eventsHosted: number
-  patronVisits: number
-  newStaff: number
-  weekStart: Date
-}) {
-  postToBot("/webhook/weekly-summary", { ...stats, weekStart: stats.weekStart.toISOString() })
-}
-
 export function postVenueGraduation(venue: { name: string; slug: string }, milestone: number) {
   postToBot("/webhook/venue-graduation", { venue, milestone })
 }

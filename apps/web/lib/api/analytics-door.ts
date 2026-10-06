@@ -36,7 +36,9 @@ export function buildDoorAnalytics(inputs: DoorInputs, events: PageEvent[]): Doo
   const logsByEvent = new Map<number, PatronLogRow[]>()
   for (const log of inputs.logs) {
     if (log.was_working || log.event_id === null) continue
-    logsByEvent.set(log.event_id, [...(logsByEvent.get(log.event_id) ?? []), log])
+    const rows = logsByEvent.get(log.event_id)
+    if (rows) rows.push(log)
+    else logsByEvent.set(log.event_id, [log])
   }
   for (const rows of logsByEvent.values()) {
     rows.sort((a, b) => new Date(a.ts).getTime() - new Date(b.ts).getTime() || a.id - b.id)

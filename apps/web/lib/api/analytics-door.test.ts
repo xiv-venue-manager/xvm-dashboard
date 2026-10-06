@@ -172,8 +172,8 @@ describe("fetchDoorInputs", () => {
 
     const callsFor = (e: PageEvent) => m.logs.mock.calls.filter((c) => c[2].eventId === Number(e.id)).map((c) => c[2])
     expect(callsFor(a)).toEqual([
-      { eventId: Number(a.id), classification: "patron", before: undefined, limit: 200 },
-      { eventId: Number(a.id), classification: "patron", before: 301, limit: 200 },
+      { eventId: Number(a.id), classification: "patron", before: undefined, limit: 199 },
+      { eventId: Number(a.id), classification: "patron", before: 301, limit: 199 },
     ])
     expect(callsFor(b)).toHaveLength(1)
   })

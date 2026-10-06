@@ -3,8 +3,8 @@ import { getServerSession } from "next-auth"
 import { authOptions } from "@/lib/auth"
 import { prisma } from "@/lib/prisma"
 import { withRateLimit } from "@/lib/middleware/with-rate-limit"
-import { xvmPageReader } from "@/lib/api/xvm-page-read"
-import { getEvent, type PatronLogRow } from "@/lib/api/xvm-api"
+import { getValidXvmApiToken, xvmApiErrorResponse } from "@/lib/api/xvm-api-store"
+import { getEvent } from "@/lib/api/xvm-api"
 import { listAllPatronLogs } from "@/lib/api/patron-logs"
 
 /**
@@ -40,21 +40,30 @@ export const GET = withRateLimit<{ params: Promise<{ venueId: string; eventId: s
       }
 
       const venue = await prisma.venue.findUnique({ where: { id: venueId }, select: { xvmApiVenueId: true } })
-      const readXvm = await xvmPageReader(session.user.id, venue?.xvmApiVenueId ?? null)
+      if (!venue?.xvmApiVenueId) {
+        return NextResponse.json(
+          { error: "not_connected", message: "This venue hasn't been connected to xvm-api yet." },
+          { status: 409 }
+        )
+      }
+
+      const token = await getValidXvmApiToken(session.user.id)
+      if (!token) {
+        return NextResponse.json({ error: "xvm-api link not established yet" }, { status: 503 })
+      }
 
       if (!/^\d+$/.test(eventId)) {
         return NextResponse.json({ error: "Event not found" }, { status: 404 })
       }
-      const event = await readXvm("attendance event", null, (t, v) => getEvent(t, v, Number(eventId)))
-      if (!event) {
-        return NextResponse.json({ error: "Event not found" }, { status: 404 })
-      }
 
-      const logs = (
-        await readXvm("attendance logs", [] as PatronLogRow[], (t, v) =>
-          listAllPatronLogs(t, v, { eventId: Number(eventId), classification: "patron" })
-        )
-      ).sort((a, b) => new Date(a.ts).getTime() - new Date(b.ts).getTime() || a.id - b.id)
+      let logs
+      try {
+        await getEvent(token, venue.xvmApiVenueId, Number(eventId))
+        logs = await listAllPatronLogs(token, venue.xvmApiVenueId, { eventId: Number(eventId), classification: "patron" })
+      } catch (err) {
+        return xvmApiErrorResponse(err, session.user.id, "[attendance] xvm-api read error")
+      }
+      logs.sort((a, b) => new Date(a.ts).getTime() - new Date(b.ts).getTime() || a.id - b.id)
 
       // If no logs, return empty array
       if (logs.length === 0) {

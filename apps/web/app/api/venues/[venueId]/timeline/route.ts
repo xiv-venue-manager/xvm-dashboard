@@ -67,13 +67,15 @@ export async function GET(request: NextRequest, { params }: { params: Promise<{ 
         : Promise.resolve([] as ShiftRow[]),
       wantPatrons
         ? readXvm("timeline patrons", [] as PatronLogRow[], (t, v) =>
-            listPatronLogs(t, v, { ...range, eventId: eventId ? Number(eventId) : undefined, limit })
+            listPatronLogs(t, v, { ...range, limit })
           )
         : Promise.resolve([] as PatronLogRow[]),
     ])
     const members = new Map(roster.map((m) => [m.id, m]))
     items.push(
-      ...patronItems(patronLogs).filter((i) => i.timestamp >= windowFrom && i.timestamp < windowTo),
+      ...patronItems(eventId ? patronLogs.filter((l) => l.event_id === Number(eventId)) : patronLogs).filter(
+        (i) => i.timestamp >= windowFrom && i.timestamp < windowTo
+      ),
       ...saleItems(transactions, members),
       ...shiftItems(shifts, members).filter((i) => i.timestamp >= windowFrom && i.timestamp < windowTo)
     )

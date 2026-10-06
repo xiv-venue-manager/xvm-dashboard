@@ -1,12 +1,15 @@
 import { listPatronLogs, type PatronLogRow } from "@/lib/api/xvm-api"
 
-const LOG_PAGE = 200
+// 199, not 200: xvm-api caps a page at 200, and sitting exactly on the cap means every page 422s the moment it tightens by one
+const LOG_PAGE = 199
 const MAX_PAGES = 50
+
+type PatronLogScope = { from: string; to: string } | { eventId: number }
 
 export async function listAllPatronLogs(
   token: string,
   xvmApiVenueId: string,
-  filter: { from?: string; to?: string; eventId?: number; classification?: "staff" | "patron" }
+  filter: PatronLogScope & { classification?: "staff" | "patron" }
 ): Promise<PatronLogRow[]> {
   const rows: PatronLogRow[] = []
   let before: number | undefined

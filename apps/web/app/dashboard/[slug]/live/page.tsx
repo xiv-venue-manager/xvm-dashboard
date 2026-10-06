@@ -12,14 +12,12 @@ import { listEventsInRange, materializeIfVirtual, type PageEvent } from "@/lib/a
 import {
   getVenue,
   getFinanceSummary,
-  getPatronLogSummary,
   getPatronPresence,
   listShiftsOnNow,
   listMemberships,
   listPatrons,
   type FinanceSummary,
   type MembershipRow,
-  type PatronLogSummary,
   type PatronPresence,
   type PatronSummary,
   type RevenueVisibility,
@@ -72,17 +70,12 @@ export default async function LivePage({ params }: { params: Promise<{ slug: str
       ? await readXvm("live page materialize", pickedEvent, (t, v) => materializeIfVirtual(t, v, pickedEvent))
       : pickedEvent
 
-  const numericEventId = activeEvent && /^\d+$/.test(String(activeEvent.id)) ? Number(activeEvent.id) : null
-  const [doorSummary, presence, patrons] = await Promise.all([
-    numericEventId !== null
-      ? readXvm<PatronLogSummary | null>("live page door summary", null, (t, v) =>
-          getPatronLogSummary(t, v, numericEventId)
-        )
-      : null,
+  const [presence, patrons] = await Promise.all([
     activeEvent ? readXvm<PatronPresence | null>("live page presence", null, (t, v) => getPatronPresence(t, v)) : null,
     activeEvent ? readXvm("live page patrons", [] as PatronSummary[], (t, v) => listPatrons(t, v)) : [],
   ])
-  const patronCount = doorSummary ? doorSummary.entries - doorSummary.exits : 0
+  const patronsInside = (presence?.present ?? []).filter((p) => !p.was_working)
+  const patronCount = patronsInside.length
 
   const eventStart = activeEvent?.startTime
   const eventSummary =
@@ -95,8 +88,7 @@ export default async function LivePage({ params }: { params: Promise<{ slug: str
   const saleCountDisplay = eventSummary?.transaction_count ?? 0
   const revenueUnavailable = showRevenue && eventStart !== undefined && eventStart <= now && eventSummary === null
 
-  const patronRoster = (presence?.present ?? [])
-    .filter((p) => !p.was_working)
+  const patronRoster = [...patronsInside]
     .sort((x, y) => new Date(y.since).getTime() - new Date(x.since).getTime())
     .slice(0, 20)
 
@@ -143,7 +135,7 @@ export default async function LivePage({ params }: { params: Promise<{ slug: str
               status: activeEvent.status,
             }}
             isUpcoming={isUpcoming}
-            initialPatronCount={Math.max(0, patronCount)}
+            initialPatronCount={patronCount}
             initialRevenue={revenueDisplay}
             initialSaleCount={saleCountDisplay}
             revenueUnavailable={revenueUnavailable}

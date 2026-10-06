@@ -8,7 +8,7 @@ vi.mock("@/lib/api/xvm-api", async (importOriginal) => ({
   materializeEvent: mockMaterialize,
 }))
 
-import { listEventsInRange, materializeIfVirtual, toPageEvent } from "./event-window"
+import { findLiveEventId, listEventsInRange, materializeIfVirtual, toPageEvent } from "./event-window"
 import { toDashboardEventShape } from "./event-shape"
 import type { EventItem, EventRow } from "@/lib/api/xvm-api"
 
@@ -123,5 +123,42 @@ describe("materializeIfVirtual", () => {
     })
     expect(event.id).toBe("44")
     expect(event.startTime).toBeInstanceOf(Date)
+  })
+})
+
+describe("findLiveEventId", () => {
+  const now = new Date("2026-10-01T20:00:00Z")
+  const running = (over: Partial<EventItem>) =>
+    item({ starts_at: "2026-10-01T19:00:00Z", ends_at: "2026-10-01T23:00:00Z", ...over })
+
+  it("returns the id of a published event that is running", async () => {
+    mockListEvents.mockResolvedValue([running({ id: 7 })])
+    expect(await findLiveEventId("tok", "xv-1", now)).toBe(7)
+  })
+
+  it("returns null for a running draft, which has no published_at", async () => {
+    mockListEvents.mockResolvedValue([running({ id: 7, published_at: null })])
+    expect(await findLiveEventId("tok", "xv-1", now)).toBeNull()
+  })
+
+  it("returns null for a running occurrence that has no row yet", async () => {
+    mockListEvents.mockResolvedValue([running({ id: null, materialized: false, recurrence_rule_id: 3 })])
+    expect(await findLiveEventId("tok", "xv-1", now)).toBeNull()
+  })
+
+  it("ignores events that are not running", async () => {
+    mockListEvents.mockResolvedValue([
+      item({ id: 1, starts_at: "2026-09-30T19:00:00Z", ends_at: "2026-09-30T23:00:00Z" }),
+      item({ id: 2, starts_at: "2026-10-02T19:00:00Z", ends_at: "2026-10-02T23:00:00Z" }),
+    ])
+    expect(await findLiveEventId("tok", "xv-1", now)).toBeNull()
+  })
+
+  it("takes the latest-starting event when two overlap", async () => {
+    mockListEvents.mockResolvedValue([
+      running({ id: 1, starts_at: "2026-10-01T18:00:00Z" }),
+      running({ id: 2, starts_at: "2026-10-01T19:30:00Z" }),
+    ])
+    expect(await findLiveEventId("tok", "xv-1", now)).toBe(2)
   })
 })

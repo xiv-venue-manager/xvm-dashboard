@@ -1,4 +1,5 @@
-import { getVenueFollowers, listPatronLogs, listPatrons, type PatronLogRow, type PatronSummary } from "@/lib/api/xvm-api"
+import { getVenueFollowers, listPatrons, type PatronLogRow, type PatronSummary } from "@/lib/api/xvm-api"
+import { listAllPatronLogs } from "@/lib/api/patron-logs"
 import type { PageEvent } from "@/lib/api/event-window"
 
 export interface DoorInputs {
@@ -17,28 +18,14 @@ export interface DoorAnalytics {
   followers: { total: number; byMonth: Record<string, number> }
 }
 
-const LOG_PAGE = 200
-const MAX_PAGES = 50
 const PEAK_EVENTS = 7
 const SLICE_MS = 15 * 60 * 1000
 const MAX_SPAN_MS = 48 * 60 * 60 * 1000
 const DAY_NAMES = ["Sun", "Mon", "Tue", "Wed", "Thu", "Fri", "Sat"]
 
-async function eventLogs(token: string, xvmApiVenueId: string, eventId: number): Promise<PatronLogRow[]> {
-  const rows: PatronLogRow[] = []
-  let before: number | undefined
-  for (let page = 0; page < MAX_PAGES; page++) {
-    const batch = await listPatronLogs(token, xvmApiVenueId, { eventId, classification: "patron", before, limit: LOG_PAGE })
-    rows.push(...batch)
-    if (batch.length < LOG_PAGE) break
-    before = batch[batch.length - 1].id
-  }
-  return rows
-}
-
 export async function fetchDoorInputs(token: string, xvmApiVenueId: string, events: PageEvent[]): Promise<DoorInputs> {
   const [logChunks, patrons, followers] = await Promise.all([
-    Promise.all(events.map((event) => eventLogs(token, xvmApiVenueId, Number(event.id)))),
+    Promise.all(events.map((event) => listAllPatronLogs(token, xvmApiVenueId, { eventId: Number(event.id), classification: "patron" }))),
     listPatrons(token, xvmApiVenueId),
     getVenueFollowers(token, xvmApiVenueId),
   ])
@@ -49,7 +36,9 @@ export function buildDoorAnalytics(inputs: DoorInputs, events: PageEvent[]): Doo
   const logsByEvent = new Map<number, PatronLogRow[]>()
   for (const log of inputs.logs) {
     if (log.was_working || log.event_id === null) continue
-    logsByEvent.set(log.event_id, [...(logsByEvent.get(log.event_id) ?? []), log])
+    const rows = logsByEvent.get(log.event_id)
+    if (rows) rows.push(log)
+    else logsByEvent.set(log.event_id, [log])
   }
   for (const rows of logsByEvent.values()) {
     rows.sort((a, b) => new Date(a.ts).getTime() - new Date(b.ts).getTime() || a.id - b.id)

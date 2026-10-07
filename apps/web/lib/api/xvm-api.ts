@@ -1948,6 +1948,23 @@ export async function listPatronLogs(
   return xvmFetch<PatronLogRow[]>(`/venues/${venueId}/patrons/logs?${params}`, {}, personToken)
 }
 
+export interface PatronLogSummary {
+  event_id: number
+  attendance: number
+  entries: number
+  exits: number
+  peak_occupancy: number
+}
+
+export async function getPatronLogSummary(
+  personToken: string,
+  venueId: string,
+  eventId: number
+): Promise<PatronLogSummary> {
+  if (!process.env.XVM_API_BASE_URL) throw new Error("XVM_API_BASE_URL is not set")
+  return xvmFetch<PatronLogSummary>(`/venues/${venueId}/patrons/logs/summary?event_id=${eventId}`, {}, personToken)
+}
+
 export interface VenueFollowers {
   count: number
   followers: { person_id: number; display_name: string; followed_at: string }[]

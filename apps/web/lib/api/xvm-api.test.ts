@@ -7,6 +7,7 @@ import {
   createEventSeries,
   logPatronVisit,
   listPatronLogs,
+  getPatronLogSummary,
   listMyAnnouncements,
   dismissAnnouncement,
   listAnnouncements,
@@ -1177,6 +1178,15 @@ describe("Patron logs API", () => {
       before: "340",
       limit: "200",
     })
+  })
+
+  it("getPatronLogSummary reads one event's door summary", async () => {
+    const summary = { event_id: 12, attendance: 40, entries: 55, exits: 30, peak_occupancy: 28 }
+    mockFetchOnce({ ok: true, status: 200, body: summary })
+    await expect(getPatronLogSummary("token", "venue-1", 12)).resolves.toEqual(summary)
+    const url = new URL(lastCall()[0])
+    expect(url.pathname).toMatch(/\/venues\/venue-1\/patrons\/logs\/summary$/)
+    expect(url.searchParams.get("event_id")).toBe("12")
   })
 
   it("listMyAnnouncements reads the caller's live banner", async () => {

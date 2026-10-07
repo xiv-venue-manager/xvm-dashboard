@@ -3,6 +3,9 @@ import { getServerSession } from "next-auth"
 import { authOptions } from "@/lib/auth"
 import { prisma } from "@/lib/prisma"
 import { withRateLimit } from "@/lib/middleware/with-rate-limit"
+import { getValidXvmApiToken, xvmApiErrorResponse } from "@/lib/api/xvm-api-store"
+import { getEvent } from "@/lib/api/xvm-api"
+import { listAllPatronLogs } from "@/lib/api/patron-logs"
 
 /**
  * GET - Get attendance data for a specific event formatted for charts
@@ -36,36 +39,31 @@ export const GET = withRateLimit<{ params: Promise<{ venueId: string; eventId: s
         return NextResponse.json({ error: "You don't have access to this venue" }, { status: 403 })
       }
 
-      // Verify the event exists and belongs to this venue
-      const event = await prisma.event.findFirst({
-        where: {
-          id: eventId,
-          venueId,
-        },
-        select: {
-          id: true,
-          startTime: true,
-          endTime: true,
-        },
-      })
+      const venue = await prisma.venue.findUnique({ where: { id: venueId }, select: { xvmApiVenueId: true } })
+      if (!venue?.xvmApiVenueId) {
+        return NextResponse.json(
+          { error: "not_connected", message: "This venue hasn't been connected to xvm-api yet." },
+          { status: 409 }
+        )
+      }
 
-      if (!event) {
+      const token = await getValidXvmApiToken(session.user.id)
+      if (!token) {
+        return NextResponse.json({ error: "xvm-api link not established yet" }, { status: 503 })
+      }
+
+      if (!/^\d+$/.test(eventId)) {
         return NextResponse.json({ error: "Event not found" }, { status: 404 })
       }
 
-      // Get all patron logs for this event
-      const logs = await prisma.patronLog.findMany({
-        where: {
-          venueId,
-          eventId,
-        },
-        orderBy: { timestamp: "asc" },
-        select: {
-          timestamp: true,
-          countChange: true,
-          action: true,
-        },
-      })
+      let logs
+      try {
+        await getEvent(token, venue.xvmApiVenueId, Number(eventId))
+        logs = await listAllPatronLogs(token, venue.xvmApiVenueId, { eventId: Number(eventId), classification: "patron" })
+      } catch (err) {
+        return xvmApiErrorResponse(err, session.user.id, "[attendance] xvm-api read error")
+      }
+      logs.sort((a, b) => new Date(a.ts).getTime() - new Date(b.ts).getTime() || a.id - b.id)
 
       // If no logs, return empty array
       if (logs.length === 0) {
@@ -75,9 +73,9 @@ export const GET = withRateLimit<{ params: Promise<{ venueId: string; eventId: s
       // Build time-series data showing cumulative count at each log point
       let runningCount = 0
       const attendanceData = logs.map((log) => {
-        runningCount += log.countChange ?? 0
+        runningCount += log.count_change ?? 0
         return {
-          time: log.timestamp.toISOString(),
+          time: new Date(log.ts).toISOString(),
           count: Math.max(0, runningCount), // Never show negative
         }
       })

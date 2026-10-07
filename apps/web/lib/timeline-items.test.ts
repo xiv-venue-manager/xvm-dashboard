@@ -1,6 +1,6 @@
 import { describe, it, expect } from "vitest"
-import { saleItems, shiftItems } from "./timeline-items"
-import type { FinanceTransactionRow, MembershipRow, ShiftRow } from "@/lib/api/xvm-api"
+import { patronItems, saleItems, shiftItems } from "./timeline-items"
+import type { FinanceTransactionRow, MembershipRow, PatronLogRow, ShiftRow } from "@/lib/api/xvm-api"
 
 const member = { id: 7, nickname: "Nick", effective_tier: "staff", person: { id: 1, display_name: "Disp", discord_id: null } } as unknown as MembershipRow
 const members = new Map([[7, member]])
@@ -57,5 +57,34 @@ describe("shiftItems", () => {
   })
   it("skips shifts that never started", () => {
     expect(shiftItems([shift({ actual_start: null })], members)).toEqual([])
+  })
+})
+
+const patronLog = (over: Partial<PatronLogRow>) =>
+  ({
+    id: 5,
+    character_name: "Test Char",
+    world: "Cactuar",
+    action: "enter",
+    count_change: 1,
+    ts: "2026-01-01T10:00:00Z",
+    ...over,
+  }) as unknown as PatronLogRow
+
+describe("patronItems", () => {
+  it("maps an enter crossing into a patron_enter item", () => {
+    const [item] = patronItems([patronLog({})])
+    expect(item.id).toBe("patron_5")
+    expect(item.type).toBe("patron_enter")
+    expect(item.timestamp.toISOString()).toBe("2026-01-01T10:00:00.000Z")
+    expect(item.data).toMatchObject({ characterName: "Test Char", world: "Cactuar", countChange: 1 })
+  })
+  it("maps a leave crossing into a patron_exit item", () => {
+    const [item] = patronItems([patronLog({ action: "leave", count_change: -1 })])
+    expect(item.type).toBe("patron_exit")
+  })
+  it("treats a negative headcount adjustment as an exit", () => {
+    const [item] = patronItems([patronLog({ action: "headcount", character_name: null, world: null, count_change: -3 })])
+    expect(item.type).toBe("patron_exit")
   })
 })

@@ -16,9 +16,9 @@ import {
   AlertDialogTitle,
   AlertDialogTrigger,
 } from "@/components/ui/alert-dialog"
-import { Check, Copy, Send, Trash2 } from "lucide-react"
+import { Check, Copy, RefreshCw, Send, Trash2 } from "lucide-react"
 import { LocalTime } from "@/components/server-time"
-import type { PendingInviteShape } from "@/lib/pending-invites"
+import { withReissuedLink, type PendingInviteShape } from "@/lib/pending-invites"
 
 interface PendingInvitesProps {
   invites: PendingInviteShape[]
@@ -33,6 +33,8 @@ export function PendingInvites({ invites, slug, canManageStaff }: PendingInvites
   const [sendingId, setSendingId] = useState<number | null>(null)
   const [queuedIds, setQueuedIds] = useState<Set<number>>(new Set())
   const [sendError, setSendError] = useState<{ id: number; message: string } | null>(null)
+  const [reissuingId, setReissuingId] = useState<number | null>(null)
+  const [reissueError, setReissueError] = useState<{ id: number; message: string } | null>(null)
 
   const getInviteUrl = (token: string) => {
     if (typeof window === "undefined") return ""
@@ -70,6 +72,28 @@ export function PendingInvites({ invites, slug, canManageStaff }: PendingInvites
       setSendError({ id: inviteId, message: error instanceof Error ? error.message : "Failed to send invite" })
     } finally {
       setSendingId(null)
+    }
+  }
+
+  const regenerateLink = async (inviteId: number) => {
+    setReissuingId(inviteId)
+    setReissueError(null)
+    try {
+      const venueResponse = await fetch(`/api/venues?slug=${slug}`)
+      const venues = await venueResponse.json()
+      const venue = venues.find((v: { slug: string }) => v.slug === slug)
+
+      const response = await fetch(`/api/venues/${venue.id}/staff/invites/${inviteId}/reissue`, { method: "POST" })
+      const data = await response.json()
+      if (!response.ok) {
+        throw new Error(data.message || data.error || "Failed to regenerate link")
+      }
+
+      setPendingInvites((prev) => prev.map((inv) => (inv.id === inviteId ? withReissuedLink(inv, data.invite) : inv)))
+    } catch (error: unknown) {
+      setReissueError({ id: inviteId, message: error instanceof Error ? error.message : "Failed to regenerate link" })
+    } finally {
+      setReissuingId(null)
     }
   }
 
@@ -113,7 +137,7 @@ export function PendingInvites({ invites, slug, canManageStaff }: PendingInvites
           <Card key={invite.id} className="border-yellow-400/20">
             <CardContent className="p-6">
               <div className="flex items-start justify-between gap-4">
-                <div className="flex items-start gap-4 flex-1">
+                <div className="flex items-start gap-4 flex-1 min-w-0">
                   <Avatar className="h-12 w-12">
                     <AvatarFallback className="bg-yellow-400/10 text-yellow-400">
                       {invite.invitedName?.substring(0, 2).toUpperCase() || "??"}
@@ -151,6 +175,9 @@ export function PendingInvites({ invites, slug, canManageStaff }: PendingInvites
                     {sendError?.id === invite.id && (
                       <p className="text-xs text-destructive mt-2">{sendError.message}</p>
                     )}
+                    {reissueError?.id === invite.id && (
+                      <p className="text-xs text-destructive mt-2">{reissueError.message}</p>
+                    )}
 
                     {/* Invite Link */}
                     {invite.inviteToken && (
@@ -181,63 +208,81 @@ export function PendingInvites({ invites, slug, canManageStaff }: PendingInvites
                         </div>
                       </div>
                     )}
-                  </div>
-                </div>
-
-                <div className="flex items-start gap-3">
-                  <div className="flex flex-col gap-2 items-end">
-                    <Badge variant="secondary" className="bg-yellow-400/10 text-yellow-400">
-                      {invite.role}
-                    </Badge>
-                    <Badge variant="outline">{invite.declinedAt ? "Declined" : "Pending"}</Badge>
-                  </div>
-
-                  {canManageStaff && (
-                    <div className="flex gap-2">
-                      {invite.canSendByDm && (
-                        <Button
-                          size="sm"
-                          variant="outline"
-                          onClick={() => sendByDm(invite.id)}
-                          disabled={sendingId === invite.id}
-                        >
-                          <Send className="h-4 w-4 mr-1" />
-                          {invite.dmFailedAt ? "Try again" : "Send via Discord"}
-                        </Button>
-                      )}
-                      <AlertDialog>
-                        <AlertDialogTrigger asChild>
+                    {canManageStaff && (
+                      <div className="flex flex-wrap gap-2 mt-3">
+                        <AlertDialog>
+                          <AlertDialogTrigger asChild>
+                            <Button size="sm" variant="outline" disabled={reissuingId === invite.id}>
+                              <RefreshCw className="h-4 w-4 mr-1" />
+                              Regenerate link
+                            </Button>
+                          </AlertDialogTrigger>
+                          <AlertDialogContent>
+                            <AlertDialogHeader>
+                              <AlertDialogTitle>Regenerate Link?</AlertDialogTitle>
+                              <AlertDialogDescription>
+                                <strong>{invite.invitedName || "This person"}</strong> gets a new invite link with a fresh
+                                week to accept. The link they have now stops working.
+                              </AlertDialogDescription>
+                            </AlertDialogHeader>
+                            <AlertDialogFooter>
+                              <AlertDialogCancel>Cancel</AlertDialogCancel>
+                              <AlertDialogAction onClick={() => regenerateLink(invite.id)}>Regenerate Link</AlertDialogAction>
+                            </AlertDialogFooter>
+                          </AlertDialogContent>
+                        </AlertDialog>
+                        {invite.canSendByDm && (
                           <Button
                             size="sm"
                             variant="outline"
-                            className="text-destructive hover:text-destructive hover:bg-destructive/10"
-                            disabled={deletingId === invite.id}
+                            onClick={() => sendByDm(invite.id)}
+                            disabled={sendingId === invite.id}
                           >
-                            <Trash2 className="h-4 w-4" />
+                            <Send className="h-4 w-4 mr-1" />
+                            {invite.dmFailedAt ? "Try again" : "Send via Discord"}
                           </Button>
-                        </AlertDialogTrigger>
-                        <AlertDialogContent>
-                          <AlertDialogHeader>
-                            <AlertDialogTitle>Delete Invite?</AlertDialogTitle>
-                            <AlertDialogDescription>
-                              Are you sure you want to delete this invite for{" "}
-                              <strong>{invite.invitedName || "this person"}</strong>? The invite link will no longer
-                              work.
-                            </AlertDialogDescription>
-                          </AlertDialogHeader>
-                          <AlertDialogFooter>
-                            <AlertDialogCancel>Cancel</AlertDialogCancel>
-                            <AlertDialogAction
-                              onClick={() => deleteInvite(invite.id)}
-                              className="bg-destructive text-white hover:bg-destructive/90"
+                        )}
+                        <AlertDialog>
+                          <AlertDialogTrigger asChild>
+                            <Button
+                              size="sm"
+                              variant="outline"
+                              className="text-destructive hover:text-destructive hover:bg-destructive/10"
+                              disabled={deletingId === invite.id}
                             >
-                              Delete Invite
-                            </AlertDialogAction>
-                          </AlertDialogFooter>
-                        </AlertDialogContent>
-                      </AlertDialog>
-                    </div>
-                  )}
+                              <Trash2 className="h-4 w-4" />
+                            </Button>
+                          </AlertDialogTrigger>
+                          <AlertDialogContent>
+                            <AlertDialogHeader>
+                              <AlertDialogTitle>Delete Invite?</AlertDialogTitle>
+                              <AlertDialogDescription>
+                                Are you sure you want to delete this invite for{" "}
+                                <strong>{invite.invitedName || "this person"}</strong>? The invite link will no longer
+                                work.
+                              </AlertDialogDescription>
+                            </AlertDialogHeader>
+                            <AlertDialogFooter>
+                              <AlertDialogCancel>Cancel</AlertDialogCancel>
+                              <AlertDialogAction
+                                onClick={() => deleteInvite(invite.id)}
+                                className="bg-destructive text-white hover:bg-destructive/90"
+                              >
+                                Delete Invite
+                              </AlertDialogAction>
+                            </AlertDialogFooter>
+                          </AlertDialogContent>
+                        </AlertDialog>
+                      </div>
+                    )}
+                  </div>
+                </div>
+
+                <div className="flex flex-col gap-2 items-end shrink-0">
+                  <Badge variant="secondary" className="bg-yellow-400/10 text-yellow-400">
+                    {invite.role}
+                  </Badge>
+                  <Badge variant="outline">{invite.declinedAt ? "Declined" : "Pending"}</Badge>
                 </div>
               </div>
             </CardContent>

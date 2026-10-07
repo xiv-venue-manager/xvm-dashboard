@@ -1184,6 +1184,11 @@ export async function rescindInvite(personToken: string, venueId: string, invite
   return xvmFetch<void>(`/venues/${venueId}/invites/${inviteId}`, { method: "DELETE" }, personToken)
 }
 
+export async function reissueInvite(personToken: string, venueId: string, inviteId: number): Promise<InviteIssued> {
+  if (!process.env.XVM_API_BASE_URL) throw new Error("XVM_API_BASE_URL is not set")
+  return xvmFetch<InviteIssued>(`/venues/${venueId}/invites/${inviteId}/reissue`, { method: "POST" }, personToken)
+}
+
 export interface InvitePreview {
   venue: { name: string; slug: string }
   tier: string

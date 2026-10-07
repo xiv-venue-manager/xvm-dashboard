@@ -7,7 +7,7 @@ import { prisma } from "@/lib/prisma"
 import { Building2, Users, ChevronRight, Plus } from "lucide-react"
 import { AnnouncementBanner } from "@/components/announcement-banner"
 import { xvmPersonReader } from "@/lib/api/xvm-page-read"
-import { listMyAnnouncements, type AnnouncementRow } from "@/lib/api/xvm-api"
+import { listMyAnnouncements, listMyCharacters, type AnnouncementRow, type MyCharacterRow } from "@/lib/api/xvm-api"
 import { toAnnouncementShape } from "@/lib/api/announcement-shape"
 import { CharacterLinkNudge } from "@/components/character-link-nudge"
 
@@ -29,10 +29,7 @@ export default async function DashboardPage() {
     toAnnouncementShape
   )
 
-  const hasLinkedCharacter =
-    (await prisma.userCharacter.count({
-      where: { userId: session.user.id },
-    })) > 0
+  const hasLinkedCharacter = (await readPerson("dashboard characters", [] as MyCharacterRow[], (t) => listMyCharacters(t))).length > 0
 
   const venues = await prisma.venue.findMany({
     where: {

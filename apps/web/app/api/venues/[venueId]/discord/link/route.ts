@@ -1,0 +1,93 @@
+import { NextRequest, NextResponse } from "next/server"
+import { getServerSession } from "next-auth"
+import { z } from "zod"
+import { authOptions } from "@/lib/auth"
+import { prisma } from "@/lib/prisma"
+import { withRateLimit } from "@/lib/middleware/with-rate-limit"
+import { invalidateCache, cacheKeys } from "@/lib/redis-cache"
+import { getValidXvmApiToken, xvmApiErrorResponse } from "@/lib/api/xvm-api-store"
+import { linkVenueExternal } from "@/lib/api/xvm-api"
+import { administersGuild } from "@/lib/discord-user"
+import { getGuildPresence } from "@/lib/discord-rest"
+
+const linkSchema = z.object({ guildId: z.string().regex(/^\d{15,20}$/, "Not a Discord server id") })
+
+export const POST = withRateLimit<{ params: Promise<{ venueId: string }> }>(
+  async (request: NextRequest, context) => {
+    if (!context?.params) {
+      return NextResponse.json({ error: "Invalid request" }, { status: 400 })
+    }
+
+    const session = await getServerSession(authOptions)
+    if (!session?.user?.id) {
+      return NextResponse.json({ error: "Unauthorized" }, { status: 401 })
+    }
+
+    const { venueId } = await context.params
+
+    const membership = await prisma.membership.findFirst({
+      where: { userId: session.user.id, venueId, status: "active" },
+    })
+    if (membership?.role !== "OWNER") {
+      return NextResponse.json({ error: "Only the venue owner can connect a Discord server" }, { status: 403 })
+    }
+
+    const venue = await prisma.venue.findUnique({
+      where: { id: venueId },
+      select: { xvmApiVenueId: true, slug: true },
+    })
+    if (!venue?.xvmApiVenueId) {
+      return NextResponse.json(
+        { error: "not_connected", message: "This venue hasn't been connected to xvm-api yet." },
+        { status: 409 }
+      )
+    }
+
+    const token = await getValidXvmApiToken(session.user.id)
+    if (!token) {
+      return NextResponse.json({ error: "xvm-api link not established yet" }, { status: 503 })
+    }
+
+    const parsed = linkSchema.safeParse(await request.json().catch(() => null))
+    if (!parsed.success) {
+      return NextResponse.json({ error: "Validation error", details: parsed.error.issues }, { status: 400 })
+    }
+    const { guildId } = parsed.data
+
+    // Authority before presence before write. The posted id is never trusted: whatever the picker
+    // rendered, this endpoint takes a direct POST, and linking a guild hands the caller its channel,
+    // role and member names through the pickers that follow.
+    const authority = await administersGuild(session.user.id, guildId)
+    if (!authority.ok) {
+      return authority.failure === "reauth_required"
+        ? NextResponse.json(
+            { error: "Sign out and back in, so Discord can tell us which servers you manage." },
+            { status: 412 }
+          )
+        : NextResponse.json({ error: "Couldn't reach Discord. Try again in a moment." }, { status: 502 })
+    }
+    if (!authority.administers) {
+      return NextResponse.json({ error: "You don't manage that Discord server." }, { status: 403 })
+    }
+
+    const presence = await getGuildPresence(guildId)
+    if (!presence.botIsMember) {
+      return NextResponse.json(
+        { error: "bot_absent", message: "Invite the bot to that server first, then connect it." },
+        { status: 409 }
+      )
+    }
+
+    try {
+      const link = await linkVenueExternal(token, venue.xvmApiVenueId, {
+        provider: "DiscordGuild",
+        external_id: guildId,
+      })
+      await Promise.all([invalidateCache(cacheKeys.venue(venueId)), invalidateCache(cacheKeys.venueBySlug(venue.slug))])
+      return NextResponse.json(link, { status: 201 })
+    } catch (err) {
+      return xvmApiErrorResponse(err, session.user.id, "[discord link] POST error")
+    }
+  },
+  { requests: 10, window: "1 m" }
+)

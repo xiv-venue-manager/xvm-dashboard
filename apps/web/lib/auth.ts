@@ -13,6 +13,8 @@ export const authOptions: NextAuthOptions = {
       clientId: process.env.DISCORD_CLIENT_ID!,
       clientSecret: process.env.DISCORD_CLIENT_SECRET!,
       issuer: "https://discord.com",
+      // guilds is what lets an owner prove they administer the server they're linking.
+      authorization: { params: { scope: "identify email guilds" } },
     }),
   ],
   callbacks: {

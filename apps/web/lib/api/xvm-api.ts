@@ -3014,3 +3014,18 @@ export async function unlinkMyCharacter(personToken: string, characterId: number
   if (!process.env.XVM_API_BASE_URL) throw new Error("XVM_API_BASE_URL is not set")
   return xvmFetch<void>(`/me/characters/${characterId}`, { method: "DELETE" }, personToken)
 }
+
+// ── Venue external links ───────────────────────────────────────
+
+export async function linkVenueExternal(
+  personToken: string,
+  venueId: string,
+  data: { provider: string; external_id: string }
+): Promise<VenueLinkRow> {
+  if (!process.env.XVM_API_BASE_URL) throw new Error("XVM_API_BASE_URL is not set")
+  return xvmFetch<VenueLinkRow>(
+    `/venues/${venueId}/links`,
+    { method: "POST", body: JSON.stringify(data) },
+    personToken
+  )
+}

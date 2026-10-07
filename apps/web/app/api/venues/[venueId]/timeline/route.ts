@@ -43,13 +43,14 @@ export async function GET(request: NextRequest, { params }: { params: Promise<{ 
 
   const venue = await prisma.venue.findUnique({ where: { id: venueId }, select: { xvmApiVenueId: true } })
   const readXvm = await xvmPageReader(session.user.id, venue?.xvmApiVenueId ?? null)
-  const windowTo = cursor ? new Date(cursor) : new Date()
+  let windowTo = cursor ? new Date(cursor) : new Date()
   let windowFrom = new Date(windowTo.getTime() - TIMELINE_WINDOW_MS)
   if (eventId) {
     const event = /^\d+$/.test(eventId)
       ? await readXvm("timeline event", null, (t, v) => getEvent(t, v, Number(eventId)))
       : null
     if (event && new Date(event.starts_at) > windowFrom) windowFrom = new Date(event.starts_at)
+    if (event && new Date(event.ends_at) < windowTo) windowTo = new Date(event.ends_at)
   }
   const range = { from: windowFrom.toISOString(), to: windowTo.toISOString() }
   const wantSales = !type || type === "sales"

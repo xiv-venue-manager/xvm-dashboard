@@ -26,14 +26,11 @@ interface Feedback {
   reviewedAt: string | null
   user: {
     id: string
-    name: string | null
-    displayName: string | null
-    email: string | null
+    displayName: string
   }
   reviewer: {
     id: string
-    name: string | null
-    displayName: string | null
+    displayName: string
   } | null
 }
 
@@ -262,7 +259,7 @@ export default function AdminFeedbackPage() {
                     </div>
                     <CardTitle className="text-xl mb-1">{item.subject}</CardTitle>
                     <CardDescription>
-                      From {item.user.displayName || item.user.name} ({item.user.email}) •{" "}
+                      From {item.user.displayName} •{" "}
                       {format(new Date(item.createdAt), "PPp")}
                     </CardDescription>
                   </div>
@@ -355,7 +352,7 @@ export default function AdminFeedbackPage() {
 
                         {item.reviewer && (
                           <p className="text-xs text-muted-foreground mb-4">
-                            Last reviewed by {item.reviewer.displayName || item.reviewer.name} on{" "}
+                            Last reviewed by {item.reviewer.displayName} on{" "}
                             {item.reviewedAt && format(new Date(item.reviewedAt), "PPp")}
                           </p>
                         )}

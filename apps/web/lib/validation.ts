@@ -33,7 +33,7 @@ export const validators = {
   feedbackDescription: z
     .string()
     .min(10, "Description too short")
-    .max(5000, "Description too long (max 5000 characters)"),
+    .max(4000, "Description too long (max 4000 characters)"),
   webhookUrl: z.string().url("Invalid webhook URL").max(500, "URL too long").optional(),
   url: z.string().url("Invalid URL").max(500, "URL too long").optional().nullable(),
   slug: z

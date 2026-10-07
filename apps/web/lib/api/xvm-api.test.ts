@@ -19,6 +19,10 @@ import {
   listMyCharacters,
   linkMyCharacter,
   unlinkMyCharacter,
+  submitFeedback,
+  listMyFeedback,
+  listAdminFeedback,
+  triageFeedback,
   getVenueFollowers,
   reclassifyPatronLogs,
   getPatronPresence,
@@ -1265,6 +1269,50 @@ describe("Patron logs API", () => {
     expect(new URL(url).pathname).toMatch(/\/me\/characters$/)
     expect(init.method).toBe("POST")
     expect(JSON.parse(init.body)).toEqual({ character_name: "Test Char", world: "Lich" })
+  })
+
+  it("submitFeedback posts the report to the caller's feedback", async () => {
+    mockFetchOnce({ ok: true, status: 201, body: { id: 1 } })
+    await submitFeedback("token", { category: "bug_report", subject: "Broken", description: "It does nothing." })
+    const [url, init] = lastCall()
+    expect(new URL(url).pathname).toMatch(/\/me\/feedback$/)
+    expect(init.method).toBe("POST")
+    expect(JSON.parse(init.body)).toEqual({ category: "bug_report", subject: "Broken", description: "It does nothing." })
+  })
+
+  it("listMyFeedback asks for the largest page", async () => {
+    mockFetchOnce({ ok: true, status: 200, body: [] })
+    await expect(listMyFeedback("token")).resolves.toEqual([])
+    const url = new URL(lastCall()[0])
+    expect(url.pathname).toMatch(/\/me\/feedback$/)
+    expect(url.searchParams.get("limit")).toBe("200")
+  })
+
+  it("listAdminFeedback sends the filters it was given and the largest page", async () => {
+    mockFetchOnce({ ok: true, status: 200, body: [] })
+    await listAdminFeedback("token", { status: "in_progress", category: "bug_report" })
+    const url = new URL(lastCall()[0])
+    expect(url.pathname).toMatch(/\/admin\/feedback$/)
+    expect(url.searchParams.get("status")).toBe("in_progress")
+    expect(url.searchParams.get("category")).toBe("bug_report")
+    expect(url.searchParams.get("limit")).toBe("200")
+  })
+
+  it("listAdminFeedback leaves filters out when none are given", async () => {
+    mockFetchOnce({ ok: true, status: 200, body: [] })
+    await listAdminFeedback("token")
+    const url = new URL(lastCall()[0])
+    expect(url.searchParams.has("status")).toBe(false)
+    expect(url.searchParams.has("category")).toBe(false)
+  })
+
+  it("triageFeedback patches the report by numeric id", async () => {
+    mockFetchOnce({ ok: true, status: 200, body: { id: 9 } })
+    await triageFeedback("token", 9, { status: "planned", admin_notes: "Scheduled" })
+    const [url, init] = lastCall()
+    expect(new URL(url).pathname).toMatch(/\/admin\/feedback\/9$/)
+    expect(init.method).toBe("PATCH")
+    expect(JSON.parse(init.body)).toEqual({ status: "planned", admin_notes: "Scheduled" })
   })
 
   it("unlinkMyCharacter deletes by numeric id", async () => {

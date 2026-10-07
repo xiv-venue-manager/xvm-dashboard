@@ -2991,6 +2991,79 @@ export async function deleteShout(personToken: string, shoutId: number): Promise
   return xvmFetch<void>(`/me/shouts/${shoutId}`, { method: "DELETE" }, personToken)
 }
 
+// ── Feedback ───────────────────────────────────────────────────
+
+const FEEDBACK_PAGE_LIMIT = 200
+
+export interface FeedbackRow {
+  id: number
+  person_id: number
+  category: string
+  status: string
+  subject: string
+  description: string
+  url: string | null
+  user_agent: string | null
+  screenshot_url: string | null
+  admin_notes: string | null
+  reviewed_by_person_id: number | null
+  reviewed_at: string | null
+  created_at: string
+  updated_at: string
+}
+
+export interface AdminFeedbackRow extends FeedbackRow {
+  person_display_name: string | null
+  reviewed_by_display_name: string | null
+}
+
+export interface FeedbackData {
+  category: string
+  subject: string
+  description: string
+  url?: string | null
+  user_agent?: string | null
+}
+
+export interface FeedbackTriageData {
+  status?: string
+  admin_notes?: string
+}
+
+export async function submitFeedback(personToken: string, data: FeedbackData): Promise<FeedbackRow> {
+  if (!process.env.XVM_API_BASE_URL) throw new Error("XVM_API_BASE_URL is not set")
+  return xvmFetch<FeedbackRow>("/me/feedback", { method: "POST", body: JSON.stringify(data) }, personToken)
+}
+
+export async function listMyFeedback(personToken: string): Promise<FeedbackRow[]> {
+  if (!process.env.XVM_API_BASE_URL) throw new Error("XVM_API_BASE_URL is not set")
+  return xvmFetch<FeedbackRow[]>(`/me/feedback?limit=${FEEDBACK_PAGE_LIMIT}`, {}, personToken)
+}
+
+export async function listAdminFeedback(
+  personToken: string,
+  filters: { status?: string; category?: string } = {}
+): Promise<AdminFeedbackRow[]> {
+  if (!process.env.XVM_API_BASE_URL) throw new Error("XVM_API_BASE_URL is not set")
+  const params = new URLSearchParams({ limit: String(FEEDBACK_PAGE_LIMIT) })
+  if (filters.status) params.set("status", filters.status)
+  if (filters.category) params.set("category", filters.category)
+  return xvmFetch<AdminFeedbackRow[]>(`/admin/feedback?${params}`, {}, personToken)
+}
+
+export async function triageFeedback(
+  personToken: string,
+  feedbackId: number,
+  data: FeedbackTriageData
+): Promise<AdminFeedbackRow> {
+  if (!process.env.XVM_API_BASE_URL) throw new Error("XVM_API_BASE_URL is not set")
+  return xvmFetch<AdminFeedbackRow>(
+    `/admin/feedback/${feedbackId}`,
+    { method: "PATCH", body: JSON.stringify(data) },
+    personToken
+  )
+}
+
 // ── My characters ──────────────────────────────────────────────
 
 export interface MyCharacterRow {

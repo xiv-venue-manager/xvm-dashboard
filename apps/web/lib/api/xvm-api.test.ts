@@ -15,6 +15,9 @@ import {
   listShouts,
   createShout,
   deleteShout,
+  listMyCharacters,
+  linkMyCharacter,
+  unlinkMyCharacter,
   getVenueFollowers,
   reclassifyPatronLogs,
   getPatronPresence,
@@ -1236,6 +1239,29 @@ describe("Patron logs API", () => {
     await deleteShout("token", 9)
     const [url, init] = lastCall()
     expect(new URL(url).pathname).toMatch(/\/me\/shouts\/9$/)
+    expect(init.method).toBe("DELETE")
+  })
+
+  it("listMyCharacters reads the caller's linked characters", async () => {
+    mockFetchOnce({ ok: true, status: 200, body: [] })
+    await expect(listMyCharacters("token")).resolves.toEqual([])
+    expect(new URL(lastCall()[0]).pathname).toMatch(/\/me\/characters$/)
+  })
+
+  it("linkMyCharacter posts the name and world", async () => {
+    mockFetchOnce({ ok: true, status: 201, body: { id: 1 } })
+    await linkMyCharacter("token", { character_name: "Test Char", world: "Lich" })
+    const [url, init] = lastCall()
+    expect(new URL(url).pathname).toMatch(/\/me\/characters$/)
+    expect(init.method).toBe("POST")
+    expect(JSON.parse(init.body)).toEqual({ character_name: "Test Char", world: "Lich" })
+  })
+
+  it("unlinkMyCharacter deletes by numeric id", async () => {
+    mockFetchOnce({ ok: true, status: 204, body: null })
+    await unlinkMyCharacter("token", 9)
+    const [url, init] = lastCall()
+    expect(new URL(url).pathname).toMatch(/\/me\/characters\/9$/)
     expect(init.method).toBe("DELETE")
   })
 

@@ -25,7 +25,6 @@ interface UserCharacter {
   characterName: string
   world: string
   isPrimary: boolean
-  createdAt: string
 }
 
 export default function CharactersPage() {
@@ -37,8 +36,8 @@ export default function CharactersPage() {
   const [error, setError] = useState("")
   const [success, setSuccess] = useState("")
 
-  async function fetchCharacters() {
-    setIsLoading(true)
+  async function fetchCharacters(showLoading = true) {
+    if (showLoading) setIsLoading(true)
     setError("")
     try {
       const res = await fetch("/api/user-characters")
@@ -86,18 +85,15 @@ export default function CharactersPage() {
         body: JSON.stringify({
           characterName: trimmedName,
           world: trimmedWorld,
-          // First character auto-primary. After that, user can delete+re-add
-          // to change primary.
-          isPrimary: characters.length === 0,
         }),
       })
 
       const data = await res.json()
       if (res.ok) {
-        setCharacters([data.character, ...characters])
         setName("")
         setWorld("")
         setSuccess("Character linked")
+        await fetchCharacters(false)
       } else {
         setError(data.error || "Failed to link character")
       }
@@ -114,8 +110,8 @@ export default function CharactersPage() {
         method: "DELETE",
       })
       if (res.ok) {
-        setCharacters(characters.filter((c) => c.id !== id))
         setSuccess("Character unlinked")
+        await fetchCharacters(false)
       } else {
         setError("Failed to unlink character")
       }

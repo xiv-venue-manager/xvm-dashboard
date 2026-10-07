@@ -12,9 +12,11 @@ import { xvmPageReader, xvmPersonReader } from "@/lib/api/xvm-page-read"
 import {
   getFinanceSummary,
   listMyAnnouncements,
+  listMyCharacters,
   listShifts,
   listTasks,
   type AnnouncementRow,
+  type MyCharacterRow,
   type ShiftRow,
 } from "@/lib/api/xvm-api"
 import { toAnnouncementShape } from "@/lib/api/announcement-shape"
@@ -186,10 +188,7 @@ export default async function VenueDashboardPage({ params }: { params: Promise<{
     toAnnouncementShape
   )
 
-  const hasLinkedCharacter =
-    (await prisma.userCharacter.count({
-      where: { userId: session.user.id },
-    })) > 0
+  const hasLinkedCharacter = (await readPerson("overview characters", [] as MyCharacterRow[], (t) => listMyCharacters(t))).length > 0
 
   const myShiftsFrom = new Date(now.getTime() - 2 * 60 * 60 * 1000)
   const myShifts = (

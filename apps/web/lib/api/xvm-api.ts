@@ -2973,3 +2973,27 @@ export async function deleteShout(personToken: string, shoutId: number): Promise
   if (!process.env.XVM_API_BASE_URL) throw new Error("XVM_API_BASE_URL is not set")
   return xvmFetch<void>(`/me/shouts/${shoutId}`, { method: "DELETE" }, personToken)
 }
+
+// ── My characters ──────────────────────────────────────────────
+
+export interface MyCharacterRow {
+  id: number
+  character_name: string
+  world: string
+  is_primary: boolean
+}
+
+export async function listMyCharacters(personToken: string): Promise<MyCharacterRow[]> {
+  if (!process.env.XVM_API_BASE_URL) throw new Error("XVM_API_BASE_URL is not set")
+  return xvmFetch<MyCharacterRow[]>("/me/characters", {}, personToken)
+}
+
+export async function linkMyCharacter(personToken: string, data: { character_name: string; world: string }): Promise<MyCharacterRow> {
+  if (!process.env.XVM_API_BASE_URL) throw new Error("XVM_API_BASE_URL is not set")
+  return xvmFetch<MyCharacterRow>("/me/characters", { method: "POST", body: JSON.stringify(data) }, personToken)
+}
+
+export async function unlinkMyCharacter(personToken: string, characterId: number): Promise<void> {
+  if (!process.env.XVM_API_BASE_URL) throw new Error("XVM_API_BASE_URL is not set")
+  return xvmFetch<void>(`/me/characters/${characterId}`, { method: "DELETE" }, personToken)
+}

@@ -1,16 +1,9 @@
 import { NextRequest, NextResponse } from "next/server"
 import { getServerSession } from "next-auth"
 import { authOptions } from "@/lib/auth"
-import { prisma } from "@/lib/prisma"
+import { getValidXvmApiToken, xvmApiErrorResponse } from "@/lib/api/xvm-api-store"
+import { unlinkMyCharacter } from "@/lib/api/xvm-api"
 
-/**
- * DELETE /api/user-characters/:id
- *
- * Unlink a character. Scoped by userId so you can't delete someone else's
- * link even if you guess the id. PatronLog rows retain their
- * characterName/world/workingUserId snapshot - unlinking doesn't rewrite
- * history, it just stops future visits from classifying as this user.
- */
 export async function DELETE(_request: NextRequest, { params }: { params: Promise<{ id: string }> }) {
   const session = await getServerSession(authOptions)
   if (!session?.user) {
@@ -18,14 +11,15 @@ export async function DELETE(_request: NextRequest, { params }: { params: Promis
   }
 
   const { id } = await params
+  if (!/^\d+$/.test(id)) return NextResponse.json({ error: "Not found" }, { status: 404 })
 
-  const result = await prisma.userCharacter.deleteMany({
-    where: { id, userId: session.user.id },
-  })
+  const token = await getValidXvmApiToken(session.user.id)
+  if (!token) return NextResponse.json({ error: "xvm-api link not established yet" }, { status: 503 })
 
-  if (result.count === 0) {
-    return NextResponse.json({ error: "Not found" }, { status: 404 })
+  try {
+    await unlinkMyCharacter(token, Number(id))
+    return NextResponse.json({ success: true })
+  } catch (err) {
+    return xvmApiErrorResponse(err, session.user.id, "[user-characters DELETE] xvm-api error")
   }
-
-  return NextResponse.json({ success: true })
 }

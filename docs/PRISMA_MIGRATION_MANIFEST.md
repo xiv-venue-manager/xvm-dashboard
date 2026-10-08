@@ -138,9 +138,11 @@ xvm-api also has venue fields Prisma lacks (`room`, `subdivision`, and the task,
 |---|---|---|---|---|
 | `discord_members` | raw bot 8 | Bot | `LevelingMember`? | XP and levels. |
 | `discord_warn_logs` | raw bot 2 | Bot | `ActivityLog`? | |
-| `discord_guild_config`, `discord_gil_reaction_rewards`, `discord_open_venues`, `discord_tracked_messages` | none | Dead | unclear | The bot may read them without Prisma. **Ask Allegro what survives** and who owns the move. |
+| `discord_guild_config`, `discord_gil_reaction_rewards`, `discord_open_venues`, `discord_tracked_messages` | none | Dead | unclear | The old bot may read them without Prisma. Dropped with the bot unless xvm-bot needs the data (see the note below). |
 
-`apps/eorzea-bot` also has **its own** `prisma/schema.prisma` (it declares, for example, a model keyed by `venueId`). That is a second Prisma consumer. This scan only enumerated the web app's schema, so the bot's own models are not in the table above. It is expected to be retired with the bot, not migrated; confirm with Allegro.
+**Decided 2026-10-08: all the old bots (`apps/eorzea-bot`, `apps/discord-bot`) are removed and replaced by xvm-bot.** So their tables are not migrated by default, and their code and Prisma usage go away with them. The only question is which of their data has to carry over into xvm-api (XP and levels, warns, venue-open state), which is decision 5.
+
+`apps/eorzea-bot` also has **its own** `prisma/schema.prisma` (it declares, for example, a model keyed by `venueId`). That is a second Prisma consumer, removed with the bot. This scan only enumerated the web app's schema, so the bot's own models are not in the table above.
 
 ## Frogge
 
@@ -184,7 +186,7 @@ What the bridge is today (`dev` at `e0c00438`, scanned 2026-10-08):
    - Public pages (`/venues/[slug]`, discover) need a public lookup by slug in xvm-api.
    - Cache keys switch to the xvm-api id.
    - This has to land at once. A route's `[venueId]` cannot mean two things, and an "accept either id" mode is a transitional state we do not want.
-4. **Plugin and old bots.** The plugin's API keys currently store a Prisma `venueId`. They become xvm-api credentials narrowed to a venue (xvm-api credentials already carry a `venue_id` narrowing), so the plugin's Prisma venue id goes away with the plugin cutover. The old bots (`apps/eorzea-bot`, `apps/discord-bot`) join the `venues` table in raw SQL and are retired rather than migrated, because xvm-bot has no database and replaces them.
+4. **Plugin and old bots.** The plugin's API keys currently store a Prisma `venueId`. They become xvm-api credentials narrowed to a venue (xvm-api credentials already carry a `venue_id` narrowing), so the plugin's Prisma venue id goes away with the plugin cutover. The old bots (`apps/eorzea-bot`, `apps/discord-bot`) join the `venues` table in raw SQL. They are removed and replaced by xvm-bot (decided 2026-10-08), which has no database, so nothing about them has to be re-keyed.
 5. **Delete.** When no code reads `prisma.venue`, remove the `Venue` model. The 65 `venueId` columns go with their tables in the migration.
 
 ### Asks for xvm-api (Allegro)
@@ -242,7 +244,7 @@ The four older scripts import the Prisma client, and they write ids back to Pris
 2. **What survives from `users`:** `displayName`, `image`, `email`, `discordId`. `Person` has no field for them.
 3. **History depth** for transactions, patron logs, payroll, events and shifts: all of it, or a recent slice?
 4. **Frogge:** what "no impact" means; the `froggeToken` population; the tier and backdating gaps.
-5. **Bot-owned `discord_*` tables:** which survive, and who moves them.
+5. **What carries over from the old bots.** The bots are removed (decided). For each of their tables, does its data move into xvm-api (XP and levels to `LevelingMember`, warns, and so on) or get dropped? Who writes that move?
 6. **Plugin-written data** (characters, sales, API keys): does the plugin switch in the window? If so its keys and routes must move together.
 7. **Prod venues not connected to xvm-api:** create them in the window?
 8. **Timestamps:** xvm-api stamps the copy time on shouts (no backdating). Acceptable for the other domains too?
@@ -255,7 +257,7 @@ The four older scripts import the Prisma client, and they write ids back to Pris
 - **Field parity.** A model of the same name existing in xvm-api does not mean the fields line up.
 - **Completeness of the scan.** It matches `prisma.<model>`, `tx.<model>`, `db.<model>` and `FROM/JOIN/INTO <table>` in raw SQL. A table reached some other way (a view, a dynamic name, another service sharing the database) is missed. `apps/eorzea-bot` and `apps/discord-bot` are in this repository; anything outside it that shares the database is invisible here.
 - **Other readers of the database.** FroggeAPI and any other service with its own connection are not covered.
-- **`apps/eorzea-bot`'s own Prisma schema.** Not inventoried (see the bot-owned section).
+- **`apps/eorzea-bot`'s own Prisma schema.** Not inventoried; it is removed with the bot (see the bot-owned section).
 - **The by-slug lookup claim.** "xvm-api has no lookup by slug" comes from searching two router files, not from reading every router.
 - **Whether "Cut over" tables have a working replacement for every use.** The status means no code on `dev` touches the table, not that the replacement was checked end to end.
 

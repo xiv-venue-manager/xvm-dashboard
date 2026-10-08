@@ -219,19 +219,16 @@ export const DELETE = withRateLimit<{ params: Promise<{ venueId: string; members
           openAssignedTasks.map((task) => assignTask(token, gate.xvmApiVenueId!, task.id, { membership_id: null }))
         )
 
-        // API-key revocation: resolve the xvm-api person id back to a Prisma
-        // userId via XvmApiCredential.personId (the only linkage available -
-        // populated lazily on first getValidXvmApiPersonId call, see
-        // xvm-api-store.ts). A departing member who never triggered that
-        // lookup has no row here, so their venue-scoped API keys won't be
-        // revoked - see PR description.
-        const credential = await prisma.xvmApiCredential.findFirst({
-          where: { personId: targetMembership.person.id },
-          select: { userId: true },
-        })
-        if (credential) {
+        const discordId = targetMembership.person.discord_id
+        const account = discordId
+          ? await prisma.account.findFirst({
+              where: { provider: "discord", providerAccountId: discordId },
+              select: { userId: true },
+            })
+          : null
+        if (account) {
           await prisma.apiKey.updateMany({
-            where: { userId: credential.userId, venueId: gate.prismaVenueId!, revokedAt: null },
+            where: { userId: account.userId, venueId: gate.prismaVenueId!, revokedAt: null },
             data: { revokedAt: new Date() },
           })
         }

@@ -2,6 +2,7 @@ import { NextRequest, NextResponse } from "next/server"
 import { getServerSession } from "next-auth"
 import { authOptions } from "@/lib/auth"
 import { prisma } from "@/lib/prisma"
+import { requireVenueRole } from "@/lib/api/venue-access"
 import { z } from "zod"
 import { withRateLimit } from "@/lib/middleware/with-rate-limit"
 import { validators } from "@/lib/validation"
@@ -130,12 +131,8 @@ export const GET = withRateLimit<{ params: Promise<{ venueId: string }> }>(
     const gate = await requireXvmVenueId(venueId)
     if (gate.error) return gate.error
 
-    const membership = await prisma.membership.findFirst({
-      where: { userId: session.user.id, venueId, status: "active" },
-    })
-    if (!membership) {
-      return NextResponse.json({ error: "You don't have access to this venue" }, { status: 403 })
-    }
+    const access = await requireVenueRole(session.user.id, venueId, "STAFF", "You don't have access to this venue")
+    if (!access.ok) return access.response
 
     const searchParams = request.nextUrl.searchParams
     const status = searchParams.get("status")
@@ -159,7 +156,7 @@ export const GET = withRateLimit<{ params: Promise<{ venueId: string }> }>(
       if (status) {
         events = events.filter((event) => event.status === status)
       }
-      if (membership.role === "STAFF" && (await eventVisibilityFor(session.user.id, gate.venue)) === "published") {
+      if (access.role === "STAFF" && (await eventVisibilityFor(session.user.id, gate.venue)) === "published") {
         events = events.filter((event) => event.status !== "DRAFT")
       }
       return NextResponse.json(events)

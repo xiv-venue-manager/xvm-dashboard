@@ -1,9 +1,10 @@
 import { describe, it, expect, vi, beforeEach } from "vitest"
+import { NextResponse } from "next/server"
 
 const m = vi.hoisted(() => ({
   session: vi.fn(),
   venue: vi.fn(),
-  membership: vi.fn(),
+  access: vi.fn(),
   token: vi.fn(),
   listEvents: vi.fn(),
   createEvent: vi.fn(),
@@ -14,8 +15,9 @@ const m = vi.hoisted(() => ({
 vi.mock("next-auth", () => ({ getServerSession: m.session }))
 vi.mock("@/lib/auth", () => ({ authOptions: {} }))
 vi.mock("@/lib/middleware/with-rate-limit", () => ({ withRateLimit: (handler: unknown) => handler }))
+vi.mock("@/lib/api/venue-access", () => ({ requireVenueRole: m.access }))
 vi.mock("@/lib/prisma", () => ({
-  prisma: { venue: { findUnique: m.venue }, membership: { findFirst: m.membership } },
+  prisma: { venue: { findUnique: m.venue } },
 }))
 vi.mock("@/lib/event-visibility", () => ({ eventVisibilityFor: m.visibility }))
 vi.mock("@/lib/api/xvm-api-store", async () => {
@@ -87,7 +89,7 @@ beforeEach(() => {
   m.session.mockResolvedValue({ user: { id: "user-1" } })
   m.token.mockResolvedValue("tok")
   m.venue.mockResolvedValue({ xvmApiVenueId: "xv-1", settings: null })
-  m.membership.mockResolvedValue({ role: "OWNER" })
+  m.access.mockResolvedValue({ ok: true, role: "OWNER" })
   m.visibility.mockResolvedValue("all")
 })
 
@@ -146,7 +148,7 @@ describe("GET", () => {
   })
 
   it("hides drafts from staff when visibility is published-only", async () => {
-    m.membership.mockResolvedValue({ role: "STAFF" })
+    m.access.mockResolvedValue({ ok: true, role: "STAFF" })
     m.visibility.mockResolvedValue("published")
     m.listEvents.mockResolvedValue([item({ id: 1 }), item({ id: 2, published_at: null })])
     const events = await (await call(GET)).json()
@@ -160,7 +162,7 @@ describe("GET", () => {
   })
 
   it("returns 403 for a non-member without calling xvm-api", async () => {
-    m.membership.mockResolvedValue(null)
+    m.access.mockResolvedValue({ ok: false, response: NextResponse.json({ error: "Forbidden" }, { status: 403 }) })
     expect((await call(GET)).status).toBe(403)
     expect(m.listEvents).not.toHaveBeenCalled()
   })

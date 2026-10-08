@@ -40,7 +40,7 @@ Status of each Prisma table on `dev`:
 | Prisma table | Dev code | Status | xvm-api target | Notes |
 |---|---|---|---|---|
 | `users` | r web 9, w web 2, raw web 1, bot 4, dbot 1 | Live | `Person` | A `Person` is created at first sign-in by the token exchange, keyed by Discord id, so people who sign in again need no copy. `Person` is thin (`display_name`), so `displayName`, `image`, `email`, `discordId` have no home yet. **Decision needed.** |
-| `accounts` | r web 2, w web 1 | Live | `PersonAccount` | Owned by next-auth's `PrismaAdapter` (`lib/auth.ts`). Stays until auth leaves the adapter, which is the long pole in the decommission notes. Holds Discord OAuth tokens, which are not worth migrating. |
+| `accounts` | r web 2, w web 1 | Live | `PersonAccount` | Owned by next-auth's `PrismaAdapter` (`lib/auth.ts`). Stays until auth leaves the adapter, which is the long pole in the decommission notes. The plan is `docs/superpowers/plans/2026-10-08-nextauth-adapter-removal.md`: the adapter is the last link (after the plugin cutover and the credential cache), and its Task 1 (Discord grant from the JWT) ships first. Holds Discord OAuth tokens, which are not worth migrating. |
 | `sessions`, `verification_tokens` | none | Dead | none | Sessions are JWT. Confirm empty or irrelevant, then drop. |
 | `xvm_api_credentials` | r web 3, w web 3 | Live | none | A cache of the person's xvm-api token. Nothing to migrate. Goes away when the cache moves into the JWT. |
 

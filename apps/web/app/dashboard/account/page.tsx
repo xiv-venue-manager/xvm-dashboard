@@ -3,6 +3,7 @@ import { authOptions } from "@/lib/auth"
 import { redirect } from "next/navigation"
 import Link from "next/link"
 import { prisma } from "@/lib/prisma"
+import { myVenueRoles } from "@/lib/api/venue-access"
 import { format } from "date-fns"
 import { User, Settings, Scroll, Users, Building2, ChevronRight } from "lucide-react"
 
@@ -10,21 +11,16 @@ export default async function ProfilePage() {
   const session = await getServerSession(authOptions)
   if (!session?.user) redirect("/auth/signin")
 
-  const user = await prisma.user.findUnique({
-    where: { id: session.user.id },
-    include: {
-      memberships: {
-        include: {
-          venue: { select: { id: true, name: true, slug: true, dataCenter: true, world: true } },
-        },
-      },
-      _count: {
-        select: { memberships: true },
-      },
-    },
-  })
+  const user = await prisma.user.findUnique({ where: { id: session.user.id } })
 
   if (!user) redirect("/auth/signin")
+
+  const roles = await myVenueRoles(session.user.id)
+  const venues = await prisma.venue.findMany({
+    where: { id: { in: [...roles.keys()] } },
+    select: { id: true, name: true, slug: true, dataCenter: true, world: true },
+    orderBy: { name: "asc" },
+  })
 
   const initials = user.name
     ? user.name
@@ -106,31 +102,31 @@ export default async function ProfilePage() {
       </div>
 
       {/* Venues */}
-      {user.memberships.length > 0 && (
+      {venues.length > 0 && (
         <div className="mt-8">
           <div className="section-label">
             <span className="sl-label">Your venues</span>
             <span className="ln" />
-            <span className="count">{user.memberships.length}</span>
+            <span className="count">{venues.length}</span>
           </div>
           <div className="space-y-2">
-            {user.memberships.map((m) => (
+            {venues.map((venue) => (
               <Link
-                key={m.id}
-                href={`/dashboard/${m.venue.slug}`}
+                key={venue.id}
+                href={`/dashboard/${venue.slug}`}
                 className="vcard flex items-center gap-4 px-5 py-3.5 hover:border-[var(--blue-035)] transition-colors"
               >
                 <div className="iconbadge w-10 h-10 rounded-lg grid place-items-center flex-shrink-0">
                   <Building2 className="w-5 h-5" />
                 </div>
                 <div className="flex-1 min-w-0">
-                  <p className="font-[var(--font-outfit)] font-semibold text-[0.95rem]">{m.venue.name}</p>
+                  <p className="font-[var(--font-outfit)] font-semibold text-[0.95rem]">{venue.name}</p>
                   <p className="text-[0.74rem] text-muted-foreground mt-0.5 font-mono">
-                    {m.venue.dataCenter} · {m.venue.world}
+                    {venue.dataCenter} · {venue.world}
                   </p>
                 </div>
                 <div className="flex items-center gap-3 flex-shrink-0">
-                  <span className="tag capitalize">{m.role.toLowerCase()}</span>
+                  <span className="tag capitalize">{roles.get(venue.id)?.toLowerCase()}</span>
                   <ChevronRight className="w-4 h-4 text-[var(--fg-faint)]" />
                 </div>
               </Link>

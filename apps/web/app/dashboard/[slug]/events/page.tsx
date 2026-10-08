@@ -6,6 +6,7 @@ import { Button } from "@/components/ui/button"
 import { Card, CardContent, CardDescription, CardHeader, CardTitle } from "@/components/ui/card"
 import { Badge } from "@/components/ui/badge"
 import { prisma } from "@/lib/prisma"
+import { roleInVenue } from "@/lib/api/venue-access"
 import { EventsCalendar } from "@/components/events-calendar"
 import { VenueLayout } from "@/components/venue-layout"
 import { LocalTime } from "@/components/server-time"
@@ -54,20 +55,10 @@ export default async function EventsPage({
   const { status, view = "list" } = await searchParams
 
   // Get venue
-  const venue = await prisma.venue.findUnique({
-    where: { slug },
-    include: {
-      memberships: {
-        where: {
-          userId: session.user.id,
-        },
-      },
-    },
-  })
+  const venue = await prisma.venue.findUnique({ where: { slug } })
 
-  if (!venue || venue.memberships.length === 0) {
-    notFound()
-  }
+  const userRole = venue ? await roleInVenue(session.user.id, venue) : null
+  if (!venue || !userRole) notFound()
 
   const now = new Date()
   const readXvm = await xvmPageReader(session.user.id, venue.xvmApiVenueId)
@@ -85,7 +76,7 @@ export default async function EventsPage({
   }
 
   if (
-    venue.memberships[0].role === "STAFF" &&
+    userRole === "STAFF" &&
     (await eventVisibilityFor(session.user.id, venue)) === "published"
   ) {
     events = events.filter((event) => event.status !== "DRAFT")
@@ -95,7 +86,6 @@ export default async function EventsPage({
   const pastEvents = events.filter((e) => new Date(e.startTime) < now && e.status !== "DRAFT")
   const draftEvents = events.filter((e) => e.status === "DRAFT")
 
-  const userRole = venue.memberships[0].role
 
   return (
     <VenueLayout venueSlug={venue.slug} venueName={venue.name} userRole={userRole}>

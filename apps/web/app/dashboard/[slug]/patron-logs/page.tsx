@@ -3,6 +3,7 @@ import { authOptions } from "@/lib/auth"
 import { redirect, notFound } from "next/navigation"
 import Link from "next/link"
 import { prisma } from "@/lib/prisma"
+import { roleInVenue } from "@/lib/api/venue-access"
 import { VenueLayout } from "@/components/venue-layout"
 import { PatronLogsManager } from "@/components/patron-logs-manager"
 import { PatronProfilesTable, type PatronProfile } from "@/components/patron-profiles-table"
@@ -44,16 +45,11 @@ export default async function PatronLogsPage({
   const { slug } = await params
   const sp = await searchParams
 
-  const venue = await prisma.venue.findUnique({
-    where: { slug },
-    include: {
-      memberships: { where: { userId: session.user.id } },
-    },
-  })
+  const venue = await prisma.venue.findUnique({ where: { slug } })
 
-  if (!venue || venue.memberships.length === 0) notFound()
+  const userRole = venue ? await roleInVenue(session.user.id, venue) : null
+  if (!venue || !userRole) notFound()
 
-  const userRole = venue.memberships[0].role
   if (!["OWNER", "MANAGER"].includes(userRole)) notFound()
 
   const activeTab = sp.tab === "log" ? "log" : "profiles"

@@ -42,7 +42,7 @@ Status of each Prisma table on `dev`:
 | `users` | r web 9, w web 2, raw web 1, bot 4, dbot 1 | Live | `Person` | A `Person` is created at first sign-in by the token exchange, keyed by Discord id, so people who sign in again need no copy. `Person` is thin (`display_name`), so `displayName`, `image`, `email`, `discordId` have no home yet. **Decision needed.** |
 | `accounts` | r web 2, w web 1 | Live | `PersonAccount` | Owned by next-auth's `PrismaAdapter` (`lib/auth.ts`). Stays until auth leaves the adapter, which is the long pole in the decommission notes. Holds Discord OAuth tokens, which are not worth migrating. |
 | `sessions`, `verification_tokens` | none | Dead | none | Sessions are JWT. Confirm empty or irrelevant, then drop. |
-| `xvm_api_credentials` | r web 3, w web 3 | Live | none | A cache of the person's xvm-api token. Nothing to migrate. Goes away when the cache moves into the JWT. |
+| `xvm_api_credentials` | r web 3, w web 3 | Live | none | A cache of the person's xvm-api token. Nothing to migrate. It cannot go before the plugin cutover: see "Removing the credential cache". |
 
 ### Venues
 
@@ -199,13 +199,56 @@ What the bridge is today (`dev` at `e0c00438`, scanned 2026-10-08):
 Two more layers are on it, and nothing else can be Prisma-free while they stay:
 
 - **Identity.** The NextAuth `PrismaAdapter` owns `User` and `Account`. This is the long pole and nothing is built for it.
-- **The credential cache.** `XvmApiCredential` can move into the JWT. It is self-contained and independent of the bridge.
+- **The credential cache.** `XvmApiCredential` can move into the JWT, but only after the plugin cutover; see "Removing the credential cache".
 
 Only when all three are gone can the Prisma client, `prisma generate`, `schema.prisma` and `lib/prisma.ts` be deleted.
 
 ### A guard while it shrinks
 
 Once step 2 is done, a lint rule like the one planned for `prisma.membership` (#136, Task 8) can ban `prisma.venue` outside an allowlist. The allowlist shrinks as step 3 lands, so nothing new can depend on the bridge.
+
+## Removing the credential cache
+
+`xvm_api_credentials` caches each person's xvm-api bearer token (`token`, `credentialId`, `expiresAt`, `personId`). Everything goes through four functions in `lib/api/xvm-api-store.ts`, and `getValidXvmApiToken(userId)` is the one that matters. Earlier notes called moving it into the JWT "independent of everything else". Checked against `dev` on 2026-10-08, that is not true.
+
+### Who needs a token, and whether a browser session is behind it
+
+| Context | Call sites | Browser session? |
+|---|---|---|
+| Dashboard routes and pages, `getValidXvmApiToken(session.user.id)` | 144 | yes |
+| Helpers that take a `userId` from those same callers (`xvm-page-read`, `event-visibility`, `rooms/[roomId]`, `venues`) | about 8 | yes, derived |
+| **Plugin routes** (`events/active`, `patron-visits`, `patrons/ban`, `banned`, `present`, `rooms`, `rooms/reserve`, `rooms/release`) through `pluginXvmContext`, plus `lib/api/transactions.ts` | 10 files | **no**: the plugin authenticates with an API key and the route looks up that key's user |
+| Staff removal (`staff/[membershipId]` DELETE) | 1 | n/a: it reads the table to map an xvm-api person back to a Prisma user |
+| Old migration scripts | 4 | n/a, retired |
+
+A token carried in the session JWT works for the first two rows only. The plugin rows have no cookie, and they already depend on the stored token: when it is missing they answer "xvm-api link expired. Sign in to the dashboard again to refresh it."
+
+### Options
+
+| Option | What it does | Problem |
+|---|---|---|
+| A. JWT only | Token lives in the encrypted session cookie, read server-side | Breaks every plugin route until the plugin stops needing a person token |
+| B. Redis instead of Prisma | Same four functions, different store | Removes the Prisma table now and covers the plugin. Redis is fail-open and volatile, so a flush drops tokens and plugin sales fail until that person next opens the site |
+| C. JWT plus the table | Sessions use the JWT, the plugin keeps the table | Two token sources that can disagree, and the table stays. A transitional state |
+| D. Mint on demand | Call the token exchange when a token is needed | Each exchange creates a new 30-day credential row in xvm-api, so this churns credentials unless the result is cached, which is option B again |
+
+### Recommendation
+
+Do not start the JWT move yet. **It follows the plugin cutover.** Once the plugin talks to xvm-api with its own venue-narrowed credentials (the same change that removes the plugin's Prisma venue id), nothing outside a browser session needs a person token, and the move is small: one server-side helper reads the token from the JWT, and the 144 callers do not change because the function signature already hides the store.
+
+Two details for when it is built:
+
+- The token must stay **server-only**. It must not appear in what the `session` callback returns, because that object is readable by the browser at `/api/auth/session`. Read it with `getToken` from `next-auth/jwt` instead.
+- The `jwt` callback currently reads the table to decide whether to re-mint, and NextAuth runs that callback each time the session is read, so most authenticated requests pay for that read twice (once there, once in the route). The JWT removes both.
+
+### Worth doing sooner, independent of the above
+
+The staff-removal route revokes a departing member's plugin API keys by finding their Prisma user through `XvmApiCredential.personId`. Its own comment says that column is filled lazily, so a member who never triggered the lookup keeps their keys. The manager-visible roster already carries `person.discord_id`, so the link can be `Account` (provider `discord`, `providerAccountId = discord_id`) instead. That fixes the gap and removes the route's only direct use of the table.
+
+### Not verified
+
+- That NextAuth invokes the `jwt` callback on every session read is documented behaviour, not something I measured; I did not count database reads.
+- Whether production Redis persists across restarts, which matters only if option B is ever chosen.
 
 ## Proposed order inside the window (draft, for editing)
 

@@ -6,7 +6,7 @@ import { prisma } from "@/lib/prisma"
 import { withRateLimit } from "@/lib/middleware/with-rate-limit"
 import { invalidateCache, cacheKeys } from "@/lib/redis-cache"
 import { getValidXvmApiToken, xvmApiErrorResponse } from "@/lib/api/xvm-api-store"
-import { linkVenueExternal } from "@/lib/api/xvm-api"
+import { getVenue, linkVenueExternal, unlinkVenueExternal } from "@/lib/api/xvm-api"
 import { administersGuild } from "@/lib/discord-user"
 import { getGuildPresence } from "@/lib/discord-rest"
 
@@ -88,6 +88,68 @@ export const POST = withRateLimit<{ params: Promise<{ venueId: string }> }>(
     } catch (err) {
       return xvmApiErrorResponse(err, session.user.id, "[discord link] POST error")
     }
+  },
+  { requests: 10, window: "1 m" }
+)
+
+export const DELETE = withRateLimit<{ params: Promise<{ venueId: string }> }>(
+  async (_request, context) => {
+    if (!context?.params) {
+      return NextResponse.json({ error: "Invalid request" }, { status: 400 })
+    }
+
+    const session = await getServerSession(authOptions)
+    if (!session?.user?.id) {
+      return NextResponse.json({ error: "Unauthorized" }, { status: 401 })
+    }
+
+    const { venueId } = await context.params
+
+    const membership = await prisma.membership.findFirst({
+      where: { userId: session.user.id, venueId, status: "active" },
+    })
+    if (membership?.role !== "OWNER") {
+      return NextResponse.json({ error: "Only the venue owner can disconnect a Discord server" }, { status: 403 })
+    }
+
+    const venue = await prisma.venue.findUnique({
+      where: { id: venueId },
+      select: { xvmApiVenueId: true, slug: true },
+    })
+    if (!venue?.xvmApiVenueId) {
+      return NextResponse.json(
+        { error: "not_connected", message: "This venue hasn't been connected to xvm-api yet." },
+        { status: 409 }
+      )
+    }
+
+    const token = await getValidXvmApiToken(session.user.id)
+    if (!token) {
+      return NextResponse.json({ error: "xvm-api link not established yet" }, { status: 503 })
+    }
+
+    // No administersGuild check, unlike POST. Linking grants access to a guild's channels, roles
+    // and members, so it has to be proven; unlinking only revokes that. An owner who left the
+    // server or lost Manage Server is exactly who needs to undo a wrong link, and requiring
+    // authority here would strand the venue on it.
+    //
+    // The link id is read here rather than accepted from the caller, so no request can name a row
+    // this venue doesn't own.
+    try {
+      const detail = await getVenue(token, venue.xvmApiVenueId)
+      const live = detail.external_links.find(
+        (link) => link.provider === "DiscordGuild" && link.unlinked_at === null
+      )
+      if (!live) {
+        return NextResponse.json({ error: "No Discord server is connected." }, { status: 404 })
+      }
+      await unlinkVenueExternal(token, venue.xvmApiVenueId, live.id)
+    } catch (err) {
+      return xvmApiErrorResponse(err, session.user.id, "[discord link] DELETE error")
+    }
+
+    await Promise.all([invalidateCache(cacheKeys.venue(venueId)), invalidateCache(cacheKeys.venueBySlug(venue.slug))])
+    return new NextResponse(null, { status: 204 })
   },
   { requests: 10, window: "1 m" }
 )

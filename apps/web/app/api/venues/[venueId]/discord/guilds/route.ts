@@ -4,8 +4,23 @@ import { authOptions } from "@/lib/auth"
 import { prisma } from "@/lib/prisma"
 import { withRateLimit } from "@/lib/middleware/with-rate-limit"
 import { getValidXvmApiToken, xvmApiErrorResponse } from "@/lib/api/xvm-api-store"
-import { getVenue } from "@/lib/api/xvm-api"
+import { getVenue, listMemberships } from "@/lib/api/xvm-api"
 import { listManageableGuilds } from "@/lib/discord-user"
+import { getGuildPresence } from "@/lib/discord-rest"
+
+// xvm-api has no person-by-id route, so the venue's own membership list is the only place a
+// linker's name can come from. A byline is cosmetic, so every way of not finding one - no actor
+// recorded, a linker who was never a member, a failed read - answers null and omits it rather
+// than failing the page.
+async function linkerName(token: string, venueId: string, personId: number | null) {
+  if (personId === null) return null
+  try {
+    const memberships = await listMemberships(token, venueId)
+    return memberships.find((row) => row.person.id === personId)?.person.display_name ?? null
+  } catch {
+    return null
+  }
+}
 
 export const GET = withRateLimit<{ params: Promise<{ venueId: string }> }>(
   async (_request, context) => {
@@ -40,14 +55,42 @@ export const GET = withRateLimit<{ params: Promise<{ venueId: string }> }>(
       return NextResponse.json({ error: "xvm-api link not established yet" }, { status: 503 })
     }
 
-    let currentGuildId: string | null
+    let live: {
+      id: number
+      external_id: string
+      linked_at: string
+      linked_by_person_id: number | null
+    } | null
     try {
       const detail = await getVenue(token, venue.xvmApiVenueId)
-      currentGuildId =
-        detail.external_links.find((link) => link.provider === "DiscordGuild" && link.unlinked_at === null)
-          ?.external_id ?? null
+      live =
+        detail.external_links.find((link) => link.provider === "DiscordGuild" && link.unlinked_at === null) ?? null
     } catch (err) {
       return xvmApiErrorResponse(err, session.user.id, "[discord guilds] venue read error")
+    }
+
+    // The linked guild's name and icon come from the bot, not from the caller's own guild list: a
+    // link worth unlinking is often one pointing at a server the caller no longer manages, and that
+    // is exactly when the caller's list would render a bare snowflake. The bot is a member by
+    // definition, since linking refused without it.
+    let current: {
+      linkId: number
+      guildId: string
+      linkedAt: string
+      linkedBy: string | null
+      name: string | null
+      iconUrl: string | null
+    } | null = null
+    if (live) {
+      const presence = await getGuildPresence(live.external_id)
+      current = {
+        linkId: live.id,
+        guildId: live.external_id,
+        linkedAt: live.linked_at,
+        linkedBy: await linkerName(token, venue.xvmApiVenueId, live.linked_by_person_id),
+        name: presence.name,
+        iconUrl: presence.iconUrl,
+      }
     }
 
     const manageable = await listManageableGuilds(session.user.id)
@@ -60,7 +103,7 @@ export const GET = withRateLimit<{ params: Promise<{ venueId: string }> }>(
     }
 
     return NextResponse.json({
-      currentGuildId,
+      current,
       needsReauth: !manageable.ok,
       guilds: manageable.ok ? manageable.guilds : [],
     })

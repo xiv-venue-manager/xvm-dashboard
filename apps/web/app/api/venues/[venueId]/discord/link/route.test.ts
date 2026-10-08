@@ -7,7 +7,9 @@ const m = vi.hoisted(() => ({
   venue: vi.fn(),
   administers: vi.fn(),
   presence: vi.fn(),
+  getVenue: vi.fn(),
   link: vi.fn(),
+  unlink: vi.fn(),
   invalidate: vi.fn(),
 }))
 
@@ -27,16 +29,21 @@ vi.mock("@/lib/api/xvm-api-store", async () => {
 })
 vi.mock("@/lib/api/xvm-api", async (importOriginal) => ({
   ...(await importOriginal<typeof import("@/lib/api/xvm-api")>()),
+  getVenue: m.getVenue,
   linkVenueExternal: m.link,
+  unlinkVenueExternal: m.unlink,
 }))
 vi.mock("@/lib/discord-user", () => ({ administersGuild: m.administers }))
 vi.mock("@/lib/discord-rest", () => ({ getGuildPresence: m.presence }))
 
-import { POST } from "./route"
+import { POST, DELETE } from "./route"
 import { XvmApiError } from "@/lib/api/xvm-api"
 
 const GUILD = "123456789012345678"
+const LINKED_AT = "2026-09-01T12:00:00.000Z"
 const context = { params: Promise.resolve({ venueId: "vn_1" }) }
+const remove = () =>
+  DELETE(new Request("http://localhost/api", { method: "DELETE" }) as never, context as never)
 const post = (body: unknown) =>
   POST(
     new Request("http://localhost/api", { method: "POST", body: JSON.stringify(body) }) as never,
@@ -51,8 +58,14 @@ beforeEach(() => {
   m.venue.mockResolvedValue({ xvmApiVenueId: "xv-1", slug: "lilypad" })
   m.token.mockResolvedValue("tok")
   m.administers.mockResolvedValue({ ok: true, administers: true })
-  m.presence.mockResolvedValue({ botIsMember: true, iconUrl: null })
+  m.presence.mockResolvedValue({ botIsMember: true, name: "Lilypad Lounge", iconUrl: null })
   m.link.mockResolvedValue({ id: 7, provider: "DiscordGuild", external_id: GUILD })
+  m.getVenue.mockResolvedValue({
+    external_links: [
+      { id: 7, provider: "DiscordGuild", external_id: GUILD, linked_at: LINKED_AT, unlinked_at: null },
+    ],
+  })
+  m.unlink.mockResolvedValue(undefined)
   m.invalidate.mockResolvedValue(undefined)
 })
 
@@ -117,7 +130,7 @@ describe("POST /api/venues/[venueId]/discord/link", () => {
   })
 
   it("is 409 bot_absent when the bot is not in that guild, and writes nothing", async () => {
-    m.presence.mockResolvedValue({ botIsMember: false, iconUrl: null })
+    m.presence.mockResolvedValue({ botIsMember: false, name: null, iconUrl: null })
     const res = await post({ guildId: GUILD })
     expect(res.status).toBe(409)
     expect((await res.json()).error).toBe("bot_absent")
@@ -139,5 +152,75 @@ describe("POST /api/venues/[venueId]/discord/link", () => {
     const res = await post({ guildId: GUILD })
     expect(res.status).toBe(409)
     expect((await res.json()).error).toBe("The identity belongs to another venue.")
+  })
+})
+
+describe("DELETE /api/venues/[venueId]/discord/link", () => {
+  it("is 401 signed out, and reads nothing", async () => {
+    m.session.mockResolvedValue(null)
+    expect((await remove()).status).toBe(401)
+    expect(m.getVenue).not.toHaveBeenCalled()
+    expect(m.unlink).not.toHaveBeenCalled()
+  })
+
+  it("is 403 for a member who is not the owner", async () => {
+    m.membership.mockResolvedValue({ role: "MANAGER" })
+    expect((await remove()).status).toBe(403)
+    expect(m.unlink).not.toHaveBeenCalled()
+  })
+
+  it("is 409 not_connected when the venue has no xvm-api link", async () => {
+    m.venue.mockResolvedValue({ xvmApiVenueId: null, slug: "lilypad" })
+    const res = await remove()
+    expect(res.status).toBe(409)
+    expect((await res.json()).error).toBe("not_connected")
+    expect(m.unlink).not.toHaveBeenCalled()
+  })
+
+  it("is 503 when the xvm-api credential has lapsed", async () => {
+    m.token.mockResolvedValue(null)
+    expect((await remove()).status).toBe(503)
+    expect(m.unlink).not.toHaveBeenCalled()
+  })
+
+  it("is 404 when no Discord server is connected", async () => {
+    m.getVenue.mockResolvedValue({ external_links: [] })
+    expect((await remove()).status).toBe(404)
+    expect(m.unlink).not.toHaveBeenCalled()
+  })
+
+  it("never unlinks a tombstoned row or another provider's link", async () => {
+    m.getVenue.mockResolvedValue({
+      external_links: [
+        { id: 3, provider: "DiscordGuild", external_id: "999", linked_at: LINKED_AT, unlinked_at: LINKED_AT },
+        { id: 4, provider: "FFXIVVenues", external_id: "abc", linked_at: LINKED_AT, unlinked_at: null },
+      ],
+    })
+    expect((await remove()).status).toBe(404)
+    expect(m.unlink).not.toHaveBeenCalled()
+  })
+
+  it("unlinks the live link by the id xvm-api gave it, and drops the cached copies", async () => {
+    const res = await remove()
+    expect(res.status).toBe(204)
+    expect(m.unlink).toHaveBeenCalledWith("tok", "xv-1", 7)
+    expect(m.invalidate).toHaveBeenCalledWith("venue:vn_1")
+    expect(m.invalidate).toHaveBeenCalledWith("venue:slug:lilypad")
+  })
+
+  it("does not require authority over the guild it is unlinking", async () => {
+    // Deliberately asymmetric with POST. An owner who left the server or lost Manage Server is
+    // exactly who needs to undo a wrong link; demanding authority here would strand the venue.
+    m.administers.mockResolvedValue({ ok: true, administers: false })
+    expect((await remove()).status).toBe(204)
+    expect(m.administers).not.toHaveBeenCalled()
+  })
+
+  it("forwards xvm-api's refusal rather than inventing one", async () => {
+    m.unlink.mockRejectedValue(new XvmApiError(403, JSON.stringify({ detail: "Owner tier required." })))
+    const res = await remove()
+    expect(res.status).toBe(403)
+    expect((await res.json()).error).toBe("Owner tier required.")
+    expect(m.invalidate).not.toHaveBeenCalled()
   })
 })

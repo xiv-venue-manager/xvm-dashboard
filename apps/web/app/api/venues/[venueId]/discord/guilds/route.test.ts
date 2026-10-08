@@ -6,7 +6,9 @@ const m = vi.hoisted(() => ({
   membership: vi.fn(),
   venue: vi.fn(),
   getVenue: vi.fn(),
+  memberships: vi.fn(),
   manageable: vi.fn(),
+  presence: vi.fn(),
 }))
 
 vi.mock("next-auth", () => ({ getServerSession: m.session }))
@@ -22,16 +24,28 @@ vi.mock("@/lib/api/xvm-api-store", async () => {
 vi.mock("@/lib/api/xvm-api", async (importOriginal) => ({
   ...(await importOriginal<typeof import("@/lib/api/xvm-api")>()),
   getVenue: m.getVenue,
+  listMemberships: m.memberships,
 }))
 vi.mock("@/lib/discord-user", () => ({ listManageableGuilds: m.manageable }))
+vi.mock("@/lib/discord-rest", () => ({ getGuildPresence: m.presence }))
 
 import { GET } from "./route"
 
 const GUILD = "123456789012345678"
+const LINKED_AT = "2026-09-01T12:00:00.000Z"
 const context = { params: Promise.resolve({ venueId: "vn_1" }) }
 const get = () => GET(new Request("http://localhost/api") as never, context as never)
 
 const links = (over: Record<string, unknown>[] = []) => ({ external_links: over })
+const discordLink = (over: Record<string, unknown> = {}) => ({
+  id: 7,
+  provider: "DiscordGuild",
+  external_id: GUILD,
+  linked_at: LINKED_AT,
+  linked_by_person_id: 42,
+  unlinked_at: null,
+  ...over,
+})
 
 beforeEach(() => {
   vi.clearAllMocks()
@@ -41,7 +55,9 @@ beforeEach(() => {
   m.venue.mockResolvedValue({ xvmApiVenueId: "xv-1" })
   m.token.mockResolvedValue("tok")
   m.getVenue.mockResolvedValue(links())
+  m.memberships.mockResolvedValue([{ person: { id: 42, display_name: "Allegro Vivo" } }])
   m.manageable.mockResolvedValue({ ok: true, guilds: [{ id: GUILD, name: "Lilypad", iconUrl: null }] })
+  m.presence.mockResolvedValue({ botIsMember: true, name: "Lilypad Lounge", iconUrl: "https://cdn/i.png" })
 })
 
 describe("GET /api/venues/[venueId]/discord/guilds", () => {
@@ -66,23 +82,29 @@ describe("GET /api/venues/[venueId]/discord/guilds", () => {
     expect((await get()).status).toBe(503)
   })
 
-  it("reports the guild already linked to this venue", async () => {
-    m.getVenue.mockResolvedValue(
-      links([{ provider: "DiscordGuild", external_id: GUILD, unlinked_at: null }])
-    )
+  it("reports the live link, including the id an unlink needs", async () => {
+    m.getVenue.mockResolvedValue(links([discordLink()]))
     const body = await (await get()).json()
-    expect(body.currentGuildId).toBe(GUILD)
+    expect(body.current).toEqual({
+      linkId: 7,
+      guildId: GUILD,
+      linkedAt: LINKED_AT,
+      linkedBy: "Allegro Vivo",
+      name: "Lilypad Lounge",
+      iconUrl: "https://cdn/i.png",
+    })
   })
 
-  it("ignores an unlinked row and links for other providers", async () => {
+  it("ignores an unlinked row and links for other providers, and asks the bot nothing", async () => {
     m.getVenue.mockResolvedValue(
       links([
-        { provider: "DiscordGuild", external_id: "999", unlinked_at: "2026-10-01T00:00:00Z" },
-        { provider: "FFXIVVenues", external_id: "abc", unlinked_at: null },
+        discordLink({ external_id: "999", unlinked_at: "2026-10-01T00:00:00Z" }),
+        { provider: "FFXIVVenues", external_id: "abc", linked_at: LINKED_AT, unlinked_at: null },
       ])
     )
     const body = await (await get()).json()
-    expect(body.currentGuildId).toBeNull()
+    expect(body.current).toBeNull()
+    expect(m.presence).not.toHaveBeenCalled()
   })
 
   it("returns the guilds the caller manages", async () => {
@@ -91,17 +113,60 @@ describe("GET /api/venues/[venueId]/discord/guilds", () => {
     expect(body.needsReauth).toBe(false)
   })
 
+  it("names the linked guild from the bot, not from the caller's own list", async () => {
+    // The case that matters: a link pointing somewhere the caller no longer manages. Resolving the
+    // name from `guilds` would render a bare snowflake here, which is precisely when someone needs
+    // to recognise what they are about to unlink.
+    m.getVenue.mockResolvedValue(links([discordLink({ external_id: "987654321098765432" })]))
+    m.presence.mockResolvedValue({ botIsMember: true, name: "Somewhere Else", iconUrl: null })
+    const body = await (await get()).json()
+    expect(m.presence).toHaveBeenCalledWith("987654321098765432")
+    expect(body.current.name).toBe("Somewhere Else")
+    expect(body.guilds.some((g: { id: string }) => g.id === "987654321098765432")).toBe(false)
+  })
+
+  it("still reports the link when the bot cannot be asked", async () => {
+    m.getVenue.mockResolvedValue(links([discordLink()]))
+    m.presence.mockResolvedValue({ botIsMember: true, name: null, iconUrl: null })
+    const body = await (await get()).json()
+    expect(body.current.guildId).toBe(GUILD)
+    expect(body.current.name).toBeNull()
+  })
+
+  it("has no byline for a link no actor was recorded for, and does not go looking", async () => {
+    // The seed scripts wrote links with no actor, so this is the shape of every link that predates
+    // the picker.
+    m.getVenue.mockResolvedValue(links([discordLink({ linked_by_person_id: null })]))
+    const body = await (await get()).json()
+    expect(body.current.linkedBy).toBeNull()
+    expect(m.memberships).not.toHaveBeenCalled()
+  })
+
+  it("has no byline when the linker is not in the venue's membership list", async () => {
+    m.getVenue.mockResolvedValue(links([discordLink({ linked_by_person_id: 99 })]))
+    const body = await (await get()).json()
+    expect(body.current.linkedBy).toBeNull()
+  })
+
+  it("keeps the link when the membership read fails, since a byline is cosmetic", async () => {
+    m.getVenue.mockResolvedValue(links([discordLink()]))
+    m.memberships.mockRejectedValue(new Error("boom"))
+    const res = await get()
+    expect(res.status).toBe(200)
+    const body = await res.json()
+    expect(body.current.guildId).toBe(GUILD)
+    expect(body.current.linkedBy).toBeNull()
+  })
+
   it("asks for re-consent as a state, not an error, and still reports the current link", async () => {
-    m.getVenue.mockResolvedValue(
-      links([{ provider: "DiscordGuild", external_id: GUILD, unlinked_at: null }])
-    )
+    m.getVenue.mockResolvedValue(links([discordLink()]))
     m.manageable.mockResolvedValue({ ok: false, failure: "reauth_required" })
     const res = await get()
     expect(res.status).toBe(200)
     const body = await res.json()
     expect(body.needsReauth).toBe(true)
     expect(body.guilds).toEqual([])
-    expect(body.currentGuildId).toBe(GUILD)
+    expect(body.current.guildId).toBe(GUILD)
   })
 
   it("is 502 when Discord is unreachable, so it cannot read as 'you manage no servers'", async () => {

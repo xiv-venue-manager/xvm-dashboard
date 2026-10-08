@@ -3,6 +3,7 @@ import { authOptions } from "@/lib/auth"
 import { redirect, notFound } from "next/navigation"
 import Link from "next/link"
 import { prisma } from "@/lib/prisma"
+import { roleInVenue } from "@/lib/api/venue-access"
 import { VenueLayout } from "@/components/venue-layout"
 import { CreateShiftDialog } from "@/components/create-shift-dialog"
 import { ShiftsCalendar } from "@/components/shifts-calendar"
@@ -62,17 +63,12 @@ export default async function ShiftsPage({
   const { slug } = await params
   const { w, view = "week" } = await searchParams
 
-  const venue = await prisma.venue.findUnique({
-    where: { slug },
-    include: {
-      memberships: { where: { userId: session.user.id } },
-    },
-  })
-
-  if (!venue || venue.memberships.length === 0) notFound()
+  const venue = await prisma.venue.findUnique({ where: { slug } })
+  const venueRole = venue ? await roleInVenue(session.user.id, venue) : null
+  if (!venue || !venueRole) notFound()
   if (!venue.xvmApiVenueId) {
     return (
-      <VenueLayout venueSlug={venue.slug} venueName={venue.name} userRole={venue.memberships[0].role}>
+      <VenueLayout venueSlug={venue.slug} venueName={venue.name} userRole={venueRole}>
         <div className="page-inner">
           <h1 className="page-h1">Shifts</h1>
           <p className="text-muted-foreground mt-4">

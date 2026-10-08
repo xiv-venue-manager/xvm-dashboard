@@ -7,6 +7,7 @@ import { VenueLayout } from "@/components/venue-layout"
 import { Card, CardContent, CardDescription, CardHeader, CardTitle } from "@/components/ui/card"
 import { Badge } from "@/components/ui/badge"
 import { prisma } from "@/lib/prisma"
+import { roleInVenue } from "@/lib/api/venue-access"
 import { DeleteEventButton } from "@/components/delete-event-button"
 import { CancelSeriesButton } from "@/components/cancel-series-button"
 import { GeneratePotPayrollButton } from "@/components/generate-pot-payroll-button"
@@ -48,20 +49,10 @@ export default async function EventDetailsPage({ params }: { params: Promise<{ s
   const { slug, eventId } = await params
 
   // Get venue
-  const venue = await prisma.venue.findUnique({
-    where: { slug },
-    include: {
-      memberships: {
-        where: {
-          userId: session.user.id,
-        },
-      },
-    },
-  })
+  const venue = await prisma.venue.findUnique({ where: { slug } })
 
-  if (!venue || venue.memberships.length === 0) {
-    notFound()
-  }
+  const userRole = venue ? await roleInVenue(session.user.id, venue) : null
+  if (!venue || !userRole) notFound()
 
   if (!/^\d+$/.test(eventId)) {
     notFound()
@@ -77,7 +68,6 @@ export default async function EventDetailsPage({ params }: { params: Promise<{ s
     notFound()
   }
 
-  const userRole = venue.memberships[0].role
   if (await eventHiddenFromStaff(session.user.id, userRole, venue, event.status === "DRAFT" ? "DRAFT" : "PUBLISHED")) {
     notFound()
   }

@@ -9,6 +9,7 @@ import { StatReadout } from "@/components/ui/stat-readout"
 import { Badge } from "@/components/ui/badge"
 import { Avatar, AvatarFallback, AvatarImage } from "@/components/ui/avatar"
 import { prisma } from "@/lib/prisma"
+import { roleInVenue } from "@/lib/api/venue-access"
 import { format } from "date-fns"
 import { Users, UserPlus, Shield, AlertTriangle } from "lucide-react"
 import { FormerStaff } from "@/components/former-staff"
@@ -70,22 +71,11 @@ export default async function StaffPage({ params }: { params: Promise<{ slug: st
   const { slug } = await params
 
   // Get venue
-  const venue = await prisma.venue.findUnique({
-    where: { slug },
-    include: {
-      memberships: {
-        where: {
-          userId: session.user.id,
-        },
-      },
-    },
-  })
+  const venue = await prisma.venue.findUnique({ where: { slug } })
 
-  if (!venue || venue.memberships.length === 0) {
-    notFound()
-  }
+  const userRole = venue ? await roleInVenue(session.user.id, venue) : null
+  if (!venue || !userRole) notFound()
 
-  const userRole = venue.memberships[0].role
 
   // xvm-api splits active memberships and pending invites into two separate
   // tables/endpoints, unlike Prisma's unified Membership row with a

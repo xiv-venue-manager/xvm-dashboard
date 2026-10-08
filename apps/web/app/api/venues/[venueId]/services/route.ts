@@ -3,6 +3,7 @@ import { getServerSession } from "next-auth"
 import { authOptions } from "@/lib/auth"
 import { z } from "zod"
 import { prisma } from "@/lib/prisma"
+import { requireVenueRole } from "@/lib/api/venue-access"
 import { withRateLimit } from "@/lib/middleware/with-rate-limit"
 import { getValidXvmApiToken, xvmApiErrorResponse } from "@/lib/api/xvm-api-store"
 import { listServices, createService } from "@/lib/api/xvm-api"
@@ -40,12 +41,8 @@ export const GET = withRateLimit<{ params: Promise<{ venueId: string }> }>(
     }
 
     const { venueId } = await context.params
-    const membership = await prisma.membership.findFirst({
-      where: { userId: session.user.id, venueId, status: "active" },
-    })
-    if (!membership) {
-      return NextResponse.json({ error: "You don't have access to this venue" }, { status: 403 })
-    }
+    const access = await requireVenueRole(session.user.id, venueId, "STAFF", "You don't have access to this venue")
+    if (!access.ok) return access.response
 
     const token = await getValidXvmApiToken(session.user.id)
     if (!token) {
@@ -75,12 +72,8 @@ export const POST = withRateLimit<{ params: Promise<{ venueId: string }> }>(
     }
 
     const { venueId } = await context.params
-    const membership = await prisma.membership.findFirst({
-      where: { userId: session.user.id, venueId, status: "active" },
-    })
-    if (!membership || !["OWNER", "MANAGER"].includes(membership.role)) {
-      return NextResponse.json({ error: "You don't have permission to create services" }, { status: 403 })
-    }
+    const access = await requireVenueRole(session.user.id, venueId, "MANAGER", "You don't have permission to create services")
+    if (!access.ok) return access.response
 
     const token = await getValidXvmApiToken(session.user.id)
     if (!token) {

@@ -13,6 +13,8 @@ export const authOptions: NextAuthOptions = {
       clientId: process.env.DISCORD_CLIENT_ID!,
       clientSecret: process.env.DISCORD_CLIENT_SECRET!,
       issuer: "https://discord.com",
+      // guilds is what lets an owner prove they administer the server they're linking.
+      authorization: { params: { scope: "identify email guilds" } },
     }),
   ],
   callbacks: {
@@ -35,6 +37,32 @@ export const authOptions: NextAuthOptions = {
             },
           })
           .catch(() => {})
+
+        // next-auth writes the Account row once, from linkAccount, and returns early for an
+        // account that already exists (core/lib/callback-handler.js), so the stored token,
+        // scope and expiry never move again on their own. listManageableGuilds reads all
+        // three, so without this the picker's "sign in again" prompt is inert - Discord
+        // renews the grant and the new one is discarded. Awaited, because a silent failure
+        // puts the caller back at that dead end; logged rather than thrown, because a stale
+        // token must not stop anyone signing in.
+        try {
+          await prisma.account.update({
+            where: {
+              provider_providerAccountId: {
+                provider: "discord",
+                providerAccountId: account.providerAccountId,
+              },
+            },
+            data: {
+              access_token: account.access_token,
+              expires_at: account.expires_at,
+              scope: account.scope,
+              refresh_token: account.refresh_token,
+            },
+          })
+        } catch (err) {
+          console.error("Discord account refresh failed:", err)
+        }
       }
       return true
     },

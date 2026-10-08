@@ -373,6 +373,8 @@ export async function getGuildMemberRoles(guildId: string, userId: string): Prom
 export interface GuildPresence {
   /** Whether the bot is actually a member of the guild. */
   botIsMember: boolean
+  /** Null when the bot couldn't be asked, not when the guild is nameless. */
+  name: string | null
   iconUrl: string | null
 }
 
@@ -386,7 +388,9 @@ export interface GuildPresence {
 // ask, not that the bot is gone, and telling an admin to re-invite a bot that's sitting right
 // there would be worse than saying nothing.
 export async function getGuildPresence(guildId: string): Promise<GuildPresence> {
-  const result = await discordFetchJson<{ icon: string | null }>(`/guilds/${guildId}`)
-  if (result.ok) return { botIsMember: true, iconUrl: guildIconUrl(guildId, result.data.icon) }
-  return { botIsMember: result.status !== 404, iconUrl: null }
+  const result = await discordFetchJson<{ name: string; icon: string | null }>(`/guilds/${guildId}`)
+  if (result.ok) {
+    return { botIsMember: true, name: result.data.name, iconUrl: guildIconUrl(guildId, result.data.icon) }
+  }
+  return { botIsMember: result.status !== 404, name: null, iconUrl: null }
 }

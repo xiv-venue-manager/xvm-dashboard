@@ -12,6 +12,7 @@ import { GalleryManager } from "@/components/gallery-manager"
 import { FinanceCategoriesSettings } from "@/components/finance-categories-settings"
 import { BannerUpload } from "@/components/banner-upload"
 import { LogoUpload } from "@/components/logo-upload"
+import { DiscordGuildConnect } from "@/components/discord-guild-connect"
 import type { VenueImage } from "@/lib/api/xvm-api"
 import { Checkbox } from "@/components/ui/checkbox"
 import { Card, CardContent, CardDescription, CardHeader, CardTitle } from "@/components/ui/card"
@@ -1348,6 +1349,29 @@ export default function SettingsPage({ params }: { params: Promise<{ slug: strin
                   <span className="dot" />
                   Connected
                 </span>
+              </div>
+            </section>
+
+            {/* ── Discord server ── */}
+            <section className="panel">
+              <div className="ph">
+                <span className="pt">
+                  <svg xmlns="http://www.w3.org/2000/svg" viewBox="0 0 24 24" fill="none" stroke="currentColor" strokeWidth="2">
+                    <path d="M20.84 4.61a5.5 5.5 0 0 0-7.78 0L12 5.67l-1.06-1.06a5.5 5.5 0 0 0-7.78 7.78l1.06 1.06L12 21.23l7.78-7.78 1.06-1.06a5.5 5.5 0 0 0 0-7.78z" />
+                  </svg>
+                  Discord server
+                </span>
+              </div>
+              <div className="introw" style={{ flexWrap: "wrap", gap: 14 }}>
+                <div className="iinfo">
+                  <div className="iname">Connected server</div>
+                  <div className="idesc">Which Discord server this venue belongs to</div>
+                </div>
+                {userRole === "OWNER" ? (
+                  <DiscordGuildConnect venueId={venueId} />
+                ) : (
+                  <p className="text-xs text-[var(--fg-faint)]">Only the venue owner can change this.</p>
+                )}
               </div>
             </section>
 

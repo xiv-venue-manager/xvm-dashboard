@@ -1,7 +1,7 @@
 import { NextResponse } from "next/server"
 import { prisma } from "@/lib/prisma"
 import type { CredentialIssued } from "@/lib/api/xvm-api"
-import { getMe, XvmApiError, xvmErrorMessage } from "@/lib/api/xvm-api"
+import { getMe, listMemberships, XvmApiError, xvmErrorMessage } from "@/lib/api/xvm-api"
 
 const REFRESH_MARGIN_MS = 24 * 60 * 60 * 1000 // 1 day
 
@@ -76,4 +76,24 @@ export async function getValidXvmApiPersonId(userId: string): Promise<number | n
 
   await prisma.xvmApiCredential.update({ where: { userId }, data: { personId: me.person.id } })
   return me.person.id
+}
+
+// xvm-api owns venue membership. The invite flow creates rows there and never mirrors them
+// into Prisma (app/api/invites/[token]/accept/route.ts), so a Prisma OWNER row only exists for
+// whoever created the venue - anyone promoted to owner through the staff UI has none, and a
+// Prisma check would refuse them while xvm-api allowed the write.
+//
+// Defence in depth rather than the only guard: POST and DELETE /venues/{id}/links both call
+// require_tier(Owner) themselves. It earns its place by keeping authority ahead of the Discord
+// calls. `effective_tier` is what require_tier compares, so a temporary owner grant counts here
+// exactly as it does there.
+export async function isVenueOwner(
+  userId: string,
+  personToken: string,
+  xvmApiVenueId: string
+): Promise<boolean> {
+  const personId = await getValidXvmApiPersonId(userId)
+  if (personId === null) return false
+  const memberships = await listMemberships(personToken, xvmApiVenueId)
+  return memberships.some((row) => row.person.id === personId && row.effective_tier === "owner")
 }

@@ -3,8 +3,8 @@ import { describe, it, expect, vi, beforeEach } from "vitest"
 const m = vi.hoisted(() => ({
   session: vi.fn(),
   token: vi.fn(),
-  membership: vi.fn(),
   venue: vi.fn(),
+  isOwner: vi.fn(),
   getVenue: vi.fn(),
   memberships: vi.fn(),
   manageable: vi.fn(),
@@ -14,12 +14,15 @@ const m = vi.hoisted(() => ({
 vi.mock("next-auth", () => ({ getServerSession: m.session }))
 vi.mock("@/lib/auth", () => ({ authOptions: {} }))
 vi.mock("@/lib/middleware/with-rate-limit", () => ({ withRateLimit: (handler: unknown) => handler }))
-vi.mock("@/lib/prisma", () => ({
-  prisma: { membership: { findFirst: m.membership }, venue: { findUnique: m.venue } },
-}))
+vi.mock("@/lib/prisma", () => ({ prisma: { venue: { findUnique: m.venue } } }))
 vi.mock("@/lib/api/xvm-api-store", async () => {
   const actual = await vi.importActual<typeof import("@/lib/api/xvm-api-store")>("@/lib/api/xvm-api-store")
-  return { ...actual, getValidXvmApiToken: m.token, invalidateXvmApiCredential: vi.fn() }
+  return {
+    ...actual,
+    getValidXvmApiToken: m.token,
+    isVenueOwner: m.isOwner,
+    invalidateXvmApiCredential: vi.fn(),
+  }
 })
 vi.mock("@/lib/api/xvm-api", async (importOriginal) => ({
   ...(await importOriginal<typeof import("@/lib/api/xvm-api")>()),
@@ -51,8 +54,8 @@ beforeEach(() => {
   vi.clearAllMocks()
   vi.spyOn(console, "error").mockImplementation(() => {})
   m.session.mockResolvedValue({ user: { id: "user-1" } })
-  m.membership.mockResolvedValue({ role: "OWNER" })
   m.venue.mockResolvedValue({ xvmApiVenueId: "xv-1" })
+  m.isOwner.mockResolvedValue(true)
   m.token.mockResolvedValue("tok")
   m.getVenue.mockResolvedValue(links())
   m.memberships.mockResolvedValue([{ person: { id: 42, display_name: "Allegro Vivo" } }])
@@ -65,8 +68,23 @@ describe("GET /api/venues/[venueId]/discord/guilds", () => {
     m.session.mockResolvedValue(null)
     expect((await get()).status).toBe(401)
     m.session.mockResolvedValue({ user: { id: "user-1" } })
-    m.membership.mockResolvedValue({ role: "STAFF" })
+    m.isOwner.mockResolvedValue(false)
     expect((await get()).status).toBe(403)
+    expect(m.manageable).not.toHaveBeenCalled()
+    expect(m.getVenue).not.toHaveBeenCalled()
+  })
+
+  it("asks xvm-api who the owner is, not Prisma", async () => {
+    // Memberships live in xvm-api: the invite flow writes them there and never mirrors them
+    // into Prisma, so an owner promoted through the staff UI has no Prisma row to find.
+    await get()
+    expect(m.isOwner).toHaveBeenCalledWith("user-1", "tok", "xv-1")
+  })
+
+  it("is 503, not 403, when the membership read itself fails", async () => {
+    // A refusal has to mean "not the owner". An unreachable xvm-api must not read as one.
+    m.isOwner.mockRejectedValue(new Error("boom"))
+    expect((await get()).status).toBe(503)
     expect(m.manageable).not.toHaveBeenCalled()
   })
 

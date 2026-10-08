@@ -5,7 +5,7 @@ import { authOptions } from "@/lib/auth"
 import { prisma } from "@/lib/prisma"
 import { withRateLimit } from "@/lib/middleware/with-rate-limit"
 import { invalidateCache, cacheKeys } from "@/lib/redis-cache"
-import { getValidXvmApiToken, xvmApiErrorResponse } from "@/lib/api/xvm-api-store"
+import { getValidXvmApiToken, isVenueOwner, xvmApiErrorResponse } from "@/lib/api/xvm-api-store"
 import { getVenue, linkVenueExternal, unlinkVenueExternal } from "@/lib/api/xvm-api"
 import { administersGuild } from "@/lib/discord-user"
 import { getGuildPresence } from "@/lib/discord-rest"
@@ -24,13 +24,6 @@ export const POST = withRateLimit<{ params: Promise<{ venueId: string }> }>(
     }
 
     const { venueId } = await context.params
-
-    const membership = await prisma.membership.findFirst({
-      where: { userId: session.user.id, venueId, status: "active" },
-    })
-    if (membership?.role !== "OWNER") {
-      return NextResponse.json({ error: "Only the venue owner can connect a Discord server" }, { status: 403 })
-    }
 
     const venue = await prisma.venue.findUnique({
       where: { id: venueId },
@@ -57,6 +50,14 @@ export const POST = withRateLimit<{ params: Promise<{ venueId: string }> }>(
     // Authority before presence before write. The posted id is never trusted: whatever the picker
     // rendered, this endpoint takes a direct POST, and linking a guild hands the caller its channel,
     // role and member names through the pickers that follow.
+    try {
+      if (!(await isVenueOwner(session.user.id, token, venue.xvmApiVenueId))) {
+        return NextResponse.json({ error: "Only the venue owner can connect a Discord server" }, { status: 403 })
+      }
+    } catch (err) {
+      return xvmApiErrorResponse(err, session.user.id, "[discord link] membership read error")
+    }
+
     const authority = await administersGuild(session.user.id, guildId)
     if (!authority.ok) {
       return authority.failure === "reauth_required"
@@ -105,13 +106,6 @@ export const DELETE = withRateLimit<{ params: Promise<{ venueId: string }> }>(
 
     const { venueId } = await context.params
 
-    const membership = await prisma.membership.findFirst({
-      where: { userId: session.user.id, venueId, status: "active" },
-    })
-    if (membership?.role !== "OWNER") {
-      return NextResponse.json({ error: "Only the venue owner can disconnect a Discord server" }, { status: 403 })
-    }
-
     const venue = await prisma.venue.findUnique({
       where: { id: venueId },
       select: { xvmApiVenueId: true, slug: true },
@@ -136,6 +130,9 @@ export const DELETE = withRateLimit<{ params: Promise<{ venueId: string }> }>(
     // The link id is read here rather than accepted from the caller, so no request can name a row
     // this venue doesn't own.
     try {
+      if (!(await isVenueOwner(session.user.id, token, venue.xvmApiVenueId))) {
+        return NextResponse.json({ error: "Only the venue owner can disconnect a Discord server" }, { status: 403 })
+      }
       const detail = await getVenue(token, venue.xvmApiVenueId)
       const live = detail.external_links.find(
         (link) => link.provider === "DiscordGuild" && link.unlinked_at === null

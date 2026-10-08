@@ -3,7 +3,7 @@ import { getServerSession } from "next-auth"
 import { authOptions } from "@/lib/auth"
 import { prisma } from "@/lib/prisma"
 import { withRateLimit } from "@/lib/middleware/with-rate-limit"
-import { getValidXvmApiToken, xvmApiErrorResponse } from "@/lib/api/xvm-api-store"
+import { getValidXvmApiToken, isVenueOwner, xvmApiErrorResponse } from "@/lib/api/xvm-api-store"
 import { getVenue, listMemberships } from "@/lib/api/xvm-api"
 import { listManageableGuilds } from "@/lib/discord-user"
 import { getGuildPresence } from "@/lib/discord-rest"
@@ -35,13 +35,6 @@ export const GET = withRateLimit<{ params: Promise<{ venueId: string }> }>(
 
     const { venueId } = await context.params
 
-    const membership = await prisma.membership.findFirst({
-      where: { userId: session.user.id, venueId, status: "active" },
-    })
-    if (membership?.role !== "OWNER") {
-      return NextResponse.json({ error: "Only the venue owner can connect a Discord server" }, { status: 403 })
-    }
-
     const venue = await prisma.venue.findUnique({ where: { id: venueId }, select: { xvmApiVenueId: true } })
     if (!venue?.xvmApiVenueId) {
       return NextResponse.json(
@@ -62,6 +55,9 @@ export const GET = withRateLimit<{ params: Promise<{ venueId: string }> }>(
       linked_by_person_id: number | null
     } | null
     try {
+      if (!(await isVenueOwner(session.user.id, token, venue.xvmApiVenueId))) {
+        return NextResponse.json({ error: "Only the venue owner can connect a Discord server" }, { status: 403 })
+      }
       const detail = await getVenue(token, venue.xvmApiVenueId)
       live =
         detail.external_links.find((link) => link.provider === "DiscordGuild" && link.unlinked_at === null) ?? null

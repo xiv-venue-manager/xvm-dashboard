@@ -3,8 +3,8 @@ import { describe, it, expect, vi, beforeEach } from "vitest"
 const m = vi.hoisted(() => ({
   session: vi.fn(),
   token: vi.fn(),
-  membership: vi.fn(),
   venue: vi.fn(),
+  isOwner: vi.fn(),
   administers: vi.fn(),
   presence: vi.fn(),
   getVenue: vi.fn(),
@@ -16,16 +16,19 @@ const m = vi.hoisted(() => ({
 vi.mock("next-auth", () => ({ getServerSession: m.session }))
 vi.mock("@/lib/auth", () => ({ authOptions: {} }))
 vi.mock("@/lib/middleware/with-rate-limit", () => ({ withRateLimit: (handler: unknown) => handler }))
-vi.mock("@/lib/prisma", () => ({
-  prisma: { membership: { findFirst: m.membership }, venue: { findUnique: m.venue } },
-}))
+vi.mock("@/lib/prisma", () => ({ prisma: { venue: { findUnique: m.venue } } }))
 vi.mock("@/lib/redis-cache", () => ({
   invalidateCache: m.invalidate,
   cacheKeys: { venue: (id: string) => `venue:${id}`, venueBySlug: (s: string) => `venue:slug:${s}` },
 }))
 vi.mock("@/lib/api/xvm-api-store", async () => {
   const actual = await vi.importActual<typeof import("@/lib/api/xvm-api-store")>("@/lib/api/xvm-api-store")
-  return { ...actual, getValidXvmApiToken: m.token, invalidateXvmApiCredential: vi.fn() }
+  return {
+    ...actual,
+    getValidXvmApiToken: m.token,
+    isVenueOwner: m.isOwner,
+    invalidateXvmApiCredential: vi.fn(),
+  }
 })
 vi.mock("@/lib/api/xvm-api", async (importOriginal) => ({
   ...(await importOriginal<typeof import("@/lib/api/xvm-api")>()),
@@ -54,8 +57,8 @@ beforeEach(() => {
   vi.clearAllMocks()
   vi.spyOn(console, "error").mockImplementation(() => {})
   m.session.mockResolvedValue({ user: { id: "user-1" } })
-  m.membership.mockResolvedValue({ role: "OWNER" })
   m.venue.mockResolvedValue({ xvmApiVenueId: "xv-1", slug: "lilypad" })
+  m.isOwner.mockResolvedValue(true)
   m.token.mockResolvedValue("tok")
   m.administers.mockResolvedValue({ ok: true, administers: true })
   m.presence.mockResolvedValue({ botIsMember: true, name: "Lilypad Lounge", iconUrl: null })
@@ -77,9 +80,22 @@ describe("POST /api/venues/[venueId]/discord/link", () => {
     expect(m.link).not.toHaveBeenCalled()
   })
 
-  it("is 403 for a member who is not the owner", async () => {
-    m.membership.mockResolvedValue({ role: "MANAGER" })
+  it("is 403 for a member who is not the owner, before asking Discord anything", async () => {
+    m.isOwner.mockResolvedValue(false)
     expect((await post({ guildId: GUILD })).status).toBe(403)
+    expect(m.administers).not.toHaveBeenCalled()
+    expect(m.link).not.toHaveBeenCalled()
+  })
+
+  it("asks xvm-api who the owner is, not Prisma", async () => {
+    await post({ guildId: GUILD })
+    expect(m.isOwner).toHaveBeenCalledWith("user-1", "tok", "xv-1")
+  })
+
+  it("is 503, not 403, when the membership read itself fails", async () => {
+    m.isOwner.mockRejectedValue(new Error("boom"))
+    expect((await post({ guildId: GUILD })).status).toBe(503)
+    expect(m.administers).not.toHaveBeenCalled()
     expect(m.link).not.toHaveBeenCalled()
   })
 
@@ -164,8 +180,15 @@ describe("DELETE /api/venues/[venueId]/discord/link", () => {
   })
 
   it("is 403 for a member who is not the owner", async () => {
-    m.membership.mockResolvedValue({ role: "MANAGER" })
+    m.isOwner.mockResolvedValue(false)
     expect((await remove()).status).toBe(403)
+    expect(m.getVenue).not.toHaveBeenCalled()
+    expect(m.unlink).not.toHaveBeenCalled()
+  })
+
+  it("is 503, not 403, when the membership read itself fails", async () => {
+    m.isOwner.mockRejectedValue(new Error("boom"))
+    expect((await remove()).status).toBe(503)
     expect(m.unlink).not.toHaveBeenCalled()
   })
 

@@ -53,6 +53,28 @@ Status of each Prisma table on `dev`:
 | `venue_follows` | r web 4, w web 2 | Live | `VenueFollow` | Blocked on xvm-api#151. Toggles were decided DROP. |
 | `venue_inventory_settings` | r web 2, w web 1 | Live | no obvious target (`ServiceInventory` is per service) | Target unclear. **Decision or xvm-api question.** Has a plugin counterpart that stays Prisma until the plugin cutover. |
 
+#### `venues` column parity (checked 2026-10-08 against xvm-api `dev`)
+
+Prisma's `Venue` columns against xvm-api's venue models (`VenueModel`, `VenueExternalLink`, `VenueImage`, `VenueHours`, `VenuePayrollSettings`, `VenueDiscordSettings`). **xvm-bot is not a home for the gaps:** it has no database of its own (its dependencies are `httpx`, `py-cord`, `pydantic-settings`, `loguru`, `tzdata`, and it keeps no local files), so everything it uses is read from xvm-api over HTTP. Anything without an xvm-api home needs one, or has to be dropped.
+
+| Prisma column | xvm-api home | Status |
+|---|---|---|
+| `name`, `slug`, `description`, `logoUrl`, `bannerUrl`, `dataCenter`, `world`, `district`, `ward`, `plot`, `apartment`, `timezone`, `currencyName`, `venueType`, `isActive` | same-named `VenueModel` columns | Covered |
+| `galleryImages` | `VenueImage` | Covered (script exists) |
+| `ffxivVenueId`, `ffxivVenueLinkedAt`, `ffxivVenueLinkedBy` | `VenueExternalLink` (provider ffxivvenues) | Covered |
+| `discordServerId` | `VenueExternalLink` (provider `DiscordGuild`), written by #131 | Covered |
+| `ownerId` | owner `Membership` | Covered once memberships move |
+| `venueSchedule` | `VenueHours` | Covered |
+| `venuePotSettings` | `VenuePayrollSettings` | Covered, field mapping not compared |
+| `xvmApiVenueId`, `xvmApiVenueLinkedAt`, `xvmApiVenueLinkedBy` | none needed | The bridge, goes away |
+| `partakeTeamId` | none | **Gap** |
+| `froggeVenueId`, `froggeToken`, `froggeConnectedAt`, `froggeConnectedBy` | none found | **Gap.** `froggeToken` is a secret and `VenueExternalLink` has no secret column. |
+| `settings` (JSON) | partly | **Gap, key by key.** It holds at least shift-bot settings (days before event, thumbnail, templates), webhook routing, and visibility keys that map to `VenueModel`. Nobody has listed every key. |
+| `venueInventorySettings` | unclear (`ServiceInventory` is per service) | **Gap** |
+| `discordWebhookUrl` | `VenueLogRoute` | Retiring (webhooks decision 2026-09-09) |
+
+xvm-api also has venue fields Prisma lacks (`room`, `subdivision`, and the task, sales, revenue and event visibility settings), so the move is not purely one way.
+
 ### People at venues
 
 | Prisma table | Dev code | Status | xvm-api target | Notes |
@@ -175,7 +197,7 @@ The four older scripts import the Prisma client, and they write ids back to Pris
 7. **Prod venues not connected to xvm-api:** create them in the window?
 8. **Timestamps:** xvm-api stamps the copy time on shouts (no backdating). Acceptable for the other domains too?
 9. **Old feedback and announcements:** move or drop?
-10. **Field-level parity:** nobody has compared Prisma fields against xvm-api fields for any domain except positions and services.
+10. **Field-level parity:** compared so far for positions, services and venues (see the venue table). Venues has real gaps: `partakeTeamId`, the Frogge columns, parts of `settings`, and inventory settings need an xvm-api home or a decision to drop. Nobody has compared the other domains.
 
 ## What this does not tell you
 

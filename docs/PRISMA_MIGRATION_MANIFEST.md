@@ -140,6 +140,8 @@ xvm-api also has venue fields Prisma lacks (`room`, `subdivision`, and the task,
 | `discord_warn_logs` | raw bot 2 | Bot | `ActivityLog`? | |
 | `discord_guild_config`, `discord_gil_reaction_rewards`, `discord_open_venues`, `discord_tracked_messages` | none | Dead | unclear | The bot may read them without Prisma. **Ask Allegro what survives** and who owns the move. |
 
+`apps/eorzea-bot` also has **its own** `prisma/schema.prisma` (it declares, for example, a model keyed by `venueId`). That is a second Prisma consumer. This scan only enumerated the web app's schema, so the bot's own models are not in the table above. It is expected to be retired with the bot, not migrated; confirm with Allegro.
+
 ## Frogge
 
 Known:
@@ -154,6 +156,54 @@ Not known:
 - How many prod venues have `froggeToken` set.
 - What "no impact to Frogge's users" has to mean in practice (their staff rosters, their roles, their connected venues, their data).
 - Which `discord_*` tables hold Frogge-origin data, if any.
+
+## Removing the venue bridge
+
+The dashboard's Prisma `Venue` row maps the dashboard's own venue id and slug to the xvm-api venue (`xvmApiVenueId`). Prisma and xvm-api's SQLAlchemy/Alembic cannot both own a schema, so every Prisma dependency, this bridge included, has to go. **The bridge is removed in code on `dev`, before the maintenance window.** The window then moves data into a dashboard that no longer needs it, and never has to recreate the bridge.
+
+What the bridge is today (`dev` at `e0c00438`, scanned 2026-10-08):
+
+| Measure | Count |
+|---|---|
+| Prisma venue lookups in the web app | 136 |
+| of which read only the bridge (xvm-api id, id, slug) | 78, in 77 files |
+| of which read the bridge plus other columns | 31, in 29 files |
+| of which read the whole row or an include | 27, in 24 files |
+| Route files keyed by the Prisma venue id (`app/api/venues/[venueId]/`) | 84 |
+| Page files keyed by slug (`app/dashboard|venues/[slug]/`) | 27 |
+| Plugin route files that mention `venueId` | 23 |
+| Prisma columns named `venueId` (foreign keys, gone with their tables) | 65 |
+
+### The path
+
+1. **Venue creation on xvm-api (plan: #138).** After it no venue is born without an xvm-api id. The migration window creates the missing xvm-api venues for existing ones.
+2. **Give the leftover `Venue` columns a home, or drop them** (`partakeTeamId`, the Frogge columns, parts of `settings`, inventory settings; see the column table above). **Move the four profile readers off Prisma** (landing card, discover, following, the event-status cron). After this, every one of the 136 lookups needs only the id mapping.
+3. **Re-key everything on the xvm-api venue id (`ven_...`), in one stack.**
+   - The 84 routes take the xvm-api id as `[venueId]`. Each file's `requireXvmVenueId` lookup is deleted, not replaced.
+   - Authenticated pages resolve a slug to a venue through `GET /me/venues`, which already carries `slug`. No Prisma, one call per render.
+   - Public pages (`/venues/[slug]`, discover) need a public lookup by slug in xvm-api.
+   - Cache keys switch to the xvm-api id.
+   - This has to land at once. A route's `[venueId]` cannot mean two things, and an "accept either id" mode is a transitional state we do not want.
+4. **Plugin and old bots.** The plugin's API keys currently store a Prisma `venueId`. They become xvm-api credentials narrowed to a venue (xvm-api credentials already carry a `venue_id` narrowing), so the plugin's Prisma venue id goes away with the plugin cutover. The old bots (`apps/eorzea-bot`, `apps/discord-bot`) join the `venues` table in raw SQL and are retired rather than migrated, because xvm-bot has no database and replaces them.
+5. **Delete.** When no code reads `prisma.venue`, remove the `Venue` model. The 65 `venueId` columns go with their tables in the migration.
+
+### Asks for xvm-api (Allegro)
+
+- A **public venue lookup by slug**. A search of `routers/venues.py` and `routers/public.py` found lookups by id (`GET /venues/{venue_id}`, `/public/venues/{venue_id}`), by external link, and the caller's own list, but none by slug. Please confirm.
+- A **home for each leftover venue column** (see the column table), or a decision to drop it.
+
+### Removing the bridge is not removing Prisma
+
+Two more layers are on it, and nothing else can be Prisma-free while they stay:
+
+- **Identity.** The NextAuth `PrismaAdapter` owns `User` and `Account`. This is the long pole and nothing is built for it.
+- **The credential cache.** `XvmApiCredential` can move into the JWT. It is self-contained and independent of the bridge.
+
+Only when all three are gone can the Prisma client, `prisma generate`, `schema.prisma` and `lib/prisma.ts` be deleted.
+
+### A guard while it shrinks
+
+Once step 2 is done, a lint rule like the one planned for `prisma.membership` (#136, Task 8) can ban `prisma.venue` outside an allowlist. The allowlist shrinks as step 3 lands, so nothing new can depend on the bridge.
 
 ## Proposed order inside the window (draft, for editing)
 
@@ -205,6 +255,8 @@ The four older scripts import the Prisma client, and they write ids back to Pris
 - **Field parity.** A model of the same name existing in xvm-api does not mean the fields line up.
 - **Completeness of the scan.** It matches `prisma.<model>`, `tx.<model>`, `db.<model>` and `FROM/JOIN/INTO <table>` in raw SQL. A table reached some other way (a view, a dynamic name, another service sharing the database) is missed. `apps/eorzea-bot` and `apps/discord-bot` are in this repository; anything outside it that shares the database is invisible here.
 - **Other readers of the database.** FroggeAPI and any other service with its own connection are not covered.
+- **`apps/eorzea-bot`'s own Prisma schema.** Not inventoried (see the bot-owned section).
+- **The by-slug lookup claim.** "xvm-api has no lookup by slug" comes from searching two router files, not from reading every router.
 - **Whether "Cut over" tables have a working replacement for every use.** The status means no code on `dev` touches the table, not that the replacement was checked end to end.
 
 ## Refreshing this document

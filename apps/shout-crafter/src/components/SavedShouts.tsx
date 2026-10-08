@@ -2,7 +2,7 @@ import { useState, useEffect } from "react"
 import type { ShoutFields, TemplateId } from "../types"
 import type { SeparatorId, DecorId } from "../lib/shout-templates"
 import { fetchShouts, saveShout, deleteShout } from "../lib/xivvm-shouts"
-import type { SavedShout } from "../lib/xivvm-shouts"
+import type { FetchShoutsResult } from "../lib/xivvm-shouts"
 import { buildShout } from "../lib/shout-templates"
 import { Bookmark, Trash2 } from "lucide-react"
 
@@ -24,15 +24,20 @@ const primaryBtn =
   "px-3 py-2 bg-[var(--xiv-blue)] text-[var(--xiv-navy)] text-sm font-bold rounded-[0.5rem] hover:opacity-90 disabled:opacity-50 transition-opacity"
 
 export function SavedShouts({ currentFields, currentTemplate, currentSeparator, currentDecor, onLoad }: Props) {
-  const [shouts, setShouts] = useState<SavedShout[]>([])
+  const [loaded, setLoaded] = useState<FetchShoutsResult | null>(null)
   const [label, setLabel] = useState("")
   const [saving, setS] = useState(false)
   const [showSave, setShowSave] = useState(false)
   const [error, setError] = useState<string | null>(null)
 
   useEffect(() => {
-    fetchShouts().then(setShouts)
+    fetchShouts().then(setLoaded)
   }, [])
+
+  function retry() {
+    setLoaded(null)
+    fetchShouts().then(setLoaded)
+  }
 
   async function handleSave() {
     if (!label.trim()) return
@@ -50,14 +55,14 @@ export function SavedShouts({ currentFields, currentTemplate, currentSeparator, 
       setError("Save failed. Try again.")
       return
     }
-    setShouts((prev) => [saved, ...prev])
+    setLoaded((prev) => (prev?.ok ? { ok: true, shouts: [saved, ...prev.shouts] } : prev))
     setLabel("")
     setShowSave(false)
   }
 
   async function handleDelete(id: string) {
     await deleteShout(id)
-    setShouts((prev) => prev.filter((s) => s.id !== id))
+    setLoaded((prev) => (prev?.ok ? { ok: true, shouts: prev.shouts.filter((s) => s.id !== id) } : prev))
   }
 
   return (
@@ -100,11 +105,26 @@ export function SavedShouts({ currentFields, currentTemplate, currentSeparator, 
 
       {error && <p className="text-xs text-[var(--destructive)]">{error}</p>}
 
-      {shouts.length === 0 ? (
+      {loaded === null ? (
+        <p className="text-xs text-[var(--fg-faint)]">Loading your shouts…</p>
+      ) : !loaded.ok ? (
+        <div className="flex items-center gap-2 flex-wrap">
+          <p className="text-xs text-[var(--destructive)]">
+            {loaded.reason === "signed_out"
+              ? "Your session has expired. Sign in again to see your saved shouts."
+              : "Couldn't load your saved shouts. Try again in a moment."}
+          </p>
+          {loaded.reason === "unavailable" && (
+            <button onClick={retry} className={ghostBtn}>
+              Retry
+            </button>
+          )}
+        </div>
+      ) : loaded.shouts.length === 0 ? (
         <p className="text-xs text-[var(--fg-faint)]">Nothing saved yet.</p>
       ) : (
         <ul className="space-y-2">
-          {shouts.map((s) => (
+          {loaded.shouts.map((s) => (
             <li key={s.id} className="flex items-start gap-2 bg-[var(--blue-004)] rounded-[0.5rem] p-3">
               <div className="flex-1 min-w-0">
                 <p className="text-sm font-medium text-[var(--foreground)] truncate">{s.label}</p>

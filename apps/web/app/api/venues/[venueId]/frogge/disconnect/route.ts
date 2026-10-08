@@ -2,6 +2,7 @@ import { NextResponse } from "next/server"
 import { getServerSession } from "next-auth"
 import { authOptions } from "@/lib/auth"
 import { prisma } from "@/lib/prisma"
+import { requireVenueRole } from "@/lib/api/venue-access"
 
 export async function POST(request: Request, { params }: { params: Promise<{ venueId: string }> }) {
   try {
@@ -12,18 +13,8 @@ export async function POST(request: Request, { params }: { params: Promise<{ ven
 
     const { venueId } = await params
 
-    const membership = await prisma.membership.findFirst({
-      where: {
-        userId: session.user.id,
-        venueId,
-        role: { in: ["OWNER", "MANAGER"] },
-        status: "active",
-      },
-    })
-
-    if (!membership) {
-      return NextResponse.json({ error: "Only owners and managers can disconnect Frogge" }, { status: 403 })
-    }
+    const access = await requireVenueRole(session.user.id, venueId, "MANAGER", "Only owners and managers can disconnect Frogge")
+    if (!access.ok) return access.response
 
     await prisma.venue.update({
       where: { id: venueId },

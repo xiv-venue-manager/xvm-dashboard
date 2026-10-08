@@ -8,6 +8,7 @@ import { Button } from "@/components/ui/button"
 import { StatReadout } from "@/components/ui/stat-readout"
 import { CrystalDivider } from "@/components/ui/crystal-divider"
 import { prisma } from "@/lib/prisma"
+import { roleInVenue } from "@/lib/api/venue-access"
 import { xvmPageReader, xvmPersonReader } from "@/lib/api/xvm-page-read"
 import {
   getFinanceSummary,
@@ -58,17 +59,11 @@ export default async function VenueDashboardPage({ params }: { params: Promise<{
   const weekAgo = subDays(now, 7)
   const twoWeeksAgo = subDays(now, 14)
 
-  const venue = await prisma.venue.findUnique({
-    where: { slug },
-    include: {
-      memberships: { where: { userId: session.user.id } },
-      _count: { select: { follows: true } },
-    },
-  })
+  const venue = await prisma.venue.findUnique({ where: { slug }, include: { _count: { select: { follows: true } } } })
 
-  if (!venue || venue.memberships.length === 0) notFound()
+  const userRole = venue ? await roleInVenue(session.user.id, venue) : null
+  if (!venue || !userRole) notFound()
 
-  const userRole = venue.memberships[0].role
   const readXvm = await xvmPageReader(session.user.id, venue.xvmApiVenueId)
   const revenueBetween = (label: string, from: Date, to: Date) =>
     readXvm(label, 0, async (t, v) => {

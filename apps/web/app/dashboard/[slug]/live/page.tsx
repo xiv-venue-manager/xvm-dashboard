@@ -4,6 +4,7 @@ import { redirect, notFound } from "next/navigation"
 import Link from "next/link"
 import { Card, CardContent } from "@/components/ui/card"
 import { prisma } from "@/lib/prisma"
+import { roleInVenue } from "@/lib/api/venue-access"
 import { VenueLayout } from "@/components/venue-layout"
 import { LiveDashboard } from "@/components/live-dashboard"
 import { resolveDisplayName } from "@/lib/display-name"
@@ -31,18 +32,11 @@ export default async function LivePage({ params }: { params: Promise<{ slug: str
 
   const { slug } = await params
 
-  const venue = await prisma.venue.findUnique({
-    where: { slug },
-    include: {
-      memberships: {
-        where: { userId: session.user.id },
-      },
-    },
-  })
+  const venue = await prisma.venue.findUnique({ where: { slug } })
 
-  if (!venue || venue.memberships.length === 0) notFound()
+  const userRole = venue ? await roleInVenue(session.user.id, venue) : null
+  if (!venue || !userRole) notFound()
 
-  const userRole = venue.memberships[0].role
   const canManage = ["OWNER", "MANAGER"].includes(userRole)
   const readXvm = await xvmPageReader(session.user.id, venue.xvmApiVenueId)
   const revenueVisibility = await readXvm<RevenueVisibility>(

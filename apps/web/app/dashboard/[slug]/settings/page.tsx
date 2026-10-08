@@ -98,8 +98,6 @@ export default function SettingsPage({ params }: { params: Promise<{ slug: strin
   const [ffxivUnlinking, setFfxivUnlinking] = useState(false)
   const [xvmApiVenueId, setXvmApiVenueId] = useState<string | null>(null)
   const [xvmApiVenueLinkedAt, setXvmApiVenueLinkedAt] = useState<string | null>(null)
-  const [xvmConnecting, setXvmConnecting] = useState(false)
-  const [xvmConnectError, setXvmConnectError] = useState<string | null>(null)
   const [froggeConnected, setFroggeConnected] = useState(false)
   const [froggeCode, setFroggeCode] = useState("")
   const [froggeConnecting, setFroggeConnecting] = useState(false)
@@ -128,6 +126,15 @@ export default function SettingsPage({ params }: { params: Promise<{ slug: strin
   useEffect(() => {
     params.then((p) => setSlug(p.slug))
   }, [params])
+
+  async function loadPotSettings(id: string) {
+    const r = await fetch(`/api/venues/${id}/pot-settings`, { signal: AbortSignal.timeout(SETTINGS_LOAD_TIMEOUT_MS) })
+    if (!r.ok) return
+    const data = await r.json()
+    setPotTaxPercent(data.settings.taxPercent)
+    setPotIncludeSalesInPot(data.settings.includeSalesInPot)
+    setPotDefaultTipPooled(data.settings.defaultTipPooled)
+  }
 
   // Fetch settings
   useEffect(() => {
@@ -453,35 +460,6 @@ export default function SettingsPage({ params }: { params: Promise<{ slug: strin
       setFfxivError(e instanceof Error ? e.message : "Failed to unlink")
     } finally {
       setFfxivUnlinking(false)
-    }
-  }
-
-  async function loadPotSettings(id: string) {
-    const r = await fetch(`/api/venues/${id}/pot-settings`, { signal: AbortSignal.timeout(SETTINGS_LOAD_TIMEOUT_MS) })
-    if (!r.ok) return
-    const data = await r.json()
-    setPotTaxPercent(data.settings.taxPercent)
-    setPotIncludeSalesInPot(data.settings.includeSalesInPot)
-    setPotDefaultTipPooled(data.settings.defaultTipPooled)
-  }
-
-  async function handleXvmConnect() {
-    setXvmConnecting(true)
-    setXvmConnectError(null)
-    try {
-      const res = await fetch(`/api/venues/${venueId}/xvm-connect`, { method: "POST" })
-      if (!res.ok) {
-        const err = await res.json()
-        throw new Error(err.error ?? "Failed to connect")
-      }
-      const result = await res.json()
-      setXvmApiVenueId(result.id)
-      setXvmApiVenueLinkedAt(new Date().toISOString())
-      loadPotSettings(venueId).catch(() => {})
-    } catch (e) {
-      setXvmConnectError(e instanceof Error ? e.message : "Failed to connect")
-    } finally {
-      setXvmConnecting(false)
     }
   }
 
@@ -1230,18 +1208,9 @@ export default function SettingsPage({ params }: { params: Promise<{ slug: strin
                         .
                       </p>
                     ) : (
-                      <>
-                        <Button
-                          type="button"
-                          variant="outline-blue"
-                          size="sm"
-                          onClick={handleXvmConnect}
-                          disabled={xvmConnecting}
-                        >
-                          {xvmConnecting ? "Connecting…" : "Connect to xvm-api"}
-                        </Button>
-                        {xvmConnectError && <p className="text-xs text-red-400">{xvmConnectError}</p>}
-                      </>
+                      <p className="text-xs text-[var(--fg-faint)]">
+                        Not connected. Venues are created in xvm-api now, so this one predates that.
+                      </p>
                     )}
                   </div>
                 </div>

@@ -17,6 +17,7 @@ import {
   createShout,
   deleteShout,
   listMyCharacters,
+  listMyVenues,
   linkMyCharacter,
   unlinkMyCharacter,
   submitFeedback,
@@ -1261,6 +1262,12 @@ describe("Patron logs API", () => {
     mockFetchOnce({ ok: true, status: 200, body: [] })
     await expect(listMyCharacters("token")).resolves.toEqual([])
     expect(new URL(lastCall()[0]).pathname).toMatch(/\/me\/characters$/)
+  })
+
+  it("listMyVenues reads the venues the caller currently works at", async () => {
+    mockFetchOnce({ ok: true, status: 200, body: [] })
+    await expect(listMyVenues("token")).resolves.toEqual([])
+    expect(new URL(lastCall()[0]).pathname).toMatch(/\/me\/venues$/)
   })
 
   it("linkMyCharacter posts the name and world", async () => {

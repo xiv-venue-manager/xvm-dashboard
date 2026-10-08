@@ -2,6 +2,7 @@ import { NextRequest, NextResponse } from "next/server"
 import { getServerSession } from "next-auth"
 import { authOptions } from "@/lib/auth"
 import { prisma } from "@/lib/prisma"
+import { requireVenueRole } from "@/lib/api/venue-access"
 import { withRateLimit } from "@/lib/middleware/with-rate-limit"
 
 const XIVAPI_BASE_URL = process.env.XIVAPI_BASE_URL ?? "https://v2.xivapi.com"
@@ -41,12 +42,8 @@ export const GET = withRateLimit<{ params: Promise<{ venueId: string }> }>(
         return NextResponse.json({ error: "Venue not found" }, { status: 404 })
       }
 
-      const membership = await prisma.membership.findFirst({
-        where: { userId: session.user.id, venueId: venue.id, status: "active" },
-      })
-      if (!membership || !["OWNER", "MANAGER"].includes(membership.role)) {
-        return NextResponse.json({ error: "Owner or Manager role required" }, { status: 403 })
-      }
+      const access = await requireVenueRole(session.user.id, venue.id, "MANAGER", "Owner or Manager role required")
+      if (!access.ok) return access.response
 
       const { searchParams } = new URL(request.url)
       const query = searchParams.get("query")?.trim()

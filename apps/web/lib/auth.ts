@@ -44,15 +44,11 @@ export const authOptions: NextAuthOptions = {
         // three, so without this the picker's "sign in again" prompt is inert - Discord
         // renews the grant and the new one is discarded. Awaited, because a silent failure
         // puts the caller back at that dead end; logged rather than thrown, because a stale
-        // token must not stop anyone signing in.
+        // token must not stop anyone signing in. updateMany, because a first sign-in has no
+        // row yet (linkAccount writes it after this callback) and update would throw on it.
         try {
-          await prisma.account.update({
-            where: {
-              provider_providerAccountId: {
-                provider: "discord",
-                providerAccountId: account.providerAccountId,
-              },
-            },
+          await prisma.account.updateMany({
+            where: { provider: "discord", providerAccountId: account.providerAccountId },
             data: {
               access_token: account.access_token,
               expires_at: account.expires_at,

@@ -6,7 +6,7 @@ const m = vi.hoisted(() => ({
 }))
 
 vi.mock("@/lib/prisma", () => ({
-  prisma: { user: { update: m.userUpdate }, account: { update: m.accountUpdate } },
+  prisma: { user: { update: m.userUpdate }, account: { updateMany: m.accountUpdate } },
 }))
 vi.mock("@next-auth/prisma-adapter", () => ({ PrismaAdapter: () => ({}) }))
 vi.mock("@/lib/api/xvm-api", () => ({ exchangeToken: vi.fn() }))
@@ -58,7 +58,7 @@ describe("signIn", () => {
     // grant that predates the guilds scope in place and the reauth prompt would do nothing.
     await signIn({ user: { id: "user-1", image: "https://cdn/a.png" }, account })
     expect(m.accountUpdate).toHaveBeenCalledWith({
-      where: { provider_providerAccountId: { provider: "discord", providerAccountId: "4242" } },
+      where: { provider: "discord", providerAccountId: "4242" },
       data: {
         access_token: "fresh-token",
         expires_at: 1800000000,
@@ -74,7 +74,14 @@ describe("signIn", () => {
   })
 
   it("leaves the account row alone for a first sign-in, which linkAccount writes", async () => {
-    // A new user has no id yet - the adapter creates them after this callback.
+    // A new user's id here is the provider profile id, and no row exists yet, so the update
+    // matches nothing and must neither throw nor log.
+    m.accountUpdate.mockResolvedValue({ count: 0 })
+    await expect(signIn({ user: { id: "4242", email: "a@b.c" }, account })).resolves.toBe(true)
+    expect(console.error).not.toHaveBeenCalled()
+  })
+
+  it("does not touch the account row when the user has no id at all", async () => {
     await expect(signIn({ user: { email: "a@b.c" }, account })).resolves.toBe(true)
     expect(m.accountUpdate).not.toHaveBeenCalled()
   })

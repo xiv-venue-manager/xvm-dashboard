@@ -6,14 +6,15 @@ import { z } from "zod"
 import { withRateLimit } from "@/lib/middleware/with-rate-limit"
 import { validators } from "@/lib/validation"
 import { getOrSet, cacheKeys, cacheTTL, invalidateCache } from "@/lib/redis-cache"
-import { ensureManagerRole } from "@/lib/api/venue-setup"
+import { getValidXvmApiToken, xvmApiErrorResponse } from "@/lib/api/xvm-api-store"
+import { createVenue, updateVenue, type VenueUpdate } from "@/lib/api/xvm-api"
 import { sendEmail } from "@/lib/email"
 import { venueWelcomeEmail, newVenueAlertEmail } from "@/lib/email-templates"
 import { postNewVenue } from "@/lib/discord-feed"
 
 const venueSchema = z.object({
   name: validators.venueName,
-  slug: validators.slug,
+  slug: validators.slug.max(50, "Slug too long (max 50 characters)"),
   description: validators.venueDescription,
   dataCenter: z.string().min(1, "Data center is required").max(50, "Data center name too long"),
   world: z.string().min(1, "World is required").max(50, "World name too long"),
@@ -26,17 +27,14 @@ const venueSchema = z.object({
 export const POST = withRateLimit(
   async (request: NextRequest) => {
     try {
-      // Check authentication
       const session = await getServerSession(authOptions)
       if (!session?.user?.id) {
         return NextResponse.json({ error: "Unauthorized" }, { status: 401 })
       }
 
-      // Parse and validate request body
       const body = await request.json()
       const validatedData = venueSchema.parse(body)
 
-      // Check if slug already exists
       const existingVenue = await prisma.venue.findUnique({
         where: { slug: validatedData.slug },
       })
@@ -45,14 +43,43 @@ export const POST = withRateLimit(
         return NextResponse.json({ error: "A venue with this slug already exists" }, { status: 400 })
       }
 
-      // Create venue + owner membership + Manager role atomically.
-      // The invariant we're enforcing: every active OWNER/MANAGER tier
-      // membership has a non-null customRole pointing at a "Manager" role
-      // that the plugin's strict role-filter can return. See
-      // lib/api/venue-setup.ts for why.
       const userId = session.user.id
-      const venue = await prisma.$transaction(async (tx) => {
-        const v = await tx.venue.create({
+      const token = await getValidXvmApiToken(userId)
+      if (!token) {
+        return NextResponse.json({ error: "xvm-api link not established yet" }, { status: 503 })
+      }
+
+      let created
+      try {
+        created = await createVenue(token, {
+          name: validatedData.name,
+          slug: validatedData.slug,
+          data_center: validatedData.dataCenter,
+          world: validatedData.world,
+        })
+      } catch (err) {
+        return xvmApiErrorResponse(err, userId, "[venue create] xvm-api create error")
+      }
+
+      const profile: VenueUpdate = {}
+      if (validatedData.description) profile.description = validatedData.description.trim()
+      if (validatedData.district) profile.district = validatedData.district.trim()
+      if (validatedData.ward != null) profile.ward = validatedData.ward
+      if (validatedData.plot != null) profile.plot = validatedData.plot
+      if (validatedData.apartment != null) profile.room = validatedData.apartment
+
+      let profileSaved = true
+      if (Object.keys(profile).length > 0) {
+        try {
+          await updateVenue(token, created.id, profile)
+        } catch (err) {
+          profileSaved = false
+          console.error(`[venue create] profile update failed for xvm-api venue ${created.id}:`, err)
+        }
+      }
+
+      const venue = await prisma.venue
+        .create({
           data: {
             name: validatedData.name,
             slug: validatedData.slug,
@@ -64,35 +91,20 @@ export const POST = withRateLimit(
             plot: validatedData.plot ?? null,
             apartment: validatedData.apartment ?? null,
             ownerId: userId,
-            memberships: {
-              create: {
-                userId,
-                role: "OWNER",
-                status: "active", // Owner is automatically active, no invite needed
-              },
-            },
-          },
-          include: {
-            memberships: true,
+            xvmApiVenueId: created.id,
+            xvmApiVenueLinkedAt: new Date(),
+            xvmApiVenueLinkedBy: userId,
           },
         })
-
-        const managerRole = await ensureManagerRole(v.id, tx)
-        await tx.membership.updateMany({
-          where: { venueId: v.id, userId, roleId: null },
-          data: { roleId: managerRole.id },
+        .catch((err: unknown) => {
+          console.error(`[venue create] bridge row failed; orphaned xvm-api venue ${created.id}:`, err)
+          throw err
         })
 
-        return v
-      })
+      await invalidateCache(cacheKeys.userVenues(userId))
 
-      // Invalidate user's venue cache
-      await invalidateCache(cacheKeys.userVenues(session.user.id))
-
-      // Post to Discord activity feed. Fire-and-forget.
       postNewVenue(venue)
 
-      // Notify owner + admin. Fire-and-forget: signup must not fail on email issues.
       const ownerEmail = session.user.email
       if (ownerEmail) {
         sendEmail({
@@ -112,7 +124,7 @@ export const POST = withRateLimit(
         }).catch(() => {})
       }
 
-      return NextResponse.json(venue, { status: 201 })
+      return NextResponse.json({ ...venue, profileSaved }, { status: 201 })
     } catch (error) {
       if (error instanceof z.ZodError) {
         return NextResponse.json({ error: "Validation error", details: error.issues }, { status: 400 })

@@ -87,7 +87,7 @@ export default function NewVenuePage() {
       }
 
       const venue = await response.json()
-      router.push(`/dashboard/${venue.slug}`)
+      router.push(venue.profileSaved === false ? `/dashboard/${venue.slug}/settings` : `/dashboard/${venue.slug}`)
     } catch (err) {
       setError(err instanceof Error ? err.message : "Something went wrong")
     } finally {

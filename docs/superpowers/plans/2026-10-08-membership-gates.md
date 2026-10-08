@@ -4,9 +4,9 @@
 
 **Goal:** Make "who is a member of this venue, and as what" come from xvm-api everywhere the dashboard asks it, so anyone who joined by invite or was promoted in the staff UI can use the dashboard.
 
-**Architecture:** One small module, `lib/api/venue-access.ts`, answers the question from xvm-api's `/me` (the caller's own memberships, `tier` already the effective tier). Pages call `roleInVenue`; API routes call `requireVenueRole`; the venue list calls `myVenueRoles`. Each consumer changes only its membership lookup, so everything downstream (role strings, response shapes, error text) stays as it is. A lint rule then stops `prisma.membership` coming back.
+**Architecture:** One small module, `lib/api/venue-access.ts`, answers the question from xvm-api's `GET /me/venues` (everywhere the caller currently works, with the effective tier, so a member who has left is already excluded). Pages call `roleInVenue`; API routes call `requireVenueRole`; the venue list calls `myVenueRoles`. Each consumer changes only its membership lookup, so everything downstream (role strings, response shapes, error text) stays as it is. A lint rule then stops `prisma.membership` coming back.
 
-**Tech Stack:** Next.js route handlers and server components, TypeScript, Prisma (venue bridge only), vitest, xvm-api `/me`.
+**Tech Stack:** Next.js route handlers and server components, TypeScript, Prisma (venue bridge only), vitest, xvm-api `/me/venues`.
 
 ---
 
@@ -59,12 +59,14 @@ All API paths above are under `app/api/venues/[venueId]/` unless a full path is 
 
 1. **A venue not yet connected to xvm-api** has no xvm-api membership to read. The rule here is: `venue.ownerId === userId` means `OWNER`, anyone else means no access. `ownerId` is a column on the venue, not a Prisma membership read. It is what lets `xvm-connect` still work for an unconnected venue's owner. If you would rather hide unconnected venues entirely, change one line in `roleInVenue`.
 2. **Fail closed.** If xvm-api cannot be reached, no role can be established. API routes answer 503, never 403 (a refusal has to mean "not a member"), and pages let the error propagate to the existing `app/dashboard/[slug]/error.tsx`. There is no Prisma fallback, per the standing rule.
-3. **Employment is not checked, and xvm-api does not check it either.** `/me` lists a person's memberships including terminated ones, and xvm-api's own authorization (`dependencies.py`: `require_tier`, `has_tier`) looks only at the membership row and its tier, never `is_employed`. Checked on a local xvm-api on 2026-10-08: after `terminate`, a manager with `is_employed: false` could still create a service category, a service and an invite. The old Prisma `status: "active"` filter never reflected terminations after the cutover either, so this gate is no regression, but nothing downstream backs it up. That makes it an xvm-api question first: should a terminated member keep their tier? Until that is answered, the routes where this gate is the only guard (`frogge/*`, `sync-partake`, `inventory-settings`, listed in Task 7) let a former manager through. If you want it enforced on the dashboard side meanwhile, the gate needs the roster (`is_employed`) instead of `/me`.
+3. **Employment is enforced here through `/me/venues`, and xvm-api does not enforce it itself.** `GET /me/venues` is documented as "everywhere you currently work", and a test in xvm-api asserts that termination drops the venue from it, so a member who has left is simply not in the list and gets the same refusal as a stranger. xvm-api's own venue-scoped authorization (`dependencies.py`: `require_tier`, `has_tier`) never reads `is_employed`. Checked on a local xvm-api on 2026-10-08: after `terminate`, a manager could still create a service category, a service and an invite. That is xvm-api#154. Until it is fixed, the dashboard gate is the only barrier on the Prisma-backed routes in Task 7, and the bot and any client calling xvm-api directly are not covered by it. The old Prisma `status: "active"` filter never reflected terminations after the cutover, so this is stricter than what it replaces.
 
 ## File structure
 
 | File | Responsibility |
 |---|---|
+| Modify `apps/web/lib/api/xvm-api.ts` | Add `MyVenueRow` and `listMyVenues` (`GET /me/venues`). |
+| Modify `apps/web/lib/api/xvm-api.test.ts` | One test for `listMyVenues`. |
 | Create `apps/web/lib/api/venue-access.ts` | Role resolution from xvm-api: `roleInVenue`, `myVenueRoles`, `requireVenueRole`, `atLeast`, `asMembership`, `VenueAccessUnavailable`. |
 | Create `apps/web/lib/api/venue-access.test.ts` | Unit tests for all of the above. |
 | Modify the files in the scope tables | Swap the membership lookup for the helper. |
@@ -86,20 +88,63 @@ One worktree and one PR per slice (`CLAUDE.md`), all against `dev`, in this orde
 
 ---
 
-### Task 1: The access helper
+### Task 1: The `/me/venues` client and the access helper
 
 **Files:**
+- Modify: `apps/web/lib/api/xvm-api.ts` (add after `getMe`, around line 335)
+- Modify: `apps/web/lib/api/xvm-api.test.ts` (the import list, and one test after the `listMyCharacters` test, around line 1260)
 - Create: `apps/web/lib/api/venue-access.ts`
 - Test: `apps/web/lib/api/venue-access.test.ts`
 
-- [ ] **Step 1: Write the failing test**
+- [ ] **Step 1: Write the failing client test**
+
+In `lib/api/xvm-api.test.ts`, add `listMyVenues,` to the import list next to `listMyCharacters,`, and add this test directly after the `listMyCharacters` test:
+
+```ts
+  it("listMyVenues reads the venues the caller currently works at", async () => {
+    mockFetchOnce({ ok: true, status: 200, body: [] })
+    await expect(listMyVenues("token")).resolves.toEqual([])
+    expect(new URL(lastCall()[0]).pathname).toMatch(/\/me\/venues$/)
+  })
+```
+
+- [ ] **Step 2: Run it to verify it fails**
+
+Run (from `apps/web`): `pnpm exec vitest run lib/api/xvm-api.test.ts -t listMyVenues`
+Expected: FAIL, "listMyVenues is not a function".
+
+- [ ] **Step 3: Add the client function**
+
+In `lib/api/xvm-api.ts`, directly after `getMe`:
+
+```ts
+export interface MyVenueRow {
+  venue: VenueRow
+  tier: string
+  effective_tier: string
+}
+
+export async function listMyVenues(personToken: string): Promise<MyVenueRow[]> {
+  if (!process.env.XVM_API_BASE_URL) throw new Error("XVM_API_BASE_URL is not set")
+  return xvmFetch<MyVenueRow[]>("/me/venues", {}, personToken)
+}
+```
+
+- [ ] **Step 4: Run it to verify it passes**
+
+Run: `pnpm exec vitest run lib/api/xvm-api.test.ts -t listMyVenues`
+Expected: PASS, 1 test.
+
+- [ ] **Step 5: Write the failing helper test**
+
+Create `lib/api/venue-access.test.ts`:
 
 ```ts
 import { beforeEach, describe, expect, it, vi } from "vitest"
 
 const m = vi.hoisted(() => ({
   token: vi.fn(),
-  getMe: vi.fn(),
+  listMyVenues: vi.fn(),
   venueFindUnique: vi.fn(),
   venueFindMany: vi.fn(),
   errorResponse: vi.fn(),
@@ -107,7 +152,7 @@ const m = vi.hoisted(() => ({
 
 vi.mock("@/lib/prisma", () => ({ prisma: { venue: { findUnique: m.venueFindUnique, findMany: m.venueFindMany } } }))
 vi.mock("@/lib/api/xvm-api-store", () => ({ getValidXvmApiToken: m.token, xvmApiErrorResponse: m.errorResponse }))
-vi.mock("@/lib/api/xvm-api", () => ({ getMe: m.getMe }))
+vi.mock("@/lib/api/xvm-api", () => ({ listMyVenues: m.listMyVenues }))
 
 import { NextResponse } from "next/server"
 import {
@@ -121,17 +166,12 @@ import {
 
 const connected = { ownerId: "creator", xvmApiVenueId: "ven_1" }
 const unconnected = { ownerId: "creator", xvmApiVenueId: null }
+const row = (id: string, tier: string, effective = tier) => ({ venue: { id }, tier, effective_tier: effective })
 
 beforeEach(() => {
   vi.resetAllMocks()
   m.token.mockResolvedValue("tok")
-  m.getMe.mockResolvedValue({
-    memberships: [
-      { venue_id: "ven_1", tier: "manager" },
-      { venue_id: "ven_2", tier: "staff" },
-      { venue_id: "ven_3", tier: "something-new" },
-    ],
-  })
+  m.listMyVenues.mockResolvedValue([row("ven_1", "manager"), row("ven_2", "staff"), row("ven_3", "something-new")])
 })
 
 describe("atLeast", () => {
@@ -148,7 +188,12 @@ describe("roleInVenue", () => {
     expect(await roleInVenue("u1", connected)).toBe("MANAGER")
   })
 
-  it("answers null for a venue the person is not in", async () => {
+  it("uses the effective tier, so a live temporary grant counts", async () => {
+    m.listMyVenues.mockResolvedValue([row("ven_1", "staff", "manager")])
+    expect(await roleInVenue("u1", connected)).toBe("MANAGER")
+  })
+
+  it("answers null for a venue that is not in the list, which is how a member who has left looks", async () => {
     expect(await roleInVenue("u1", { ownerId: "creator", xvmApiVenueId: "ven_9" })).toBeNull()
   })
 
@@ -159,7 +204,7 @@ describe("roleInVenue", () => {
   it("makes the creator owner of a venue that is not connected yet, and nobody else", async () => {
     expect(await roleInVenue("creator", unconnected)).toBe("OWNER")
     expect(await roleInVenue("someone", unconnected)).toBeNull()
-    expect(m.getMe).not.toHaveBeenCalled()
+    expect(m.listMyVenues).not.toHaveBeenCalled()
   })
 
   it("throws, instead of answering no access, when there is no credential", async () => {
@@ -168,7 +213,7 @@ describe("roleInVenue", () => {
   })
 
   it("lets an xvm-api failure propagate, instead of answering no access", async () => {
-    m.getMe.mockRejectedValue(new Error("boom"))
+    m.listMyVenues.mockRejectedValue(new Error("boom"))
     await expect(roleInVenue("u1", connected)).rejects.toThrow("boom")
   })
 })
@@ -231,27 +276,29 @@ describe("requireVenueRole", () => {
 
   it("hands an xvm-api failure to the shared error mapper, so an unreachable API is not a refusal", async () => {
     const failure = NextResponse.json({ error: "xvm-api unavailable" }, { status: 502 })
-    m.getMe.mockRejectedValue(new Error("down"))
+    m.listMyVenues.mockRejectedValue(new Error("down"))
     m.errorResponse.mockResolvedValue(failure)
     const access = await requireVenueRole("u1", "p1", "STAFF", "nope")
     expect(access).toEqual({ ok: false, response: failure })
-    expect(m.errorResponse).toHaveBeenCalledWith(expect.any(Error), "u1", "[venue access] /me read error")
+    expect(m.errorResponse).toHaveBeenCalledWith(expect.any(Error), "u1", "[venue access] /me/venues read error")
   })
 })
 ```
 
-- [ ] **Step 2: Run the test to verify it fails**
+- [ ] **Step 6: Run it to verify it fails**
 
-Run (from `apps/web`): `pnpm exec vitest run lib/api/venue-access.test.ts`
+Run: `pnpm exec vitest run lib/api/venue-access.test.ts`
 Expected: FAIL, "Failed to resolve import @/lib/api/venue-access".
 
-- [ ] **Step 3: Write the implementation**
+- [ ] **Step 7: Write the implementation**
+
+Create `lib/api/venue-access.ts`:
 
 ```ts
 import { cache } from "react"
 import { NextResponse } from "next/server"
 import { prisma } from "@/lib/prisma"
-import { getMe } from "@/lib/api/xvm-api"
+import { listMyVenues } from "@/lib/api/xvm-api"
 import { getValidXvmApiToken, xvmApiErrorResponse } from "@/lib/api/xvm-api-store"
 
 export type VenueRole = "OWNER" | "MANAGER" | "STAFF"
@@ -272,11 +319,10 @@ function toRole(tier: string): VenueRole | null {
 const tiersFor = cache(async (userId: string): Promise<Map<string, VenueRole>> => {
   const token = await getValidXvmApiToken(userId)
   if (!token) throw new VenueAccessUnavailable("No valid xvm-api credential")
-  const me = await getMe(token)
   const tiers = new Map<string, VenueRole>()
-  for (const membership of me.memberships) {
-    const role = toRole(membership.tier)
-    if (role) tiers.set(membership.venue_id, role)
+  for (const row of await listMyVenues(token)) {
+    const role = toRole(row.effective_tier)
+    if (role) tiers.set(row.venue.id, role)
   }
   return tiers
 })
@@ -328,26 +374,26 @@ export async function requireVenueRole(
     if (err instanceof VenueAccessUnavailable) {
       return { ok: false, response: NextResponse.json({ error: "xvm-api link not established yet" }, { status: 503 }) }
     }
-    return { ok: false, response: await xvmApiErrorResponse(err, userId, "[venue access] /me read error") }
+    return { ok: false, response: await xvmApiErrorResponse(err, userId, "[venue access] /me/venues read error") }
   }
 }
 ```
 
-- [ ] **Step 4: Run the test to verify it passes**
+- [ ] **Step 8: Run the tests to verify they pass**
 
-Run: `pnpm exec vitest run lib/api/venue-access.test.ts`
-Expected: PASS, 14 tests. If a test leaks state between cases, `cache` is memoising across tests in this environment; wrap `tiersFor` so the memoised function is created per call site, or drop `cache` and accept one `/me` per call.
+Run: `pnpm exec vitest run lib/api/venue-access.test.ts lib/api/xvm-api.test.ts`
+Expected: PASS, 15 helper tests plus the whole client file. If a helper test leaks state between cases, `cache` is memoising across tests in this environment; wrap `tiersFor` so the memoised function is created per call site, or drop `cache` and accept one `/me/venues` call per use.
 
-- [ ] **Step 5: Typecheck and lint**
+- [ ] **Step 9: Typecheck and lint**
 
-Run: `pnpm exec tsc --noEmit && pnpm exec eslint lib/api/venue-access.ts lib/api/venue-access.test.ts`
-Expected: no output.
+Run: `pnpm exec tsc --noEmit && pnpm exec eslint lib/api/venue-access.ts lib/api/venue-access.test.ts lib/api/xvm-api.ts lib/api/xvm-api.test.ts`
+Expected: no errors. `xvm-api.test.ts` already has one unused-import warning (`TemplateRow`), which is not from this change.
 
-- [ ] **Step 6: Commit**
+- [ ] **Step 10: Commit**
 
 ```bash
-git add apps/web/lib/api/venue-access.ts apps/web/lib/api/venue-access.test.ts
-git commit -m "Resolve venue roles from xvm-api instead of the Prisma membership table"
+git add apps/web/lib/api/xvm-api.ts apps/web/lib/api/xvm-api.test.ts apps/web/lib/api/venue-access.ts apps/web/lib/api/venue-access.test.ts
+git commit -m "Resolve venue roles from xvm-api's current-venues list instead of the Prisma membership table"
 ```
 
 ---
@@ -682,7 +728,7 @@ git commit -m "Gate transactions, events, settings and timeline routes on the xv
 
 **Files:** the "API gates, Prisma-backed" row of the scope table.
 
-These routes read and write Prisma tables after the gate (Frogge, Partake, inventory settings), so the gate is their only authority and nothing downstream backs it. They get the same swap, and the same caveat from decision 3: employment is not checked, which matches the Prisma `status` filter they replace.
+These routes read and write Prisma tables after the gate (Frogge, Partake, inventory settings), so the gate is their only authority and nothing downstream backs it. They get the same swap. Because the role now comes from `/me/venues`, a member who no longer works at the venue is refused here too. xvm-api would not refuse them (xvm-api#154), so for these routes the dashboard gate is the only barrier.
 
 | File | Handler (line) | Minimum |
 |---|---|---|
@@ -764,9 +810,9 @@ git commit -m "Ban prisma.membership outside the plugin, shift and notification 
 
 ## Follow-ups, not in this plan
 
-- `isVenueOwner` in `lib/api/xvm-api-store.ts` (used by the Discord link routes) can become `requireVenueRole(..., "OWNER", ...)` once Task 1 lands. It drops a roster read per request for a `/me` read. A tiny PR, but it edits code merged on 2026-10-08, so confirm with Allegro.
+- `isVenueOwner` in `lib/api/xvm-api-store.ts` (used by the Discord link routes) can become `requireVenueRole(..., "OWNER", ...)` once Task 1 lands. It drops a roster read per request for a `/me/venues` read. A tiny PR, but it edits code merged on 2026-10-08, so confirm with Allegro.
 - `_count.events` and `_count.memberships` on the landing page (Task 3).
-- Employment enforcement (decision 3), if wanted.
+- xvm-api#154 (venue-scoped authorization ignores employment). Once it is fixed the bot and direct clients are covered too. Nothing in this plan changes.
 - The shift routes, `lib/shift-bot.ts`, `lib/notify.ts` and the plugin routes, when their own cutovers happen. Each removal is one line in Task 8's `ignores`.
 
 ## Appendix: acceptance check
@@ -899,5 +945,23 @@ pnpm exec vitest run repro-membership.test.ts --disable-console-intercept
 | Bee venue list | not measured; expected to omit the venue | lists the venue with role `MANAGER` |
 
 The test prints the table before its assertions, so the "before" run shows the numbers and then fails on `expect`. That is expected.
+
+**Employment check** (needs Tasks 1, 2, 5 and 6; not run, the xvm-api calls are the ones shown working in the xvm-api#154 reproduction). Add `import { readFileSync } from "node:fs"` at the top of `repro-membership.test.ts` and this second test inside the same `describe`. It terminates Bee through xvm-api, then checks that the dashboard refuses her while xvm-api itself still accepts her token:
+
+```ts
+  it("refuses Bee once she is terminated, although xvm-api itself would not", async () => {
+    const ids = JSON.parse(readFileSync("repro-ids.json", "utf8")) as { xvmVenueId: string; annToken: string; beeToken: string }
+    const xvm = (path: string, token: string, init: RequestInit = {}) =>
+      fetch(`http://127.0.0.1:8000${path}`, { ...init, headers: { Authorization: `Bearer ${token}`, "Content-Type": "application/json" } })
+    const roster = (await (await xvm(`/venues/${ids.xvmVenueId}/memberships`, ids.annToken)).json()) as { id: number; person: { display_name: string } }[]
+    const bee = roster.find((entry) => entry.person.display_name === "Invitee Bee")!
+    expect((await xvm(`/venues/${ids.xvmVenueId}/memberships/${bee.id}/terminate`, ids.annToken, { method: "POST", body: "{}" })).status).toBe(200)
+
+    expect(await callAs("user-bee", timeline)).toBe(403)
+    expect((await xvm(`/venues/${ids.xvmVenueId}/services`, ids.beeToken)).status).toBe(200)
+  })
+```
+
+The last assertion documents xvm-api#154. When that is fixed it becomes 403 and should be changed with it.
 
 Tear down: stop the xvm-api process, `docker stop membership-pg`, delete `repro-seed.ts`, `repro-membership.test.ts` and `repro-ids.json`.

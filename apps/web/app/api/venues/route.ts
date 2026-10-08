@@ -11,6 +11,7 @@ import { createVenue, updateVenue, type VenueUpdate } from "@/lib/api/xvm-api"
 import { sendEmail } from "@/lib/email"
 import { venueWelcomeEmail, newVenueAlertEmail } from "@/lib/email-templates"
 import { postNewVenue } from "@/lib/discord-feed"
+import { asMembership, myVenueRoles, VenueAccessUnavailable } from "@/lib/api/venue-access"
 
 const venueSchema = z.object({
   name: validators.venueName,
@@ -150,22 +151,11 @@ export const GET = withRateLimit(
       const venues = await getOrSet(
         cacheKey,
         async () => {
-          // Get all venues for the current user
-          return await prisma.venue.findMany({
-            where: {
-              memberships: {
-                some: {
-                  userId: session.user.id,
-                },
-              },
-            },
-            include: {
-              memberships: {
-                where: {
-                  userId: session.user.id,
-                },
-              },
-            },
+          const roles = await myVenueRoles(session.user.id)
+          const rows = await prisma.venue.findMany({ where: { id: { in: [...roles.keys()] } } })
+          return rows.flatMap((venue) => {
+            const role = roles.get(venue.id)
+            return role ? [{ ...venue, memberships: [asMembership(session.user.id, venue.id, role)] }] : []
           })
         },
         cacheTTL.venue
@@ -173,6 +163,9 @@ export const GET = withRateLimit(
 
       return NextResponse.json(venues)
     } catch (error) {
+      if (error instanceof VenueAccessUnavailable) {
+        return NextResponse.json({ error: "xvm-api link not established yet" }, { status: 503 })
+      }
       console.error("Error fetching venues:", error)
       return NextResponse.json({ error: "Internal server error" }, { status: 500 })
     }

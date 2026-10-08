@@ -3,6 +3,7 @@ import { getServerSession } from "next-auth"
 import { authOptions } from "@/lib/auth"
 import { z } from "zod"
 import { prisma } from "@/lib/prisma"
+import { requireVenueRole } from "@/lib/api/venue-access"
 import { withRateLimit } from "@/lib/middleware/with-rate-limit"
 import { getValidXvmApiToken, xvmApiErrorResponse } from "@/lib/api/xvm-api-store"
 import { updateServiceCategory, deleteServiceCategory } from "@/lib/api/xvm-api"
@@ -42,12 +43,8 @@ export const PATCH = withRateLimit<{ params: Promise<{ venueId: string; category
       return NextResponse.json({ error: "Invalid category id" }, { status: 400 })
     }
 
-    const membership = await prisma.membership.findFirst({
-      where: { userId: session.user.id, venueId, status: "active" },
-    })
-    if (!membership || !["OWNER", "MANAGER"].includes(membership.role)) {
-      return NextResponse.json({ error: "You don't have permission to manage categories" }, { status: 403 })
-    }
+    const access = await requireVenueRole(session.user.id, venueId, "MANAGER", "You don't have permission to manage categories")
+    if (!access.ok) return access.response
 
     const token = await getValidXvmApiToken(session.user.id)
     if (!token) {
@@ -92,12 +89,8 @@ export const DELETE = withRateLimit<{ params: Promise<{ venueId: string; categor
       return NextResponse.json({ error: "Invalid category id" }, { status: 400 })
     }
 
-    const membership = await prisma.membership.findFirst({
-      where: { userId: session.user.id, venueId, status: "active" },
-    })
-    if (!membership || membership.role !== "OWNER") {
-      return NextResponse.json({ error: "Only owners can delete categories" }, { status: 403 })
-    }
+    const access = await requireVenueRole(session.user.id, venueId, "OWNER", "Only owners can delete categories")
+    if (!access.ok) return access.response
 
     const token = await getValidXvmApiToken(session.user.id)
     if (!token) {

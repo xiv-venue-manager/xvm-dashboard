@@ -37,9 +37,9 @@ export async function listManageableGuilds(userId: string): Promise<ManageableGu
     select: { access_token: true, expires_at: true, scope: true },
   })
 
-  // No refresh path, on purpose: a token issued before the guilds scope existed cannot be
-  // refreshed into one that has it, so re-consent is the only fix for the case that will
-  // actually happen, and the only one worth building.
+  // A token issued before the guilds scope existed cannot be refreshed into one that has it, so
+  // the scope half of this gate genuinely needs re-consent. The expiry half does not - Discord
+  // tokens last about a week and a refresh would avoid the prompt entirely. See #141.
   const hasScope = account?.scope?.split(" ").includes("guilds") ?? false
   const live = account?.expires_at != null && account.expires_at * 1000 > Date.now()
   if (!account?.access_token || !hasScope || !live) return { ok: false, failure: "reauth_required" }

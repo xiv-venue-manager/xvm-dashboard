@@ -24,6 +24,7 @@ import {
   listAdminFeedback,
   triageFeedback,
   getVenueFollowers,
+  reissueInvite,
   reclassifyPatronLogs,
   getPatronPresence,
   materializeEvent,
@@ -1321,6 +1322,14 @@ describe("Patron logs API", () => {
     const [url, init] = lastCall()
     expect(new URL(url).pathname).toMatch(/\/me\/characters\/9$/)
     expect(init.method).toBe("DELETE")
+  })
+
+  it("reissueInvite posts to the invite's reissue path and returns the new token", async () => {
+    mockFetchOnce({ ok: true, status: 200, body: { id: 9, token: "fresh" } })
+    await expect(reissueInvite("token", "venue-1", 9)).resolves.toMatchObject({ id: 9, token: "fresh" })
+    const [url, init] = lastCall()
+    expect(new URL(url).pathname).toMatch(/\/venues\/venue-1\/invites\/9\/reissue$/)
+    expect(init.method).toBe("POST")
   })
 
   it("getVenueFollowers reads the count with a small page by default", async () => {

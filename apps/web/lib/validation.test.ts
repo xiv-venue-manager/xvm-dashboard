@@ -13,6 +13,17 @@ describe("validators.feedbackStatus", () => {
   })
 })
 
+describe("validators.feedbackDescription", () => {
+  it("accepts up to the 4000 characters xvm-api stores", () => {
+    expect(validators.feedbackDescription.safeParse("x".repeat(4000)).success).toBe(true)
+  })
+
+  it("rejects more than 4000 characters and fewer than 10", () => {
+    expect(validators.feedbackDescription.safeParse("x".repeat(4001)).success).toBe(false)
+    expect(validators.feedbackDescription.safeParse("short").success).toBe(false)
+  })
+})
+
 describe("validators.feedbackCategory", () => {
   it("accepts each real FeedbackCategory enum value", () => {
     for (const category of ["BUG_REPORT", "FEATURE_REQUEST", "IMPROVEMENT", "GENERAL"]) {

@@ -40,7 +40,7 @@ xvm-api allows exactly what the dashboard refuses. It reaches further than the A
 | Server pages (13) | `ban-list`, `events`, `events/[eventId]`, `hours`, `live`, `[slug]/page.tsx`, `patron-logs`, `reaction-roles`, `rooms`, `services/contests`, `shifts`, `staff`, `timeline`, all under `app/dashboard/[slug]/` |
 | Dashboard landing and account | `app/dashboard/page.tsx`, `app/dashboard/account/page.tsx` |
 | API gates, services family | `services/route.ts`, `services/[serviceId]/route.ts`, `services/categories/route.ts`, `services/categories/[categoryId]/route.ts`, `services/[serviceId]/positions/route.ts`, `services/[serviceId]/positions/[positionId]/route.ts`, `services/[serviceId]/inventory/route.ts`, `services/[serviceId]/inventory/movements/route.ts`, `inventory/item-search/route.ts` |
-| API gates, the rest | `transactions/route.ts`, `transactions/[transactionId]/route.ts`, `timeline/route.ts`, `events/route.ts`, `events/[eventId]/route.ts`, `events/[eventId]/attendance/route.ts`, `settings/route.ts`, `xvm-connect/route.ts`, `app/api/stream/[venueId]/route.ts` |
+| API gates, the rest | `transactions/route.ts`, `transactions/[transactionId]/route.ts`, `timeline/route.ts`, `events/route.ts`, `events/[eventId]/route.ts`, `events/[eventId]/attendance/route.ts`, `settings/route.ts`, `app/api/stream/[venueId]/route.ts` |
 | API gates, Prisma-backed | `inventory-settings/route.ts`, `frogge/disconnect/route.ts`, `frogge/members/route.ts`, `frogge/redeem/route.ts`, `sync-partake/route.ts` |
 
 All API paths above are under `app/api/venues/[venueId]/` unless a full path is given.
@@ -55,11 +55,12 @@ All API paths above are under `app/api/venues/[venueId]/` unless a full path is 
 | `lib/api/transactions.ts:122` | A nickname lookup for a display name, not a gate. A missing row already falls back. |
 | `_count.events` and `_count.memberships` on the landing page | Stale Prisma counts. A separate stale-read fix, noted in Task 3. |
 
-## Decisions to confirm before building
+## Decisions
 
-1. **A venue not yet connected to xvm-api** has no xvm-api membership to read. The rule here is: `venue.ownerId === userId` means `OWNER`, anyone else means no access. `ownerId` is a column on the venue, not a Prisma membership read. It is what lets `xvm-connect` still work for an unconnected venue's owner. If you would rather hide unconnected venues entirely, change one line in `roleInVenue`.
-2. **Fail closed.** If xvm-api cannot be reached, no role can be established. API routes answer 503, never 403 (a refusal has to mean "not a member"), and pages let the error propagate to the existing `app/dashboard/[slug]/error.tsx`. There is no Prisma fallback, per the standing rule.
-3. **Employment is enforced here through `/me/venues`, and xvm-api does not enforce it itself.** `GET /me/venues` is documented as "everywhere you currently work", and a test in xvm-api asserts that termination drops the venue from it, so a member who has left is simply not in the list and gets the same refusal as a stranger. xvm-api's own venue-scoped authorization (`dependencies.py`: `require_tier`, `has_tier`) never reads `is_employed`. Checked on a local xvm-api on 2026-10-08: after `terminate`, a manager could still create a service category, a service and an invite. That is xvm-api#154. Until it is fixed, the dashboard gate is the only barrier on the Prisma-backed routes in Task 7, and the bot and any client calling xvm-api directly are not covered by it. The old Prisma `status: "active"` filter never reflected terminations after the cutover, so this is stricter than what it replaces.
+**Order.** Land the venue-creation plan (#138) first. After it every new venue is created in xvm-api, so there is no "unconnected venue" to handle, and `xvm-connect` is gone. A venue that predates it exists only on `dev` (disposable) until the maintenance window creates it in xvm-api. A venue with no xvm-api venue simply gets no role here, which is the right answer for a state that will not exist once everything runs on xvm-api.
+
+1. **Fail closed.** If xvm-api cannot be reached, no role can be established. API routes answer 503, never 403 (a refusal has to mean "not a member"), and pages let the error propagate to the existing `app/dashboard/[slug]/error.tsx`. There is no Prisma fallback, per the standing rule. Agreed 2026-10-08: with xvm-api the only path, there is nothing to fall back to.
+2. **Employment is enforced here through `/me/venues`, and xvm-api does not enforce it itself.** `GET /me/venues` is documented as "everywhere you currently work", and a test in xvm-api asserts that termination drops the venue from it, so a member who has left is simply not in the list and gets the same refusal as a stranger. xvm-api's own venue-scoped authorization (`dependencies.py`: `require_tier`, `has_tier`) never reads `is_employed`. Checked on a local xvm-api on 2026-10-08: after `terminate`, a manager could still create a service category, a service and an invite. That is xvm-api#154. Until it is fixed, the dashboard gate is the only barrier on the Prisma-backed routes in Task 7, and the bot and any client calling xvm-api directly are not covered by it. The old Prisma `status: "active"` filter never reflected terminations after the cutover, so this is stricter than what it replaces.
 
 ## File structure
 
@@ -164,8 +165,8 @@ import {
   roleInVenue,
 } from "@/lib/api/venue-access"
 
-const connected = { ownerId: "creator", xvmApiVenueId: "ven_1" }
-const unconnected = { ownerId: "creator", xvmApiVenueId: null }
+const connected = { xvmApiVenueId: "ven_1" }
+const unconnected = { xvmApiVenueId: null }
 const row = (id: string, tier: string, effective = tier) => ({ venue: { id }, tier, effective_tier: effective })
 
 beforeEach(() => {
@@ -194,16 +195,15 @@ describe("roleInVenue", () => {
   })
 
   it("answers null for a venue that is not in the list, which is how a member who has left looks", async () => {
-    expect(await roleInVenue("u1", { ownerId: "creator", xvmApiVenueId: "ven_9" })).toBeNull()
+    expect(await roleInVenue("u1", { xvmApiVenueId: "ven_9" })).toBeNull()
   })
 
   it("ignores a tier it does not know rather than guessing a role", async () => {
-    expect(await roleInVenue("u1", { ownerId: "creator", xvmApiVenueId: "ven_3" })).toBeNull()
+    expect(await roleInVenue("u1", { xvmApiVenueId: "ven_3" })).toBeNull()
   })
 
-  it("makes the creator owner of a venue that is not connected yet, and nobody else", async () => {
-    expect(await roleInVenue("creator", unconnected)).toBe("OWNER")
-    expect(await roleInVenue("someone", unconnected)).toBeNull()
+  it("answers null for a venue with no xvm-api venue, without asking xvm-api", async () => {
+    expect(await roleInVenue("u1", unconnected)).toBeNull()
     expect(m.listMyVenues).not.toHaveBeenCalled()
   })
 
@@ -219,20 +219,18 @@ describe("roleInVenue", () => {
 })
 
 describe("myVenueRoles", () => {
-  it("maps Prisma venue ids to roles, including an unconnected venue the person created", async () => {
+  it("maps Prisma venue ids to roles", async () => {
     m.venueFindMany.mockResolvedValue([
       { id: "p1", xvmApiVenueId: "ven_1" },
       { id: "p2", xvmApiVenueId: "ven_2" },
-      { id: "p3", xvmApiVenueId: null },
     ])
     const roles = await myVenueRoles("u1")
     expect([...roles]).toEqual([
       ["p1", "MANAGER"],
       ["p2", "STAFF"],
-      ["p3", "OWNER"],
     ])
     expect(m.venueFindMany).toHaveBeenCalledWith({
-      where: { OR: [{ xvmApiVenueId: { in: ["ven_1", "ven_2"] } }, { xvmApiVenueId: null, ownerId: "u1" }] },
+      where: { xvmApiVenueId: { in: ["ven_1", "ven_2"] } },
       select: { id: true, xvmApiVenueId: true },
     })
   })
@@ -329,21 +327,22 @@ const tiersFor = cache(async (userId: string): Promise<Map<string, VenueRole>> =
 
 export async function roleInVenue(
   userId: string,
-  venue: { ownerId: string; xvmApiVenueId: string | null }
+  venue: { xvmApiVenueId: string | null }
 ): Promise<VenueRole | null> {
-  if (!venue.xvmApiVenueId) return venue.ownerId === userId ? "OWNER" : null
+  if (!venue.xvmApiVenueId) return null
   return (await tiersFor(userId)).get(venue.xvmApiVenueId) ?? null
 }
 
 export async function myVenueRoles(userId: string): Promise<Map<string, VenueRole>> {
   const tiers = await tiersFor(userId)
   const venues = await prisma.venue.findMany({
-    where: { OR: [{ xvmApiVenueId: { in: [...tiers.keys()] } }, { xvmApiVenueId: null, ownerId: userId }] },
+    where: { xvmApiVenueId: { in: [...tiers.keys()] } },
     select: { id: true, xvmApiVenueId: true },
   })
   const roles = new Map<string, VenueRole>()
   for (const venue of venues) {
-    const role = venue.xvmApiVenueId ? tiers.get(venue.xvmApiVenueId) : "OWNER"
+    if (!venue.xvmApiVenueId) continue
+    const role = tiers.get(venue.xvmApiVenueId)
     if (role) roles.set(venue.id, role)
   }
   return roles
@@ -365,7 +364,7 @@ export async function requireVenueRole(
     ok: false,
     response: NextResponse.json({ error: forbiddenMessage }, { status: 403 }),
   })
-  const venue = await prisma.venue.findUnique({ where: { id: venueId }, select: { ownerId: true, xvmApiVenueId: true } })
+  const venue = await prisma.venue.findUnique({ where: { id: venueId }, select: { xvmApiVenueId: true } })
   if (!venue) return deny()
   try {
     const role = await roleInVenue(userId, venue)
@@ -676,7 +675,6 @@ Same replacement as Task 5, with these minimums. Four files need more than the s
 | `events/[eventId]/route.ts` | (87) | STAFF | line 100: `membership.role` becomes `access.role` |
 | `app/api/stream/[venueId]/route.ts` | (22) | STAFF | line 29: `const isManager = atLeast(access.role, "MANAGER")` (import `atLeast`) |
 | `settings/route.ts` | GET (100), PUT (212) | STAFF | lines 230-231: `const isOwner = access.role === "OWNER"` and `const isManager = access.role === "MANAGER"` |
-| `xvm-connect/route.ts` | (23) | OWNER | none. Keep its existing 403 message. |
 
 - [ ] **Step 1: Update the four route tests that mock `prisma.membership`** (`events/route.test.ts`, `events/[eventId]/route.test.ts`, `events/[eventId]/attendance/route.test.ts`, `timeline/route.test.ts`)
 

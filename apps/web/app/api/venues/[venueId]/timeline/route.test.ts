@@ -42,7 +42,7 @@ beforeEach(() => {
   m.session.mockResolvedValue({ user: { id: "user-1" } })
   m.membership.mockResolvedValue({ id: "m1" })
   m.venue.mockResolvedValue({ xvmApiVenueId: "xv-1" })
-  m.getEvent.mockResolvedValue({ starts_at: minutesAgo(120) })
+  m.getEvent.mockResolvedValue({ starts_at: minutesAgo(120), ends_at: minutesAgo(-60) })
 })
 
 describe("GET timeline patron items", () => {
@@ -66,6 +66,31 @@ describe("GET timeline patron items", () => {
     m.listPatronLogs.mockResolvedValue([row(1, 7, 10), row(2, 8, 20), row(3, null, 30)])
     const body = await (await get("type=patrons")).json()
     expect(body.items).toHaveLength(3)
+  })
+
+  it("stops the window at the event's end, so rows after closing cannot crowd the page out", async () => {
+    const endsAt = minutesAgo(30)
+    m.getEvent.mockResolvedValue({ starts_at: minutesAgo(180), ends_at: endsAt })
+    m.listPatronLogs.mockResolvedValue([])
+    await get("type=patrons&eventId=7&limit=50")
+    expect(m.listPatronLogs.mock.calls[0][2].to).toBe(endsAt)
+  })
+
+  it("leaves the window ending now while the event is still running", async () => {
+    m.listPatronLogs.mockResolvedValue([])
+    const before = Date.now()
+    await get("type=patrons&eventId=7")
+    const to = new Date(m.listPatronLogs.mock.calls[0][2].to).getTime()
+    expect(to).toBeGreaterThanOrEqual(before)
+    expect(to).toBeLessThanOrEqual(Date.now())
+  })
+
+  it("keeps an earlier cursor as the upper bound", async () => {
+    m.getEvent.mockResolvedValue({ starts_at: minutesAgo(180), ends_at: minutesAgo(30) })
+    m.listPatronLogs.mockResolvedValue([])
+    const cursor = minutesAgo(60)
+    await get(`type=patrons&eventId=7&cursor=${encodeURIComponent(cursor)}`)
+    expect(m.listPatronLogs.mock.calls[0][2].to).toBe(cursor)
   })
 
   it("does not read patron logs for a legacy non-numeric event id", async () => {

@@ -2,6 +2,7 @@ import { NextRequest, NextResponse } from "next/server"
 import { getServerSession } from "next-auth"
 import { authOptions } from "@/lib/auth"
 import { prisma } from "@/lib/prisma"
+import { requireVenueRole } from "@/lib/api/venue-access"
 import { xvmPageReader } from "@/lib/api/xvm-page-read"
 import {
   getEvent,
@@ -32,12 +33,8 @@ export async function GET(request: NextRequest, { params }: { params: Promise<{ 
   const eventId = searchParams.get("eventId") // filter to a specific event
 
   // Verify membership
-  const membership = await prisma.membership.findFirst({
-    where: { userId: session.user.id, venueId, status: "active" },
-  })
-  if (!membership) {
-    return NextResponse.json({ error: "Forbidden" }, { status: 403 })
-  }
+  const access = await requireVenueRole(session.user.id, venueId, "STAFF", "Forbidden")
+  if (!access.ok) return access.response
 
   const items: TimelineApiItem[] = []
 

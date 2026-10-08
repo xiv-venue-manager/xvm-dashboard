@@ -3,7 +3,7 @@ import { describe, it, expect, vi, beforeEach } from "vitest"
 const m = vi.hoisted(() => ({
   session: vi.fn(),
   venue: vi.fn(),
-  membership: vi.fn(),
+  access: vi.fn(),
   token: vi.fn(),
   getEvent: vi.fn(),
   updateEvent: vi.fn(),
@@ -17,8 +17,9 @@ const m = vi.hoisted(() => ({
 vi.mock("next-auth", () => ({ getServerSession: m.session }))
 vi.mock("@/lib/auth", () => ({ authOptions: {} }))
 vi.mock("@/lib/middleware/with-rate-limit", () => ({ withRateLimit: (handler: unknown) => handler }))
+vi.mock("@/lib/api/venue-access", () => ({ requireVenueRole: m.access }))
 vi.mock("@/lib/prisma", () => ({
-  prisma: { venue: { findUnique: m.venue }, membership: { findFirst: m.membership } },
+  prisma: { venue: { findUnique: m.venue } },
 }))
 vi.mock("@/lib/event-visibility", () => ({ eventHiddenFromStaff: m.hidden }))
 vi.mock("@/lib/api/xvm-api-store", async () => {
@@ -76,7 +77,7 @@ beforeEach(() => {
   m.session.mockResolvedValue({ user: { id: "user-1" } })
   m.token.mockResolvedValue("tok")
   m.venue.mockResolvedValue({ xvmApiVenueId: "xv-1", settings: null })
-  m.membership.mockResolvedValue({ role: "OWNER" })
+  m.access.mockResolvedValue({ ok: true, role: "OWNER" })
   m.hidden.mockResolvedValue(false)
   m.getEvent.mockResolvedValue(row())
 })

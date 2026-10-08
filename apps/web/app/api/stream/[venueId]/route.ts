@@ -2,6 +2,7 @@ import { NextRequest } from "next/server"
 import { getServerSession } from "next-auth"
 import { authOptions } from "@/lib/auth"
 import { prisma } from "@/lib/prisma"
+import { atLeast, requireVenueRole } from "@/lib/api/venue-access"
 import { venueEventBus, type VenueEvent } from "@/lib/sse/venue-events"
 import { xvmPageReader } from "@/lib/api/xvm-page-read"
 import { getVenue, type RevenueVisibility, type SalesVisibility } from "@/lib/api/xvm-api"
@@ -18,15 +19,10 @@ export async function GET(request: NextRequest, { params }: { params: Promise<{ 
 
   const { venueId } = await params
 
-  // Verify membership
-  const membership = await prisma.membership.findFirst({
-    where: { userId: session.user.id, venueId, status: "active" },
-  })
-  if (!membership) {
-    return new Response("Forbidden", { status: 403 })
-  }
+  const access = await requireVenueRole(session.user.id, venueId, "STAFF", "Forbidden")
+  if (!access.ok) return access.response
 
-  const isManager = membership.role === "OWNER" || membership.role === "MANAGER"
+  const isManager = atLeast(access.role, "MANAGER")
   const venue = await prisma.venue.findUnique({ where: { id: venueId }, select: { xvmApiVenueId: true } })
   const readXvm = await xvmPageReader(session.user.id, venue?.xvmApiVenueId ?? null)
   const visibility = isManager

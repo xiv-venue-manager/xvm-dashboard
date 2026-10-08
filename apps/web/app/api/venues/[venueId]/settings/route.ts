@@ -2,6 +2,7 @@ import { NextRequest, NextResponse } from "next/server"
 import { getServerSession } from "next-auth"
 import { authOptions } from "@/lib/auth"
 import { prisma } from "@/lib/prisma"
+import { requireVenueRole } from "@/lib/api/venue-access"
 import { Prisma } from "@/generated/prisma/client"
 import { z } from "zod"
 import { withRateLimit } from "@/lib/middleware/with-rate-limit"
@@ -97,17 +98,8 @@ export const GET = withRateLimit<{ params: Promise<{ venueId: string }> }>(
       const { venueId } = await params
 
       // Check if user has access to this venue
-      const membership = await prisma.membership.findFirst({
-        where: {
-          userId: session.user.id,
-          venueId,
-          status: "active",
-        },
-      })
-
-      if (!membership) {
-        return NextResponse.json({ error: "You don't have access to this venue" }, { status: 403 })
-      }
+      const access = await requireVenueRole(session.user.id, venueId, "STAFF", "You don't have access to this venue")
+      if (!access.ok) return access.response
 
       // Get venue settings
       const venue = await prisma.venue.findUnique({
@@ -209,17 +201,8 @@ export const PUT = withRateLimit<{ params: Promise<{ venueId: string }> }>(
       const { venueId } = await params
 
       // Check if user has permission to update settings
-      const membership = await prisma.membership.findFirst({
-        where: {
-          userId: session.user.id,
-          venueId,
-          status: "active",
-        },
-      })
-
-      if (!membership) {
-        return NextResponse.json({ error: "Not a member of this venue" }, { status: 403 })
-      }
+      const access = await requireVenueRole(session.user.id, venueId, "STAFF", "Not a member of this venue")
+      if (!access.ok) return access.response
 
       const body = await request.json()
       const validatedData = updateSettingsSchema.parse(body)
@@ -227,8 +210,8 @@ export const PUT = withRateLimit<{ params: Promise<{ venueId: string }> }>(
       // Only OWNER can update most settings; MANAGER can update roomManagerRoleIds and the
       // operational staff-visibility fields. Revenue visibility stays owner-only - it's a
       // financial-disclosure policy call, not day-to-day staff coordination like the other three.
-      const isOwner = membership.role === "OWNER"
-      const isManager = membership.role === "MANAGER"
+      const isOwner = access.role === "OWNER"
+      const isManager = access.role === "MANAGER"
       const managerAllowedKeys = new Set(["roomManagerRoleIds", "taskVisibility", "salesVisibility", "eventVisibility"])
       const onlyManagerAllowedFields = Object.keys(validatedData).every((k) => managerAllowedKeys.has(k))
 

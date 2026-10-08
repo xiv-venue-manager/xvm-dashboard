@@ -333,6 +333,17 @@ export async function getMe(personToken: string): Promise<Me> {
   return xvmFetch<Me>("/me", {}, personToken)
 }
 
+export interface MyVenueRow {
+  venue: VenueRow
+  tier: string
+  effective_tier: string
+}
+
+export async function listMyVenues(personToken: string): Promise<MyVenueRow[]> {
+  if (!process.env.XVM_API_BASE_URL) throw new Error("XVM_API_BASE_URL is not set")
+  return xvmFetch<MyVenueRow[]>("/me/venues", {}, personToken)
+}
+
 export async function listMyCredentials(personToken: string): Promise<Credential[]> {
   if (!process.env.XVM_API_BASE_URL) throw new Error("XVM_API_BASE_URL is not set")
   return xvmFetch<Credential[]>("/me/credentials", {}, personToken)

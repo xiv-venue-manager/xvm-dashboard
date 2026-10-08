@@ -2,6 +2,7 @@ import { NextRequest, NextResponse } from "next/server"
 import { getServerSession } from "next-auth"
 import { authOptions } from "@/lib/auth"
 import { prisma } from "@/lib/prisma"
+import { requireVenueRole } from "@/lib/api/venue-access"
 import { withRateLimit } from "@/lib/middleware/with-rate-limit"
 import { getValidXvmApiToken, xvmApiErrorResponse } from "@/lib/api/xvm-api-store"
 import { getEvent } from "@/lib/api/xvm-api"
@@ -27,17 +28,8 @@ export const GET = withRateLimit<{ params: Promise<{ venueId: string; eventId: s
       const { venueId, eventId } = await params
 
       // Check permissions
-      const membership = await prisma.membership.findFirst({
-        where: {
-          userId: session.user.id,
-          venueId,
-          status: "active",
-        },
-      })
-
-      if (!membership) {
-        return NextResponse.json({ error: "You don't have access to this venue" }, { status: 403 })
-      }
+      const access = await requireVenueRole(session.user.id, venueId, "STAFF", "You don't have access to this venue")
+      if (!access.ok) return access.response
 
       const venue = await prisma.venue.findUnique({ where: { id: venueId }, select: { xvmApiVenueId: true } })
       if (!venue?.xvmApiVenueId) {

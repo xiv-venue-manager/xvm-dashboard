@@ -1,8 +1,9 @@
 import { describe, it, expect, vi, beforeEach } from "vitest"
+import { NextResponse } from "next/server"
 
 const m = vi.hoisted(() => ({
   session: vi.fn(),
-  membership: vi.fn(),
+  access: vi.fn(),
   venue: vi.fn(),
   token: vi.fn(),
   getEvent: vi.fn(),
@@ -13,9 +14,9 @@ const m = vi.hoisted(() => ({
 vi.mock("next-auth", () => ({ getServerSession: m.session }))
 vi.mock("@/lib/auth", () => ({ authOptions: {} }))
 vi.mock("@/lib/middleware/with-rate-limit", () => ({ withRateLimit: (handler: unknown) => handler }))
+vi.mock("@/lib/api/venue-access", () => ({ requireVenueRole: m.access }))
 vi.mock("@/lib/prisma", () => ({
   prisma: {
-    membership: { findFirst: m.membership },
     venue: { findUnique: m.venue },
     xvmApiCredential: { deleteMany: m.invalidate },
   },
@@ -44,7 +45,7 @@ beforeEach(() => {
   vi.clearAllMocks()
   vi.spyOn(console, "error").mockImplementation(() => {})
   m.session.mockResolvedValue({ user: { id: "user-1" } })
-  m.membership.mockResolvedValue({ id: "m1" })
+  m.access.mockResolvedValue({ ok: true, role: "STAFF" })
   m.venue.mockResolvedValue({ xvmApiVenueId: "xv-1" })
   m.token.mockResolvedValue("tok")
   m.getEvent.mockResolvedValue({ id: 7 })
@@ -56,7 +57,7 @@ describe("GET attendance", () => {
     m.session.mockResolvedValue(null)
     expect((await call()).status).toBe(401)
     m.session.mockResolvedValue({ user: { id: "user-1" } })
-    m.membership.mockResolvedValue(null)
+    m.access.mockResolvedValue({ ok: false, response: NextResponse.json({ error: "Forbidden" }, { status: 403 }) })
     expect((await call()).status).toBe(403)
   })
 

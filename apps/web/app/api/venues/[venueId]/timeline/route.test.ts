@@ -2,7 +2,7 @@ import { describe, it, expect, vi, beforeEach } from "vitest"
 
 const m = vi.hoisted(() => ({
   session: vi.fn(),
-  membership: vi.fn(),
+  access: vi.fn(),
   venue: vi.fn(),
   getEvent: vi.fn(),
   listPatronLogs: vi.fn(),
@@ -10,8 +10,9 @@ const m = vi.hoisted(() => ({
 
 vi.mock("next-auth", () => ({ getServerSession: m.session }))
 vi.mock("@/lib/auth", () => ({ authOptions: {} }))
+vi.mock("@/lib/api/venue-access", () => ({ requireVenueRole: m.access }))
 vi.mock("@/lib/prisma", () => ({
-  prisma: { membership: { findFirst: m.membership }, venue: { findUnique: m.venue } },
+  prisma: { venue: { findUnique: m.venue } },
 }))
 vi.mock("@/lib/api/xvm-page-read", () => ({
   xvmPageReader: async () => (_label: string, _fallback: unknown, call: (t: string, v: string) => Promise<unknown>) =>
@@ -40,7 +41,7 @@ const row = (id: number, eventId: number | null, ago: number) =>
 beforeEach(() => {
   vi.clearAllMocks()
   m.session.mockResolvedValue({ user: { id: "user-1" } })
-  m.membership.mockResolvedValue({ id: "m1" })
+  m.access.mockResolvedValue({ ok: true, role: "STAFF" })
   m.venue.mockResolvedValue({ xvmApiVenueId: "xv-1" })
   m.getEvent.mockResolvedValue({ starts_at: minutesAgo(120), ends_at: minutesAgo(-60) })
 })

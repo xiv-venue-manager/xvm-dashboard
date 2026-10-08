@@ -2,6 +2,7 @@ import { NextResponse } from "next/server"
 import { getServerSession } from "next-auth"
 import { authOptions } from "@/lib/auth"
 import { prisma } from "@/lib/prisma"
+import { requireVenueRole } from "@/lib/api/venue-access"
 import { z } from "zod"
 import { withRateLimit } from "@/lib/middleware/with-rate-limit"
 import { validators } from "@/lib/validation"
@@ -84,12 +85,8 @@ export const GET = withRateLimit<RouteContext>(
     const auth = await authorize(context)
     if (auth.error) return auth.error
 
-    const membership = await prisma.membership.findFirst({
-      where: { userId: auth.userId, venueId: auth.venueId, status: "active" },
-    })
-    if (!membership) {
-      return NextResponse.json({ error: "Access denied" }, { status: 403 })
-    }
+    const access = await requireVenueRole(auth.userId, auth.venueId, "STAFF", "Access denied")
+    if (!access.ok) return access.response
 
     try {
       const event = await getEvent(auth.token, auth.xvmApiVenueId, auth.eventId)
@@ -97,7 +94,7 @@ export const GET = withRateLimit<RouteContext>(
         creatorName: await creatorNameOf(auth.token, auth.xvmApiVenueId, event),
       })
       const shownStatus = shape.status === "DRAFT" ? "DRAFT" : "PUBLISHED"
-      if (await eventHiddenFromStaff(auth.userId, membership.role, auth.venue, shownStatus)) {
+      if (await eventHiddenFromStaff(auth.userId, access.role, auth.venue, shownStatus)) {
         return NextResponse.json({ error: "Event not found" }, { status: 404 })
       }
       return NextResponse.json(shape)

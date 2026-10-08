@@ -2,6 +2,7 @@ import { NextRequest, NextResponse } from "next/server"
 import { getServerSession } from "next-auth"
 import { authOptions } from "@/lib/auth"
 import { prisma } from "@/lib/prisma"
+import { requireVenueRole } from "@/lib/api/venue-access"
 import { z } from "zod"
 import { withRateLimit } from "@/lib/middleware/with-rate-limit"
 import { createTransaction, createTransactionSchema, InsufficientStockError } from "@/lib/api/transactions"
@@ -77,17 +78,8 @@ export const GET = withRateLimit<{ params: Promise<{ venueId: string }> }>(
     }
 
     // Check if user has access to this venue
-    const membership = await prisma.membership.findFirst({
-      where: {
-        userId: session.user.id,
-        venueId,
-        status: "active",
-      },
-    })
-
-    if (!membership) {
-      return NextResponse.json({ error: "You don't have access to this venue" }, { status: 403 })
-    }
+    const access = await requireVenueRole(session.user.id, venueId, "STAFF", "You don't have access to this venue")
+    if (!access.ok) return access.response
 
     const token = await getValidXvmApiToken(session.user.id)
     if (!token) {
@@ -130,17 +122,8 @@ export const POST = withRateLimit<{ params: Promise<{ venueId: string }> }>(
       const { venueId } = await params
 
       // Check if user has access to this venue
-      const membership = await prisma.membership.findFirst({
-        where: {
-          userId: session.user.id,
-          venueId,
-          status: "active",
-        },
-      })
-
-      if (!membership) {
-        return NextResponse.json({ error: "You don't have access to this venue" }, { status: 403 })
-      }
+      const access = await requireVenueRole(session.user.id, venueId, "STAFF", "You don't have access to this venue")
+      if (!access.ok) return access.response
 
       const body = await request.json()
       const validatedData = createTransactionSchema.parse(body)

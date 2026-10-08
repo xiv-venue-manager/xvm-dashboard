@@ -16,7 +16,7 @@ Status: proposed, 2026-10-08. Nothing built yet.
 
 The end state is that every venue lives in xvm-api and Prisma is removed entirely. Today a venue is born the other way round: `POST /api/venues` writes the venue, an owner membership and a Manager role to Prisma only, and an xvm-api venue appears later, when the owner presses "Connect to xvm-api" in settings (`xvm-connect`, whose only caller is that button). So every new venue starts unconnected, and the dashboard needs a transitional "unconnected" state: 105 places in `app/` and `lib/` branch on `xvmApiVenueId` being null, and the membership-gates plan (#136) would have needed an owner-by-`ownerId` rule just to let a new venue's creator reach the connect button.
 
-Cutting creation over removes that state at its source. After this lands, a new venue can never be unconnected, #136 needs no special case, and the connect route and button go.
+Cutting creation over removes that state at its source. After this lands, a new venue can never be unconnected, #136 needs no special case, and the connect route and button go. **It cannot ship alone:** see "Shipping order" below.
 
 ## The test applied to every choice
 
@@ -66,9 +66,15 @@ All other constraints match (name 100, ward 1 to 30, plot 1 to 60, slug pattern 
 | `apps/web/app/dashboard/[slug]/settings/page.tsx` | Remove the connect handler, its two state variables and the button. |
 | `apps/web/lib/api/venue-setup.ts` | Delete. |
 
+## Shipping order
+
+**This ships together with the membership-gates work (#136), not before it.** Found in a browser on 2026-10-08: a venue created by slice A has no Prisma membership, and 13 dashboard pages, the venue list and 27 API routes still decide access by a Prisma membership, so the creator gets a 404 on their own venue's dashboard. In the other direction, #136 alone makes a venue created the old way (a Prisma membership, no xvm-api venue) unreachable. Either order leaves newly created venues unusable until both are in.
+
+Recommended: merge the #136 stack first (it also fixes invited members, who are refused today), then #139 and #140, in one sitting, and create no venues in between. `dev` deploys itself on push, so the window is real. The alternative, keeping a Prisma owner membership in creation until #136 lands, would reintroduce the transitional state this plan exists to remove.
+
 ## PR slices
 
-Both against `dev`. The membership-gates PRs touch `app/api/venues/route.ts` (`GET`) too, so land this one first and rebase theirs.
+Both against `dev`, and neither ships alone (see "Shipping order"). The membership-gates PRs touch `app/api/venues/route.ts` (`GET`) too, so whichever lands second rebases.
 
 | PR | Tasks |
 |---|---|

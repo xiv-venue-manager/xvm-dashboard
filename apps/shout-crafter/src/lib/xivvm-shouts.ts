@@ -13,10 +13,21 @@ export interface SavedShout {
   createdAt: string
 }
 
-export async function fetchShouts(): Promise<SavedShout[]> {
-  const res = await fetch(API, { credentials: "include" })
-  if (!res.ok) return []
-  return res.json()
+export type FetchShoutsResult =
+  | { ok: true; shouts: SavedShout[] }
+  | { ok: false; reason: "signed_out" | "unavailable" }
+
+export async function fetchShouts(): Promise<FetchShoutsResult> {
+  try {
+    const res = await fetch(API, { credentials: "include" })
+    if (res.status === 401) return { ok: false, reason: "signed_out" }
+    if (!res.ok) return { ok: false, reason: "unavailable" }
+    const body: unknown = await res.json()
+    if (!Array.isArray(body)) return { ok: false, reason: "unavailable" }
+    return { ok: true, shouts: body as SavedShout[] }
+  } catch {
+    return { ok: false, reason: "unavailable" }
+  }
 }
 
 export async function saveShout(data: Omit<SavedShout, "id" | "createdAt">): Promise<SavedShout | null> {

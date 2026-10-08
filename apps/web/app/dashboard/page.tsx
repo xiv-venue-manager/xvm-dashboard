@@ -4,6 +4,7 @@ import { redirect } from "next/navigation"
 import Link from "next/link"
 import { Button } from "@/components/ui/button"
 import { prisma } from "@/lib/prisma"
+import { myVenueRoles } from "@/lib/api/venue-access"
 import { Building2, Users, ChevronRight, Plus } from "lucide-react"
 import { AnnouncementBanner } from "@/components/announcement-banner"
 import { xvmPersonReader } from "@/lib/api/xvm-page-read"
@@ -31,16 +32,10 @@ export default async function DashboardPage() {
 
   const hasLinkedCharacter = (await readPerson("dashboard characters", [] as MyCharacterRow[], (t) => listMyCharacters(t))).length > 0
 
+  const roles = await myVenueRoles(session.user.id)
   const venues = await prisma.venue.findMany({
-    where: {
-      memberships: {
-        some: { userId: session.user.id },
-      },
-    },
+    where: { id: { in: [...roles.keys()] } },
     include: {
-      memberships: {
-        where: { userId: session.user.id },
-      },
       _count: {
         select: { events: true, memberships: true },
       },
@@ -82,7 +77,7 @@ export default async function DashboardPage() {
         <>
           <div className="grid grid-cols-1 sm:grid-cols-2 lg:grid-cols-3 gap-4 md:gap-6">
             {venues.map((venue: (typeof venues)[number]) => {
-              const role = venue.memberships[0].role
+              const role = roles.get(venue.id) ?? "STAFF"
               const roleClass = roleColors[role] || roleColors.STAFF
               return (
                 <Link key={venue.id} href={`/dashboard/${venue.slug}`} className="group block">

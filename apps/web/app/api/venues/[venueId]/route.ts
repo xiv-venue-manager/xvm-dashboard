@@ -7,6 +7,7 @@ import { withRateLimit } from "@/lib/middleware/with-rate-limit"
 import { invalidateCache, cacheKeys } from "@/lib/redis-cache"
 import { validators } from "@/lib/validation"
 import { getValidXvmApiToken, xvmApiErrorResponse } from "@/lib/api/xvm-api-store"
+import { requireVenueRole } from "@/lib/api/venue-access"
 import { updateVenue, type VenueUpdate } from "@/lib/api/xvm-api"
 
 const venueUpdateSchema = z.object({
@@ -110,25 +111,12 @@ export const DELETE = withRateLimit(
 
       const { venueId } = await context.params
 
-      // Check if venue exists and user is the owner
-      const venue = await prisma.venue.findUnique({
-        where: { id: venueId },
-        include: {
-          memberships: {
-            where: {
-              userId: session.user.id,
-            },
-          },
-        },
-      })
+      const access = await requireVenueRole(session.user.id, venueId, "OWNER", "Only venue owners can delete venues")
+      if (!access.ok) return access.response
 
+      const venue = await prisma.venue.findUnique({ where: { id: venueId } })
       if (!venue) {
         return NextResponse.json({ error: "Venue not found" }, { status: 404 })
-      }
-
-      // Only owners can delete venues
-      if (venue.memberships.length === 0 || venue.memberships[0].role !== "OWNER") {
-        return NextResponse.json({ error: "Only venue owners can delete venues" }, { status: 403 })
       }
 
       // Delete venue (cascade will handle related records)

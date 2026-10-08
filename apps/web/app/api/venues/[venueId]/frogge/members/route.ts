@@ -2,6 +2,7 @@ import { NextResponse } from "next/server"
 import { getServerSession } from "next-auth"
 import { authOptions } from "@/lib/auth"
 import { prisma } from "@/lib/prisma"
+import { requireVenueRole } from "@/lib/api/venue-access"
 import { getGuildMembers } from "@/lib/frogge-api"
 
 export async function GET(request: Request, { params }: { params: Promise<{ venueId: string }> }) {
@@ -13,17 +14,8 @@ export async function GET(request: Request, { params }: { params: Promise<{ venu
 
     const { venueId } = await params
 
-    const membership = await prisma.membership.findFirst({
-      where: {
-        userId: session.user.id,
-        venueId,
-        status: "active",
-      },
-    })
-
-    if (!membership) {
-      return NextResponse.json({ error: "Not a member of this venue" }, { status: 403 })
-    }
+    const access = await requireVenueRole(session.user.id, venueId, "STAFF", "Not a member of this venue")
+    if (!access.ok) return access.response
 
     const venue = await prisma.venue.findUnique({
       where: { id: venueId },

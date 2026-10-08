@@ -2,6 +2,7 @@ import { NextResponse } from "next/server"
 import { getServerSession } from "next-auth"
 import { authOptions } from "@/lib/auth"
 import { prisma } from "@/lib/prisma"
+import { requireVenueRole } from "@/lib/api/venue-access"
 import { syncVenuePartakeEvents } from "@/lib/partake"
 
 export async function POST(request: Request, { params }: { params: Promise<{ venueId: string }> }) {
@@ -13,18 +14,8 @@ export async function POST(request: Request, { params }: { params: Promise<{ ven
 
     const { venueId } = await params
 
-    const membership = await prisma.membership.findFirst({
-      where: {
-        userId: session.user.id,
-        venueId,
-        role: { in: ["OWNER", "MANAGER"] },
-        status: "active",
-      },
-    })
-
-    if (!membership) {
-      return NextResponse.json({ error: "Only owners and managers can trigger sync" }, { status: 403 })
-    }
+    const access = await requireVenueRole(session.user.id, venueId, "MANAGER", "Only owners and managers can trigger sync")
+    if (!access.ok) return access.response
 
     const venue = await prisma.venue.findUnique({
       where: { id: venueId },

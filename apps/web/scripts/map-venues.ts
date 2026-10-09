@@ -5,20 +5,20 @@
  *
  * Settings xvm-api has no home for (tagline, tags, adult flag, open nights, default hours, the shift bot
  * and notification settings) come out in `leftovers`, so nothing is lost while that question is open.
- * Test venues are included unless --skip-test-venues is passed, because whether to migrate them is undecided.
+ * Test venues (venue type TEST_VENUE) are left out, by decision. Pass --include-test-venues to keep them.
  *
  * Usage (from apps/web):
  *   psql "$DATABASE_URL" -At -f scripts/export/venues.sql > venues-export.json
- *   npx tsx scripts/map-venues.ts venues-export.json people-mapped.json venue-timezones-review.json venues-mapped.json [--skip-test-venues]
+ *   npx tsx scripts/map-venues.ts venues-export.json people-mapped.json venue-timezones-review.json venues-mapped.json [--include-test-venues]
  */
 import { readFileSync, writeFileSync } from "node:fs"
 import { mapVenues, type VenuesExport } from "../lib/migration/venues"
 
 const args = process.argv.slice(2)
-const skipTestVenues = args.includes("--skip-test-venues")
+const skipTestVenues = !args.includes("--include-test-venues")
 const [input, peopleFile, timezonesFile, output] = args.filter((a) => !a.startsWith("--"))
 if (!input || !peopleFile || !timezonesFile || !output) {
-  console.error("Usage: npx tsx scripts/map-venues.ts <venues-export.json> <people-mapped.json> <venue-timezones-review.json> <out.json> [--skip-test-venues]")
+  console.error("Usage: npx tsx scripts/map-venues.ts <venues-export.json> <people-mapped.json> <venue-timezones-review.json> <out.json> [--include-test-venues]")
   process.exit(1)
 }
 
@@ -34,7 +34,7 @@ const result = mapVenues(source, {
 })
 writeFileSync(output, JSON.stringify(result, null, 2))
 
-console.log(`venues:         ${result.venues.length} of ${source.venues.length}${skipTestVenues ? " (test venues left out)" : ""}`)
+console.log(`venues:         ${result.venues.length} of ${source.venues.length}${skipTestVenues ? " (test venues left out)" : " (test venues included)"}`)
 console.log(`external links: ${result.externalLinks.length} (${result.externalLinks.filter((l) => l.provider === "Partake").length} Partake, ${result.externalLinks.filter((l) => l.provider === "FFXIVVenues").length} ffxivvenues.com)`)
 console.log(`gallery images: ${result.images.length} over ${new Set(result.images.map((i) => i.venue_key)).size} venues`)
 console.log(`leftover settings: ${result.leftovers.length} venues`)

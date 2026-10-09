@@ -115,6 +115,12 @@ export const authOptions: NextAuthOptions = {
     },
     async linkAccount(message) {
       console.log("NextAuth linkAccount event:", message.account?.provider)
+      if (message.account.provider === "discord") {
+        await prisma.user.update({
+          where: { id: message.user.id },
+          data: { discordId: message.account.providerAccountId },
+        })
+      }
     },
     async session(message) {
       // Don't log session events in production to reduce noise

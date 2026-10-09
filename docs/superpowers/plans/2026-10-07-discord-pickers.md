@@ -178,7 +178,26 @@ Administrator settles the channel-visibility question outright: it bypasses chan
 
 ### PR 1 — Wire the REST layer and the cache
 
-No UI. Four route handlers under `app/api/discord/[guildId]/`: `roles`, `channels`, `emojis`, `member-search`. Each gated on venue membership the way the existing venue routes are, each returning the shaped types `discord-rest.ts` already defines.
+**Shipped as #157.** No UI. Four read-only route handlers under
+`app/api/venues/[venueId]/discord/`: `roles`, `channels`, `emojis`, and `members`
+(`?q=` searches, `?ids=` resolves), each returning the shaped types `discord-rest.ts`
+already defines.
+
+Keyed by **venue** id, not by guild id as this plan first said. The gate needs a venue,
+the client always knows the venue and may not know the guild, and keying by guild would
+need a `GET /venues/by-link/DiscordGuild/{id}` reverse lookup that nothing else uses —
+while the manifest has all 84 venue routes being re-keyed to the xvm-api venue id
+anyway. There is no cache sharing to win either, because `UniqueConstraint("provider",
+"external_id")` means one guild maps to at most one venue.
+
+`requireVenueGuild` in `lib/api/venue-guild.ts` is the gate all four share. It
+establishes four things before any Discord call — the caller works at this venue, the
+venue exists in xvm-api, we hold a person token, and a Discord server is linked — and
+answers each failure with its own status, because a picker has to tell "you cannot see
+this" from "nothing is connected yet" from "try again". Collapsing them is how an
+integration ends up looking like a deliberate empty state. STAFF, not MANAGER: these
+are option lists, and what a person may then save is enforced by the route that takes
+the submission.
 
 Caching, per resource, because they differ:
 
@@ -187,10 +206,16 @@ Caching, per resource, because they differ:
 | Roles | 5 min | Changes rarely, small, and a stale role in a picker is harmless |
 | Channels | 5 min | Same |
 | Guild emojis | 5 min | Same |
-| Member search | **not cached** | Per-keystroke and unbounded in cardinality; caching it would mean one Redis key per query string |
-| Member *resolution* (`getGuildMembers`) | 1 hour | Keyed per user id, for rendering already-saved ids |
+| `members?q=` | **not cached** | Per-keystroke and unbounded in cardinality; caching it would mean one Redis key per query string |
+| `members?ids=` | 1 hour | Keyed per member, so five saved ids where four are warm fetches one |
 
-`getOrSet` and `cacheTTL` already do this; the work is adding keys to `cacheKeys` and picking the numbers. Add a `refresh=1` escape hatch on the three cached ones so a person who just made a role in Discord is not told to wait five minutes.
+`getOrSet` turned out **not** to be usable: it caches whatever the fetcher returns,
+including a failure, and a five-minute memory of a transient Discord outage is worse
+than the outage — every picker falls back to "paste an id", which reads as a design
+decision rather than a broken integration. The routes call `getCached` and `setCache`
+directly so that only a success is stored. `?refresh=1` skips the cache on the three
+cached routes, so a person who just made a role in Discord is not told to wait five
+minutes.
 
 Deliberately **not** cached at the Next `fetch` layer: Redis is shared across instances and already in the request path, and `discord-rest.ts` calls `fetch` directly without `next` options.
 
@@ -198,7 +223,18 @@ Deliberately **not** cached at the Next `fetch` layer: Redis is shared across in
 
 The easy two, and they retire the four paste-an-id sites listed at the top. Both are a `<select>` over a fetched list with a "paste an id" fallback that stays reachable — the fallback is not a nicety, it is what keeps the page usable when the bot is not in the guild.
 
-`RolePicker` must use `filterAssignableRoles` with `alwaysInclude` set to the row's current value. The comment at `discord-rest.ts:183` explains the footgun that guards against; it is worth reading rather than paraphrasing.
+`RolePicker` filters on the `unsafeReason` each role carries from PR 1, and keeps the
+row's current value selectable whatever that reason says. It cannot call
+`filterAssignableRoles` as this plan first said: that helper lives in `discord-rest.ts`
+beside the bot token, so a client component cannot import it — the same constraint this
+plan records for `lib/emoji.ts` under PR 4, which it had not applied here. PR 1's roles
+route annotates server-side instead, and deliberately does not return the raw
+`permissions` bitfield.
+
+The comment at `discord-rest.ts:183` explains the footgun the `alwaysInclude` half
+guards against — an uncontrolled `<select>` whose saved value is not among the rendered
+options silently falls back to the first one — and it is worth reading rather than
+paraphrasing.
 
 Server-side handlers still validate on submit — `unsafeRoleReason` exists for that, and the endpoints are reachable by direct POST whatever the UI renders.
 
@@ -216,7 +252,11 @@ Also needs the *rendering* half, which no component covers: anywhere a saved Dis
 
 The largest piece and the only one with new dependencies: `@twemoji/api` and `unicode-emoji-json`. Two halves in one component — guild custom emoji from PR 1's `emojis` route, and the Unicode set from the catalogue.
 
-Port `lib/emoji.ts` as well. Its header documents a constraint that applies identically here: the pure helpers cannot live in `discord-rest.ts`, because that module holds the bot token and must not be importable from a client component.
+Port `lib/emoji.ts` as well. Its header documents a constraint that applies identically
+here: the pure helpers cannot live in `discord-rest.ts`, because that module holds the
+bot token and must not be importable from a client component. PR 1 hit this first with
+`unsafeRoleReason` and settled it by annotating server-side rather than exporting the
+helper — the same shape works for any pure emoji helper the picker needs.
 
 `xvm-api`'s `api/emoji.py` already validates what Discord will accept as a reaction, including the `<:name:id>` custom form. The picker should produce exactly what that accepts, so a picked emoji never fails validation server-side. Worth checking the two agree before building the second half.
 

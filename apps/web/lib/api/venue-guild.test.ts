@@ -9,6 +9,7 @@ const m = vi.hoisted(() => ({
   cached: vi.fn(),
   setCache: vi.fn(),
   channels: vi.fn(),
+  channelInfo: vi.fn(),
 }))
 
 vi.mock("@/lib/api/venue-access", () => ({ requireVenueRole: m.role }))
@@ -27,7 +28,11 @@ vi.mock("@/lib/redis-cache", async (importOriginal) => ({
   getCached: m.cached,
   setCache: m.setCache,
 }))
-vi.mock("@/lib/discord-rest", () => ({ getGuildChannels: m.channels }))
+vi.mock("@/lib/discord-rest", async (importOriginal) => ({
+  ...(await importOriginal<typeof import("@/lib/discord-rest")>()),
+  getGuildChannels: m.channels,
+  getChannelInfo: m.channelInfo,
+}))
 
 import { requireVenueGuild, requireChannelInGuild, discordFailureResponse, wantsRefresh } from "./venue-guild"
 import { XvmApiError } from "@/lib/api/xvm-api"
@@ -35,6 +40,8 @@ import { XvmApiError } from "@/lib/api/xvm-api"
 const GUILD = "1509616350337962024"
 const CHANNEL = "1509616350337962099"
 const OTHER_GUILD_CHANNEL = "1409616350337962011"
+const THREAD = "1509616350337962055"
+const FORUM = "1509616350337962066"
 const links = (rows: Record<string, unknown>[]) => ({ external_links: rows })
 const liveLink = (over: Record<string, unknown> = {}) => ({
   id: 7,
@@ -54,6 +61,7 @@ beforeEach(() => {
   m.getVenue.mockResolvedValue(links([liveLink()]))
   m.cached.mockResolvedValue(null)
   m.channels.mockResolvedValue({ ok: true, data: [{ id: CHANNEL, name: "shifts" }] })
+  m.channelInfo.mockResolvedValue({ ok: false, status: 404 })
 })
 
 describe("requireVenueGuild", () => {
@@ -179,6 +187,43 @@ describe("requireChannelInGuild", () => {
     if (result.ok) return
     expect(result.response.status).toBe(400)
     expect(await result.response.json()).toMatchObject({ error: "channel_not_in_guild" })
+  })
+
+  it("accepts a thread in this venue's server, which the channel list never contains", async () => {
+    m.channelInfo.mockResolvedValue({ ok: true, data: { guildId: GUILD, type: 11 } })
+    expect(await check(THREAD)).toEqual({ ok: true })
+    expect(m.channelInfo).toHaveBeenCalledWith(THREAD)
+  })
+
+  it("refuses a thread in another server", async () => {
+    m.channelInfo.mockResolvedValue({ ok: true, data: { guildId: "999", type: 11 } })
+    const result = await check(THREAD)
+    expect(result.ok).toBe(false)
+    if (result.ok) return
+    expect(await result.response.json()).toMatchObject({ error: "channel_not_in_guild" })
+  })
+
+  it("says so when a channel in this server is not one a message can be posted to", async () => {
+    m.channelInfo.mockResolvedValue({ ok: true, data: { guildId: GUILD, type: 15 } })
+    const result = await check(FORUM)
+    expect(result.ok).toBe(false)
+    if (result.ok) return
+    expect(result.response.status).toBe(400)
+    expect(await result.response.json()).toMatchObject({ error: "channel_not_text" })
+  })
+
+  it("treats Discord being down on the channel lookup as transient, not as the channel being wrong", async () => {
+    m.channelInfo.mockResolvedValue({ ok: false, status: 500 })
+    const result = await check(THREAD)
+    expect(result.ok).toBe(false)
+    if (result.ok) return
+    expect(result.response.status).toBe(502)
+  })
+
+  it("does not look the channel up when the list already has it", async () => {
+    m.cached.mockResolvedValue([{ id: CHANNEL, name: "shifts" }])
+    await check()
+    expect(m.channelInfo).not.toHaveBeenCalled()
   })
 
   it("refuses when the server cannot be established, rather than letting any id through", async () => {

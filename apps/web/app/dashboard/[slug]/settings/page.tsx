@@ -1428,7 +1428,7 @@ export default function SettingsPage({ params }: { params: Promise<{ slug: strin
                     <div>
                       <label className="block text-sm font-medium mb-1">Discord Channel ID</label>
                       {venueId ? (
-                        <ChannelPicker venueId={venueId} value={shiftBotChannelId} onChange={setShiftBotChannelId} />
+                        <ChannelPicker venueId={venueId} value={shiftBotChannelId} onChange={setShiftBotChannelId} className="flex-1 min-w-44" />
                       ) : (
                         <input
                           type="text"

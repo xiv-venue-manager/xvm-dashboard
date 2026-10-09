@@ -124,8 +124,14 @@ export function ApplyTemplateDialog({ venueId, templates, onApplied }: ApplyTemp
             </Select>
           </div>
           <div className="space-y-2">
-            <Label>Channel</Label>
-            <ChannelPicker venueId={venueId} value={channelId} onChange={setChannelId} disabled={submitting} />
+            <Label htmlFor="template-channel">Channel</Label>
+            <ChannelPicker
+              id="template-channel"
+              venueId={venueId}
+              value={channelId}
+              onChange={setChannelId}
+              disabled={submitting}
+            />
           </div>
         </div>
         <DialogFooter>

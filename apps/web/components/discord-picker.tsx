@@ -2,6 +2,7 @@
 
 import { useCallback, useEffect, useRef, useState } from "react"
 import { Input } from "@/components/ui/input"
+import { cn } from "@/lib/utils"
 import {
   Select,
   SelectContent,
@@ -125,12 +126,16 @@ export function DiscordOptionPicker({
   disabled,
   placeholder,
   ariaLabel,
+  id,
+  className,
 }: {
   value: string
   onChange: (value: string) => void
   disabled?: boolean
   placeholder: string
   ariaLabel: string
+  id?: string
+  className?: string
 } & Omit<Loaded, "refresh"> & { onRefresh: () => void }) {
   const [manual, setManual] = useState(false)
   const unlisted = value !== "" && !options.some((option) => option.value === value)
@@ -145,13 +150,14 @@ export function DiscordOptionPicker({
       <div className="w-full space-y-1">
         <div className="flex flex-wrap items-center gap-2">
           <Input
+            id={id}
             value={value}
             onChange={(event) => onChange(event.target.value)}
             placeholder={placeholder}
             disabled={disabled}
             maxLength={20}
             aria-label={ariaLabel}
-            className="w-44"
+            className={cn("w-44", className)}
           />
           {canReturnToList(options, value) && (
             <button
@@ -182,7 +188,7 @@ export function DiscordOptionPicker({
     <div className="w-full space-y-1">
       <div className="flex flex-wrap items-center gap-2">
         <Select value={value} onValueChange={onChange} disabled={disabled}>
-          <SelectTrigger size="sm" className="w-44" aria-label={ariaLabel}>
+          <SelectTrigger id={id} size="sm" className={cn("w-44", className)} aria-label={ariaLabel}>
             <SelectValue placeholder={placeholder} />
           </SelectTrigger>
           <SelectContent align="start">
@@ -222,11 +228,15 @@ export function RolePicker({
   value,
   onChange,
   disabled,
+  id,
+  className,
 }: {
   venueId: string
   value: string
   onChange: (value: string) => void
   disabled?: boolean
+  id?: string
+  className?: string
 }) {
   const { options, loading, problem, refresh } = useDiscordOptions(venueId, "roles", !disabled)
   const offered = offeredRoles(options, value)
@@ -242,6 +252,8 @@ export function RolePicker({
       disabled={disabled}
       placeholder="Role ID"
       ariaLabel="Discord role"
+      id={id}
+      className={className}
     />
   )
 }
@@ -252,11 +264,15 @@ export function ChannelPicker({
   value,
   onChange,
   disabled,
+  id,
+  className,
 }: {
   venueId: string
   value: string
   onChange: (value: string) => void
   disabled?: boolean
+  id?: string
+  className?: string
 }) {
   const { options, loading, problem, refresh } = useDiscordOptions(venueId, "channels", !disabled)
 
@@ -271,6 +287,8 @@ export function ChannelPicker({
       disabled={disabled}
       placeholder="Channel ID"
       ariaLabel="Discord channel"
+      id={id}
+      className={className}
     />
   )
 }

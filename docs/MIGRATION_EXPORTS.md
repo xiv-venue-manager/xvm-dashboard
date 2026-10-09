@@ -2,7 +2,7 @@
 
 How the dashboard's Prisma data gets ready to load into xvm-api. Read this with `docs/PRISMA_MIGRATION_MANIFEST.md`, which holds the decisions; this file says what was built, in what order to run it, and what it produced on the last prod read.
 
-It describes twelve PRs (#162 to #173). Until they merge, the paths below exist only on those branches.
+It describes thirteen PRs (#162 to #173, and #175). Until they merge, the paths below exist only on those branches.
 
 ## What it is, and what it is not
 
@@ -65,13 +65,16 @@ npx tsx scripts/map-hours.ts hours.json hours-mapped.json
 
 ro < scripts/export/settings.sql   > settings.json
 npx tsx scripts/map-settings.ts settings.json settings-mapped.json
+
+ro < scripts/export/venue-timezones.sql > venue-timezones.json
+npx tsx scripts/map-venue-timezones.ts venue-timezones.json venue-timezones-review.json
 ```
 
 Dependencies, so a PR can be reviewed alone:
 
 | Needs | Slices |
 |---|---|
-| Nothing | people, hours, settings |
+| Nothing | people, hours, settings, venue timezones |
 | people | characters, positions, events, follows and feedback |
 | people, positions | services, tasks and rooms |
 | people, events | patrons and patron logs |
@@ -96,6 +99,7 @@ The runners read each other's output as JSON and never import each other's code,
 | #171 | Tasks and rooms | `task_categories`, `tasks`, `rooms` |
 | #172 | Opening hours | `venue_hours` (each with its rule) |
 | #173 | Pot and inventory settings | `venue_payroll_settings`, an `inventory` module toggle |
+| #175 | Venue timezones | the venue `timezone` column, plus a review list for owners |
 
 ## What the last prod read produced
 
@@ -121,6 +125,7 @@ Read-only, 2026-10-09. These are the numbers a rehearsal run should land on, giv
 | Opening hours | 28 | 20 | 8 | the 8 belong to the 5 venues synced from ffxivvenues.com |
 | Pot settings | 18 | 4 rows | 14 all default | 3 venues have the pot on |
 | Inventory settings | 18 | 5 module toggles | 13 off | |
+| Venue timezones | 69 venues | 69 proposed | 0 | 22 one zone, 6 mixed, 41 none (UTC), 6 suspect (mostly UTC events) |
 
 These match the manifest where it gave numbers. Where they differ the difference is rows added since its 2026-10-08 snapshot.
 
@@ -143,7 +148,7 @@ Each is a counted warning, not a silent change.
 4. **Dropped payroll entries.** Two payroll entries are skipped, and shifts reference payroll entries by key, so clear that link on any shift that points at one.
 5. **Daylight saving on series.** 98 of 324 event occurrences have `starts_at` an hour off their series wall-clock time. The events mapper keeps the real `starts_at` and sets `scheduled_at` to the series' own slot, which assumes xvm-api's generator computes the same slot. Shifts have no separate canonical slot, so a drifted shift cannot be tied to its series. Both need proving in the rehearsal.
 6. **Rules are emitted `enabled: true`.** Whether enabling a rule duplicates the loaded future events and shifts is an open question for Allegro. The loader can flip it.
-7. **Series timezones.** Prisma shifts and opening hours have no timezone. Shift rules take the most common timezone of the venue's events, which makes 54 of 63 shift rules UTC, and opening hours are UTC. This is the proposed venue timezone rule, not a decided one.
+7. **Venue timezones are decided (option B).** xvm-api's venue `timezone` defaults to `America/New_York`, so the load must set it for every venue. Each venue takes the most common timezone of its own events, else UTC, which is lossless because the old shifts and opening hours were stored in UTC Server Time. #175 produces the review list (one zone, mixed, none, and suspect where the events are mostly UTC) for owners to confirm after the load. Series rules take the venue's zone. Shift rules and opening hours are still computed in UTC until the load applies it, which leaves 54 of 63 shift rules and all 20 opening-hours rules in UTC today.
 8. **Never load the pending notification queue.** It is not exported. 2,212 unsent rows would all be sent by xvm-api's dispatcher on its first run.
 9. **People who need a decision.** One person has no Discord identity (a pairing code is issued by hand). Email accounts come out in their own list and wait on Allegro confirming that `person_accounts` may hold contact addresses. 29 payroll payees are placeholder people, and one payee name matches a character name, a likely merge.
 
@@ -164,7 +169,7 @@ Each is a counted warning, not a silent change.
 | Allegro | Does enabling a recurrence rule duplicate loaded future events and shifts |
 | Allegro | May `person_accounts` hold contact emails, and should a no-Discord person path exist |
 | Allegro | Where the venue settings listed in the manifest live |
-| Dashboard | The venue timezone rule |
+| Allegro | When an owner changes a venue's timezone after the load, do its existing rules, shifts and opening hours keep their absolute times or move with the wall-clock |
 
 ## Safety when running it
 

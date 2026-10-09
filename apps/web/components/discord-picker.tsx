@@ -1,6 +1,6 @@
 "use client"
 
-import { useCallback, useEffect, useState } from "react"
+import { useCallback, useEffect, useRef, useState } from "react"
 import { Input } from "@/components/ui/input"
 import {
   Select,
@@ -13,6 +13,7 @@ import {
   pickerProblem,
   offeredRoles,
   showsManualEntry,
+  canReturnToList,
   type DiscordOption,
   type PickerProblem,
 } from "@/lib/discord-picker-state"
@@ -78,11 +79,17 @@ export function useDiscordOptions(venueId: string, resource: Resource, enabled =
     [venueId, resource]
   )
 
+  // Once per venue and resource, not once per enable. The reaction-role dialog flips `disabled`
+  // around every option add and delete, and re-running this on each of them meant an extra
+  // roles-route call and the dropdown being replaced by "Loading..." after every add. Refreshing
+  // stays explicit.
+  const attempted = useRef<string | null>(null)
+  const key = `${venueId}:${resource}`
   useEffect(() => {
-    if (!enabled) return
-    // eslint-disable-next-line react-hooks/set-state-in-effect
+    if (!enabled || attempted.current === key) return
+    attempted.current = key
     void load(false)
-  }, [load, enabled])
+  }, [load, enabled, key])
 
   return { options, loading, problem, refresh: () => void load(true) }
 }
@@ -146,7 +153,7 @@ export function DiscordOptionPicker({
             aria-label={ariaLabel}
             className="w-44"
           />
-          {options.length > 0 && (
+          {canReturnToList(options, value) && (
             <button
               type="button"
               onClick={() => setManual(false)}

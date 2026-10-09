@@ -1,5 +1,11 @@
 import { describe, it, expect } from "vitest"
-import { pickerProblem, offeredRoles, showsManualEntry, type DiscordOption } from "./discord-picker-state"
+import {
+  pickerProblem,
+  offeredRoles,
+  showsManualEntry,
+  canReturnToList,
+  type DiscordOption,
+} from "./discord-picker-state"
 
 const role = (over: Partial<DiscordOption> = {}): DiscordOption => ({
   value: "100",
@@ -110,5 +116,25 @@ describe("showsManualEntry", () => {
   it("keeps the dropdown through a momentary disable once a list has loaded", () => {
     // Mid-submit the dialog disables the row. The control must not change shape underneath.
     expect(showsManualEntry({ ...base, disabled: true })).toBe(false)
+  })
+})
+
+describe("canReturnToList", () => {
+  const listed = [role({ value: "100" })]
+
+  it("offers the way back for an empty or listed value", () => {
+    expect(canReturnToList(listed, "")).toBe(true)
+    expect(canReturnToList(listed, "100")).toBe(true)
+  })
+
+  it("hides it while the value is not in the list", () => {
+    // showsManualEntry would send the person straight back, so the button would do nothing.
+    // Clearing the field is the way out, and it makes the button appear.
+    expect(canReturnToList(listed, "123")).toBe(false)
+    expect(showsManualEntry({ requested: false, disabled: false, problem: null, loading: false, options: listed, value: "123" })).toBe(true)
+  })
+
+  it("hides it when there is no list to go back to", () => {
+    expect(canReturnToList([], "")).toBe(false)
   })
 })

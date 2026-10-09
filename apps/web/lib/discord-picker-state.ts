@@ -53,6 +53,19 @@ export function offeredRoles(options: DiscordOption[], value: string): DiscordOp
 }
 
 /**
+ * Whether "Pick from list" can do anything.
+ *
+ * It cannot while the current value is absent from the list: `showsManualEntry` would send the
+ * person straight back, because a dropdown cannot show a value it does not contain without
+ * appearing to clear the field. Offering a button that does nothing is worse than not offering
+ * it, so the way back appears once the field is empty or holds something listed.
+ */
+export function canReturnToList(options: DiscordOption[], value: string): boolean {
+  if (options.length === 0) return false
+  return value === "" || options.some((option) => option.value === value)
+}
+
+/**
  * Whether to show the type-an-id field instead of the dropdown.
  *
  * Five reasons, and only the first is a preference: the person asked for it; the field is disabled

@@ -2,7 +2,14 @@
 
 import { useEffect, useId, useRef, useState } from "react"
 import { Input } from "@/components/ui/input"
-import { memberQueryReady, memberSearchProblem, type PickerProblem } from "@/lib/discord-picker-state"
+import { Avatar, AvatarFallback, AvatarImage } from "@/components/ui/avatar"
+import {
+  canReturnToSearch,
+  initials,
+  memberQueryReady,
+  memberSearchProblem,
+  type PickerProblem,
+} from "@/lib/discord-picker-state"
 
 interface Member {
   id: string
@@ -13,10 +20,13 @@ interface Member {
 
 const SEARCH_DELAY_MS = 250
 
-function Avatar({ url }: { url: string | null }) {
-  if (!url) return <span aria-hidden className="size-5 shrink-0 rounded-full bg-muted" />
-  // eslint-disable-next-line @next/next/no-img-element
-  return <img src={url} alt="" className="size-5 shrink-0 rounded-full" />
+function MemberAvatar({ member }: { member: Member }) {
+  return (
+    <Avatar className="size-5 shrink-0">
+      {member.avatarUrl && <AvatarImage src={member.avatarUrl} alt="" />}
+      <AvatarFallback className="text-[9px] font-medium">{initials(member.displayName)}</AvatarFallback>
+    </Avatar>
+  )
 }
 
 /**
@@ -129,6 +139,12 @@ export function UserPicker({
   }
 
   function handleKeyDown(event: React.KeyboardEvent<HTMLInputElement>) {
+    // Before the results guard: the dropdown is also open over "type at least 2 characters" and
+    // "no members found", and Escape has to close those too.
+    if (event.key === "Escape") {
+      setOpen(false)
+      return
+    }
     if (!open || results.length === 0) return
     if (event.key === "ArrowDown") {
       event.preventDefault()
@@ -139,8 +155,6 @@ export function UserPicker({
     } else if (event.key === "Enter") {
       event.preventDefault()
       pick(results[highlighted])
-    } else if (event.key === "Escape") {
-      setOpen(false)
     }
   }
 
@@ -161,13 +175,10 @@ export function UserPicker({
             disabled={disabled}
             aria-label="Discord user ID"
           />
-          {!searchBroken && (
+          {canReturnToSearch(value, problem) && (
             <button
               type="button"
-              onClick={() => {
-                setManual(false)
-                if (picked === null) onChange("")
-              }}
+              onClick={() => setManual(false)}
               className="text-xs text-[var(--xiv-blue)] hover:underline"
             >
               Search instead
@@ -183,7 +194,7 @@ export function UserPicker({
     return (
       <div className="flex flex-wrap items-center gap-2">
         <span className="inline-flex items-center gap-2 rounded-md border px-2.5 py-1.5 text-sm">
-          <Avatar url={picked.avatarUrl} />
+          <MemberAvatar member={picked} />
           <span className="truncate">{picked.displayName}</span>
           <span className="truncate text-xs text-muted-foreground">@{picked.username}</span>
         </span>
@@ -249,7 +260,7 @@ export function UserPicker({
                     index === highlighted ? "bg-accent text-accent-foreground" : ""
                   }`}
                 >
-                  <Avatar url={member.avatarUrl} />
+                  <MemberAvatar member={member} />
                   <span className="truncate">{member.displayName}</span>
                   <span className="truncate text-xs text-muted-foreground">@{member.username}</span>
                 </li>

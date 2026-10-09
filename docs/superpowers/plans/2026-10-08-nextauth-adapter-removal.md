@@ -51,13 +51,19 @@ grep -rnE "prisma\.(apiKey|xvmApiCredential|notification|pendingNotification|use
 - A failed token exchange fails the sign-in. xvm-api is the only path, so a session without a bearer is useless.
 - Sessions issued before the flip carry a cuid in `token.id` and must not be honoured. The cookie name changes once (Task 4).
 
+## Decision: no Discord token refresh (2026-10-09)
+
+#141 asked to refresh an expired Discord token. With the grant held only in the JWT that cannot work: every server read is `getServerSession(authOptions)` with no response object, where next-auth's `setCookie` is a no-op, so a refresh inside the `jwt` callback is never persisted, and Discord rotates refresh tokens, so the next read would present an already-spent one. Owner chose to accept the weekly re-sign-in prompt (Discord grants last about a week, and the picker already shows that prompt). #141 is closed as won't-do once Task 1 merges.
+
 ## Task 1: Read the Discord grant from the JWT (ships now)
 
 Fixes the original reason for the `accounts` rewrite: with the JWT as the only store, the grant is replaced at every sign-in with no extra write, so a renewed Discord grant can never be discarded.
 
 **Files:**
+- Create: `apps/web/lib/session-cookie.ts` (`SESSION_COOKIE_NAME`, `SESSION_COOKIE_SECURE`, the single source for the cookie name)
+- Modify: `apps/web/proxy.ts` (pass the same constants to its `getToken`)
 - Modify: `apps/web/types/next-auth.d.ts`
-- Modify: `apps/web/lib/auth.ts` (jwt callback; delete the `prisma.account.update` block in `signIn`)
+- Modify: `apps/web/lib/auth.ts` (use the cookie constant in `authOptions.cookies`; jwt callback; delete the `prisma.account.update` block in `signIn`)
 - Modify: `apps/web/lib/discord-user.ts`
 - Modify: `apps/web/app/api/venues/[venueId]/discord/guilds/route.ts`
 - Modify: `apps/web/app/api/venues/[venueId]/discord/link/route.ts`
@@ -70,7 +76,10 @@ Create `apps/web/lib/discord-user.test.ts`:
 
 ```ts
 import { describe, it, expect, vi, beforeEach } from "vitest"
-import { listManageableGuilds, administersGuild, type DiscordGrant } from "./discord-user"
+import { NextRequest } from "next/server"
+import { encode } from "next-auth/jwt"
+import { SESSION_COOKIE_NAME } from "@/lib/session-cookie"
+import { listManageableGuilds, administersGuild, discordGrantFrom, type DiscordGrant } from "./discord-user"
 
 const fetchMock = vi.fn()
 vi.stubGlobal("fetch", fetchMock)
@@ -143,6 +152,28 @@ describe("listManageableGuilds", () => {
   })
 })
 
+describe("discordGrantFrom", () => {
+  it("reads the grant back out of a real encoded session cookie", async () => {
+    // A mocked getToken would pass whatever the cookie is called. This round-trips next-auth's
+    // own encode so a wrong cookie name or secret fails here instead of in production.
+    const secret = "test-secret"
+    vi.stubEnv("NEXTAUTH_SECRET", secret)
+    const jwt = await encode({ token: { id: "1", discord: live }, secret })
+    const request = new NextRequest("https://x.test/api", {
+      headers: { cookie: `${SESSION_COOKIE_NAME}=${jwt}` },
+    })
+    expect(await discordGrantFrom(request)).toEqual(live)
+  })
+
+  it("is null when the cookie has the wrong name", async () => {
+    const secret = "test-secret"
+    vi.stubEnv("NEXTAUTH_SECRET", secret)
+    const jwt = await encode({ token: { id: "1", discord: live }, secret })
+    const request = new NextRequest("https://x.test/api", { headers: { cookie: `other=${jwt}` } })
+    expect(await discordGrantFrom(request)).toBeNull()
+  })
+})
+
 describe("administersGuild", () => {
   it("is true only for a guild in the caller's manageable list", async () => {
     fetchMock.mockResolvedValue({
@@ -168,6 +199,7 @@ In `apps/web/lib/discord-user.ts`, remove the `prisma` import and replace the tw
 ```ts
 import { getToken } from "next-auth/jwt"
 import type { NextRequest } from "next/server"
+import { SESSION_COOKIE_NAME, SESSION_COOKIE_SECURE } from "@/lib/session-cookie"
 
 export interface DiscordGrant {
   accessToken: string
@@ -176,7 +208,14 @@ export interface DiscordGrant {
 }
 
 export async function discordGrantFrom(request: NextRequest): Promise<DiscordGrant | null> {
-  const token = await getToken({ req: request })
+  // cookieName and secureCookie are explicit: getToken guesses "secure" from NEXTAUTH_URL, and a
+  // wrong guess reads the wrong cookie name and silently returns null for every owner.
+  const token = await getToken({
+    req: request,
+    secret: process.env.NEXTAUTH_SECRET,
+    cookieName: SESSION_COOKIE_NAME,
+    secureCookie: SESSION_COOKIE_SECURE,
+  })
   return token?.discord ?? null
 }
 
@@ -201,7 +240,18 @@ export async function administersGuild(grant: DiscordGrant | null, guildId: stri
 - [ ] **Step 4: Run it and watch it pass**
 
 Run: `cd apps/web && pnpm exec vitest run lib/discord-user.test.ts`
-Expected: PASS, 7 tests.
+Expected: PASS, 9 tests.
+
+- [ ] **Step 4b: Create the cookie constants**
+
+`apps/web/lib/session-cookie.ts`:
+
+```ts
+export const SESSION_COOKIE_SECURE = process.env.NODE_ENV === "production"
+export const SESSION_COOKIE_NAME = `${SESSION_COOKIE_SECURE ? "__Secure-" : ""}next-auth.session-token`
+```
+
+In `lib/auth.ts` use `name: SESSION_COOKIE_NAME` in the production `cookies.sessionToken`. In `proxy.ts` call `getToken({ req, secret, cookieName: SESSION_COOKIE_NAME, secureCookie: SESSION_COOKIE_SECURE })`. One name, three readers.
 
 - [ ] **Step 5: Put the grant on the token**
 
@@ -332,8 +382,8 @@ Not yet plannable as code. Each needs an answer from Allegro or a decision, list
 
 An old JWT carries a cuid in `token.id`. Honouring it would key every gate and cache lookup on a value that no longer means anything.
 
-- [ ] **Step 1:** In `authOptions.cookies`, change the production `sessionToken.name` from `__Secure-next-auth.session-token` to `__Secure-next-auth.session-token-v2`.
-- [ ] **Step 2:** Add a test that asserts the name, and a one-line note in the commit that this signs everyone out once. This lands in the window, where everyone already relinks the plugin.
+- [ ] **Step 1:** Change `SESSION_COOKIE_NAME` in `lib/session-cookie.ts` (the one place the name lives) to a name that is **not a prefix-extension of the old one**, for example `__Secure-xvm.session-token`. next-auth matches session cookies by name prefix (verified with a scratch test), so `...session-token-v2` would make `getToken` merge the old and new cookies and could still read the old cuid session.
+- [ ] **Step 2:** Add a test that asserts the name does not start with `next-auth.session-token` or `__Secure-next-auth.session-token`, and a one-line note in the commit that this signs everyone out once. This lands in the window, where everyone already relinks the plugin. The cookie is `domain: .xivvenuemanager.com`, so the old cookie lingers until it expires; harmless once the name differs.
 
 ## Task 5: Delete the models
 

@@ -117,6 +117,8 @@ export function UserPicker({
 
   function handleType(text: string) {
     setQuery(text)
+    setResults([])
+    setSearching(memberQueryReady(text))
     setOpen(true)
     if (value !== "") {
       setPicked(null)

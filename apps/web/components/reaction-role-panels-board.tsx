@@ -5,7 +5,7 @@ import { Button } from "@/components/ui/button"
 import { Badge } from "@/components/ui/badge"
 import { Card, CardContent, CardHeader } from "@/components/ui/card"
 import { Alert, AlertDescription } from "@/components/ui/alert"
-import { Input } from "@/components/ui/input"
+import { ChannelPicker } from "@/components/discord-picker"
 import {
   AlertDialog,
   AlertDialogAction,
@@ -238,14 +238,9 @@ export function ReactionRolePanelsBoard({
         <AlertDialogContent>
           <AlertDialogHeader>
             <AlertDialogTitle>Post &quot;{postTarget?.title}&quot; to a channel</AlertDialogTitle>
-            <AlertDialogDescription>Enter the Discord channel ID to post this panel to.</AlertDialogDescription>
+            <AlertDialogDescription>Choose the Discord channel to post this panel to.</AlertDialogDescription>
           </AlertDialogHeader>
-          <Input
-            placeholder="Channel ID"
-            value={postChannelId}
-            onChange={(e) => setPostChannelId(e.target.value)}
-            disabled={posting}
-          />
+          <ChannelPicker venueId={venueId} value={postChannelId} onChange={setPostChannelId} disabled={posting} />
           <AlertDialogFooter>
             <AlertDialogCancel disabled={posting}>Cancel</AlertDialogCancel>
             <AlertDialogAction onClick={confirmPost} disabled={posting || !postChannelId}>

@@ -4,6 +4,7 @@ import { authOptions } from "@/lib/auth"
 import { prisma } from "@/lib/prisma"
 import { requireVenueRole } from "@/lib/api/venue-access"
 import { requireChannelInGuild } from "@/lib/api/venue-guild"
+import { validators } from "@/lib/validation"
 import { Prisma } from "@/generated/prisma/client"
 import { z } from "zod"
 import { withRateLimit } from "@/lib/middleware/with-rate-limit"
@@ -63,7 +64,10 @@ const updateSettingsSchema = z.object({
   shiftBot: z
     .object({
       enabled: z.boolean(),
-      channelId: z.string().max(20),
+      // A snowflake, not any short string: requireChannelInGuild puts this in a Discord API
+      // path, and ".." segments resolve there. Empty stays allowed because clearing the field
+      // sends it, and a cleared channel is deliberately not checked.
+      channelId: validators.snowflake.or(z.literal("")),
       daysBeforeEvent: z.number().int().min(1).max(14).optional(),
       templates: z
         .array(

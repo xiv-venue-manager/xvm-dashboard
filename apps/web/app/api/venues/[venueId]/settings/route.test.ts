@@ -78,6 +78,16 @@ describe("PUT /api/venues/[venueId]/settings, shift bot channel", () => {
     expect(m.channel).not.toHaveBeenCalled()
   })
 
+  it("refuses a channel id that is not a snowflake, before anything reaches Discord", async () => {
+    // requireChannelInGuild hands this to getChannelInfo, which interpolates it into
+    // /channels/{id}. ".." segments resolve in a URL, so an unvalidated value could address a
+    // different Discord endpoint with the bot token attached. The schema refuses it first.
+    const res = await put({ shiftBot: shiftBot("../users/@me") })
+    expect(res.status).toBe(400)
+    expect(m.channel).not.toHaveBeenCalled()
+    expect(m.venueUpdate).not.toHaveBeenCalled()
+  })
+
   it("does not check a save that has no shift bot in it", async () => {
     await put({ tagline: "Open nightly" })
     expect(m.channel).not.toHaveBeenCalled()

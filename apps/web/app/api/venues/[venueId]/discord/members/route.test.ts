@@ -104,4 +104,11 @@ describe("GET discord/members", () => {
     await call(`?ids=${many}`)
     expect(m.resolve.mock.calls[0][1]).toHaveLength(50)
   })
+
+  it("drops an id that is not a snowflake instead of putting it in a Discord path", async () => {
+    const body = await (await call(`?ids=${encodeURIComponent("../../9/members/1")},%2e%2e,12345678901234567890123,7`)).json()
+    expect(m.getCached).toHaveBeenCalledTimes(1)
+    expect(m.resolve).toHaveBeenCalledWith(GUILD, ["7"])
+    expect(body.members).toEqual({})
+  })
 })

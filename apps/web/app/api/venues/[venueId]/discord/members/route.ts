@@ -4,6 +4,7 @@ import { authOptions } from "@/lib/auth"
 import { withRateLimit } from "@/lib/middleware/with-rate-limit"
 import { getCached, setCache, cacheKeys, cacheTTL } from "@/lib/redis-cache"
 import { requireVenueGuild, discordFailureResponse } from "@/lib/api/venue-guild"
+import { SNOWFLAKE_PATTERN } from "@/lib/validation"
 import { searchGuildMembers, getGuildMembers, type DiscordMemberOption } from "@/lib/discord-rest"
 
 // One form can hold a handful of saved ids; a cap keeps a hand-written request from turning into
@@ -40,7 +41,9 @@ export const GET = withRateLimit<{ params: Promise<{ venueId: string }> }>(
     if (!guild.ok) return guild.response
 
     if (ids) {
-      const wanted = [...new Set(ids.split(",").map((id) => id.trim()).filter(Boolean))].slice(0, MAX_RESOLVE)
+      const wanted = [...new Set(ids.split(",").map((id) => id.trim()))]
+        .filter((id) => id.length <= 20 && SNOWFLAKE_PATTERN.test(id))
+        .slice(0, MAX_RESOLVE)
       const members: Record<string, DiscordMemberOption> = {}
       const misses: string[] = []
       for (const id of wanted) {

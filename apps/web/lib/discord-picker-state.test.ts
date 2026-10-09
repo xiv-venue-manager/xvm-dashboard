@@ -4,6 +4,8 @@ import {
   offeredRoles,
   showsManualEntry,
   canReturnToList,
+  memberQueryReady,
+  memberSearchProblem,
   type DiscordOption,
 } from "./discord-picker-state"
 
@@ -136,5 +138,32 @@ describe("canReturnToList", () => {
 
   it("hides it when there is no list to go back to", () => {
     expect(canReturnToList([], "")).toBe(false)
+  })
+})
+
+describe("memberQueryReady", () => {
+  it("waits for two characters, ignoring surrounding space", () => {
+    // Discord's member search is prefix-based and a one-letter query returns a page of strangers.
+    expect(memberQueryReady("")).toBe(false)
+    expect(memberQueryReady(" a ")).toBe(false)
+    expect(memberQueryReady("ab")).toBe(true)
+    expect(memberQueryReady(" ab ")).toBe(true)
+  })
+})
+
+describe("memberSearchProblem", () => {
+  it("treats the rate limit as retryable and says why", () => {
+    // Search runs per keystroke, so hitting the limit is a normal way to fail and the next
+    // keystroke is the retry.
+    const problem = memberSearchProblem(429, {})
+    expect(problem.retryable).toBe(true)
+    expect(problem.message).toMatch(/too fast/i)
+  })
+
+  it("defers every other status to pickerProblem", () => {
+    expect(memberSearchProblem(409, { error: "bot_absent" })).toEqual(pickerProblem(409, { error: "bot_absent" }))
+    expect(memberSearchProblem(502, { error: "Couldn't reach Discord." })).toEqual(
+      pickerProblem(502, { error: "Couldn't reach Discord." })
+    )
   })
 })

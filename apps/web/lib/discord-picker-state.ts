@@ -100,3 +100,19 @@ export function showsManualEntry({
   if (options.length === 0) return true
   return value !== "" && !options.some((option) => option.value === value)
 }
+
+/** Discord's member search is prefix-based, and a one-letter query returns a page of strangers. */
+export const MIN_MEMBER_QUERY = 2
+
+export function memberQueryReady(query: string): boolean {
+  return query.trim().length >= MIN_MEMBER_QUERY
+}
+
+/**
+ * Why a member search failed. Search runs per keystroke, so the rate limit is an ordinary way
+ * to fail rather than an error: it is retryable and the next keystroke is the retry.
+ */
+export function memberSearchProblem(status: number, body: { error?: string; message?: string }): PickerProblem {
+  if (status === 429) return { message: "Searching too fast. Try again in a moment.", retryable: true }
+  return pickerProblem(status, body)
+}

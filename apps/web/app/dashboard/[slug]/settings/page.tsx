@@ -13,6 +13,7 @@ import { FinanceCategoriesSettings } from "@/components/finance-categories-setti
 import { BannerUpload } from "@/components/banner-upload"
 import { LogoUpload } from "@/components/logo-upload"
 import { DiscordGuildConnect } from "@/components/discord-guild-connect"
+import { ChannelPicker } from "@/components/discord-picker"
 import type { VenueImage } from "@/lib/api/xvm-api"
 import { Checkbox } from "@/components/ui/checkbox"
 import { Card, CardContent, CardDescription, CardHeader, CardTitle } from "@/components/ui/card"
@@ -1426,13 +1427,17 @@ export default function SettingsPage({ params }: { params: Promise<{ slug: strin
                   <div className="w-full pl-[54px] space-y-4">
                     <div>
                       <label className="block text-sm font-medium mb-1">Discord Channel ID</label>
-                      <input
-                        type="text"
-                        value={shiftBotChannelId}
-                        onChange={(e) => setShiftBotChannelId(e.target.value)}
-                        placeholder="Right-click channel → Copy ID"
-                        className="flex-1 w-full rounded-[var(--radius-sm)] border border-[var(--blue-015)] bg-background px-3 py-1.5 text-sm focus:border-[var(--blue-035)] focus:outline-none"
-                      />
+                      {venueId ? (
+                        <ChannelPicker venueId={venueId} value={shiftBotChannelId} onChange={setShiftBotChannelId} />
+                      ) : (
+                        <input
+                          type="text"
+                          value={shiftBotChannelId}
+                          onChange={(e) => setShiftBotChannelId(e.target.value)}
+                          placeholder="Right-click channel → Copy ID"
+                          className="flex-1 w-full rounded-[var(--radius-sm)] border border-[var(--blue-015)] bg-background px-3 py-1.5 text-sm focus:border-[var(--blue-035)] focus:outline-none"
+                        />
+                      )}
                       <p className="text-xs text-[var(--fg-faint)] mt-1">
                         Enable Developer Mode in Discord settings to copy channel IDs.{" "}
                         <a

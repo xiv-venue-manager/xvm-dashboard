@@ -55,7 +55,7 @@ ro < scripts/export/patrons.sql    > patrons.json
 npx tsx scripts/map-patrons.ts patrons.json people-mapped.json events-mapped.json patrons-mapped.json
 
 ro < scripts/export/follows-feedback.sql > follows-feedback.json
-npx tsx scripts/map-follows-feedback.ts follows-feedback.json people-mapped.json follows-feedback-mapped.json [exclude.json]
+npx tsx scripts/map-follows-feedback.ts follows-feedback.json people-mapped.json follows-feedback-mapped.json scripts/export/feedback-exclude.json
 
 ro < scripts/export/tasks-rooms.sql > tasks-rooms.json
 npx tsx scripts/map-tasks-rooms.ts tasks-rooms.json people-mapped.json positions-mapped.json tasks-rooms-mapped.json
@@ -115,7 +115,7 @@ Read-only, 2026-10-09. These are the numbers a rehearsal run should land on, giv
 | Patrons | 762 | 762 | 0 | 1 banned |
 | Patron logs | 9,777 | 9,766 | 11 | entries **5,028**, exits **4,738** |
 | Follows | 89 | 89 | 0 | 63 venues |
-| Feedback | 44 | 44 | 0 | 17 open, 27 closed |
+| Feedback | 44 | **33** | 11 left out by decision | 17 open, 16 closed. The eleven are listed in `scripts/export/feedback-exclude.json` |
 | Tasks | 27 | 27 | 0 | 10 venues, 16 categories |
 | Rooms | 22 | 22 | 0 | 6 venues |
 | Opening hours | 28 | 20 | 8 | the 8 belong to the 5 venues synced from ffxivvenues.com |
@@ -164,7 +164,6 @@ Each is a counted warning, not a silent change.
 | Allegro | Does enabling a recurrence rule duplicate loaded future events and shifts |
 | Allegro | May `person_accounts` hold contact emails, and should a no-Discord person path exist |
 | Allegro | Where the venue settings listed in the manifest live |
-| Dashboard | Which of the 11 suggested feedback drops to leave out (#170 lists them) |
 | Dashboard | The venue timezone rule |
 
 ## Safety when running it

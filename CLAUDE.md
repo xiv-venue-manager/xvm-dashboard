@@ -8,6 +8,10 @@ Test everything against the local full-stack copy (`docs/LOCAL_DEV.md`) — loca
 
 Pushing to `origin/main` does **not** deploy. Check `.github/workflows/` before assuming otherwise — none of the current workflows build or deploy, they only post Discord notifications, run `pnpm audit`, and smoke-check already-live prod URLs (read-only). Prod only updates via `~/bin/deploy-xiv-web.sh`, run manually over SSH.
 
+## Shared assets
+
+Before building a component or helper, check `docs/SHARED_ASSETS.md`. If you add something reusable, add it there in the same PR.
+
 ## Isolation
 
 Real code changes always get their own git worktree and branch (`superpowers:using-git-worktrees`), even a one-line fix. Docs-only changes (plan docs, this file) commit directly — no worktree ceremony for something that can't break a build.

@@ -90,3 +90,18 @@ describe("signIn", () => {
     await expect(signIn({ user: {}, account: null })).resolves.toBe(false)
   })
 })
+
+describe("linkAccount event", () => {
+  // eslint-disable-next-line @typescript-eslint/no-explicit-any
+  const linkAccount = (args: any) => (authOptions.events!.linkAccount as any)(args)
+
+  it("stores the Discord id on the user row, which exists by now even for a first sign-in", async () => {
+    await linkAccount({ user: { id: "user-1" }, account })
+    expect(m.userUpdate).toHaveBeenCalledWith({ where: { id: "user-1" }, data: { discordId: "4242" } })
+  })
+
+  it("leaves the user row alone for another provider", async () => {
+    await linkAccount({ user: { id: "user-1" }, account: { ...account, provider: "github" } })
+    expect(m.userUpdate).not.toHaveBeenCalled()
+  })
+})

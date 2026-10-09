@@ -25,6 +25,12 @@ export const cacheTTL = {
   services: 600, // 10 minutes (services don't change often)
   transactions: 180, // 3 minutes (more dynamic)
   publicStats: 300, // 5 minutes (public /stats page)
+  // Discord guild metadata. Short, because someone who just made a role in Discord comes
+  // straight back to the picker expecting to see it; the routes also take ?refresh=1.
+  discordGuild: 300, // 5 minutes (roles, channels, custom emoji)
+  // Resolving a saved Discord user id to a name and avatar. Long, because these are rendered
+  // on every form that holds one and a display name rarely changes.
+  discordMember: 3600, // 1 hour
 }
 
 /**
@@ -40,6 +46,12 @@ export const cacheKeys = {
   venueServices: (venueId: string) => `venue:${venueId}:services`,
   venueTransactions: (venueId: string, params: string) => `venue:${venueId}:transactions:${params}`,
   publicStats: () => `public:stats`,
+  discordRoles: (guildId: string) => `discord:${guildId}:roles`,
+  discordChannels: (guildId: string) => `discord:${guildId}:channels`,
+  discordEmojis: (guildId: string) => `discord:${guildId}:emojis`,
+  // Per member rather than per request: a form holding five saved ids where four are cached
+  // should fetch one, not five.
+  discordMember: (guildId: string, userId: string) => `discord:${guildId}:member:${userId}`,
 }
 
 export async function getCached<T>(key: string): Promise<T | null> {

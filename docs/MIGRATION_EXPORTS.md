@@ -70,7 +70,7 @@ ro < scripts/export/venue-timezones.sql > venue-timezones.json
 npx tsx scripts/map-venue-timezones.ts venue-timezones.json venue-timezones-review.json
 
 ro < scripts/export/venues.sql     > venues.json
-npx tsx scripts/map-venues.ts venues.json people-mapped.json venue-timezones-review.json venues-mapped.json [--skip-test-venues]
+npx tsx scripts/map-venues.ts venues.json people-mapped.json venue-timezones-review.json venues-mapped.json [--include-test-venues]
 ```
 
 Dependencies, so a PR can be reviewed alone:
@@ -131,7 +131,7 @@ Read-only, 2026-10-09. These are the numbers a rehearsal run should land on, giv
 | Pot settings | 18 | 4 rows | 14 all default | 3 venues have the pot on |
 | Inventory settings | 18 | 5 module toggles | 13 off | |
 | Venue timezones | 69 venues | 69 proposed | 0 | 22 one zone, 6 mixed, 41 none (UTC), 6 suspect (mostly UTC events) |
-| Venues | 69 | **67** | 2 ownerless and empty | 13 external links (7 Partake, 6 ffxivvenues.com), 42 gallery images over 8 venues, 30 venues with settings that have no home, 4 test venues included |
+| Venues | 69 | **63** | 2 ownerless and empty, 4 test venues | 13 external links (7 Partake, 6 ffxivvenues.com), 42 gallery images over 8 venues, 28 venues with settings that have no home |
 
 These match the manifest where it gave numbers. Where they differ the difference is rows added since its 2026-10-08 snapshot.
 
@@ -150,7 +150,7 @@ Each is a counted warning, not a silent change.
 
 1. **Assign ids, then rewrite keys.** Insert in dependency order: people, venues, positions, memberships, services, events and rules, shifts, payroll, transactions, patrons, then the small ones.
 2. **Backdated dates.** Rows keep their original `created_at`, which the API cannot set, so the load writes straight into xvm-api's Postgres.
-3. **Venue filtering.** Every other mapped file is keyed by Prisma venue id and includes the two ownerless empty venues, which #176 skips (and the four test venues, if they are left out). Drop rows for any venue missing from `venues-mapped.json` before loading. One follow already points at a skipped venue.
+3. **Venue filtering.** Every other mapped file is keyed by Prisma venue id and still includes the six venues #176 skips: the two ownerless empty ones and the four test venues (decided: they do not migrate). Drop rows for any venue missing from `venues-mapped.json` before loading. That takes out 6 memberships, 24 shifts, 2 events, 6 services, 2 patron logs and 4 follows at the test venues, and one more follow already points at a skipped venue.
 4. **Dropped payroll entries.** Two payroll entries are skipped, and shifts reference payroll entries by key, so clear that link on any shift that points at one.
 5. **Daylight saving on series.** 98 of 324 event occurrences have `starts_at` an hour off their series wall-clock time. The events mapper keeps the real `starts_at` and sets `scheduled_at` to the series' own slot, which assumes xvm-api's generator computes the same slot. Shifts have no separate canonical slot, so a drifted shift cannot be tied to its series. Both need proving in the rehearsal.
 6. **Rules are emitted `enabled: true`.** Whether enabling a rule duplicates the loaded future events and shifts is an open question for Allegro. The loader can flip it.
@@ -175,7 +175,6 @@ Each is a counted warning, not a silent change.
 | Allegro | Does enabling a recurrence rule duplicate loaded future events and shifts |
 | Allegro | May `person_accounts` hold contact emails, and should a no-Discord person path exist |
 | Allegro | Where the venue settings listed in the manifest live. #176 keeps them in `leftovers` meanwhile |
-| Dashboard | Whether the four test venues migrate (they are included by default, `--skip-test-venues` leaves them out) |
 | Allegro | When an owner changes a venue's timezone after the load, do its existing rules, shifts and opening hours keep their absolute times or move with the wall-clock |
 
 ## Safety when running it

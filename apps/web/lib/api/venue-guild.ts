@@ -3,6 +3,8 @@ import { prisma } from "@/lib/prisma"
 import { requireVenueRole } from "@/lib/api/venue-access"
 import { getValidXvmApiToken, xvmApiErrorResponse } from "@/lib/api/xvm-api-store"
 import { getVenue } from "@/lib/api/xvm-api"
+import { getCached, setCache, cacheKeys, cacheTTL } from "@/lib/redis-cache"
+import { getGuildChannels, getChannelInfo, isThreadChannelType, type DiscordChannelOption } from "@/lib/discord-rest"
 
 export type VenueGuild = { ok: true; guildId: string } | { ok: false; response: NextResponse }
 
@@ -78,4 +80,61 @@ export function discordFailureResponse(status?: number): NextResponse {
 /** `?refresh=1` skips the cache for one request. */
 export function wantsRefresh(request: Request): boolean {
   return new URL(request.url).searchParams.get("refresh") === "1"
+}
+
+export type ChannelCheck = { ok: true } | { ok: false; response: NextResponse }
+
+/**
+ * Whether a channel id belongs to this venue's Discord server.
+ *
+ * The pickers only offer the right channels; the routes that take a channel are reachable by
+ * direct request and by the paste-an-id fallback, and the bot posts to whatever id it is given. An
+ * unchecked id lets a venue point the bot at a channel in any server the bot has joined.
+ *
+ * Fails closed: no linked server, bot absent, or Discord unreachable all refuse, because none of
+ * them lets the id be checked. Each says why, so the form can tell a person what to fix.
+ *
+ * The channel list is cached for five minutes, so a miss is re-checked against Discord before
+ * refusing. Only a live answer may say a channel is not in the server, otherwise a channel made a
+ * minute ago would be refused as foreign.
+ *
+ * The list never includes threads, so an id missing from it is then looked up as a channel in its own
+ * right. A thread in this server is accepted, since a message can be posted to one. Anything else in
+ * this server (forum, voice, stage) is refused as the wrong kind of channel, not as a foreign one.
+ */
+export async function requireChannelInGuild(userId: string, venueId: string, channelId: string): Promise<ChannelCheck> {
+  const guild = await requireVenueGuild(userId, venueId)
+  if (!guild.ok) return guild
+
+  const key = cacheKeys.discordChannels(guild.guildId)
+  const cached = await getCached<DiscordChannelOption[]>(key)
+  if (cached?.some((channel) => channel.id === channelId)) return { ok: true }
+
+  const live = await getGuildChannels(guild.guildId)
+  if (!live.ok) return { ok: false, response: discordFailureResponse(live.status) }
+  await setCache(key, live.data, cacheTTL.discordGuild)
+
+  if (live.data.some((channel) => channel.id === channelId)) return { ok: true }
+
+  const channel = await getChannelInfo(channelId)
+  if (!channel.ok && channel.status !== 404 && channel.status !== 403) {
+    return { ok: false, response: discordFailureResponse(channel.status) }
+  }
+  if (!channel.ok || channel.data.guildId !== guild.guildId) {
+    return {
+      ok: false,
+      response: NextResponse.json(
+        { error: "channel_not_in_guild", message: "That channel isn't in this venue's Discord server." },
+        { status: 400 }
+      ),
+    }
+  }
+  if (isThreadChannelType(channel.data.type)) return { ok: true }
+  return {
+    ok: false,
+    response: NextResponse.json(
+      { error: "channel_not_text", message: "That channel isn't a text channel in this venue's Discord server." },
+      { status: 400 }
+    ),
+  }
 }

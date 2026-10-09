@@ -258,6 +258,25 @@ export async function getGuildChannels(guildId: string): Promise<DiscordFetchRes
   }
 }
 
+export interface DiscordChannelInfo {
+  guildId: string | null
+  type: number
+}
+
+// PUBLIC_THREAD (11), PRIVATE_THREAD (12) and ANNOUNCEMENT_THREAD (10). GET /guilds/{id}/channels
+// never lists threads, so a thread can only be recognised by asking for the channel itself.
+const THREAD_CHANNEL_TYPES = new Set([10, 11, 12])
+
+export function isThreadChannelType(type: number): boolean {
+  return THREAD_CHANNEL_TYPES.has(type)
+}
+
+export async function getChannelInfo(channelId: string): Promise<DiscordFetchResult<DiscordChannelInfo>> {
+  const result = await discordFetchJson<{ guild_id?: string; type: number }>(`/channels/${channelId}`)
+  if (!result.ok) return result
+  return { ok: true, data: { guildId: result.data.guild_id ?? null, type: result.data.type } }
+}
+
 export async function getGuildEmojis(guildId: string): Promise<DiscordFetchResult<DiscordEmojiOption[]>> {
   const result = await discordFetchJson<{ id: string; name: string; animated: boolean }[]>(
     `/guilds/${guildId}/emojis`,

@@ -22,5 +22,6 @@ declare module "next-auth" {
 declare module "next-auth/jwt" {
   interface JWT {
     id: string
+    discord?: { accessToken: string; expiresAt: number | null; scope: string | null }
   }
 }

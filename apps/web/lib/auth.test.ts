@@ -2,11 +2,10 @@ import { describe, it, expect, vi, beforeEach } from "vitest"
 
 const m = vi.hoisted(() => ({
   userUpdate: vi.fn(),
-  accountUpdate: vi.fn(),
 }))
 
 vi.mock("@/lib/prisma", () => ({
-  prisma: { user: { update: m.userUpdate }, account: { updateMany: m.accountUpdate } },
+  prisma: { user: { update: m.userUpdate } },
 }))
 vi.mock("@next-auth/prisma-adapter", () => ({ PrismaAdapter: () => ({}) }))
 vi.mock("@/lib/api/xvm-api", () => ({ exchangeToken: vi.fn() }))
@@ -16,6 +15,7 @@ vi.mock("@/lib/api/xvm-api-store", () => ({
 }))
 
 import { authOptions } from "./auth"
+import { SESSION_COOKIE_NAME } from "@/lib/session-cookie"
 
 // next-auth v4 keeps the values passed to a provider factory under `options`, not on the
 // provider itself, so that is what has to be asserted.
@@ -37,7 +37,6 @@ beforeEach(() => {
   vi.clearAllMocks()
   vi.spyOn(console, "error").mockImplementation(() => {})
   m.userUpdate.mockResolvedValue({})
-  m.accountUpdate.mockResolvedValue({})
 })
 
 describe("Discord provider", () => {
@@ -53,41 +52,44 @@ describe("Discord provider", () => {
 })
 
 describe("signIn", () => {
-  it("writes the renewed token, scope and expiry onto the account row", async () => {
-    // next-auth only writes these at linkAccount, so re-signing in would otherwise leave a
-    // grant that predates the guilds scope in place and the reauth prompt would do nothing.
-    await signIn({ user: { id: "user-1", image: "https://cdn/a.png" }, account })
-    expect(m.accountUpdate).toHaveBeenCalledWith({
-      where: { provider: "discord", providerAccountId: "4242" },
-      data: {
-        access_token: "fresh-token",
-        expires_at: 1800000000,
-        scope: "identify email guilds",
-        refresh_token: "fresh-refresh",
-      },
-    })
-  })
-
-  it("still lets a person in when the account row cannot be written", async () => {
-    m.accountUpdate.mockRejectedValue(new Error("gone"))
-    await expect(signIn({ user: { id: "user-1" }, account })).resolves.toBe(true)
-  })
-
-  it("leaves the account row alone for a first sign-in, which linkAccount writes", async () => {
-    // A new user's id here is the provider profile id, and no row exists yet, so the update
-    // matches nothing and must neither throw nor log.
-    m.accountUpdate.mockResolvedValue({ count: 0 })
-    await expect(signIn({ user: { id: "4242", email: "a@b.c" }, account })).resolves.toBe(true)
-    expect(console.error).not.toHaveBeenCalled()
-  })
-
-  it("does not touch the account row when the user has no id at all", async () => {
-    await expect(signIn({ user: { email: "a@b.c" }, account })).resolves.toBe(true)
-    expect(m.accountUpdate).not.toHaveBeenCalled()
+  it("lets a Discord sign-in through without writing the grant anywhere", async () => {
+    await expect(signIn({ user: { id: "user-1", image: "https://cdn/a.png" }, account })).resolves.toBe(true)
+    expect(m.userUpdate).toHaveBeenCalledTimes(1)
   })
 
   it("refuses a sign-in carrying neither an email nor a provider account id", async () => {
     await expect(signIn({ user: {}, account: null })).resolves.toBe(false)
+  })
+})
+
+describe("jwt", () => {
+  // eslint-disable-next-line @typescript-eslint/no-explicit-any
+  const jwt = (args: any) => (authOptions.callbacks!.jwt as any)(args)
+
+  it("puts the renewed Discord grant on the token at every sign-in", async () => {
+    const token = await jwt({ token: { id: "u1" }, user: { id: "u1", name: "A" }, account })
+    expect(token.discord).toEqual({
+      accessToken: "fresh-token",
+      expiresAt: 1800000000,
+      scope: "identify email guilds",
+    })
+  })
+
+  it("leaves the stored grant alone on later calls that carry no account", async () => {
+    const stored = { accessToken: "t", expiresAt: 1, scope: "guilds" }
+    const token = await jwt({ token: { id: "u1", discord: stored } })
+    expect(token.discord).toEqual(stored)
+  })
+
+  it("stores no grant for another provider", async () => {
+    const token = await jwt({ token: { id: "u1" }, user: { id: "u1" }, account: { ...account, provider: "github" } })
+    expect(token.discord).toBeUndefined()
+  })
+})
+
+describe("session cookie", () => {
+  it("uses the shared cookie name that the readers pass to getToken", () => {
+    expect(SESSION_COOKIE_NAME).toMatch(/next-auth\.session-token$/)
   })
 })
 

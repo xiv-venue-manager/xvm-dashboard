@@ -4,6 +4,7 @@ import DiscordProvider from "next-auth/providers/discord"
 import { prisma } from "@/lib/prisma"
 import { exchangeToken } from "@/lib/api/xvm-api"
 import { upsertXvmApiCredential, getValidXvmApiToken } from "@/lib/api/xvm-api-store"
+import { SESSION_COOKIE_NAME } from "@/lib/session-cookie"
 
 export const authOptions: NextAuthOptions = {
   // eslint-disable-next-line @typescript-eslint/no-explicit-any
@@ -37,28 +38,6 @@ export const authOptions: NextAuthOptions = {
             },
           })
           .catch(() => {})
-
-        // next-auth writes the Account row once, from linkAccount, and returns early for an
-        // account that already exists (core/lib/callback-handler.js), so the stored token,
-        // scope and expiry never move again on their own. listManageableGuilds reads all
-        // three, so without this the picker's "sign in again" prompt is inert - Discord
-        // renews the grant and the new one is discarded. Awaited, because a silent failure
-        // puts the caller back at that dead end; logged rather than thrown, because a stale
-        // token must not stop anyone signing in. updateMany, because a first sign-in has no
-        // row yet (linkAccount writes it after this callback) and update would throw on it.
-        try {
-          await prisma.account.updateMany({
-            where: { provider: "discord", providerAccountId: account.providerAccountId },
-            data: {
-              access_token: account.access_token,
-              expires_at: account.expires_at,
-              scope: account.scope,
-              refresh_token: account.refresh_token,
-            },
-          })
-        } catch (err) {
-          console.error("Discord account refresh failed:", err)
-        }
       }
       return true
     },
@@ -70,10 +49,15 @@ export const authOptions: NextAuthOptions = {
         token.name = user.name
         token.picture = user.image
       }
-      // Persist the OAuth access_token to the token right after signin
       if (account) {
-        token.accessToken = account.access_token
         token.provider = account.provider
+        if (account.provider === "discord" && account.access_token) {
+          token.discord = {
+            accessToken: account.access_token,
+            expiresAt: account.expires_at ?? null,
+            scope: account.scope ?? null,
+          }
+        }
       }
       // Mint an xvm-api person token on first sign-in. This is additive, not a
       // hard dependency for login, so xvm-api being down must never fail the
@@ -144,7 +128,7 @@ export const authOptions: NextAuthOptions = {
     process.env.NODE_ENV === "production"
       ? {
           sessionToken: {
-            name: `__Secure-next-auth.session-token`,
+            name: SESSION_COOKIE_NAME,
             options: {
               httpOnly: true,
               sameSite: "lax" as const,

@@ -1,6 +1,7 @@
 import { NextResponse } from "next/server"
 import type { NextRequest } from "next/server"
 import { getToken } from "next-auth/jwt"
+import { SESSION_COOKIE_NAME, SESSION_COOKIE_SECURE } from "@/lib/session-cookie"
 
 function buildCsp(nonce: string): string {
   const isDev = process.env.NODE_ENV === "development"
@@ -55,7 +56,12 @@ export async function proxy(req: NextRequest) {
   const isPublic = PUBLIC_PATHS.some((p) => path === p) || PUBLIC_PREFIXES.some((p) => path.startsWith(p))
 
   if (!isPublic) {
-    const token = await getToken({ req, secret: process.env.NEXTAUTH_SECRET })
+    const token = await getToken({
+      req,
+      secret: process.env.NEXTAUTH_SECRET,
+      cookieName: SESSION_COOKIE_NAME,
+      secureCookie: SESSION_COOKIE_SECURE,
+    })
     if (!token) {
       return NextResponse.redirect(new URL("/auth/signin", req.url))
     }

@@ -6,6 +6,7 @@ const m = vi.hoisted(() => ({
   venue: vi.fn(),
   isOwner: vi.fn(),
   administers: vi.fn(),
+  grant: vi.fn(),
   presence: vi.fn(),
   getVenue: vi.fn(),
   link: vi.fn(),
@@ -36,7 +37,7 @@ vi.mock("@/lib/api/xvm-api", async (importOriginal) => ({
   linkVenueExternal: m.link,
   unlinkVenueExternal: m.unlink,
 }))
-vi.mock("@/lib/discord-user", () => ({ administersGuild: m.administers }))
+vi.mock("@/lib/discord-user", () => ({ administersGuild: m.administers, discordGrantFrom: m.grant }))
 vi.mock("@/lib/discord-rest", () => ({ getGuildPresence: m.presence }))
 
 import { POST, DELETE } from "./route"
@@ -53,6 +54,8 @@ const post = (body: unknown) =>
     context as never
   )
 
+const GRANT = { accessToken: "t", expiresAt: 9999999999, scope: "identify guilds" }
+
 beforeEach(() => {
   vi.clearAllMocks()
   vi.spyOn(console, "error").mockImplementation(() => {})
@@ -60,6 +63,7 @@ beforeEach(() => {
   m.venue.mockResolvedValue({ xvmApiVenueId: "xv-1", slug: "lilypad" })
   m.isOwner.mockResolvedValue(true)
   m.token.mockResolvedValue("tok")
+  m.grant.mockResolvedValue(GRANT)
   m.administers.mockResolvedValue({ ok: true, administers: true })
   m.presence.mockResolvedValue({ botIsMember: true, name: "Lilypad Lounge", iconUrl: null })
   m.link.mockResolvedValue({ id: 7, provider: "DiscordGuild", external_id: GUILD })
@@ -141,7 +145,7 @@ describe("POST /api/venues/[venueId]/discord/link", () => {
   it("checks authority before the bot's presence", async () => {
     m.administers.mockResolvedValue({ ok: true, administers: false })
     await post({ guildId: GUILD })
-    expect(m.administers).toHaveBeenCalledWith("user-1", GUILD)
+    expect(m.administers).toHaveBeenCalledWith(GRANT, GUILD)
     expect(m.presence).not.toHaveBeenCalled()
   })
 

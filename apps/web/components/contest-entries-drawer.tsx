@@ -9,6 +9,8 @@ import { Copy } from "lucide-react"
 import { toast } from "sonner"
 import { apiFetch, ApiError } from "@/lib/api-fetch"
 import type { ResolvedEntry } from "@/lib/api/resolve-entry-names"
+import { memberLabel, type DiscordMember } from "@/lib/discord-member-state"
+import { MemberChip, useResolvedMembers } from "@/components/discord-members"
 
 interface ContestEntriesDrawerProps {
   venueId: string
@@ -20,9 +22,12 @@ interface ContestEntriesDrawerProps {
   onOpenChange: (open: boolean) => void
 }
 
-function entrantLabel(entry: ResolvedEntry): string {
+// A raffle is entered from Discord, so most entrants have no dashboard account for
+// resolveEntryNames to find and rendered as a shortened id. Ask Discord for the rest.
+// display_name still wins where it exists: that is the venue's own record of who this is.
+function entrantLabel(entry: ResolvedEntry, member: DiscordMember | undefined): string {
   if (entry.display_name) return entry.display_name
-  return `${entry.discord_user_id.slice(0, 4)}...${entry.discord_user_id.slice(-4)}`
+  return memberLabel(entry.discord_user_id, member)
 }
 
 function entriesPath(venueId: string, contestType: "giveaway" | "raffle", contestId: number): string {
@@ -109,6 +114,11 @@ export function ContestEntriesDrawer({
     }
   }
 
+  const members = useResolvedMembers(
+    venueId,
+    entries.filter((entry) => !entry.display_name).map((entry) => entry.discord_user_id)
+  )
+
   const sorted = [...entries].sort((a, b) => {
     const rankA = a.winner_rank ?? Number.MAX_SAFE_INTEGER
     const rankB = b.winner_rank ?? Number.MAX_SAFE_INTEGER
@@ -142,8 +152,13 @@ export function ContestEntriesDrawer({
                 {sorted.map((entry) => (
                   <TableRow key={entry.discord_user_id}>
                     <TableCell className="flex items-center gap-1.5">
-                      {entrantLabel(entry)}
-                      {!entry.display_name && (
+                      <MemberChip
+                        label={entrantLabel(entry, members[entry.discord_user_id])}
+                        avatarUrl={members[entry.discord_user_id]?.avatarUrl}
+                      />
+                      {/* The copy button is there because an opaque id has to be looked up
+                          elsewhere, so it belongs on the rows that still show one. */}
+                      {!entry.display_name && !members[entry.discord_user_id] && (
                         <button
                           type="button"
                           title="Copy Discord ID"

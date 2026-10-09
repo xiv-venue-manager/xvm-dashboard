@@ -6,6 +6,9 @@ const m = vi.hoisted(() => ({
   venue: vi.fn(),
   token: vi.fn(),
   getVenue: vi.fn(),
+  cached: vi.fn(),
+  setCache: vi.fn(),
+  channels: vi.fn(),
 }))
 
 vi.mock("@/lib/api/venue-access", () => ({ requireVenueRole: m.role }))
@@ -19,10 +22,19 @@ vi.mock("@/lib/api/xvm-api", async (importOriginal) => ({
   getVenue: m.getVenue,
 }))
 
-import { requireVenueGuild, discordFailureResponse, wantsRefresh } from "./venue-guild"
+vi.mock("@/lib/redis-cache", async (importOriginal) => ({
+  ...(await importOriginal<typeof import("@/lib/redis-cache")>()),
+  getCached: m.cached,
+  setCache: m.setCache,
+}))
+vi.mock("@/lib/discord-rest", () => ({ getGuildChannels: m.channels }))
+
+import { requireVenueGuild, requireChannelInGuild, discordFailureResponse, wantsRefresh } from "./venue-guild"
 import { XvmApiError } from "@/lib/api/xvm-api"
 
 const GUILD = "1509616350337962024"
+const CHANNEL = "1509616350337962099"
+const OTHER_GUILD_CHANNEL = "1409616350337962011"
 const links = (rows: Record<string, unknown>[]) => ({ external_links: rows })
 const liveLink = (over: Record<string, unknown> = {}) => ({
   id: 7,
@@ -40,6 +52,8 @@ beforeEach(() => {
   m.venue.mockResolvedValue({ xvmApiVenueId: "xv-1" })
   m.token.mockResolvedValue("tok")
   m.getVenue.mockResolvedValue(links([liveLink()]))
+  m.cached.mockResolvedValue(null)
+  m.channels.mockResolvedValue({ ok: true, data: [{ id: CHANNEL, name: "shifts" }] })
 })
 
 describe("requireVenueGuild", () => {
@@ -133,5 +147,66 @@ describe("wantsRefresh", () => {
     expect(wantsRefresh(new Request("http://x/api?refresh=0"))).toBe(false)
     expect(wantsRefresh(new Request("http://x/api?refresh=true"))).toBe(false)
     expect(wantsRefresh(new Request("http://x/api"))).toBe(false)
+  })
+})
+
+describe("requireChannelInGuild", () => {
+  const check = (channelId = CHANNEL) => requireChannelInGuild("user-1", "vn_1", channelId)
+
+  it("accepts a channel in the cached list without asking Discord", async () => {
+    m.cached.mockResolvedValue([{ id: CHANNEL, name: "shifts" }])
+    expect(await check()).toEqual({ ok: true })
+    expect(m.channels).not.toHaveBeenCalled()
+  })
+
+  it("asks Discord on a cache miss, and caches what it learns", async () => {
+    expect(await check()).toEqual({ ok: true })
+    expect(m.channels).toHaveBeenCalledWith(GUILD)
+    expect(m.setCache).toHaveBeenCalledWith(`discord:${GUILD}:channels`, [{ id: CHANNEL, name: "shifts" }], expect.any(Number))
+  })
+
+  it("re-asks Discord when the cached list lacks the channel, so a channel made minutes ago is not refused", async () => {
+    // The list is cached for five minutes. A rejection from stale data would tell somebody a real
+    // channel is not in their server, so only a live answer may refuse.
+    m.cached.mockResolvedValue([{ id: "1", name: "old" }])
+    expect(await check()).toEqual({ ok: true })
+    expect(m.channels).toHaveBeenCalledTimes(1)
+  })
+
+  it("refuses a channel that is not in this venue's server, on the live list", async () => {
+    const result = await check(OTHER_GUILD_CHANNEL)
+    expect(result.ok).toBe(false)
+    if (result.ok) return
+    expect(result.response.status).toBe(400)
+    expect(await result.response.json()).toMatchObject({ error: "channel_not_in_guild" })
+  })
+
+  it("refuses when the server cannot be established, rather than letting any id through", async () => {
+    // Fail closed: with the id unchecked, the bot could be pointed at a channel in any server it has
+    // joined.
+    m.getVenue.mockResolvedValue(links([]))
+    const result = await check()
+    expect(result.ok).toBe(false)
+    if (result.ok) return
+    expect(result.response.status).toBe(409)
+    expect(await result.response.json()).toMatchObject({ error: "not_linked" })
+    expect(m.channels).not.toHaveBeenCalled()
+  })
+
+  it("reports the bot being absent as something a person can fix", async () => {
+    m.channels.mockResolvedValue({ ok: false, status: 404 })
+    const result = await check()
+    expect(result.ok).toBe(false)
+    if (result.ok) return
+    expect(result.response.status).toBe(409)
+    expect(await result.response.json()).toMatchObject({ error: "bot_absent" })
+  })
+
+  it("reports Discord being down as transient, not as the channel being wrong", async () => {
+    m.channels.mockResolvedValue({ ok: false, status: 500 })
+    const result = await check()
+    expect(result.ok).toBe(false)
+    if (result.ok) return
+    expect(result.response.status).toBe(502)
   })
 })

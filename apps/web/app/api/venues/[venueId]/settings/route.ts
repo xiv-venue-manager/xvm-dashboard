@@ -3,6 +3,7 @@ import { getServerSession } from "next-auth"
 import { authOptions } from "@/lib/auth"
 import { prisma } from "@/lib/prisma"
 import { requireVenueRole } from "@/lib/api/venue-access"
+import { requireChannelInGuild } from "@/lib/api/venue-guild"
 import { Prisma } from "@/generated/prisma/client"
 import { z } from "zod"
 import { withRateLimit } from "@/lib/middleware/with-rate-limit"
@@ -227,6 +228,14 @@ export const PUT = withRateLimit<{ params: Promise<{ venueId: string }> }>(
 
       if (!venue) {
         return NextResponse.json({ error: "Venue not found" }, { status: 404 })
+      }
+
+      // The whole shiftBot object arrives on every save, so only a channel that changed is checked:
+      // re-checking an unchanged one would block unrelated saves on a venue whose server is not linked.
+      const newChannelId = validatedData.shiftBot?.channelId
+      if (newChannelId && newChannelId !== parseVenueSettings(venue.settings).shiftBot?.channelId) {
+        const channel = await requireChannelInGuild(session.user.id, venueId, newChannelId)
+        if (!channel.ok) return channel.response
       }
 
       // Extract top-level venue columns and xvm-api-owned visibility fields from validated data

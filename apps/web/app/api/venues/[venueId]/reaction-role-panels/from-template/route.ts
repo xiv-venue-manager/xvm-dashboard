@@ -6,6 +6,7 @@ import { prisma } from "@/lib/prisma"
 import { withRateLimit } from "@/lib/middleware/with-rate-limit"
 import { getValidXvmApiToken, xvmApiErrorResponse } from "@/lib/api/xvm-api-store"
 import { applyPanelTemplate } from "@/lib/api/xvm-api"
+import { requireChannelInGuild } from "@/lib/api/venue-guild"
 import { validators } from "@/lib/validation"
 
 const applyTemplateSchema = z.object({
@@ -56,6 +57,9 @@ export const POST = withRateLimit<{ params: Promise<{ venueId: string }> }>(
       }
       return NextResponse.json({ error: "Invalid request" }, { status: 400 })
     }
+
+    const channel = await requireChannelInGuild(session.user.id, venueId, data.channelId)
+    if (!channel.ok) return channel.response
 
     try {
       // 202, no body - the bot builds the panel. See lib/api/xvm-api.ts's applyPanelTemplate.

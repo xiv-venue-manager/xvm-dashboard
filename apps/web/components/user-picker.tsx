@@ -195,7 +195,7 @@ export function UserPicker({
   if (picked !== null && value === picked.id) {
     return (
       <div className="flex flex-wrap items-center gap-2">
-        <span className="inline-flex items-center gap-2 rounded-md border px-2.5 py-1.5 text-sm">
+        <span className="inline-flex h-8 items-center gap-2 rounded-lg border border-[rgba(0,180,255,0.2)] bg-[rgba(0,180,255,0.04)] px-3 text-sm">
           <MemberAvatar member={picked} />
           <span className="truncate">{picked.displayName}</span>
           <span className="truncate text-xs text-muted-foreground">@{picked.username}</span>
@@ -232,7 +232,7 @@ export function UserPicker({
         disabled={disabled}
       />
       {open && (
-        <div className="absolute z-50 mt-1 w-full rounded-md border bg-popover text-popover-foreground shadow-md">
+        <div className="absolute z-50 mt-1 w-full overflow-hidden rounded-xl border border-[var(--blue-018)] bg-[rgba(10,15,30,0.97)] text-popover-foreground shadow-[0_8px_32px_rgba(0,0,0,0.6)] backdrop-blur-2xl">
           {!ready && <p className="px-3 py-2 text-xs text-muted-foreground">Type at least 2 characters to search.</p>}
           {ready && searching && <p className="px-3 py-2 text-xs text-muted-foreground">Searching…</p>}
           {ready && !searching && problem?.retryable && (
@@ -247,7 +247,7 @@ export function UserPicker({
             <p className="px-3 py-2 text-xs text-muted-foreground">No members found.</p>
           )}
           {results.length > 0 && !searching && (
-            <ul id={listboxId} role="listbox">
+            <ul id={listboxId} role="listbox" className="p-1">
               {results.map((member, index) => (
                 <li
                   key={member.id}
@@ -258,8 +258,8 @@ export function UserPicker({
                     pick(member)
                   }}
                   onMouseEnter={() => setHighlighted(index)}
-                  className={`flex cursor-pointer items-center gap-2 px-3 py-1.5 text-sm ${
-                    index === highlighted ? "bg-accent text-accent-foreground" : ""
+                  className={`flex cursor-pointer items-center gap-2 rounded-lg px-3 py-2 text-sm transition-colors ${
+                    index === highlighted ? "bg-[rgba(0,180,255,0.1)] text-[var(--xiv-blue)]" : ""
                   }`}
                 >
                   <MemberAvatar member={member} />

@@ -175,6 +175,8 @@ Each is a counted warning, not a silent change.
 | Allegro | Does enabling a recurrence rule duplicate loaded future events and shifts |
 | Allegro | May `person_accounts` hold contact emails, and should a no-Discord person path exist |
 | Allegro | Where the venue settings listed in the manifest live. #176 keeps them in `leftovers` meanwhile |
+| Allegro | Plugin route: should the plugin keep calling the dashboard's `/api/plugin/*` routes, with the dashboard forwarding to xvm-api, or call xvm-api directly? Direct needs xvm-api to cover what only the dashboard does today: the clock-in window (30 minutes early, 60 late), Frogge, and inventory linking. This is held up by it, and it is not part of the export layer |
+| Allegro | Plugin credentials: which scopes a pairing-issued plugin `api_key` should carry (everyone relinks with a pairing code) |
 | Allegro | When an owner changes a venue's timezone after the load, do its existing rules, shifts and opening hours keep their absolute times or move with the wall-clock |
 
 ## Safety when running it

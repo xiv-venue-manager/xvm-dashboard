@@ -30,15 +30,30 @@ export async function fetchShouts(): Promise<FetchShoutsResult> {
   }
 }
 
-export async function saveShout(data: Omit<SavedShout, "id" | "createdAt">): Promise<SavedShout | null> {
-  const res = await fetch(API, {
-    method: "POST",
-    credentials: "include",
-    headers: { "Content-Type": "application/json" },
-    body: JSON.stringify(data),
-  })
-  if (!res.ok) return null
-  return res.json()
+export type SaveShoutResult =
+  | { ok: true; shout: SavedShout }
+  | { ok: false; reason: "signed_out" | "unavailable" }
+  | { ok: false; reason: "rejected"; message: string | undefined }
+
+export async function saveShout(data: Omit<SavedShout, "id" | "createdAt">): Promise<SaveShoutResult> {
+  try {
+    const res = await fetch(API, {
+      method: "POST",
+      credentials: "include",
+      headers: { "Content-Type": "application/json" },
+      body: JSON.stringify(data),
+    })
+    if (res.status === 401) return { ok: false, reason: "signed_out" }
+    if (res.status >= 400 && res.status < 500) {
+      const body: unknown = await res.json().catch(() => null)
+      const message = body && typeof body === "object" && "error" in body && typeof body.error === "string" ? body.error : undefined
+      return { ok: false, reason: "rejected", message }
+    }
+    if (!res.ok) return { ok: false, reason: "unavailable" }
+    return { ok: true, shout: (await res.json()) as SavedShout }
+  } catch {
+    return { ok: false, reason: "unavailable" }
+  }
 }
 
 export async function deleteShout(id: string): Promise<boolean> {

@@ -4,11 +4,11 @@
 
 **Goal:** A person can link the Dalamud plugin to their account with a one-time code, and the plugin ends up holding an account-wide xvm-api credential that it has verified with `GET /me`.
 
-**Architecture:** The plugin calls xvm-api directly. The dashboard only issues the pairing code and lists and revokes linked plugins, using the person's own xvm-api token and no Prisma. The plugin exchanges the code at xvm-api's `POST /auth/pairing/exchange`, so xvm-api must be reachable from players' machines. That needs a public route (Tasks 1 to 3) and a correct per-IP rate limit behind Cloudflare (Task 2).
+**Architecture:** The plugin calls xvm-api directly. The dashboard only issues the pairing code and lists and revokes linked plugins, using the person's own xvm-api token and no Prisma. The plugin exchanges the code at xvm-api's `POST /pairing/exchange`, so xvm-api must be reachable from players' machines. That needs a public route (Tasks 1 to 3) and a correct per-IP rate limit behind Cloudflare (Task 2).
 
 **Tech Stack:** Next.js route handlers and React, vitest (dashboard, `apps/web`); C# Dalamud plugin on .NET 10 with xunit (`xvm-plugin-dev`, private repo); FastAPI and pytest (xvm-api, owned by Allegro, one small draft PR); Cloudflare Tunnel.
 
-**Status:** Draft for review. Nothing here has been built. This supersedes the unpushed draft `2026-10-09-plugin-cutover.md`, which assumed the dashboard forwards plugin calls.
+**Status:** Draft for review. Tasks 4 to 7 were built and live-checked on 2026-10-10 (see PR for the dashboard half). Tasks 1 to 3 and 8 to 10 are not started. The pairing paths were checked against the running dev API's `openapi.json`: they are `/pairing/codes` and `/pairing/exchange` (not under `/auth`). This supersedes the unpushed draft `2026-10-09-plugin-cutover.md`, which assumed the dashboard forwards plugin calls.
 
 ---
 
@@ -27,8 +27,8 @@
 
 ## What xvm-api provides (read from `origin/dev`, 2026-10-10)
 
-- `POST /auth/pairing/codes` (a person credential) takes `{client: "plugin", venue_id: string | null}` and returns `{code, client, venue_id, expires_at}`.
-- `POST /auth/pairing/exchange` (no auth, 10 per minute per client IP) takes `{code, client: "plugin"}` and returns `{secret, credential}`. It answers 400 for an unknown code, 409 for a used or expired code, 429 when rate limited.
+- `POST /pairing/codes` (a person credential) takes `{client: "plugin", venue_id: string | null}` and returns `{code, client, venue_id, expires_at}`.
+- `POST /pairing/exchange` (no auth, 10 per minute per client IP) takes `{code, client: "plugin"}` and returns `{secret, credential}`. It answers 400 for an unknown code, 409 for a used or expired code, 429 when rate limited.
 - `GET /me` with `Authorization: Bearer <secret>` returns `{kind, client, name, venue_narrow, person: {id, display_name}, memberships: [{venue_id, tier}]}`.
 - `GET /me/credentials` lists a person's credentials. `POST /me/credentials/{id}/revoke` revokes one. Both already have dashboard wrappers: `listMyCredentials` and `revokeCredential` in `apps/web/lib/api/xvm-api.ts`.
 - The rate limiter (`src/api/rate_limit.py`) takes the client IP from the first `X-Forwarded-For` value. Its docstring says to revisit that if Cloudflare is ever put in front. Task 2 does.
@@ -70,7 +70,7 @@ Read-only investigation plus one conversation. No production change yet.
 
 1. Is it fine to expose xvm-api at `https://api.xivvenuemanager.com` for the plugin?
 2. Which xvm-api instance is production, and is there a Caddy or other proxy in front of it?
-3. Should the public hostname expose every route, or only an allowlist (`/auth/pairing/exchange`, `/me`, `/venues/...`, `/patrons/...`, `/rooms/...`)? Every route already needs a credential, so the allowlist is optional hardening.
+3. Should the public hostname expose every route, or only an allowlist (`/pairing/exchange`, `/me`, `/venues/...`, `/patrons/...`, `/rooms/...`)? Every route already needs a credential, so the allowlist is optional hardening.
 4. Is the draft PR in Task 2 (client IP from `CF-Connecting-IP`) an acceptable shape for the rate limit?
 
 - [ ] **Step 2: Find the production upstream** (read-only)
@@ -256,7 +256,7 @@ Expected: `route added`. The entry goes before the catch-all, which must stay la
 Run: `curl -sS https://api.xivvenuemanager.com/health`
 Expected: `{"status":"ok"}`.
 
-Run: `for i in $(seq 1 12); do curl -s -o /dev/null -w '%{http_code} ' -X POST https://api.xivvenuemanager.com/auth/pairing/exchange -H 'Content-Type: application/json' -d '{"code":"ZZZZZZZZ","client":"plugin"}'; done; echo`
+Run: `for i in $(seq 1 12); do curl -s -o /dev/null -w '%{http_code} ' -X POST https://api.xivvenuemanager.com/pairing/exchange -H 'Content-Type: application/json' -d '{"code":"ZZZZZZZZ","client":"plugin"}'; done; echo`
 Expected: ten `400` (unknown code), then `429`. The limit trips for this machine only.
 
 - [ ] **Step 4: Check that two clients get separate buckets.** From a second network or a phone hotspot, run one of the exchange calls above. Expected: `400`, not `429`, while the first machine is still limited. If it answers `429`, the header setting is not live: stop and recheck Task 2's deploy note.
@@ -298,7 +298,7 @@ describe("createPairingCode", () => {
     const issued = await createPairingCode("tok")
     expect(issued.code).toBe("ABCD1234")
     const [url, init] = vi.mocked(fetch).mock.calls[0]
-    expect(url).toBe("http://xvm.test/auth/pairing/codes")
+    expect(url).toBe("http://xvm.test/pairing/codes")
     expect((init as RequestInit).headers).toMatchObject({ Authorization: "Bearer tok" })
     expect(JSON.parse((init as RequestInit).body as string)).toEqual({ client: "plugin", venue_id: null })
   })
@@ -323,7 +323,7 @@ export interface PairingCodeIssued {
 export async function createPairingCode(personToken: string): Promise<PairingCodeIssued> {
   if (!process.env.XVM_API_BASE_URL) throw new Error("XVM_API_BASE_URL is not set")
   return xvmFetch<PairingCodeIssued>(
-    "/auth/pairing/codes",
+    "/pairing/codes",
     { method: "POST", body: JSON.stringify({ client: "plugin", venue_id: null }) },
     personToken
   )
@@ -416,7 +416,7 @@ Expected: FAIL, the route does not exist.
 - [ ] **Step 3: Implement**
 
 ```ts
-import { NextRequest, NextResponse } from "next/server"
+import { NextResponse } from "next/server"
 import { getServerSession } from "next-auth"
 import { authOptions } from "@/lib/auth"
 import { withRateLimit } from "@/lib/middleware/with-rate-limit"
@@ -424,7 +424,7 @@ import { createPairingCode } from "@/lib/api/xvm-api"
 import { getValidXvmApiToken, xvmApiErrorResponse } from "@/lib/api/xvm-api-store"
 
 export const POST = withRateLimit(
-  async (_request: NextRequest) => {
+  async () => {
     const session = await getServerSession(authOptions)
     if (!session?.user?.id) return NextResponse.json({ error: "Unauthorized" }, { status: 401 })
 
@@ -681,7 +681,7 @@ There is no jsdom in this repo, so this task is verified by hand on the local st
 ```tsx
 "use client"
 
-import { useCallback, useEffect, useState } from "react"
+import { useEffect, useState } from "react"
 import { Button } from "@/components/ui/button"
 import { Card, CardContent, CardDescription, CardHeader, CardTitle } from "@/components/ui/card"
 import { Alert, AlertDescription } from "@/components/ui/alert"
@@ -700,20 +700,20 @@ interface IssuedCode {
   expiresAt: string
 }
 
+async function fetchLinked(): Promise<LinkedPlugin[]> {
+  const res = await fetch("/api/plugin/credentials")
+  return res.ok ? ((await res.json()).credentials ?? []) : []
+}
+
 export function PluginLinkCard() {
   const [linked, setLinked] = useState<LinkedPlugin[]>([])
   const [issued, setIssued] = useState<IssuedCode | null>(null)
   const [busy, setBusy] = useState(false)
   const [error, setError] = useState("")
 
-  const load = useCallback(async () => {
-    const res = await fetch("/api/plugin/credentials")
-    if (res.ok) setLinked((await res.json()).credentials ?? [])
-  }, [])
-
   useEffect(() => {
-    void load()
-  }, [load])
+    fetchLinked().then(setLinked)
+  }, [])
 
   async function generate() {
     setBusy(true)
@@ -737,7 +737,7 @@ export function PluginLinkCard() {
       setError("Could not unlink that plugin")
       return
     }
-    await load()
+    setLinked(await fetchLinked())
   }
 
   return (
@@ -806,7 +806,7 @@ Expected: 0 errors.
 
 - [ ] **Step 4: Check by hand on the local stack.** Sign in, open `/dashboard/api-keys`, then:
   1. Click "Generate link code". A code of about 8 characters appears with an expiry time.
-  2. Redeem it: `curl -sS -X POST $XVM_API_BASE_URL/auth/pairing/exchange -H 'Content-Type: application/json' -d '{"code":"<code>","client":"plugin"}'`. Expected: HTTP 201 with a `secret`.
+  2. Redeem it: `curl -sS -X POST $XVM_API_BASE_URL/pairing/exchange -H 'Content-Type: application/json' -d '{"code":"<code>","client":"plugin"}'`. Expected: HTTP 201 with a `secret`.
   3. Reload the page. "Linked plugins" shows one entry.
   4. Click "Unlink". The entry disappears. Redeeming the same code again returns 409.
 
@@ -912,7 +912,7 @@ public class XvmApiPairingTests
         Assert.True(result.Success);
         Assert.Equal("s3cret", result.Secret);
         Assert.Equal("Ehno", result.PersonName);
-        Assert.Equal("https://api.test/auth/pairing/exchange", handler.Requests[0].Url);
+        Assert.Equal("https://api.test/pairing/exchange", handler.Requests[0].Url);
         Assert.Contains("\"code\":\"ABCD1234\"", handler.Requests[0].Body);
         Assert.Contains("\"client\":\"plugin\"", handler.Requests[0].Body);
         Assert.Equal("https://api.test/me", handler.Requests[1].Url);
@@ -1031,7 +1031,7 @@ namespace VenueManager
       var root = baseUrl.Trim().TrimEnd('/');
       try
       {
-        using var exchange = await http.PostAsJsonAsync($"{root}/auth/pairing/exchange", new { code, client = "plugin" });
+        using var exchange = await http.PostAsJsonAsync($"{root}/pairing/exchange", new { code, client = "plugin" });
         switch (exchange.StatusCode)
         {
           case HttpStatusCode.BadRequest:

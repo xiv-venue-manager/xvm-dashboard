@@ -8,7 +8,7 @@
 
 **Tech Stack:** C# on .NET 10, Dalamud plugin (`xvm-plugin-dev`, the local copy), xunit.
 
-**Status:** Draft for review. Nothing here has been built. It follows the reads plan (`2026-10-10-plugin-reads.md`, dashboard PR #190) and reuses its `XvmApiModels.cs` and `XvmApiMapping.ShiftStatus`. Build the reads plan first.
+**Status:** Built in the plugin (xvm-plugin-dev PR #3) and verified in game, as owner and as staff, except patron visits (they need a second player) and a staff member pressing Ban. It follows the reads plan (`2026-10-10-plugin-reads.md`, dashboard PR #190) and reuses its `XvmApiModels.cs` and `XvmApiMapping.ShiftStatus`. Build the reads plan first.
 
 ---
 

@@ -354,6 +354,22 @@ export async function revokeCredential(personToken: string, credentialId: number
   return xvmFetch<Credential>(`/me/credentials/${credentialId}/revoke`, { method: "POST" }, personToken)
 }
 
+export interface PairingCodeIssued {
+  code: string
+  client: "plugin"
+  venue_id: string | null
+  expires_at: string
+}
+
+export async function createPairingCode(personToken: string): Promise<PairingCodeIssued> {
+  if (!process.env.XVM_API_BASE_URL) throw new Error("XVM_API_BASE_URL is not set")
+  return xvmFetch<PairingCodeIssued>(
+    "/pairing/codes",
+    { method: "POST", body: JSON.stringify({ client: "plugin", venue_id: null }) },
+    personToken
+  )
+}
+
 // ── Rooms API ──────────────────────────────────────────────────
 
 export async function listRooms(personToken: string, venueId: string): Promise<Room[]> {

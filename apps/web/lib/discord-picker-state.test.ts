@@ -4,6 +4,10 @@ import {
   offeredRoles,
   showsManualEntry,
   canReturnToList,
+  memberQueryReady,
+  memberSearchProblem,
+  canReturnToSearch,
+  initials,
   type DiscordOption,
 } from "./discord-picker-state"
 
@@ -136,5 +140,70 @@ describe("canReturnToList", () => {
 
   it("hides it when there is no list to go back to", () => {
     expect(canReturnToList([], "")).toBe(false)
+  })
+})
+
+describe("memberQueryReady", () => {
+  it("waits for two characters, ignoring surrounding space", () => {
+    // Discord's member search is prefix-based and a one-letter query returns a page of strangers.
+    expect(memberQueryReady("")).toBe(false)
+    expect(memberQueryReady(" a ")).toBe(false)
+    expect(memberQueryReady("ab")).toBe(true)
+    expect(memberQueryReady(" ab ")).toBe(true)
+  })
+})
+
+describe("memberSearchProblem", () => {
+  it("treats the rate limit as retryable and says why", () => {
+    // Search runs per keystroke, so hitting the limit is a normal way to fail and the next
+    // keystroke is the retry.
+    const problem = memberSearchProblem(429, {})
+    expect(problem.retryable).toBe(true)
+    expect(problem.message).toMatch(/too fast/i)
+  })
+
+  it("defers every other status to pickerProblem", () => {
+    expect(memberSearchProblem(409, { error: "bot_absent" })).toEqual(pickerProblem(409, { error: "bot_absent" }))
+    expect(memberSearchProblem(502, { error: "Couldn't reach Discord." })).toEqual(
+      pickerProblem(502, { error: "Couldn't reach Discord." })
+    )
+  })
+})
+
+describe("canReturnToSearch", () => {
+  it("offers the way back once the field is empty", () => {
+    expect(canReturnToSearch("", null)).toBe(true)
+  })
+
+  it("hides it while the field holds something", () => {
+    // The component cannot tell an id typed a moment ago from one loaded off a saved record:
+    // `picked` is only set by choosing from a result list, never from the `value` prop. Clearing
+    // would be fine for the first and silent data loss for the second, so emptying the field is
+    // what reveals the button. canReturnToList resolves the same dilemma the same way.
+    expect(canReturnToSearch("123456789012345678", null)).toBe(false)
+  })
+
+  it("hides it when searching could not work anyway", () => {
+    expect(canReturnToSearch("", pickerProblem(409, { error: "bot_absent" }))).toBe(false)
+    expect(canReturnToSearch("", pickerProblem(403, {}))).toBe(false)
+  })
+
+  it("keeps it for a failure the next keystroke could clear", () => {
+    expect(canReturnToSearch("", memberSearchProblem(429, {}))).toBe(true)
+  })
+})
+
+describe("initials", () => {
+  it("takes two letters or digits, uppercased", () => {
+    expect(initials("Bartender")).toBe("BA")
+    expect(initials("42nd Street")).toBe("42")
+  })
+
+  it("skips decoration rather than rendering it", () => {
+    expect(initials("\u2726 Mina \u2726")).toBe("MI")
+  })
+
+  it("still renders something for a name made entirely of symbols", () => {
+    expect(initials("\u2726\u2726\u2726")).toBe("#")
   })
 })

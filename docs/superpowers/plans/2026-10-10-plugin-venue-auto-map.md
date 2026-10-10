@@ -8,7 +8,7 @@
 
 **Tech Stack:** C# on .NET 10, Dalamud plugin (`xvm-plugin-dev`, the local copy), xunit.
 
-**Status:** Draft for review. Nothing here has been built. It follows the pairing, reads and writes plans (dashboard #190 and #191 and the pairing plan) and needs dashboard #187 (a complete address on every venue) merged to be useful for real venues. It can be built and tested earlier against a test venue whose address is set through the API.
+**Status:** Built and verified in game (plugin PR #4, stacked on #3). It follows the pairing, reads and writes plans (dashboard #190 and #191 and the pairing plan) and needs dashboard #187 (a complete address on every venue) merged to be useful for real venues. It can be built and tested earlier against a test venue whose address is set through the API.
 
 ---
 
@@ -22,9 +22,12 @@
 | A4 | An existing link, manual or automatic, is never replaced. The Venues tab dropdown stays as the way to fix or clear one. | Decided |
 | A5 | District and world comparison ignores case and surrounding spaces. The plugin's district names (Mist, Goblet, Lavender Beds, Empyreum, Shirogane) are the same five names #187 enforces on the website. | Verified |
 | A6 | Only venues the person is a member of are considered, since the address list comes from their own `/me/venues`. | Decided |
-| A7 | Following the house: when the current house is linked, the plugin's current venue becomes that venue and its data loads. The Settings venue picker stays as a manual override for now. Removing it is a separate small change once this works in game. | Proposed, confirm |
-| A8 | A house the person has not saved yet, but that matches a venue, is saved automatically with the venue's name, so the patron list and chat alerts work with no setup. Without this, a recognised house still shows nothing until it is saved by hand. | Proposed, confirm |
-| A9 | The plugin's apartment values were read from the code, not from a game session: `plot` is the game's value plus one, so a main-division apartment reads -127 and a subdivision apartment reads -126. Task 6 logs the values and checks them in game before anyone relies on them. | Needs a game check |
+| A7 | Following the house: when the current house is linked, the plugin's current venue becomes that venue and its data loads. The Settings venue picker stays as a manual override for now. Removing it is a separate small change. | Decided, works in game |
+| A8 | A house the person has not saved yet, but that matches a venue, is saved automatically with the venue's name, so the patron list and chat alerts work with no setup. A saved house that is later deleted keeps its link and is not re-saved. | Decided, works in game |
+| A9 | The plugin's apartment values: `plot` is the game's value plus one, so a main-division apartment reads -127 and a subdivision apartment reads -126. | Verified in game (Shirogane, 2026-10-10: main -127 room 18, subdivision -126 room 2) |
+| A10 | An FC chamber has its own house id, so chambers are never linked or saved as venues. Entering one still switches the current venue to the FC house's venue by address. Without this each chamber became a new Venues tab entry. | Decided, found in game |
+| A11 | A house that matches nothing refetches the venue addresses, at most once a minute, then tries again. Addresses are otherwise loaded with the venue list, so an address edited while the plugin runs would not link until a restart. | Decided, found in game |
+| A12 | Lifestream cannot be handed an apartment address, and the existing teleport sent plot -127, which it read as plot 12. The teleport button is disabled for apartments. | Decided, found in game |
 
 ## What each side holds
 
@@ -165,7 +168,7 @@ using System.Text.Json.Serialization;
 
 namespace VenueManager
 {
-  internal enum HouseKind { Plot, Apartment, ApartmentSubdivision }
+  public enum HouseKind { Plot, Apartment, ApartmentSubdivision }
 
   internal sealed record HouseAddress(string World, string District, int Ward, HouseKind Kind, int Plot, int Room);
 
@@ -245,7 +248,7 @@ git commit -m "feat: match a game house to a venue by address"
 - [ ] **Step 3: Implement.** Add inside `XvmApiReads`:
 
 ```csharp
-    public async Task<List<XvmVenueAddress>> GetVenueAddressesAsync(IEnumerable<string> venueIds)
+    internal async Task<List<XvmVenueAddress>> GetVenueAddressesAsync(IEnumerable<string> venueIds)
     {
       var rows = await Task.WhenAll(venueIds.Select(id => GetAsync<XvmVenueAddress>(Venue(id))));
       return rows.Where(r => r is not null).Select(r => r!).ToList();
@@ -348,33 +351,79 @@ git commit -m "feat: link saved houses to venues by address when the venue list 
 
 In `AutoLoadXivAppDataAsync` keep the lines that choose `target` and set `currentXivAppVenueId`, then replace the moved block with `await LoadVenueDataAsync(target.Id);`.
 
-- [ ] **Step 2: Recognise and follow on entering a house.** In the block that runs when `pluginState.currentHouse.houseId != computedHouseId.Value`, after `pluginState.currentHouse.worldId = currentWorldId;`, add:
+- [ ] **Step 2: Recognise and follow on entering a house.** In the block that runs when `pluginState.currentHouse.houseId != computedHouseId.Value`, after `pluginState.currentHouse.worldId = currentWorldId;`, replace any earlier call with:
 
 ```csharp
-                _ = FollowHouseToVenueAsync();
+                var follow = FollowHouseToVenueAsync();
 ```
 
-and add the method beside the others:
+and change the chamber block that follows it (the one that opens the Rooms tab) so it only runs for plot houses and builds its chat line from the venue's rooms after the venue switch:
 
 ```csharp
+                if (pluginState.currentHouse.room > 0 && pluginState.currentHouse.plot > 0 && previousRoom != pluginState.currentHouse.room)
+                {
+                  MainWindow.OpenTab("Rooms");
+                  if (!MainWindow.IsOpen)
+                    MainWindow.IsOpen = true;
+                  else
+                    _ = AnnounceChamberAsync(pluginState.currentHouse.room, follow);
+                }
+```
+
+Then add the two methods beside the others. Each FC chamber has its own house id, so chambers are never linked or saved (decision A10); they only switch the current venue. A house that matches nothing refetches the addresses once a minute at most (A11).
+
+```csharp
+    private async Task AnnounceChamberAsync(int roomNumber, Task follow)
+    {
+      try
+      {
+        await follow;
+        var venueId = currentXivAppVenueId;
+        if (xivAppClient == null || string.IsNullOrEmpty(venueId)) return;
+        var room = (await xivAppClient.Venue.GetRoomsAsync(venueId)).FirstOrDefault(r => r.RoomNumber == roomNumber);
+        var status = room switch
+        {
+          null => "not set up for this venue",
+          { Disabled: true } => "Disabled",
+          { Locked: true } => "Locked",
+          { IsOccupied: true } => "Occupied",
+          _ => "Free - open plugin to reserve",
+        };
+        Chat.Print($"[{Name}] Room {roomNumber}: {status}");
+      }
+      catch (Exception ex)
+      {
+        Log.Warning("Announcing the chamber failed: {0}", ex.Message);
+      }
+    }
+
     private async Task FollowHouseToVenueAsync()
     {
       try
       {
         var house = pluginState.currentHouse;
+        Log.Information("Entered house: world {World} district {District} ward {Ward} plot {Plot} room {Room} type {Type}", house.WorldName, house.district, house.ward, house.plot, house.room, house.type);
         if (!Configuration.houseToXivAppVenue.TryGetValue(house.houseId, out var venueId) || string.IsNullOrEmpty(venueId))
         {
           venueId = VenueAddressMatcher.FindUnique(AddressOf(house), xivAppVenueAddresses);
-          if (venueId is null) return;
-          Configuration.houseToXivAppVenue[house.houseId] = venueId;
-          if (!venueList.venues.ContainsKey(house.houseId))
+          if (venueId is null && DateTime.UtcNow - venueAddressesLoadedAt > TimeSpan.FromSeconds(60))
           {
-            var saved = new Venue(house) { name = xivAppVenues.FirstOrDefault(v => v.Id == venueId)?.Name ?? house.name };
-            venueList.venues.Add(saved.houseId, saved);
-            venueList.save();
+            await LoadVenueAddressesAsync();
+            venueId = VenueAddressMatcher.FindUnique(AddressOf(house), xivAppVenueAddresses);
           }
-          Configuration.Save();
-          Log.Information("Recognised house {House} as venue {Venue} by address", house.houseId, venueId);
+          if (venueId is null) return;
+          if (house.room == 0 || house.plot <= 0)
+          {
+            Configuration.houseToXivAppVenue[house.houseId] = venueId;
+            if (!venueList.venues.ContainsKey(house.houseId))
+            {
+              var saved = new Venue(house) { name = xivAppVenues.FirstOrDefault(v => v.Id == venueId)?.Name ?? house.name };
+              venueList.venues.Add(saved.houseId, saved);
+              venueList.save();
+            }
+            Configuration.Save();
+            Log.Information("Recognised house {House} as venue {Venue} by address", house.houseId, venueId);
+          }
         }
 
         if (venueId == currentXivAppVenueId) return;
@@ -390,7 +439,7 @@ and add the method beside the others:
     }
 ```
 
-If decision A8 is declined, delete the `if (!venueList.venues.ContainsKey(...))` block. If A7 is declined, delete the last four lines after the early return and keep only the linking.
+Delete the old room-status helpers the chamber block used (`RoomsTab.GetRoomStatus` and `MainWindow.GetRoomStatus`), because nothing calls them any more. If decision A8 is declined, delete the `if (!venueList.venues.ContainsKey(...))` block. If A7 is declined, delete the last four lines after the early return and keep only the linking.
 
 - [ ] **Step 3: Build and test.** Confirm with the user, then run `dotnet test VenueManager.Tests` and the `.sln` Release build. Expected: all pass, 0 errors.
 
@@ -405,14 +454,17 @@ git commit -m "feat: recognise a house by its address and follow it to its venue
 
 ### Task 6: Check it in the game
 
-Needs the rebuilt DLL loaded and a linked account.
+Needs the rebuilt DLL loaded and a linked account. Every step below was run on 2026-10-10 against the dev API and passed.
 
-- [ ] **Step 1: Log the apartment values (decision A9).** Before anything else, stand in an apartment and in a house and read the values on `pluginState.currentHouse` (add a temporary `Log.Debug` of `plot`, `ward`, `room` and `type` in `FollowHouseToVenueAsync`, and remove it after). Expected: a house gives a plot of 1 to 60, a main-division apartment gives -127, a subdivision apartment gives -126. If the numbers differ, fix `KindOf` and its test before continuing.
-- [ ] **Step 2: Set a test address.** On the Prisma Cutover Test Venue (`ven_xx499NE0rPoa`), set the address through the dashboard settings or the xvm-api `PATCH /venues/{id}` to your FC house: world Raiden, district Lavender Beds, ward 6, plot 6.
-- [ ] **Step 3: Recognise by address.** Delete the saved house and its link from the Venues tab if it exists, restart the plugin, and walk into the FC house. Expected: the log shows `Recognised house ... as venue ...`, the Venues tab lists the house linked to the test venue, and the Settings venue and the data (services, rooms) are the test venue's.
-- [ ] **Step 4: Nothing is overwritten.** Link the house to a different venue by hand in the Venues tab, restart, and walk in again. Expected: the manual link stays.
+- [ ] **Step 1: Read the house values.** Walk into a house, an FC chamber, a main-division apartment and a subdivision apartment and read the `Entered house` log line. Expected: a house gives plot 1 to 60 and room 0, a chamber gives the plot and a room number, a main apartment gives plot -127 and its number, a subdivision apartment gives plot -126.
+- [ ] **Step 2: Set a test address.** Set a test venue's address through the dashboard settings or `PATCH /venues/{id}` to the house (world, district, ward, plot) or the apartment (world, district, ward, room, and `subdivision`, with plot left empty).
+- [ ] **Step 3: Recognise by address.** With the house not saved, walk in from outside the plot or inside. Expected: the log shows `Recognised house ... as venue ...`, the Venues tab lists the house under the venue's name, and the Settings venue and tab data are that venue's.
+- [ ] **Step 4: Nothing is overwritten.** Link the house to a different venue by hand, restart, and walk in again. Expected: the manual link stays.
 - [ ] **Step 5: No guess on a clash.** Give a second venue the same address through the API. Expected: the house stays unlinked, with no error.
-- [ ] **Step 6: Apartment.** If you have an apartment venue, repeat steps 2 and 3 with `room` set to the apartment number and `subdivision` set to match the building.
+- [ ] **Step 6: Two apartments stay apart.** Set one venue to a main-division apartment and another to a subdivision apartment in the same ward. Expected: each apartment links to its own venue only.
+- [ ] **Step 7: Chambers.** Walk into an FC chamber. Expected: no new Venues tab entry, the current venue stays the FC house's venue, and a chat line says Free, Occupied, Locked, Disabled or "not set up for this venue".
+- [ ] **Step 8: Address edits while running.** Change a venue's address through the API with the plugin running, then walk into the matching house at least a minute after the last load. Expected: it links without a restart.
+- [ ] **Step 9: Teleport.** The Venues tab teleport button works for plot houses and is disabled for apartments.
 
 ---
 
@@ -424,8 +476,8 @@ Needs the rebuilt DLL loaded and a linked account.
 
 ## Self-review
 
-**Spec coverage.** The goal's four parts each have a task: matching (Task 2), reading the addresses (Task 3), linking saved houses (Task 4), recognising and following the current house (Task 5), and the in-game checks for plot, apartment, override and clash (Task 6). A1 to A9 are carried out or marked for confirmation; A7 and A8 are the two to confirm.
+**Spec coverage.** The goal's four parts each have a task: matching (Task 2), reading the addresses (Task 3), linking saved houses (Task 4), recognising and following the current house (Task 5), and the in-game checks for plot, apartment, override and clash (Task 6). A1 to A12 are carried out; A7 and A8 were confirmed in game.
 
-**Placeholder scan.** No step says TBD or "add handling". Task 6 step 1 tells the engineer to add and then remove a temporary debug line, naming exactly which values.
+**Placeholder scan.** No step says TBD or "add handling". 
 
 **Consistency.** `VenueAddressMatcher.FindUnique(HouseAddress, IEnumerable<XvmVenueAddress>)` and `KindOf(int)` are used the same way in Tasks 2, 4 and 5. `HouseAddress` is built in one place, `Plugin.AddressOf`. `XvmVenueAddress` lives in `VenueAddressMatcher.cs` and is the type `XvmApiReads.GetVenueAddressesAsync` returns and `Plugin.xivAppVenueAddresses` holds. `LoadVenueDataAsync` is defined in Task 5 step 1 and used in step 2.

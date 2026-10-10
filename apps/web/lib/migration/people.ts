@@ -27,6 +27,7 @@ export interface AccountRow {
   person_key: string
   provider: "discord" | "email"
   external_id: string
+  verified_at?: null
 }
 
 export interface PeopleResult {
@@ -99,7 +100,7 @@ export function mapPeople(source: PeopleExport): PeopleResult {
         warn(user.id, `email ${email} already belongs to an earlier user, no account created`)
       } else {
         takenEmail.add(email)
-        result.emailAccounts.push({ person_key: user.id, provider: "email", external_id: email })
+        result.emailAccounts.push({ person_key: user.id, provider: "email", external_id: email, verified_at: null })
       }
     }
   }

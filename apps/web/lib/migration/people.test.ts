@@ -98,7 +98,7 @@ describe("mapPeople users", () => {
 describe("mapPeople email", () => {
   it("emits email accounts separately, lower-cased", () => {
     const r = run([user({ email: " Ash@Example.COM " })])
-    expect(r.emailAccounts).toEqual([{ person_key: "u1", provider: "email", external_id: "ash@example.com" }])
+    expect(r.emailAccounts).toEqual([{ person_key: "u1", provider: "email", external_id: "ash@example.com", verified_at: null }])
     expect(r.discordAccounts).toHaveLength(1)
   })
 

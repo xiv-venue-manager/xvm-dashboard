@@ -8,7 +8,7 @@
 
 **Tech Stack:** C# on .NET 10, Dalamud plugin (`xvm-plugin-dev`, the local copy), xunit.
 
-**Status:** Draft for review. Nothing here has been built. It follows the pairing plan (`2026-10-10-plugin-pairing.md`) and needs a linked plugin.
+**Status:** Built in the plugin (xvm-plugin-dev PR #3) and verified in game against the dev API. Roles and the inventory tab were not checked, because they need xvm-api #158 and #157 deployed. It follows the pairing plan (`2026-10-10-plugin-pairing.md`) and needs a linked plugin.
 
 ---
 

@@ -333,6 +333,11 @@ export async function getMe(personToken: string): Promise<Me> {
   return xvmFetch<Me>("/me", {}, personToken)
 }
 
+export async function updateMyDisplayName(personToken: string, displayName: string): Promise<MePerson> {
+  if (!process.env.XVM_API_BASE_URL) throw new Error("XVM_API_BASE_URL is not set")
+  return xvmFetch<MePerson>("/me", { method: "PATCH", body: JSON.stringify({ display_name: displayName }) }, personToken)
+}
+
 export interface MyVenueRow {
   venue: VenueRow
   tier: string

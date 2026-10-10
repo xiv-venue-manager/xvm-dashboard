@@ -9,6 +9,10 @@ export interface ResolvedEntry extends EntryRow {
  * discord_user_id entries carry no username - resolve against linked accounts
  * (User.discordId) in one batched query, falling back to null (the caller
  * renders a truncated id) for anyone who hasn't linked their Discord account.
+ *
+ * users.displayName is frozen: display names are saved to xvm-api now, so a
+ * rename made after that shows here only through users.name until this lookup
+ * moves to xvm-api.
  */
 export async function resolveEntryNames(entries: EntryRow[]): Promise<ResolvedEntry[]> {
   if (entries.length === 0) return []

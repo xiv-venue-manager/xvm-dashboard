@@ -27,6 +27,7 @@
 
 ## What xvm-api provides (read from `origin/dev`, 2026-10-10)
 
+- Pairing codes look like `ABCD-1234` (8 characters from an alphabet without I, L, O, 0 or 1, with a hyphen after the fourth). They are stored and matched with the hyphen, so the plugin must send it. A code lives 10 minutes and a new one replaces the old.
 - `POST /pairing/codes` (a person credential) takes `{client: "plugin", venue_id: string | null}` and returns `{code, client, venue_id, expires_at}`.
 - `POST /pairing/exchange` (no auth, 10 per minute per client IP) takes `{code, client: "plugin"}` and returns `{secret, credential}`. It answers 400 for an unknown code, 409 for a used or expired code, 429 when rate limited.
 - `GET /me` with `Authorization: Bearer <secret>` returns `{kind, client, name, venue_narrow, person: {id, display_name}, memberships: [{venue_id, tier}]}`.
@@ -893,11 +894,13 @@ public class XvmApiPairingTests
     private static (HttpClient Http, FakeHandler Handler) Client(FakeHandler handler) => (new HttpClient(handler), handler);
 
     [Theory]
-    [InlineData(" abcd-1234 ", "ABCD1234")]
-    [InlineData("ab cd 12 34", "ABCD1234")]
+    [InlineData(" abcd-1234 ", "ABCD-1234")]
+    [InlineData("ab cd 12 34", "ABCD-1234")]
+    [InlineData("ABCD1234", "ABCD-1234")]
+    [InlineData("abc", "ABC")]
     [InlineData("", "")]
     [InlineData(null, "")]
-    public void NormalizeCode_trims_strips_separators_and_upper_cases(string? raw, string expected)
+    public void NormalizeCode_upper_cases_and_puts_the_hyphen_xvm_api_stores_after_four_characters(string? raw, string expected)
     {
         Assert.Equal(expected, XvmApiPairing.NormalizeCode(raw));
     }
@@ -913,7 +916,7 @@ public class XvmApiPairingTests
         Assert.Equal("s3cret", result.Secret);
         Assert.Equal("Ehno", result.PersonName);
         Assert.Equal("https://api.test/pairing/exchange", handler.Requests[0].Url);
-        Assert.Contains("\"code\":\"ABCD1234\"", handler.Requests[0].Body);
+        Assert.Contains("\"code\":\"ABCD-1234\"", handler.Requests[0].Body);
         Assert.Contains("\"client\":\"plugin\"", handler.Requests[0].Body);
         Assert.Equal("https://api.test/me", handler.Requests[1].Url);
         Assert.Equal("Bearer s3cret", handler.Requests[1].Authorization);
@@ -1020,7 +1023,8 @@ namespace VenueManager
     public static string NormalizeCode(string? raw)
     {
       if (string.IsNullOrWhiteSpace(raw)) return "";
-      return raw.Replace(" ", "").Replace("-", "").Trim().ToUpperInvariant();
+      var compact = raw.Replace(" ", "").Replace("-", "").ToUpperInvariant();
+      return compact.Length == 8 ? $"{compact[..4]}-{compact[4..]}" : compact;
     }
 
     public static async Task<PairingResult> LinkAsync(HttpClient http, string baseUrl, string? rawCode)
@@ -1127,7 +1131,7 @@ Directly above the existing `DrawXivAppSettings();` call (about line 63), add `D
       return;
     }
 
-    ImGui.InputTextWithHint("Link code", "ABCD1234", ref pairingCode, 16);
+    ImGui.InputTextWithHint("Link code", "ABCD-1234", ref pairingCode, 16);
     ImGui.SameLine();
     if (linking) ImGui.BeginDisabled();
     if (ImGui.Button("Link") && !linking) _ = LinkAccountAsync();

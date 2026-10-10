@@ -63,6 +63,29 @@ beforeEach(() => {
   m.sendEmail.mockResolvedValue(undefined)
 })
 
+describe("POST /api/venues address", () => {
+  it.each([
+    ["no district", { ...valid, district: undefined }],
+    ["a district that is not one of the five", { ...valid, district: "The Lavender Beds" }],
+    ["no ward", { ...valid, ward: undefined }],
+    ["neither a plot nor an apartment", { ...valid, plot: undefined }],
+    ["an apartment without main or subdivision", { ...valid, plot: undefined, apartment: 14 }],
+  ])("rejects %s before creating anything", async (_name, body) => {
+    expect((await post(body)).status).toBe(400)
+    expect(m.createVenue).not.toHaveBeenCalled()
+  })
+
+  it("saves an apartment address with its building", async () => {
+    const res = await post({ ...valid, plot: undefined, apartment: 14, subdivision: true })
+    expect(res.status).toBe(201)
+    expect(m.updateVenue).toHaveBeenCalledWith(
+      "tok",
+      "ven_1",
+      expect.objectContaining({ district: "Mist", ward: 12, room: 14, subdivision: true })
+    )
+  })
+})
+
 describe("POST /api/venues", () => {
   it("answers 401 without a session", async () => {
     m.session.mockResolvedValue(null)
@@ -120,16 +143,11 @@ describe("POST /api/venues", () => {
   })
 
   it("maps the dashboard's apartment number to xvm-api's room, never to its apartment", async () => {
-    await post({ ...valid, plot: undefined, apartment: 3 })
+    await post({ ...valid, plot: undefined, apartment: 3, subdivision: false })
     const [, , update] = m.updateVenue.mock.calls[0]
     expect(update).toMatchObject({ room: 3 })
     expect(update).not.toHaveProperty("apartment")
     expect(update).not.toHaveProperty("plot")
-  })
-
-  it("skips the profile call when there are no profile fields", async () => {
-    await post({ name: valid.name, slug: valid.slug, dataCenter: valid.dataCenter, world: valid.world })
-    expect(m.updateVenue).not.toHaveBeenCalled()
   })
 
   it("still creates the bridge row, and says the profile was not saved, when that call fails", async () => {

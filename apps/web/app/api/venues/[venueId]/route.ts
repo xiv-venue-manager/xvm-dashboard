@@ -8,6 +8,7 @@ import { invalidateCache, cacheKeys } from "@/lib/redis-cache"
 import { validators } from "@/lib/validation"
 import { getValidXvmApiToken, xvmApiErrorResponse } from "@/lib/api/xvm-api-store"
 import { requireVenueRole } from "@/lib/api/venue-access"
+import { addressProblem } from "@/lib/venue-location"
 import { updateVenue, type VenueUpdate } from "@/lib/api/xvm-api"
 
 const venueUpdateSchema = z.object({
@@ -17,6 +18,7 @@ const venueUpdateSchema = z.object({
   ward: validators.venueWard,
   plot: validators.venuePlot,
   apartment: validators.venueApartment,
+  subdivision: validators.venueSubdivision,
   bannerUrl: validators.url,
   logoUrl: validators.url,
 })
@@ -63,7 +65,13 @@ export const PATCH = withRateLimit<{ params: Promise<{ venueId: string }> }>(
       }
       throw error
     }
-    const { name, description, district, ward, plot, apartment, bannerUrl, logoUrl } = parsed
+    const { name, description, district, ward, plot, apartment, subdivision, bannerUrl, logoUrl } = parsed
+
+    const sendsLocation = [district, ward, plot, apartment, subdivision].some((field) => field !== undefined)
+    if (sendsLocation) {
+      const addressError = addressProblem({ district, ward, plot, apartment, subdivision })
+      if (addressError) return NextResponse.json({ error: addressError }, { status: 400 })
+    }
 
     // apartment -> room: Prisma's "apartment" column has always meant the
     // apartment unit number (UI-labelled "Room" already). xvm-api has a
@@ -77,6 +85,7 @@ export const PATCH = withRateLimit<{ params: Promise<{ venueId: string }> }>(
       ...(ward !== undefined && { ward }),
       ...(plot !== undefined && { plot }),
       ...(apartment !== undefined && { room: apartment }),
+      ...(subdivision !== undefined && { subdivision: apartment != null ? subdivision : null }),
       ...(bannerUrl !== undefined && { banner_url: bannerUrl ?? null }),
       ...(logoUrl !== undefined && { logo_url: logoUrl ?? null }),
     }

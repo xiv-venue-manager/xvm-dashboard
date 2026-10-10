@@ -4,7 +4,7 @@ import { useState } from "react"
 import { useRouter } from "next/navigation"
 import Link from "next/link"
 import { ArrowLeft, ArrowRight, Check, ExternalLink } from "lucide-react"
-import { FFXIV_DISTRICTS } from "@/lib/venue-location"
+import { FFXIV_DISTRICTS, addressProblem } from "@/lib/venue-location"
 
 // ── DC / World data ──────────────────────────────────────────────
 const DATA_CENTERS = [
@@ -69,6 +69,7 @@ export function GetStartedWizard({ userName }: { userName: string }) {
   const [plot, setPlot] = useState("")
   const [apartment, setApartment] = useState("")
   const [housingType, setHousingType] = useState<"house" | "apartment">("house")
+  const [building, setBuilding] = useState<"" | "main" | "subdivision">("")
   const [hours, setHours] = useState("")
   const [nights, setNights] = useState("")
   const [adult, setAdult] = useState(false)
@@ -92,6 +93,17 @@ export function GetStartedWizard({ userName }: { userName: string }) {
         setError("Please select a World.")
         return
       }
+      const locationProblem = addressProblem({
+        district,
+        ward: ward ? parseInt(ward, 10) : null,
+        plot: housingType === "house" && plot ? parseInt(plot, 10) : null,
+        apartment: housingType === "apartment" && apartment ? parseInt(apartment, 10) : null,
+        subdivision: housingType === "apartment" && building ? building === "subdivision" : null,
+      })
+      if (locationProblem) {
+        setError(locationProblem)
+        return
+      }
       setError("")
       setStep(3)
     } else {
@@ -113,6 +125,7 @@ export function GetStartedWizard({ userName }: { userName: string }) {
             ward: ward ? parseInt(ward, 10) : null,
             plot: housingType === "house" && plot ? parseInt(plot, 10) : null,
             apartment: housingType === "apartment" && apartment ? parseInt(apartment, 10) : null,
+            subdivision: housingType === "apartment" && building ? building === "subdivision" : null,
             settings: {
               tagline: tagline.trim() || undefined,
               tags: adult ? ["18+", ...tags.filter((t) => t !== "18+")] : tags.filter((t) => t !== "18+"),
@@ -140,6 +153,7 @@ export function GetStartedWizard({ userName }: { userName: string }) {
                 ward: ward ? parseInt(ward, 10) : null,
                 plot: housingType === "house" && plot ? parseInt(plot, 10) : null,
                 apartment: housingType === "apartment" && apartment ? parseInt(apartment, 10) : null,
+                subdivision: housingType === "apartment" && building ? building === "subdivision" : null,
               }),
             })
             if (!res2.ok) {
@@ -378,9 +392,7 @@ export function GetStartedWizard({ userName }: { userName: string }) {
                 </div>
                 <div className="gs-field-3" style={{ display: "grid", gridTemplateColumns: "2fr 1fr 1fr", gap: 10 }}>
                   <div className="gs-field">
-                    <label>
-                      District <span style={{ color: "var(--fg-faint)", fontWeight: 400 }}>(optional)</span>
-                    </label>
+                    <label>District</label>
                     <select className="gs-sel" value={district} onChange={(e) => setDistrict(e.target.value)}>
                       <option value="">Select…</option>
                       {FFXIV_DISTRICTS.map((d) => (
@@ -430,6 +442,16 @@ export function GetStartedWizard({ userName }: { userName: string }) {
                     </div>
                   )}
                 </div>
+                {housingType === "apartment" && (
+                  <div className="gs-field">
+                    <label>Building</label>
+                    <select className="gs-sel" value={building} onChange={(e) => setBuilding(e.target.value as "" | "main" | "subdivision")}>
+                      <option value="">Select…</option>
+                      <option value="main">Main</option>
+                      <option value="subdivision">Subdivision</option>
+                    </select>
+                  </div>
+                )}
                 <div className="gs-field-2">
                   <div className="gs-field">
                     <label>

@@ -8,7 +8,7 @@ import { Input } from "@/components/ui/input"
 import { Label } from "@/components/ui/label"
 import { Textarea } from "@/components/ui/textarea"
 import { Select, SelectContent, SelectItem, SelectTrigger, SelectValue } from "@/components/ui/select"
-import { FFXIV_DISTRICTS } from "@/lib/venue-location"
+import { FFXIV_DISTRICTS, addressProblem } from "@/lib/venue-location"
 
 // FFXIV Data Centers and Worlds
 const DATA_CENTERS = {
@@ -47,6 +47,7 @@ export default function NewVenuePage() {
   const [selectedWorld, setSelectedWorld] = useState("")
   const [selectedDistrict, setSelectedDistrict] = useState("")
   const [housingType, setHousingType] = useState<"house" | "apartment">("house")
+  const [building, setBuilding] = useState<"" | "main" | "subdivision">("")
   const [slugPreview, setSlugPreview] = useState("")
 
   const handleSubmit = async (e: React.FormEvent<HTMLFormElement>) => {
@@ -72,6 +73,14 @@ export default function NewVenuePage() {
       plot: housingType === "house" && formData.get("plot") ? Number(formData.get("plot")) : undefined,
       apartment:
         housingType === "apartment" && formData.get("apartment") ? Number(formData.get("apartment")) : undefined,
+      subdivision: housingType === "apartment" && building ? building === "subdivision" : undefined,
+    }
+
+    const locationProblem = addressProblem(data)
+    if (locationProblem) {
+      setError(locationProblem)
+      setIsSubmitting(false)
+      return
     }
 
     try {
@@ -258,6 +267,26 @@ export default function NewVenuePage() {
                   <Input id="apartment" name="apartment" type="number" min={1} max={99} placeholder="Apt (1-99)" />
                 )}
               </div>
+              {housingType === "apartment" && (
+                <div className="flex gap-2">
+                  <Button
+                    type="button"
+                    variant={building === "main" ? "default" : "outline"}
+                    size="sm"
+                    onClick={() => setBuilding("main")}
+                  >
+                    Main
+                  </Button>
+                  <Button
+                    type="button"
+                    variant={building === "subdivision" ? "default" : "outline"}
+                    size="sm"
+                    onClick={() => setBuilding("subdivision")}
+                  >
+                    Subdivision
+                  </Button>
+                </div>
+              )}
               <p className="text-sm text-muted-foreground">Help visitors find your venue in-game</p>
             </div>
 

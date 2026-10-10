@@ -150,6 +150,7 @@ export const GET = withRateLimit<{ params: Promise<{ venueId: string }> }>(
             responseBody.ward = detail.ward
             responseBody.plot = detail.plot
             responseBody.apartment = detail.room
+            responseBody.subdivision = detail.subdivision
             degraded = false
           } catch (err) {
             if (isXvmAuthFailure(err)) {
@@ -172,6 +173,7 @@ export const GET = withRateLimit<{ params: Promise<{ venueId: string }> }>(
           delete responseBody.ward
           delete responseBody.plot
           delete responseBody.apartment
+          delete responseBody.subdivision
           responseBody.visibilityDegraded = true
         }
       }

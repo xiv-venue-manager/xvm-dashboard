@@ -49,7 +49,7 @@ const DOOR_EVENTS = 20
 const periodDays = (period: AnalyticsPeriod) => (period === "all" ? ALL_PERIOD_DAYS : period === "90d" ? 90 : 30)
 const eventLimit = (period: AnalyticsPeriod) => (period === "all" ? 100 : period === "90d" ? 40 : 20)
 
-const startOfDay = (date: Date) => new Date(date.getFullYear(), date.getMonth(), date.getDate())
+const startOfDay = (date: Date) => new Date(Date.UTC(date.getUTCFullYear(), date.getUTCMonth(), date.getUTCDate()))
 
 export async function fetchMoneyInputs(
   token: string,

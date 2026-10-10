@@ -21,6 +21,7 @@ import {
   AlertDialogTrigger,
 } from "@/components/ui/alert-dialog"
 import { LocalTime } from "@/components/server-time"
+import { PluginLinkCard } from "@/components/plugin-link-card"
 
 interface ApiKey {
   id: string
@@ -176,8 +177,8 @@ export default function UnifiedApiKeysPage() {
       <div className="mb-6 md:mb-8">
         <h1 className="page-h1">My API Keys</h1>
         <p className="text-sm md:text-base text-muted-foreground mt-1 md:mt-2">
-          Generate keys for the Venue Manager Dalamud plugin. Keys can work across all your venues, or be scoped to a
-          single one.
+          Link the Venue Manager Dalamud plugin to your account with a one-time code. Older plugin versions use the API
+          keys further down instead.
         </p>
       </div>
 
@@ -193,10 +194,13 @@ export default function UnifiedApiKeysPage() {
         </Alert>
       )}
 
+      <PluginLinkCard />
+
       {!hasMemberVenues ? (
         <Card>
           <CardContent className="py-8 text-center text-muted-foreground">
-            You need to be a member of at least one venue before you can create API keys.{" "}
+            Older plugin versions use API keys, which need you to be a member of at least one venue. Linking with a code
+            above does not.{" "}
             <Link href="/venues/new" className="text-primary hover:underline">
               Create one now
             </Link>
@@ -208,7 +212,7 @@ export default function UnifiedApiKeysPage() {
           {/* Create New Key */}
           <Card className="mb-6">
             <CardHeader>
-              <CardTitle>Create New API Key</CardTitle>
+              <CardTitle>Create an API key for an older plugin version</CardTitle>
               <CardDescription>The full key is shown only once - copy it immediately after creation.</CardDescription>
             </CardHeader>
             <CardContent className="space-y-4">

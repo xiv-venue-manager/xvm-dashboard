@@ -798,7 +798,7 @@ export function PluginLinkCard() {
 }
 ```
 
-- [ ] **Step 2: Render it on the page.** In `apps/web/app/dashboard/api-keys/page.tsx`, add `import { PluginLinkCard } from "@/components/plugin-link-card"` with the other imports, and put `<PluginLinkCard />` directly after the `success` alert block and before `{!hasMemberVenues ? (`. It renders for people with no venue too, because pairing is a legitimate first touch. Because the old key section below it still needs a venue, reword the page so the two cannot be confused: the intro becomes "Link the Venue Manager Dalamud plugin to your account with a one-time code. Older plugin versions use the API keys further down instead.", the no-venue notice becomes "Older plugin versions use API keys, which need you to be a member of at least one venue. Linking with a code above does not.", and the old card's title becomes "Create an API key for an older plugin version".
+- [ ] **Step 2: Render it on the page.** In `apps/web/app/dashboard/api-keys/page.tsx`, add `import { PluginLinkCard } from "@/components/plugin-link-card"` with the other imports, and put `<PluginLinkCard />` directly after the `success` alert block and before `{!hasMemberVenues ? (`. It renders for people with no venue too, because pairing is a legitimate first touch. The old key forms are removed at the same time (decided 2026-10-10: keys are plugin-only and always account-wide, and this only affects the dev builds), so `app/dashboard/api-keys/page.tsx` becomes just a heading and the card, `app/dashboard/[slug]/settings/api-keys/page.tsx` becomes a `redirect("/dashboard/api-keys")`, the "Manage API Keys" link in venue settings becomes "Link the plugin", and the API Keys section in `app/dashboard/account/settings/page.tsx` becomes a short "Plugin" section with a link.
 
 - [ ] **Step 3: Type and lint**
 
@@ -1206,7 +1206,7 @@ Each of these gets its own plan once a paired plugin exists:
 2. **Write routes:** patron visits, transactions (sales), clock-in and clock-out (no early limit, no open or closed side effect), inventory link and restock (the shapes differ and `inventory-settings` has no xvm-api home yet).
 3. **Venue auto-map:** `GET /me/venues`, matching on world, district, ward, plot or apartment plus building, and room. This is the one that retires the venue selector. It depends on #187 (required address and the main or subdivision choice).
 4. **Shift prompts:** a notification at the scheduled start and end with a Clock in and Clock out button, across every venue via `GET /me/shifts`. Plugin issue #2 describes the venue-switch half and needs rewording first, because it still assumes the dashboard proxies.
-5. **Retire the old path:** the `keys` routes, the Prisma `ApiKey` table, and the `vm_` gate, once the old plugin versions are gone.
+5. **Retire the old path, and the migration-day revoke:** the `/api/plugin/keys` routes (no caller left after Task 7), the Prisma `ApiKey` table, and the `vm_` gate. On migration day, revoke every `vm_` key (backup first, explicit COMMIT) so everyone relinks with a code. Do that with the release of the plugin that no longer calls `/api/plugin/*` at all, not with pairing alone, because a pairing-only plugin still needs its `vm_` key for everything else. Retire the old path: the `keys` routes, the Prisma `ApiKey` table, and the `vm_` gate, once the old plugin versions are gone.
 
 ## Self-review
 

@@ -16,16 +16,6 @@ import {
   AlertDialogTitle,
   AlertDialogTrigger,
 } from "@/components/ui/alert-dialog"
-import { LocalTime } from "@/components/server-time"
-
-interface ApiKey {
-  id: string
-  key: string
-  name: string
-  createdAt: string
-  lastUsedAt: string | null
-  venue: { id: string; name: string; slug: string } | null
-}
 
 export default function AccountSettingsPage() {
   const { data: session } = useSession()
@@ -43,9 +33,6 @@ export default function AccountSettingsPage() {
     dailySummary: false,
   })
 
-  const [apiKeys, setApiKeys] = useState<ApiKey[]>([])
-  const [newKeyName, setNewKeyName] = useState("")
-  const [loadingKeys, setLoadingKeys] = useState(true)
 
   // session loads asynchronously; seed the editable displayName field once it's available.
   useEffect(() => {
@@ -71,23 +58,6 @@ export default function AccountSettingsPage() {
     loadProfile()
   }, [])
 
-  useEffect(() => {
-    const loadKeys = async () => {
-      try {
-        const res = await fetch("/api/plugin/keys")
-        if (res.ok) {
-          const data = await res.json()
-          setApiKeys(data.keys ?? [])
-        }
-      } catch {
-        // Keys load failed
-      } finally {
-        setLoadingKeys(false)
-      }
-    }
-    loadKeys()
-  }, [])
-
   const save = async () => {
     setSaving(true)
     setError("")
@@ -110,35 +80,6 @@ export default function AccountSettingsPage() {
       setError(e instanceof Error ? e.message : "Failed to save")
     } finally {
       setSaving(false)
-    }
-  }
-
-  const createKey = async () => {
-    if (!newKeyName.trim()) return
-    try {
-      const res = await fetch("/api/plugin/keys", {
-        method: "POST",
-        headers: { "Content-Type": "application/json" },
-        body: JSON.stringify({ name: newKeyName.trim() }),
-      })
-      if (res.ok) {
-        const data = await res.json()
-        setApiKeys((prev) => [{ ...data, venue: data.venue ?? null }, ...prev])
-        setNewKeyName("")
-      }
-    } catch {
-      // Create failed
-    }
-  }
-
-  const revokeKey = async (keyId: string) => {
-    try {
-      const res = await fetch(`/api/plugin/keys/${keyId}`, { method: "DELETE" })
-      if (res.ok) {
-        setApiKeys((prev) => prev.filter((k) => k.id !== keyId))
-      }
-    } catch {
-      // Revoke failed
     }
   }
 
@@ -248,55 +189,18 @@ export default function AccountSettingsPage() {
         </div>
       </div>
 
-      {/* API Keys */}
+      {/* Plugin */}
       <div className="vcard overflow-hidden mt-6">
         <div className="flex items-center gap-2 px-[22px] py-[13px] border-b border-[var(--blue-008)] font-semibold text-sm">
           <Key className="w-4 h-4" />
-          My API Keys
+          Plugin
         </div>
-        <div className="pbody space-y-4">
-          {loadingKeys ? (
-            <p className="text-sm text-[var(--fg-faint)]">Loading…</p>
-          ) : apiKeys.length === 0 ? (
-            <p className="text-sm text-[var(--fg-faint)]">No API keys yet. Create one for the Dalamud plugin.</p>
-          ) : (
-            <div className="space-y-2">
-              {apiKeys.map((key) => (
-                <div key={key.id} className="flex items-center justify-between p-3 rounded-lg border border-[var(--blue-015)]">
-                  <div>
-                    <div className="text-sm font-medium">{key.name}</div>
-                    <div className="text-xs text-[var(--fg-faint)]">
-                      {key.venue?.name ?? "All venues"} · Last used{" "}
-                      {key.lastUsedAt ? <LocalTime date={key.lastUsedAt} /> : "never"}
-                    </div>
-                  </div>
-                  <button
-                    onClick={() => revokeKey(key.id)}
-                    className="text-xs font-medium text-[var(--support-pink)] hover:underline"
-                  >
-                    Revoke
-                  </button>
-                </div>
-              ))}
-            </div>
-          )}
-          <div className="flex gap-2">
-            <input
-              placeholder="Key name"
-              value={newKeyName}
-              onChange={(e) => setNewKeyName(e.target.value)}
-              className="flex-1 bg-background border border-[var(--blue-015)] rounded-[var(--radius-md)] px-[13px] py-[10px] text-[0.88rem] text-foreground outline-none focus:border-[var(--blue-035)] transition-colors"
-            />
-            <button
-              onClick={createKey}
-              disabled={!newKeyName.trim()}
-              className="xiv-btn-shimmer xiv-cta px-5 py-2.5 rounded-lg text-sm font-semibold disabled:opacity-50 disabled:cursor-not-allowed"
-            >
-              Create Key
-            </button>
-          </div>
+        <div className="pbody space-y-2">
+          <p className="text-sm text-[var(--fg-faint)]">
+            Link the Dalamud plugin to your account with a one-time code. One link covers every venue you work at.
+          </p>
           <Link href="/dashboard/api-keys" className="text-xs text-[var(--xiv-blue)] hover:underline">
-            Full key management →
+            Link the plugin →
           </Link>
         </div>
       </div>

@@ -969,10 +969,10 @@ export default function SettingsPage({ params }: { params: Promise<{ slug: strin
                   <div className="idesc">In-game sales, clock-in and patron capture</div>
                 </div>
                 <Link
-                  href={`/dashboard/${slug}/settings/api-keys`}
+                  href="/dashboard/api-keys"
                   className="text-xs font-semibold text-[var(--xiv-blue)] hover:underline shrink-0"
                 >
-                  Manage API Keys →
+                  Link the plugin →
                 </Link>
               </div>
 

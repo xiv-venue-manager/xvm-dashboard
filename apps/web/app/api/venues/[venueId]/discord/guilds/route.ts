@@ -5,7 +5,7 @@ import { prisma } from "@/lib/prisma"
 import { withRateLimit } from "@/lib/middleware/with-rate-limit"
 import { getValidXvmApiToken, isVenueOwner, xvmApiErrorResponse } from "@/lib/api/xvm-api-store"
 import { getVenue, listMemberships } from "@/lib/api/xvm-api"
-import { listManageableGuilds } from "@/lib/discord-user"
+import { discordGrantFrom, listManageableGuilds } from "@/lib/discord-user"
 import { getGuildPresence } from "@/lib/discord-rest"
 
 // xvm-api has no person-by-id route, so the venue's own membership list is the only place a
@@ -23,7 +23,7 @@ async function linkerName(token: string, venueId: string, personId: number | nul
 }
 
 export const GET = withRateLimit<{ params: Promise<{ venueId: string }> }>(
-  async (_request, context) => {
+  async (request, context) => {
     if (!context?.params) {
       return NextResponse.json({ error: "Invalid request" }, { status: 400 })
     }
@@ -89,7 +89,7 @@ export const GET = withRateLimit<{ params: Promise<{ venueId: string }> }>(
       }
     }
 
-    const manageable = await listManageableGuilds(session.user.id)
+    const manageable = await listManageableGuilds(await discordGrantFrom(request))
 
     // reauth_required is a state of the caller's account, not a failure, so it answers 200 with the
     // current link still rendered and a prompt. discord_unavailable is Discord being broken, which

@@ -55,6 +55,10 @@ Plugin (`xvm-plugin-dev`):
 - Modify `VenueManager/Configuration.cs`: three fields.
 - Modify `VenueManager/UI/Tabs/SettingsTab.cs`: the "Account link" section.
 
+## Found in the first live link (2026-10-10)
+
+The plugin linked in game after two failed attempts. `POST /pairing/exchange` returns the secret before the credential is committed: `get_session` commits in the dependency's exit step, which FastAPI 0.141 runs after the response is sent. A client that calls `/me` straight away was rejected 2 times in 5 at zero delay and 0 times in 15 at 10 ms or more (dev API). `POST /pairing/codes` has the same lag. Task 8 therefore retries `/me` on a 401 (six attempts, 250 ms apart) and reports the status, the server's reason and the secret's length on failure. The server-side cause is Task 11.
+
 ## Order
 
 Tasks 1 and 2 come first and are the only ones that touch infrastructure. Task 3 opens the public route and must come after Task 2 is deployed. Tasks 4 to 7 (dashboard) and Tasks 8 and 9 (plugin) can then run in parallel. Task 10 checks everything together.
@@ -1197,6 +1201,10 @@ Needs the public route from Task 3, or a local xvm-api with `xvmApiUrl` pointed 
 - [ ] **Step 6:** Record the result in this plan and in the PR descriptions.
 
 ---
+
+### Task 11: xvm-api commits before it responds
+
+Draft PR to xvm-api for Allegro to reshape, after the plugin workaround in Task 8. Either give every `get_session` dependency `scope="function"` so its exit (the commit) runs before the response is sent, using one shared `SessionDep` so a request never gets two sessions, or call `await session.commit()` in `POST /pairing/exchange` and `POST /pairing/codes`. Add a test that records the order of the commit and the response and asserts the commit comes first. Once deployed, the retry in Task 8 stays as a harmless safety net.
 
 ## After this plan
 

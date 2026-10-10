@@ -34,7 +34,7 @@ import { PageLoading } from "@/components/ui/loading-spinner"
 import { LocalTime } from "@/components/server-time"
 import type { VenueSettings } from "@xiv-venue-manager/types"
 import type { ListingLinkRow, ListingSummary } from "@/lib/api/xvm-api"
-import { FFXIV_DISTRICTS } from "@/lib/venue-location"
+import { FFXIV_DISTRICTS, addressProblem, isDistrict } from "@/lib/venue-location"
 import { canManageVenue } from "@/lib/roles"
 
 const SETTINGS_LOAD_TIMEOUT_MS = 8000
@@ -68,11 +68,12 @@ export default function SettingsPage({ params }: { params: Promise<{ slug: strin
   // Venue profile DB fields (saved separately)
   const [venueName, setVenueName] = useState("")
   const [venueDescription, setVenueDescription] = useState("")
-  const [venueDistrict, setVenueDistrict] = useState<string>("__none__")
+  const [venueDistrict, setVenueDistrict] = useState<string>("")
   const [venueWard, setVenueWard] = useState<string>("")
   const [venuePlot, setVenuePlot] = useState<string>("")
   const [venueApartment, setVenueApartment] = useState<string>("")
   const [housingType, setHousingType] = useState<"house" | "apartment">("house")
+  const [venueBuilding, setVenueBuilding] = useState<"" | "main" | "subdivision">("")
   const [venueDataCenter, setVenueDataCenter] = useState("")
   const [venueWorld, setVenueWorld] = useState("")
   const [tagInput, setTagInput] = useState("")
@@ -86,6 +87,16 @@ export default function SettingsPage({ params }: { params: Promise<{ slug: strin
   const [isSyncing, setIsSyncing] = useState(false)
   const [syncResult, setSyncResult] = useState("")
   const [venueId, setVenueId] = useState<string>("")
+
+  const locationProblem = isLoading
+    ? null
+    : addressProblem({
+        district: venueDistrict,
+        ward: venueWard ? parseInt(venueWard, 10) : null,
+        plot: housingType === "house" && venuePlot ? parseInt(venuePlot, 10) : null,
+        apartment: housingType === "apartment" && venueApartment ? parseInt(venueApartment, 10) : null,
+        subdivision: housingType === "apartment" && venueBuilding ? venueBuilding === "subdivision" : null,
+      })
   const [userRole, setUserRole] = useState<string>("")
   const [galleryImages, setGalleryImages] = useState<VenueImage[]>([])
   const [bannerUrl, setBannerUrl] = useState<string | null>(null)
@@ -171,11 +182,12 @@ export default function SettingsPage({ params }: { params: Promise<{ slug: strin
           setXvmUnavailable(!!settingsData.visibilityDegraded)
           setVenueName(settingsData.name ?? "")
           setVenueDescription(settingsData.description ?? "")
-          setVenueDistrict(settingsData.district ?? "__none__")
+          setVenueDistrict(isDistrict(settingsData.district) ? settingsData.district : "")
           setVenueWard(settingsData.ward != null ? String(settingsData.ward) : "")
           setVenuePlot(settingsData.plot != null ? String(settingsData.plot) : "")
           setVenueApartment(settingsData.apartment != null ? String(settingsData.apartment) : "")
           setHousingType(settingsData.apartment != null ? "apartment" : "house")
+          setVenueBuilding(settingsData.subdivision === true ? "subdivision" : settingsData.subdivision === false ? "main" : "")
           setBannerUrl(settingsData.bannerUrl ?? null)
           setLogoUrl(settingsData.logoUrl ?? null)
           setSettings({
@@ -256,6 +268,7 @@ export default function SettingsPage({ params }: { params: Promise<{ slug: strin
     venueWard,
     venuePlot,
     venueApartment,
+    venueBuilding,
     housingType,
     shiftBotEnabled,
     shiftBotChannelId,
@@ -281,6 +294,7 @@ export default function SettingsPage({ params }: { params: Promise<{ slug: strin
 
     try {
       if (!venueId) throw new Error("Venue not loaded")
+      if (locationProblem) throw new Error(`Venue location: ${locationProblem}`)
 
       // Save venue profile DB fields (name, description) via PATCH
       const profileRes = await fetch(`/api/venues/${venueId}`, {
@@ -289,10 +303,11 @@ export default function SettingsPage({ params }: { params: Promise<{ slug: strin
         body: JSON.stringify({
           name: venueName.trim() || undefined,
           description: venueDescription || null,
-          district: venueDistrict && venueDistrict !== "__none__" ? venueDistrict : null,
+          district: venueDistrict || null,
           ward: venueWard ? parseInt(venueWard, 10) : null,
           plot: housingType === "house" && venuePlot ? parseInt(venuePlot, 10) : null,
           apartment: housingType === "apartment" && venueApartment ? parseInt(venueApartment, 10) : null,
+          subdivision: housingType === "apartment" && venueBuilding ? venueBuilding === "subdivision" : null,
         }),
       })
       if (!profileRes.ok) {
@@ -812,7 +827,6 @@ export default function SettingsPage({ params }: { params: Promise<{ slug: strin
                         <SelectValue placeholder="Select…" />
                       </SelectTrigger>
                       <SelectContent>
-                        <SelectItem value="__none__">— None —</SelectItem>
                         {FFXIV_DISTRICTS.map((d) => (
                           <SelectItem key={d} value={d}>
                             {d}
@@ -867,6 +881,32 @@ export default function SettingsPage({ params }: { params: Promise<{ slug: strin
                     </div>
                   )}
                 </div>
+                {housingType === "apartment" && (
+                  <div className="space-y-1.5">
+                    <Label>Building</Label>
+                    <div className="flex gap-2">
+                      <Button
+                        type="button"
+                        variant={venueBuilding === "main" ? "default" : "outline"}
+                        size="sm"
+                        disabled={isSaving}
+                        onClick={() => setVenueBuilding("main")}
+                      >
+                        Main
+                      </Button>
+                      <Button
+                        type="button"
+                        variant={venueBuilding === "subdivision" ? "default" : "outline"}
+                        size="sm"
+                        disabled={isSaving}
+                        onClick={() => setVenueBuilding("subdivision")}
+                      >
+                        Subdivision
+                      </Button>
+                    </div>
+                  </div>
+                )}
+                {locationProblem && <p className="text-[0.78rem] text-[var(--destructive)]">{locationProblem}</p>}
                 <div className="grid grid-cols-1 sm:grid-cols-2 gap-4">
                   <p className="col-span-full text-[0.72rem] text-[var(--fg-faint)] mb-2">
                     Legacy free-text hours — use the schedule section above instead.

@@ -126,7 +126,7 @@ xvm-api also has venue fields Prisma lacks (`room`, `subdivision`, and the task,
 
 | Prisma table | Dev code | Status | xvm-api target | Notes |
 |---|---|---|---|---|
-| `shout_templates` | none | Cut over | `ShoutTemplate` | Script and pattern: PR #134 (parked). Needs the Discord id to person mapping. |
+| `shout_templates` | none | Cut over | `ShoutTemplate` | Script and pattern: PR #134 (merged; the shouts step of the migration, to run in the maintenance window, not before). Needs the Discord id to person mapping. |
 | `user_characters` | r web 1, w web 1, raw web 1, bot 2 | Live | `PersonCharacter` | **Split by writer:** dashboard links go to xvm-api, plugin links still go to Prisma. Both halves have to be merged. |
 | `feedback` | none | Cut over | `Feedback`, `FeedbackBlock`, `FeedbackDraft`, `FeedbackImage` | Move needed, or drop old reports. **Decision.** |
 | `announcements`, `announcement_dismissals` | none | Cut over | `Announcement`, `AnnouncementDismissal` | Dismissals have to be mapped from Prisma users to persons. Ids change from cuids to integers. |
@@ -277,7 +277,7 @@ Rollback idea, unreviewed: Prisma stays untouched as a read-only source, so roll
 | `apps/web/scripts/migrate-services-to-xvm-api.ts` | services, categories, position grants | yes (and writes ids back) |
 | `apps/web/backfill-venue-profile.js` | venue profile fields | yes |
 | `apps/web/backfill-gallery-images.js` | gallery images to storage | yes |
-| `apps/web/scripts/backfill-shouts-to-xvm-api.ts` (PR #134, parked) | shouts | **no**, reads a SQL export |
+| `apps/web/scripts/backfill-shouts-to-xvm-api.ts` (PR #134, merged) | shouts | **no**, reads a SQL export |
 
 The four older scripts import the Prisma client, and they write ids back to Prisma for idempotency. **Decision:** convert them to the export-based pattern, or allow them as one-shot tools inside the window.
 

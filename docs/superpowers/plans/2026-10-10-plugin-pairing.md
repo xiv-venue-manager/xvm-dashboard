@@ -798,7 +798,7 @@ export function PluginLinkCard() {
 }
 ```
 
-- [ ] **Step 2: Render it on the page.** In `apps/web/app/dashboard/api-keys/page.tsx`, add `import { PluginLinkCard } from "@/components/plugin-link-card"` with the other imports, and put `<PluginLinkCard />` directly after the `success` alert block and before `{!hasMemberVenues ? (`. It renders for people with no venue too, because pairing is a legitimate first touch.
+- [ ] **Step 2: Render it on the page.** In `apps/web/app/dashboard/api-keys/page.tsx`, add `import { PluginLinkCard } from "@/components/plugin-link-card"` with the other imports, and put `<PluginLinkCard />` directly after the `success` alert block and before `{!hasMemberVenues ? (`. It renders for people with no venue too, because pairing is a legitimate first touch. Because the old key section below it still needs a venue, reword the page so the two cannot be confused: the intro becomes "Link the Venue Manager Dalamud plugin to your account with a one-time code. Older plugin versions use the API keys further down instead.", the no-venue notice becomes "Older plugin versions use API keys, which need you to be a member of at least one venue. Linking with a code above does not.", and the old card's title becomes "Create an API key for an older plugin version".
 
 - [ ] **Step 3: Type and lint**
 

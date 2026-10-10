@@ -45,7 +45,7 @@ All paths are under the venue: `/venues/{venueId}`. All need the plugin's bearer
 | `LinkItemAsync` | `PUT /services/{id}/inventory` | `{linked_item_id, linked_item_name, linked_item_icon}` | 200 |
 | `RestockAsync` | `PUT /services/{id}/inventory/stock` | `{stock_count}` | 200 |
 | person id | `GET /me` | none | `person.id` |
-| stock re-read | `GET /services/{id}/inventory` | none | `stock_count` |
+| stock re-read | `GET /services/{id}` | none | `inventory.stock_count` |
 
 Errors come back as `{"detail": "<sentence>"}`, or for a rejected body as a list of `{loc, msg, type}`. `kind` is `sale` or `tip`. The old route took a decimal gil amount; xvm-api takes whole gil as an integer, which is what every sale already is (`SalesTab` passes an `int`).
 
@@ -239,6 +239,9 @@ namespace VenueManager
   internal sealed record XvmMePerson(
     [property: JsonPropertyName("id")] int Id);
 
+  internal sealed record XvmServiceStockReply(
+    [property: JsonPropertyName("inventory")] XvmStockReply? Inventory);
+
   internal sealed record XvmStockReply(
     [property: JsonPropertyName("stock_count")] int? StockCount);
 }
@@ -346,7 +349,7 @@ public class XvmApiWritesTests
         var handler = new Handler()
             .On("GET", "/venues/v1/events/active", "{\"id\":9,\"title\":\"Friday\"}")
             .On("POST", "/venues/v1/finance/transactions", "{\"id\":5,\"service_id\":11}", HttpStatusCode.Created)
-            .On("GET", "/venues/v1/services/11/inventory", "{\"stock_count\":7}");
+            .On("GET", "/venues/v1/services/11", "{\"id\":11,\"inventory\":{\"stock_count\":7}}");
 
         var result = await Writes(handler).LogTransactionAsync("v1", "11", 1500, "Guest", null, null);
 
@@ -376,7 +379,7 @@ public class XvmApiWritesTests
         var body = Json(handler.Requests.Single(r => r.Method == "POST").Body);
         Assert.Equal("tip", body.GetProperty("kind").GetString());
         Assert.False(body.TryGetProperty("event_id", out _));
-        Assert.DoesNotContain(handler.Requests, r => r.Path.Contains("/inventory"));
+        Assert.DoesNotContain(handler.Requests, r => r.Method == "GET" && r.Path.StartsWith("/venues/v1/services"));
     }
 
     [Fact]
@@ -612,8 +615,8 @@ namespace VenueManager
       var result = new LogTransactionResult { Success = true, ServiceId = serviceId };
       if (serviceKey is not null && kind == "sale")
       {
-        var stock = await SendAsync(HttpMethod.Get, $"{Venue(venueId)}/services/{serviceKey}/inventory");
-        if (stock.Ok) result.ServiceStockCount = Read<XvmStockReply>(stock.Body)?.StockCount;
+        var stock = await SendAsync(HttpMethod.Get, $"{Venue(venueId)}/services/{serviceKey}");
+        if (stock.Ok) result.ServiceStockCount = Read<XvmServiceStockReply>(stock.Body)?.Inventory?.StockCount;
       }
       return result;
     }

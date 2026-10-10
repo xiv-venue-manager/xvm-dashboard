@@ -8,7 +8,7 @@
 
 **Tech Stack:** C# on .NET 10, Dalamud plugin (`xvm-plugin-dev`, the local copy), xunit.
 
-**Status:** Draft for review. Nothing here has been built. It follows the plugin PRs #3 and #4 (the account link, reads, writes, and the venue auto-map) and needs a linked account.
+**Status:** Built in the plugin (branch `feat/shift-prompts`). The start prompt, end prompt, clock in and out buttons, and cross-venue prompts were verified in game. It follows the plugin PRs #3 and #4 (the account link, reads, writes, and the venue auto-map) and needs a linked account.
 
 ---
 
@@ -26,6 +26,7 @@
 | P8 | A new Settings checkbox, Shift prompts, turns the whole thing off. It is on by default. | Proposed, confirm |
 | P9 | The buttons act on the shift that prompted, with that shift's venue id, whichever venue the plugin is currently showing. `/xvm start` and `/xvm end` are unchanged and still act on the current venue. | Decided |
 | P10 | The poll runs once a minute, independent of the status bar mode (the existing shift poll only runs for the two status bar modes that show shifts). | Decided |
+| P11 | Overlapping shifts at different venues each prompt. xvm-api allows a person to be clocked in at two venues at once: the one-active-clock rule is per membership, not per person, and `/me/shifts` only flags overlaps. Verified by clocking into two venues in game. | Verified |
 
 ## What xvm-api returns
 
@@ -389,7 +390,7 @@ with `using Dalamud.Plugin.Services;` already present and `using Dalamud.Interfa
         InitialDuration = TimeSpan.FromMinutes(2),
         UserDismissable = true,
       });
-      notification.DrawActions += _ =>
+      notification.DrawActions += args =>
       {
         if (ImGui.Button(verb))
         {
@@ -407,6 +408,7 @@ with `using Dalamud.Plugin.Services;` already present and `using Dalamud.Interfa
 
     private async Task ClockFromPromptAsync(ShiftPrompt prompt, bool clockIn)
     {
+      if (xivAppClient == null) return;
       var shiftId = prompt.ShiftId.ToString(CultureInfo.InvariantCulture);
       var result = clockIn
         ? await xivAppClient.Shift.ClockInAsync(prompt.VenueId, shiftId)

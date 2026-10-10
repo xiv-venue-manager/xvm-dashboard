@@ -750,7 +750,7 @@ git commit -m "feat: read venues, shifts, roles, services, bans, event and rooms
 
 ### Task 5: Wire the reads into the existing API classes
 
-Confirm D3 and D6 with the user before this task.
+Confirm D3 with the user before this task.
 
 **Files:**
 - Modify: `VenueManager/XIVAppApiClient.cs`

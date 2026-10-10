@@ -21,24 +21,23 @@
 | D3 | The plugin's writes (sales, patron visits, clock-in and out, claims, bans, room actions, inventory) still use the old routes and the old venue ids until the write plan. In the dev plugin they are broken in that gap. That is accepted because only dev builds exist and XIV-App Sync is switched off. | Proposed, confirm |
 | D4 | Pending shifts (xvm `pending_approval`) map to `PENDING`, which the Shifts tab does not draw, so they stay hidden. `scheduled`, `active`, `completed` map to `SCHEDULED`, `ACTIVE`, `COMPLETED`, the only three the tab and `Plugin.cs` act on. | Proposed |
 | D5 | Gil prices copy straight across: `price_minor` equals gil (the dashboard's `minorUnitsToGil` is the identity). A missing price becomes `"0"`, which the Sales tab parses. | Verified |
-| D6 | The inventory tab shows when the caller is a manager or owner at the venue, or when any service already has a linked item. The old per-venue flag has no home in xvm-api, and a pure "any linked item" rule would hide the tab before the first item can be linked. | Proposed, confirm |
+| D6 | The inventory tab shows when the venue's `inventory_enabled` setting is on. That setting is a new field on the venue, proposed in xvm-api #157 and returned on every `/me/venues` row, so the plugin needs no extra call. | Decided (user), needs #157 |
 | D7 | Venue addresses and the user role on services are not needed. Nothing in the plugin reads `XIVAppVenue.Addresses` or `ServicesResponse.UserRole`, so they stay empty. | Verified (grep) |
-| D8 | A plain staff member can find their own positions with no Discord id: the roster is readable by any member (Discord ids are hidden from non-managers), and `/me` gives the person id to match on. | Verified against the API |
+| D8 | A member's own jobs come from their `/me/venues` row (`membership_id` and `position_ids`, proposed in xvm-api #158), plus the positions list for the names. The plugin never reads the roster. | Decided (user), needs #158 |
 
 ## What xvm-api returns (checked on 2026-10-10 against the dev API and its OpenAPI document)
 
-All of these returned 200 for an owner at five venues. The documentation says "readable by any member" for positions, services and bans, so staff are expected to work too, but that was not tested with a staff-tier account (see Task 8).
+All of these returned 200 for an owner at five venues (the three new `/me/venues` fields are in open draft PRs, not yet on the dev API). The documentation says "readable by any member" for positions, services and bans, so staff are expected to work too, but that was not tested with a staff-tier account (see Task 8).
 
 | Plugin read | xvm-api call | Fields used |
 |---|---|---|
-| venues | `GET /me/venues` | `[{venue: {id, name, slug, ...}, tier, effective_tier}]` |
+| venues | `GET /me/venues` | `[{venue: {id, name, slug, inventory_enabled, ...}, tier, effective_tier, membership_id, position_ids}]`. `inventory_enabled`, `membership_id` and `position_ids` are new (xvm-api #157 and #158). |
 | shifts | `GET /venues/{id}/shifts?from&to&mine=true` and `...&open_only=true` | `id, position_id, scheduled_start, scheduled_end, actual_start, actual_end, notes, status`. A window is at most 60 days. |
-| roles | `GET /venues/{id}/memberships`, then `GET /venues/{id}/positions` | memberships: `person.id, position_ids`; positions: `id, name` |
+| roles | the venue's `/me/venues` row for `position_ids`, then `GET /venues/{id}/positions` | positions: `id, name` |
 | services | `GET /venues/{id}/services` and `GET /venues/{id}/services/categories` | `id, name, description, price_minor, category_id, inventory{linked_item_id, linked_item_name, linked_item_icon, stock_count}`; categories `id, name` |
 | bans | `GET /venues/{id}/patrons/banned` | `character_name, world, ban_reason` |
 | active event | `GET /venues/{id}/events/active` | an event `{id, title}` or `null` |
 | rooms | `GET /venues/{id}/rooms` | `id, name, notes, room_number, locked, disabled, status` (`available`, `reserved`, `locked`, `disabled`) |
-| own person | `GET /me` | `person.id` |
 
 ## File structure
 
@@ -54,7 +53,9 @@ Plugin (`~/xvm-plugin-dev`, branch `feat/xvm-reads` from `feat/account-link`):
 
 ## Order
 
-Tasks 1 to 3 are pure code with tests and need no game. Task 4 adds the HTTP layer, also tested without the game. Tasks 5 and 6 wire it in and need a build. Task 7 is the in-game check and Task 8 the staff-tier check. Confirm D3 and D6 before Task 5.
+Tasks 1 to 3 are pure code with tests and need no game. Task 4 adds the HTTP layer, also tested without the game. Tasks 5 and 6 wire it in and need a build. Task 7 is the in-game check and Task 8 the staff-tier check. Confirm D3 before Task 5.
+
+**Needs xvm-api #157 (`inventory_enabled`) and #158 (`membership_id` and `position_ids` on `/me/venues`) merged and deployed to the API the plugin points at.** Until then roles come back empty and the inventory tab stays hidden; everything else works. Both are read from fields the replies simply lack today, so the plugin code is safe against the old shape (missing fields read as empty and off).
 
 Confirm with the user before any `dotnet` command in this repo, and before the clean build's `rm -rf` of `bin` and `obj`.
 
@@ -96,11 +97,14 @@ namespace VenueManager
   internal sealed record XvmVenue(
     [property: JsonPropertyName("id")] string Id,
     [property: JsonPropertyName("name")] string Name,
-    [property: JsonPropertyName("slug")] string Slug);
+    [property: JsonPropertyName("slug")] string Slug,
+    [property: JsonPropertyName("inventory_enabled")] bool InventoryEnabled);
 
   internal sealed record XvmMyVenue(
     [property: JsonPropertyName("venue")] XvmVenue Venue,
-    [property: JsonPropertyName("effective_tier")] string EffectiveTier);
+    [property: JsonPropertyName("effective_tier")] string EffectiveTier,
+    [property: JsonPropertyName("membership_id")] int MembershipId,
+    [property: JsonPropertyName("position_ids")] List<int>? PositionIds);
 
   internal sealed record XvmShift(
     [property: JsonPropertyName("id")] int Id,
@@ -111,14 +115,6 @@ namespace VenueManager
     [property: JsonPropertyName("actual_end")] string? ActualEnd,
     [property: JsonPropertyName("notes")] string? Notes,
     [property: JsonPropertyName("status")] string Status);
-
-  internal sealed record XvmPerson([property: JsonPropertyName("id")] int Id);
-
-  internal sealed record XvmMe([property: JsonPropertyName("person")] XvmPerson? Person);
-
-  internal sealed record XvmMembership(
-    [property: JsonPropertyName("person")] XvmPerson Person,
-    [property: JsonPropertyName("position_ids")] List<int> PositionIds);
 
   internal sealed record XvmPosition(
     [property: JsonPropertyName("id")] int Id,
@@ -188,8 +184,8 @@ public class XvmApiMappingTests
     {
         var venues = XvmApiMapping.MapVenues(new[]
         {
-            new XvmMyVenue(new XvmVenue("ven_1", "The Velvet Lotus", "velvet-lotus"), "owner"),
-            new XvmMyVenue(new XvmVenue("ven_2", "Moon Bar", "moon-bar"), "staff"),
+            new XvmMyVenue(new XvmVenue("ven_1", "The Velvet Lotus", "velvet-lotus", true), "owner", 11, new List<int>()),
+            new XvmMyVenue(new XvmVenue("ven_2", "Moon Bar", "moon-bar", false), "staff", 12, null),
         });
 
         Assert.Equal(2, venues.Count);
@@ -317,7 +313,7 @@ git commit -m "feat: map xvm-api venues and shifts to the plugin's DTOs"
 
 ---
 
-### Task 3: Roles, services, bans, active event, rooms, and the inventory rule
+### Task 3: Roles, services, bans, active event and rooms
 
 **Files:**
 - Modify: `VenueManager/XvmApiMapping.cs`
@@ -329,33 +325,19 @@ git commit -m "feat: map xvm-api venues and shifts to the plugin's DTOs"
     [Fact]
     public void Roles_are_the_positions_the_callers_membership_holds()
     {
-        var own = new XvmMembership(new XvmPerson(1), new List<int> { 3, 5 });
         var positions = new[] { new XvmPosition(3, "Bartender"), new XvmPosition(4, "Host"), new XvmPosition(5, "Shout runner") };
 
-        var roles = XvmApiMapping.MapRoles(own, positions);
+        var roles = XvmApiMapping.MapRoles(new List<int> { 3, 5 }, positions);
 
         Assert.Equal(new[] { "3", "5" }, roles.Select(r => r.Id));
         Assert.Equal(new[] { "Bartender", "Shout runner" }, roles.Select(r => r.Name));
     }
 
     [Fact]
-    public void No_membership_or_an_unknown_position_gives_no_role()
+    public void No_position_ids_or_an_unknown_position_gives_no_role()
     {
         Assert.Empty(XvmApiMapping.MapRoles(null, new[] { new XvmPosition(3, "Bartender") }));
-        var own = new XvmMembership(new XvmPerson(1), new List<int> { 99 });
-        Assert.Empty(XvmApiMapping.MapRoles(own, new[] { new XvmPosition(3, "Bartender") }));
-    }
-
-    [Fact]
-    public void Own_membership_is_found_by_person_id()
-    {
-        var roster = new[]
-        {
-            new XvmMembership(new XvmPerson(1), new List<int> { 3 }),
-            new XvmMembership(new XvmPerson(2), new List<int> { 4 }),
-        };
-        Assert.Equal(new List<int> { 4 }, XvmApiMapping.FindOwn(roster, 2)!.PositionIds);
-        Assert.Null(XvmApiMapping.FindOwn(roster, 9));
+        Assert.Empty(XvmApiMapping.MapRoles(new List<int> { 99 }, new[] { new XvmPosition(3, "Bartender") }));
     }
 
     [Fact]
@@ -380,17 +362,6 @@ git commit -m "feat: map xvm-api venues and shifts to the plugin's DTOs"
         Assert.Equal("0", result.Services[1].Price);
         Assert.Null(result.Services[1].Category);
         Assert.Null(result.Services[1].LinkedItemId);
-    }
-
-    [Theory]
-    [InlineData("owner", false, true)]
-    [InlineData("manager", false, true)]
-    [InlineData("staff", false, false)]
-    [InlineData("staff", true, true)]
-    public void Inventory_tab_shows_for_managers_or_once_an_item_is_linked(string tier, bool anyLinked, bool expected)
-    {
-        var services = new List<XvmService> { new(1, "Cocktail", null, 100, null, anyLinked ? new XvmInventory(1, null, null, 1) : null) };
-        Assert.Equal(expected, XvmApiMapping.InventoryEnabled(tier, services));
     }
 
     [Fact]
@@ -445,19 +416,16 @@ git commit -m "feat: map xvm-api venues and shifts to the plugin's DTOs"
     }
 ```
 
-- [ ] **Step 2: Run it and confirm it fails.** Confirm with the user, then run `dotnet test VenueManager.Tests`. Expected: FAIL to compile, `MapRoles`, `FindOwn`, `MapServices`, `InventoryEnabled`, `MapBanned`, `MapActiveEvent` and `MapRooms` do not exist.
+- [ ] **Step 2: Run it and confirm it fails.** Confirm with the user, then run `dotnet test VenueManager.Tests`. Expected: FAIL to compile, `MapRoles`, `MapServices`, `MapBanned`, `MapActiveEvent` and `MapRooms` do not exist.
 
 - [ ] **Step 3: Implement.** Add inside `XvmApiMapping`:
 
 ```csharp
-    public static XvmMembership? FindOwn(IEnumerable<XvmMembership> roster, int personId) =>
-      roster.FirstOrDefault(m => m.Person.Id == personId);
-
-    public static List<Role> MapRoles(XvmMembership? own, IEnumerable<XvmPosition> positions)
+    public static List<Role> MapRoles(IEnumerable<int>? positionIds, IEnumerable<XvmPosition> positions)
     {
-      if (own is null) return new List<Role>();
+      if (positionIds is null) return new List<Role>();
       var byId = positions.ToDictionary(p => p.Id);
-      return own.PositionIds
+      return positionIds
         .Where(byId.ContainsKey)
         .Select(id => new Role { Id = id.ToString(CultureInfo.InvariantCulture), Name = byId[id].Name })
         .ToList();
@@ -482,9 +450,6 @@ git commit -m "feat: map xvm-api venues and shifts to the plugin's DTOs"
         }).ToList(),
       };
     }
-
-    public static bool InventoryEnabled(string tier, IEnumerable<XvmService> services) =>
-      tier is "owner" or "manager" || services.Any(s => s.Inventory is not null);
 
     public static List<BannedPatron> MapBanned(IEnumerable<XvmBanned> banned) =>
       banned.Select(b => new BannedPatron { CharacterName = b.CharacterName, World = b.World, Reason = b.BanReason ?? "" }).ToList();
@@ -598,31 +563,26 @@ public class XvmApiReadsTests
     }
 
     [Fact]
-    public async Task Roles_match_the_callers_own_membership_by_the_person_id_from_me()
+    public async Task Roles_are_the_positions_listed_on_the_callers_me_venues_row()
     {
         var handler = new RoutedHandler()
-            .On("/me", "{\"person\":{\"id\":2,\"display_name\":\"Ehno\"}}")
-            .On("/venues/v1/memberships", "[{\"person\":{\"id\":1},\"position_ids\":[3]},{\"person\":{\"id\":2},\"position_ids\":[4]}]")
+            .On("/me/venues", "[{\"venue\":{\"id\":\"v1\",\"name\":\"Lotus\",\"slug\":\"lotus\",\"inventory_enabled\":false},\"tier\":\"staff\",\"effective_tier\":\"staff\",\"membership_id\":7,\"position_ids\":[4]},{\"venue\":{\"id\":\"v2\",\"name\":\"Moon\",\"slug\":\"moon\",\"inventory_enabled\":false},\"tier\":\"staff\",\"effective_tier\":\"staff\",\"membership_id\":8,\"position_ids\":[3]}]")
             .On("/venues/v1/positions", "[{\"id\":3,\"name\":\"Bartender\"},{\"id\":4,\"name\":\"Host\"}]");
 
         var roles = await Reads(handler).GetRolesAsync("v1");
 
         Assert.Equal(new[] { "Host" }, roles.Select(r => r.Name));
+        Assert.DoesNotContain(handler.Requests, r => r.PathAndQuery.Contains("/memberships"));
     }
 
     [Fact]
-    public async Task The_person_id_is_looked_up_once()
+    public async Task An_old_api_without_position_ids_gives_no_roles()
     {
         var handler = new RoutedHandler()
-            .On("/me", "{\"person\":{\"id\":2}}")
-            .On("/venues/v1/memberships", "[]")
-            .On("/venues/v1/positions", "[]");
-        var reads = Reads(handler);
+            .On("/me/venues", "[{\"venue\":{\"id\":\"v1\",\"name\":\"Lotus\",\"slug\":\"lotus\"},\"tier\":\"staff\",\"effective_tier\":\"staff\"}]")
+            .On("/venues/v1/positions", "[{\"id\":3,\"name\":\"Bartender\"}]");
 
-        await reads.GetRolesAsync("v1");
-        await reads.GetRolesAsync("v1");
-
-        Assert.Equal(1, handler.Requests.Count(r => r.PathAndQuery == "/me"));
+        Assert.Empty(await Reads(handler).GetRolesAsync("v1"));
     }
 
     [Fact]
@@ -639,13 +599,15 @@ public class XvmApiReadsTests
     }
 
     [Fact]
-    public async Task Inventory_uses_the_venue_tier_and_the_services()
+    public async Task Inventory_follows_the_venues_inventory_enabled_flag()
     {
         var handler = new RoutedHandler()
-            .On("/me/venues", "[{\"venue\":{\"id\":\"v1\",\"name\":\"Lotus\",\"slug\":\"lotus\"},\"tier\":\"staff\",\"effective_tier\":\"staff\"}]")
-            .On("/venues/v1/services", "[{\"id\":11,\"name\":\"House Cocktail\",\"description\":null,\"price_minor\":1500,\"category_id\":null,\"inventory\":{\"linked_item_id\":4825,\"linked_item_name\":\"Tuna\",\"linked_item_icon\":1,\"stock_count\":3}}]");
+            .On("/me/venues", "[{\"venue\":{\"id\":\"v1\",\"name\":\"Lotus\",\"slug\":\"lotus\",\"inventory_enabled\":true},\"tier\":\"staff\",\"effective_tier\":\"staff\",\"membership_id\":7,\"position_ids\":[]},{\"venue\":{\"id\":\"v2\",\"name\":\"Moon\",\"slug\":\"moon\"},\"tier\":\"owner\",\"effective_tier\":\"owner\",\"membership_id\":8,\"position_ids\":[]}]");
+        var reads = Reads(handler);
 
-        Assert.True(await Reads(handler).GetInventoryEnabledAsync("v1"));
+        Assert.True(await reads.GetInventoryEnabledAsync("v1"));
+        Assert.False(await reads.GetInventoryEnabledAsync("v2"));
+        Assert.False(await reads.GetInventoryEnabledAsync("unknown"));
     }
 
     [Fact]
@@ -706,7 +668,6 @@ namespace VenueManager
     private readonly HttpClient _http;
     private readonly string _root;
     private readonly string _secret;
-    private int? _personId;
 
     public XvmApiReads(HttpClient http, string baseUrl, string secret)
     {
@@ -727,12 +688,8 @@ namespace VenueManager
 
     private static string Venue(string venueId) => $"/venues/{Uri.EscapeDataString(venueId)}";
 
-    private async Task<int?> PersonIdAsync()
-    {
-      if (_personId is null)
-        _personId = (await GetAsync<XvmMe>("/me"))?.Person?.Id;
-      return _personId;
-    }
+    private async Task<XvmMyVenue?> MyVenueAsync(string venueId) =>
+      (await GetAsync<List<XvmMyVenue>>("/me/venues") ?? new List<XvmMyVenue>()).FirstOrDefault(v => v.Venue.Id == venueId);
 
     public async Task<List<XIVAppVenue>> GetVenuesAsync() =>
       XvmApiMapping.MapVenues(await GetAsync<List<XvmMyVenue>>("/me/venues") ?? new List<XvmMyVenue>());
@@ -750,11 +707,10 @@ namespace VenueManager
 
     public async Task<List<Role>> GetRolesAsync(string venueId)
     {
-      var personId = await PersonIdAsync();
-      if (personId is null) return new List<Role>();
-      var roster = await GetAsync<List<XvmMembership>>($"{Venue(venueId)}/memberships") ?? new List<XvmMembership>();
+      var own = await MyVenueAsync(venueId);
+      if (own?.PositionIds is not { Count: > 0 }) return new List<Role>();
       var positions = await GetAsync<List<XvmPosition>>($"{Venue(venueId)}/positions") ?? new List<XvmPosition>();
-      return XvmApiMapping.MapRoles(XvmApiMapping.FindOwn(roster, personId.Value), positions);
+      return XvmApiMapping.MapRoles(own.PositionIds, positions);
     }
 
     public async Task<ServicesResponse> GetServicesAsync(string venueId)
@@ -764,13 +720,8 @@ namespace VenueManager
       return XvmApiMapping.MapServices(services, categories);
     }
 
-    public async Task<bool> GetInventoryEnabledAsync(string venueId)
-    {
-      var venues = await GetAsync<List<XvmMyVenue>>("/me/venues") ?? new List<XvmMyVenue>();
-      var tier = venues.FirstOrDefault(v => v.Venue.Id == venueId)?.EffectiveTier ?? "staff";
-      var services = await GetAsync<List<XvmService>>($"{Venue(venueId)}/services") ?? new List<XvmService>();
-      return XvmApiMapping.InventoryEnabled(tier, services);
-    }
+    public async Task<bool> GetInventoryEnabledAsync(string venueId) =>
+      (await MyVenueAsync(venueId))?.Venue.InventoryEnabled ?? false;
 
     public async Task<List<BannedPatron>> GetBannedPatronsAsync(string venueId) =>
       XvmApiMapping.MapBanned(await GetAsync<List<XvmBanned>>($"{Venue(venueId)}/patrons/banned") ?? new List<XvmBanned>());
@@ -995,7 +946,7 @@ Everything above was verified as an owner. Plain staff are most plugin users.
 
 - [ ] **Step 1:** With an account that is only **staff** at some venue, link the plugin and run Task 7 there.
 - [ ] **Step 2:** For any read that returns 403 for staff, record the endpoint here and ask Allegro whether it should be open to any member (positions, services, bans and the roster are documented as readable by any member).
-- [ ] **Step 3:** Adjust D6 (the inventory rule) if a staff member cannot read services.
+- [ ] **Step 3:** Confirm a staff member sees the inventory tab exactly when the venue's `inventory_enabled` is on, and sees their own jobs on the Shifts tab.
 
 ---
 
@@ -1008,8 +959,8 @@ Everything above was verified as an owner. Plain staff are most plugin users.
 
 ## Self-review
 
-**Spec coverage.** Every plugin read has a task: venues and shifts (Task 2), roles, services, bans, event, rooms and the inventory rule (Task 3), the HTTP calls (Task 4), the wiring (Tasks 5 and 6), the in-game and staff checks (Tasks 7 and 8). D1 to D8 are each carried out or explicitly deferred, and D3 and D6 are marked to confirm with the user before Task 5.
+**Spec coverage.** Every plugin read has a task: venues and shifts (Task 2), roles, services, bans, event and rooms (Task 3), the HTTP calls (Task 4), the wiring (Tasks 5 and 6), the in-game and staff checks (Tasks 7 and 8). D1 to D8 are each carried out or explicitly deferred, and D3 is marked to confirm with the user before Task 5.
 
 **Placeholder scan.** No step says TBD or "add handling". Task 6 steps 1 and 3 tell the engineer to keep the surrounding original code and to use the real field name where I could not see it; both name exactly what to look at.
 
-**Consistency.** `XvmApiReads` exposes `GetVenuesAsync`, `GetShiftsAsync(venueId, now)`, `GetRolesAsync`, `GetServicesAsync`, `GetInventoryEnabledAsync`, `GetBannedPatronsAsync`, `GetActiveEventAsync` and `GetRoomsAsync`; the facades in Task 5 call exactly those names. The `XvmApiMapping` methods used by `XvmApiReads` (`MapVenues`, `MapShifts`, `MapRoles`, `FindOwn`, `MapServices`, `InventoryEnabled`, `MapBanned`, `MapActiveEvent`, `MapRooms`) are all defined in Tasks 2 and 3. The record names match between `XvmApiModels.cs` and the tests.
+**Consistency.** `XvmApiReads` exposes `GetVenuesAsync`, `GetShiftsAsync(venueId, now)`, `GetRolesAsync`, `GetServicesAsync`, `GetInventoryEnabledAsync`, `GetBannedPatronsAsync`, `GetActiveEventAsync` and `GetRoomsAsync`; the facades in Task 5 call exactly those names. The `XvmApiMapping` methods used by `XvmApiReads` (`MapVenues`, `MapShifts`, `MapRoles`, `MapServices`, `MapBanned`, `MapActiveEvent`, `MapRooms`) are all defined in Tasks 2 and 3. The record names match between `XvmApiModels.cs` and the tests.

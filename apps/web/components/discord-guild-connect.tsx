@@ -3,6 +3,7 @@
 import { useCallback, useEffect, useState } from "react"
 import { Button } from "@/components/ui/button"
 import { Avatar, AvatarFallback, AvatarImage } from "@/components/ui/avatar"
+import { initials } from "@/lib/discord-picker-state"
 import {
   AlertDialog,
   AlertDialogAction,
@@ -41,12 +42,6 @@ interface Candidates {
   current: CurrentLink | null
   needsReauth: boolean
   guilds: Guild[]
-}
-
-// Discord names lean on decoration, so initials come from letters and digits only. A name with
-// neither still has to render something the same size as every other row.
-function initials(name: string) {
-  return name.replace(/[^\p{L}\p{N}]/gu, "").slice(0, 2).toUpperCase() || "#"
 }
 
 function GuildIcon({ name, iconUrl, className }: { name: string; iconUrl: string | null; className?: string }) {

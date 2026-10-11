@@ -13,6 +13,7 @@ import { CheckCircle2, Copy, Link as LinkIcon, Share2 } from "lucide-react"
 import { VenueLayoutClient } from "@/components/venue-layout-client"
 import { canManageVenue } from "@/lib/roles"
 import { PageLoading } from "@/components/ui/loading-spinner"
+import { UserPicker } from "@/components/user-picker"
 
 export default function InviteStaffPage({ params }: { params: Promise<{ slug: string }> }) {
   const { slug } = use(params)
@@ -26,6 +27,7 @@ export default function InviteStaffPage({ params }: { params: Promise<{ slug: st
   const [copied, setCopied] = useState(false)
   const [canShare, setCanShare] = useState(false)
   const [currentUserRole, setCurrentUserRole] = useState<string>("")
+  const [venueId, setVenueId] = useState("")
   const [roleChecked, setRoleChecked] = useState(false)
 
   // Check if Web Share API is available; must run post-mount to avoid a server/client hydration mismatch on `navigator`.
@@ -43,6 +45,10 @@ export default function InviteStaffPage({ params }: { params: Promise<{ slug: st
 
         const venues = await venueResponse.json()
         const venue = venues.find((v: { slug: string }) => v.slug === slug)
+
+        if (venue?.id) {
+          setVenueId(venue.id)
+        }
 
         if (venue?.memberships?.[0]?.role) {
           setCurrentUserRole(venue.memberships[0].role)
@@ -282,15 +288,19 @@ export default function InviteStaffPage({ params }: { params: Promise<{ slug: st
                 <Label htmlFor="discordId">
                   Discord user ID <span className="text-muted-foreground">(optional)</span>
                 </Label>
-                <Input
-                  id="discordId"
-                  type="text"
-                  inputMode="numeric"
-                  placeholder="123456789012345678"
-                  value={discordId}
-                  onChange={(e) => setDiscordId(e.target.value)}
-                  disabled={isLoading}
-                />
+                {venueId ? (
+                  <UserPicker id="discordId" venueId={venueId} value={discordId} onChange={setDiscordId} disabled={isLoading} />
+                ) : (
+                  <Input
+                    id="discordId"
+                    type="text"
+                    inputMode="numeric"
+                    placeholder="123456789012345678"
+                    value={discordId}
+                    onChange={(e) => setDiscordId(e.target.value)}
+                    disabled={isLoading}
+                  />
+                )}
                 <p className="text-sm text-muted-foreground">
                   Lets you send the invite to them as a Discord DM from the pending list. Without it, share the link
                   yourself.

@@ -66,6 +66,38 @@ export function canReturnToList(options: DiscordOption[], value: string): boolea
 }
 
 /**
+ * Whether "Search instead" can do anything without taking something with it.
+ *
+ * Only while the field is empty. A non-empty value in the id field is either something somebody
+ * typed a moment ago or something loaded from a saved record, and the component cannot tell those
+ * apart: `picked` is only ever set by choosing from a result list, never from the `value` prop.
+ * Clearing is reasonable for the first and silent data loss for the second, so the way back
+ * appears once there is nothing to lose, and emptying the field is what reveals it.
+ *
+ * Same resolution as `canReturnToList`, deliberately: the two pickers should not disagree about
+ * what their way-back button does to a value nobody typed.
+ */
+export function canReturnToSearch(value: string, problem: PickerProblem | null): boolean {
+  if (problem !== null && !problem.retryable) return false
+  return value === ""
+}
+
+/**
+ * Two characters for an avatar fallback.
+ *
+ * Discord names lean on decoration, so initials come from letters and digits only. A name with
+ * neither still has to render something the same size as every other row.
+ */
+export function initials(name: string): string {
+  return (
+    name
+      .replace(/[^\p{L}\p{N}]/gu, "")
+      .slice(0, 2)
+      .toUpperCase() || "#"
+  )
+}
+
+/**
  * Whether to show the type-an-id field instead of the dropdown.
  *
  * Five reasons, and only the first is a preference: the person asked for it; the field is disabled
@@ -99,4 +131,20 @@ export function showsManualEntry({
   if (loading) return false
   if (options.length === 0) return true
   return value !== "" && !options.some((option) => option.value === value)
+}
+
+/** Discord's member search is prefix-based, and a one-letter query returns a page of strangers. */
+export const MIN_MEMBER_QUERY = 2
+
+export function memberQueryReady(query: string): boolean {
+  return query.trim().length >= MIN_MEMBER_QUERY
+}
+
+/**
+ * Why a member search failed. Search runs per keystroke, so the rate limit is an ordinary way
+ * to fail rather than an error: it is retryable and the next keystroke is the retry.
+ */
+export function memberSearchProblem(status: number, body: { error?: string; message?: string }): PickerProblem {
+  if (status === 429) return { message: "Searching too fast. Try again in a moment.", retryable: true }
+  return pickerProblem(status, body)
 }

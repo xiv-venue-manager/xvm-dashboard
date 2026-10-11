@@ -7,7 +7,7 @@ import { withRateLimit } from "@/lib/middleware/with-rate-limit"
 import { invalidateCache, cacheKeys } from "@/lib/redis-cache"
 import { getValidXvmApiToken, isVenueOwner, xvmApiErrorResponse } from "@/lib/api/xvm-api-store"
 import { getVenue, linkVenueExternal, unlinkVenueExternal } from "@/lib/api/xvm-api"
-import { administersGuild } from "@/lib/discord-user"
+import { administersGuild, discordGrantFrom } from "@/lib/discord-user"
 import { getGuildPresence } from "@/lib/discord-rest"
 
 const linkSchema = z.object({ guildId: z.string().regex(/^\d{15,20}$/, "Not a Discord server id") })
@@ -58,7 +58,7 @@ export const POST = withRateLimit<{ params: Promise<{ venueId: string }> }>(
       return xvmApiErrorResponse(err, session.user.id, "[discord link] membership read error")
     }
 
-    const authority = await administersGuild(session.user.id, guildId)
+    const authority = await administersGuild(await discordGrantFrom(request), guildId)
     if (!authority.ok) {
       return authority.failure === "reauth_required"
         ? NextResponse.json(

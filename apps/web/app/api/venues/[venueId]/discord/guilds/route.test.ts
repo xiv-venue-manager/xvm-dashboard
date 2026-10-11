@@ -8,6 +8,7 @@ const m = vi.hoisted(() => ({
   getVenue: vi.fn(),
   memberships: vi.fn(),
   manageable: vi.fn(),
+  grant: vi.fn(),
   presence: vi.fn(),
 }))
 
@@ -29,7 +30,7 @@ vi.mock("@/lib/api/xvm-api", async (importOriginal) => ({
   getVenue: m.getVenue,
   listMemberships: m.memberships,
 }))
-vi.mock("@/lib/discord-user", () => ({ listManageableGuilds: m.manageable }))
+vi.mock("@/lib/discord-user", () => ({ listManageableGuilds: m.manageable, discordGrantFrom: m.grant }))
 vi.mock("@/lib/discord-rest", () => ({ getGuildPresence: m.presence }))
 
 import { GET } from "./route"
@@ -50,6 +51,8 @@ const discordLink = (over: Record<string, unknown> = {}) => ({
   ...over,
 })
 
+const GRANT = { accessToken: "t", expiresAt: 9999999999, scope: "identify guilds" }
+
 beforeEach(() => {
   vi.clearAllMocks()
   vi.spyOn(console, "error").mockImplementation(() => {})
@@ -59,11 +62,17 @@ beforeEach(() => {
   m.token.mockResolvedValue("tok")
   m.getVenue.mockResolvedValue(links())
   m.memberships.mockResolvedValue([{ person: { id: 42, display_name: "Allegro Vivo" } }])
+  m.grant.mockResolvedValue(GRANT)
   m.manageable.mockResolvedValue({ ok: true, guilds: [{ id: GUILD, name: "Lilypad", iconUrl: null }] })
   m.presence.mockResolvedValue({ botIsMember: true, name: "Lilypad Lounge", iconUrl: "https://cdn/i.png" })
 })
 
 describe("GET /api/venues/[venueId]/discord/guilds", () => {
+  it("lists guilds using the Discord grant carried on the session token", async () => {
+    await get()
+    expect(m.manageable).toHaveBeenCalledWith(GRANT)
+  })
+
   it("is 401 signed out and 403 for a non-owner, without asking Discord", async () => {
     m.session.mockResolvedValue(null)
     expect((await get()).status).toBe(401)

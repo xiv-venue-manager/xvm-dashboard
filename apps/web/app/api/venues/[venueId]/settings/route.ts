@@ -3,6 +3,8 @@ import { getServerSession } from "next-auth"
 import { authOptions } from "@/lib/auth"
 import { prisma } from "@/lib/prisma"
 import { requireVenueRole } from "@/lib/api/venue-access"
+import { requireChannelInGuild } from "@/lib/api/venue-guild"
+import { validators } from "@/lib/validation"
 import { Prisma } from "@/generated/prisma/client"
 import { z } from "zod"
 import { withRateLimit } from "@/lib/middleware/with-rate-limit"
@@ -62,7 +64,10 @@ const updateSettingsSchema = z.object({
   shiftBot: z
     .object({
       enabled: z.boolean(),
-      channelId: z.string().max(20),
+      // A snowflake, not any short string: requireChannelInGuild puts this in a Discord API
+      // path, and ".." segments resolve there. Empty stays allowed because clearing the field
+      // sends it, and a cleared channel is deliberately not checked.
+      channelId: validators.snowflake.or(z.literal("")),
       daysBeforeEvent: z.number().int().min(1).max(14).optional(),
       templates: z
         .array(
@@ -227,6 +232,14 @@ export const PUT = withRateLimit<{ params: Promise<{ venueId: string }> }>(
 
       if (!venue) {
         return NextResponse.json({ error: "Venue not found" }, { status: 404 })
+      }
+
+      // The whole shiftBot object arrives on every save, so only a channel that changed is checked:
+      // re-checking an unchanged one would block unrelated saves on a venue whose server is not linked.
+      const newChannelId = validatedData.shiftBot?.channelId
+      if (newChannelId && newChannelId !== parseVenueSettings(venue.settings).shiftBot?.channelId) {
+        const channel = await requireChannelInGuild(session.user.id, venueId, newChannelId)
+        if (!channel.ok) return channel.response
       }
 
       // Extract top-level venue columns and xvm-api-owned visibility fields from validated data

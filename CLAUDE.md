@@ -6,7 +6,11 @@ Conventions for AI-assisted work on this repo. Established 2026-08-15 during the
 
 Test everything against the local full-stack copy (`docs/LOCAL_DEV.md`) — local Postgres/Redis via `docker-compose.local.yml`, `pnpm dev` at `localhost:3000`. Never touch prod (`192.168.1.122`) as a side effect of a code change.
 
-Pushing to `origin/main` does **not** deploy. Check `.github/workflows/` before assuming otherwise — none of the current workflows build or deploy, they only post Discord notifications, run `pnpm audit`, and smoke-check already-live prod URLs (read-only). Prod only updates via `~/bin/deploy-xiv-web.sh`, run manually over SSH.
+Pushing to `origin/main` does **not** deploy. Check `.github/workflows/` before assuming otherwise — the only workflow that builds or deploys is `deploy-dev.yml`, which on a push to `dev` builds the dev image and runs `prisma db push` against `dashboard_dev` (with data loss only if the manual dispatch asks for it). No workflow touches prod: the rest post Discord notifications, run `pnpm audit`, and smoke-check already-live prod URLs (read-only). Prod only updates via `~/bin/deploy-xiv-web.sh`, run manually over SSH.
+
+## Shared assets
+
+Before building a component or helper, check `docs/SHARED_ASSETS.md`. If you add something reusable, add it there in the same PR.
 
 ## Isolation
 

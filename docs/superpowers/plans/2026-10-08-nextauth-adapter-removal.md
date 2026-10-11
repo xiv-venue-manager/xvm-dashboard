@@ -12,7 +12,7 @@
 
 ## Why this is the last link, not the first
 
-Removing the adapter stops new sign-ins from creating a Prisma `users` row. Ten Prisma models have a foreign key to `User`, including `ApiKey`, `XvmApiCredential`, `Notification`, `PendingNotification`, `UserCharacter` and `Feedback`. Flipped early, a new person signs in and every one of those writes fails.
+Removing the adapter stops new sign-ins from creating a Prisma `users` row. Twenty-two Prisma models have a foreign key to `User` (two, `Account` and `Session`, are the adapter's own), including `ApiKey`, `XvmApiCredential`, `Notification`, `PendingNotification`, `UserCharacter` and `Feedback`. Flipped early, a new person signs in and every one of those writes fails.
 
 The order is therefore:
 
@@ -29,6 +29,14 @@ Task 1 is independent of that chain. It removes the only code that reads the `ac
 ```bash
 grep -rnE "prisma\.(apiKey|xvmApiCredential|notification|pendingNotification|userCharacter|feedback|shoutTemplate|announcementDismissal|venueFollow)\b" apps/web/app apps/web/lib | grep -v "\.test\."
 ```
+
+That grep names nine of the 22 models with a `User` foreign key. `Account` and `Session` are the adapter's own. The other eleven are left out on purpose, checked 2026-10-11 on `dev`:
+
+- `announcement`, `eventTemplate`, `membership`, `patron`, `patronLog`, `payrollEntry`, `potDistribution`, `task` and `transaction` have no `create`, `update` or `upsert` call in `apps/web`.
+- `event` is created in `cron/update-event-statuses` and `lib/partake.ts`, but both reuse an id that already exists (`parent.createdById`, `venue.ownerId`), never a new sign-in's.
+- `shiftAuditLog` has one create, in `lib/shift-audit.ts`, with `actorUserId` passed in. That is the shift pipeline, which ordering step 2 already gates.
+
+The grep passes for those reasons, not because it checks them. Before relying on it, list the `User` relations in `schema.prisma` again and re-check writes to the eleven, since a new write to any of them would not trip it.
 
 ## What the adapter does today (verified 2026-10-08 on `dev` and read-only on prod)
 
@@ -53,7 +61,7 @@ grep -rnE "prisma\.(apiKey|xvmApiCredential|notification|pendingNotification|use
 
 ## Decision: no Discord token refresh (2026-10-09)
 
-#141 asked to refresh an expired Discord token. With the grant held only in the JWT that cannot work: every server read is `getServerSession(authOptions)` with no response object, where next-auth's `setCookie` is a no-op, so a refresh inside the `jwt` callback is never persisted, and Discord rotates refresh tokens, so the next read would present an already-spent one. Owner chose to accept the weekly re-sign-in prompt (Discord grants last about a week, and the picker already shows that prompt). #141 is closed as won't-do once Task 1 merges.
+#141 asked to refresh an expired Discord token. With the grant held only in the JWT that cannot work: every server read is `getServerSession(authOptions)` with no response object, where next-auth's `setCookie` is a no-op, so a refresh there is not persisted. The client does reach `/api/auth/session` (the app mounts `SessionProvider` and calls `useSession` in nine files), and a refresh on that path would persist, but that does not rescue it. Discord rotates refresh tokens, so a grant refreshed on one request leaves the stored refresh token spent for the next, and nothing rewrites it once the adapter stops writing `accounts`. Owner chose to accept the weekly re-sign-in prompt (Discord grants last about a week, and the picker already shows that prompt). #141 is closed as won't-do once Task 1 merges.
 
 ## Task 1: Read the Discord grant from the JWT (ships now)
 

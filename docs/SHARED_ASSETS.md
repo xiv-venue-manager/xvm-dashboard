@@ -26,10 +26,12 @@ House-specific:
 | `venue-context` | The active venue, via React context |
 | `venue-switcher`, `venue-layout`, `venue-sidebar`, `navbar` | Page chrome |
 | `item-search-combobox` | Searching game items |
+| `discord-picker` | `RolePicker`, `ChannelPicker`, `DiscordOptionPicker`, `useDiscordOptions`: choose a Discord role or channel from the venue's server. Use these instead of a hand-rolled dropdown or a paste-an-id field |
+| `user-picker` | `UserPicker`: find a Discord member by typing part of the name, with entering an id as the fallback. Keyed to a venue |
 | `role-badge`, `breadcrumb`, `venue-eyebrow`, `copy-address-button` | Small display pieces |
 | `analytics/` | Charts |
 
-**Do not build on `picker-field` or `user-picker`.** They are unwired ports from Frogge with their own tokens and URLs. Their header comments say so.
+**Do not build on `picker-field`.** It is an unwired port from Frogge with its own tokens and URLs, and nothing uses it. Its header comment says so.
 
 ## Helpers (`lib/`)
 
@@ -44,6 +46,7 @@ House-specific:
 | `server-time` | `getServerTimeLabel`, `formatServerTime`, `formatServerTimeRange`, `formatLocalTimeRange`, `getServerTimeIntlOptions` | |
 | `local-day` | `localDayKey`, `localHourLabel`, `browserTimeZone`, `localTimeInput`, `endOfLocalDayUtc` | Calendar days in a given timezone |
 | `shift-format` | `fmtHour`, `statusBadgeClass`, `toShiftRow`, `staffNameOf`, ... | Shift display |
+| `discord-picker-state` | `pickerProblem`, `offeredRoles`, `canReturnToList`, `showsManualEntry`, `memberQueryReady`, `memberSearchProblem` | The tested rules behind the Discord pickers. Put picker decisions here, not in the component |
 | `display-name` | `resolveDisplayName` | The one order for what to call a staff member |
 | `roles` | `canManageVenue`, `isVenueOwner` | OWNER and MANAGER tier checks |
 | `redis-cache` | `getCached`, `setCache`, `getOrSet`, `invalidateCache`, `cacheKeys`, `cacheTTL` | Cache-aside. `getOrSet` cannot skip caching a failure, use `getCached` and `setCache` for that |

@@ -28,21 +28,22 @@ export async function GET() {
   const session = await getServerSession(authOptions)
   if (!session?.user?.id) return NextResponse.json({ error: "Unauthorized" }, { status: 401 })
 
-  const token = await getValidXvmApiToken(session.user.id)
-  if (!token) return NextResponse.json({ error: "xvm-api link not established yet" }, { status: 503 })
-
   const user = await prisma.user.findUnique({
     where: { id: session.user.id },
     select: { id: true, settings: true },
   })
   if (!user) return NextResponse.json({ error: "User not found" }, { status: 404 })
 
-  try {
-    const me = await getMe(token)
-    return NextResponse.json({ ...user, displayName: me.person?.display_name ?? null })
-  } catch (err) {
-    return xvmApiErrorResponse(err, session.user.id, "[user profile] GET error")
+  let displayName: string | null = null
+  const token = await getValidXvmApiToken(session.user.id)
+  if (token) {
+    try {
+      displayName = (await getMe(token)).person?.display_name ?? null
+    } catch (err) {
+      await xvmApiErrorResponse(err, session.user.id, "[user profile] GET error")
+    }
   }
+  return NextResponse.json({ ...user, displayName })
 }
 
 export async function PATCH(req: Request) {

@@ -41,10 +41,21 @@ describe("GET /api/user/profile", () => {
     expect((await GET()).status).toBe(401)
   })
 
-  it("is 503 without an xvm-api credential, with no fallback to the Prisma name", async () => {
+  it("returns the settings and a null name without an xvm-api credential, with no fallback to the Prisma name", async () => {
     m.token.mockResolvedValue(null)
-    expect((await GET()).status).toBe(503)
-    expect(m.findUser).not.toHaveBeenCalled()
+    const res = await GET()
+    expect(res.status).toBe(200)
+    expect(await res.json()).toEqual({ id: "user-1", settings: { notifications: { dailySummary: true } }, displayName: null })
+    expect(m.getMe).not.toHaveBeenCalled()
+  })
+
+  it("returns the settings and a null name when xvm-api fails, and still lets the error handler clear a dead credential", async () => {
+    const err = new Error("down")
+    m.getMe.mockRejectedValue(err)
+    const res = await GET()
+    expect(res.status).toBe(200)
+    expect(await res.json()).toEqual({ id: "user-1", settings: { notifications: { dailySummary: true } }, displayName: null })
+    expect(m.errorResponse).toHaveBeenCalledWith(err, "user-1", "[user profile] GET error")
   })
 
   it("takes the display name from xvm-api and the settings from the user row", async () => {

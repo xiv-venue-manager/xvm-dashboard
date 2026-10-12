@@ -3,6 +3,7 @@
 import Image from "next/image"
 import { signIn } from "next-auth/react"
 import { Button } from "@/components/ui/button"
+import { signInCallbackUrl } from "@/lib/callback-url"
 
 export default function SignInPage() {
   return (
@@ -28,7 +29,9 @@ export default function SignInPage() {
           </div>
 
           <Button
-            onClick={() => signIn("discord", { callbackUrl: "/dashboard" })}
+            onClick={() =>
+              signIn("discord", { callbackUrl: signInCallbackUrl(window.location.search, window.location.origin) })
+            }
             className="w-full xiv-btn-shimmer xiv-cta font-semibold"
             size="lg"
           >

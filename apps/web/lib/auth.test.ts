@@ -87,6 +87,22 @@ describe("jwt", () => {
   })
 })
 
+describe("redirect", () => {
+  const redirect = (url: string) => authOptions.callbacks!.redirect!({ url, baseUrl: "http://localhost:3000" })
+
+  it("keeps the path and query of a relative callbackUrl", async () => {
+    expect(await redirect("/admin/feedback?report=7")).toBe("http://localhost:3000/admin/feedback?report=7")
+  })
+
+  it("sends an off-site callbackUrl back to the base URL", async () => {
+    expect(await redirect("https://evil.example/admin/feedback")).toBe("http://localhost:3000")
+  })
+
+  it("keeps a protocol-relative callbackUrl on our origin", async () => {
+    expect(new URL(await redirect("//evil.example/admin/feedback")).origin).toBe("http://localhost:3000")
+  })
+})
+
 describe("session cookie", () => {
   it("uses the shared cookie name that the readers pass to getToken", () => {
     expect(SESSION_COOKIE_NAME).toMatch(/next-auth\.session-token$/)

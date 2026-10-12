@@ -11,6 +11,7 @@ import { createVenue, updateVenue, type VenueUpdate } from "@/lib/api/xvm-api"
 import { sendEmail } from "@/lib/email"
 import { venueWelcomeEmail, newVenueAlertEmail } from "@/lib/email-templates"
 import { postNewVenue } from "@/lib/discord-feed"
+import { addressProblem } from "@/lib/venue-location"
 import { asMembership, myVenueRoles, VenueAccessUnavailable } from "@/lib/api/venue-access"
 
 const venueSchema = z.object({
@@ -23,6 +24,7 @@ const venueSchema = z.object({
   ward: validators.venueWard,
   plot: validators.venuePlot,
   apartment: validators.venueApartment,
+  subdivision: validators.venueSubdivision,
 })
 
 export const POST = withRateLimit(
@@ -35,6 +37,9 @@ export const POST = withRateLimit(
 
       const body = await request.json()
       const validatedData = venueSchema.parse(body)
+
+      const addressError = addressProblem(validatedData)
+      if (addressError) return NextResponse.json({ error: addressError }, { status: 400 })
 
       const existingVenue = await prisma.venue.findUnique({
         where: { slug: validatedData.slug },
@@ -67,7 +72,10 @@ export const POST = withRateLimit(
       if (validatedData.district) profile.district = validatedData.district.trim()
       if (validatedData.ward != null) profile.ward = validatedData.ward
       if (validatedData.plot != null) profile.plot = validatedData.plot
-      if (validatedData.apartment != null) profile.room = validatedData.apartment
+      if (validatedData.apartment != null) {
+        profile.room = validatedData.apartment
+        profile.subdivision = validatedData.subdivision
+      }
 
       let profileSaved = true
       if (Object.keys(profile).length > 0) {

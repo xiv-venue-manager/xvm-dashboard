@@ -2,6 +2,10 @@ export const FFXIV_DISTRICTS = ["Goblet", "Mist", "Lavender Beds", "Shirogane", 
 
 export type FfxivDistrict = (typeof FFXIV_DISTRICTS)[number]
 
+export function isDistrict(value: unknown): value is FfxivDistrict {
+  return typeof value === "string" && (FFXIV_DISTRICTS as readonly string[]).includes(value)
+}
+
 export interface VenueLocationFields {
   dataCenter: string
   world: string
@@ -45,4 +49,23 @@ export function formatVenueLocationShort(
       .filter(Boolean)
       .join(" ") || null
   )
+}
+
+export interface VenueAddressInput {
+  district?: string | null
+  ward?: number | null
+  plot?: number | null
+  apartment?: number | null
+  subdivision?: boolean | null
+}
+
+/** Why an address cannot identify a house or apartment, or null when it can. */
+export function addressProblem(v: VenueAddressInput): string | null {
+  if (!isDistrict(v.district)) return "Choose a district."
+  if (v.ward == null) return "Enter a ward."
+  const hasPlot = v.plot != null
+  const hasApartment = v.apartment != null
+  if (hasPlot === hasApartment) return "Enter either a plot or an apartment."
+  if (hasApartment && v.subdivision == null) return "Say whether the apartment is in the main or the subdivision building."
+  return null
 }

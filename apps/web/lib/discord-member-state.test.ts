@@ -1,5 +1,5 @@
 import { describe, it, expect } from "vitest"
-import { memberLabel, unresolvedIds, MAX_RESOLVE, type DiscordMember } from "./discord-member-state"
+import { batches, memberLabel, unresolvedIds, MAX_RESOLVE, type DiscordMember } from "./discord-member-state"
 
 const member = (over: Partial<DiscordMember> = {}): DiscordMember => ({
   id: "100",
@@ -22,9 +22,33 @@ describe("unresolvedIds", () => {
     expect(unresolvedIds(["1"], new Set(["1"]))).toEqual([])
   })
 
-  it("caps a batch at what the route accepts, so nothing is silently dropped server-side", () => {
+  it("returns every unasked id, however many, rather than trimming to one request", () => {
+    // It used to cap here, which read as politeness to the route and was a silent drop: the
+    // effect that calls this only re-runs when the id list changes, so the overflow was never
+    // asked for at all. The cap belongs at the request, which is what `batches` is for.
     const many = Array.from({ length: MAX_RESOLVE + 10 }, (_, i) => String(i + 1))
-    expect(unresolvedIds(many, new Set())).toHaveLength(MAX_RESOLVE)
+    expect(unresolvedIds(many, new Set())).toHaveLength(MAX_RESOLVE + 10)
+  })
+})
+
+describe("batches", () => {
+  it("splits a list too long for one request, keeping every id and its order", () => {
+    const many = Array.from({ length: MAX_RESOLVE + 10 }, (_, i) => String(i + 1))
+    const split = batches(many, MAX_RESOLVE)
+    expect(split.map((batch) => batch.length)).toEqual([MAX_RESOLVE, 10])
+    expect(split.flat()).toEqual(many)
+  })
+
+  it("adds no empty remainder on an exact multiple", () => {
+    expect(batches(["1", "2", "3", "4"], 2)).toEqual([["1", "2"], ["3", "4"]])
+  })
+
+  it("sends one request for a list that fits in one", () => {
+    expect(batches(["1", "2"], MAX_RESOLVE)).toEqual([["1", "2"]])
+  })
+
+  it("has nothing to send for an empty list", () => {
+    expect(batches([], MAX_RESOLVE)).toEqual([])
   })
 })
 

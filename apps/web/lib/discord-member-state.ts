@@ -5,16 +5,19 @@ export interface DiscordMember {
   avatarUrl: string | null
 }
 
-/** The members route's own cap, so a batch is never silently truncated server-side. */
+/** How many ids one `?ids=` request may carry before the route truncates it server-side. */
 export const MAX_RESOLVE = 50
 
 /**
- * The ids still worth asking about: ones never asked for, deduped and capped.
+ * The ids still worth asking about: ones never asked for, deduped.
  *
  * Keyed on *asked*, not on *found*. `getGuildMembers` omits a member who has left rather than
  * reporting them, so an id that will never resolve stays missing from every answer — ask on "do
  * we have a name for this yet" and a page full of departed members re-requests all of them on
  * every render.
+ *
+ * Uncapped, and split by `batches` at the request site. Capping here dropped the overflow
+ * instead of asking for it, because nothing re-runs once the id list has stopped changing.
  */
 export function unresolvedIds(ids: string[], asked: Set<string>): string[] {
   const wanted: string[] = []
@@ -24,7 +27,14 @@ export function unresolvedIds(ids: string[], asked: Set<string>): string[] {
     seen.add(id)
     wanted.push(id)
   }
-  return wanted.slice(0, MAX_RESOLVE)
+  return wanted
+}
+
+/** Successive slices of at most `size`, so one over-long list becomes several legal requests. */
+export function batches<T>(items: T[], size: number): T[][] {
+  const out: T[][] = []
+  for (let i = 0; i < items.length; i += size) out.push(items.slice(i, i + size))
+  return out
 }
 
 /**

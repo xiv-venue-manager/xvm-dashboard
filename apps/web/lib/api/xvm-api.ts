@@ -3052,6 +3052,7 @@ export interface FeedbackRow {
 export interface AdminFeedbackRow extends FeedbackRow {
   person_display_name: string | null
   reviewed_by_display_name: string | null
+  issue_url?: string | null
 }
 
 export interface FeedbackData {

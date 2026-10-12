@@ -1,4 +1,4 @@
-import { describe, it, expect, vi, beforeEach } from "vitest"
+import { describe, it, expect, vi, beforeEach, afterEach } from "vitest"
 
 const m = vi.hoisted(() => ({ logs: vi.fn(), patrons: vi.fn(), followers: vi.fn() }))
 
@@ -146,6 +146,22 @@ describe("buildDoorAnalytics", () => {
 
   it("passes the follower count through with no monthly history", () => {
     expect(buildDoorAnalytics(inputs({ followerCount: 7 }), []).followers).toEqual({ total: 7, byMonth: {} })
+  })
+})
+
+describe("buildDoorAnalytics on a machine west of UTC", () => {
+  const original = process.env.TZ
+  beforeEach(() => {
+    process.env.TZ = "America/Los_Angeles"
+  })
+  afterEach(() => {
+    process.env.TZ = original
+  })
+
+  it("keys the attendance slots by UTC time, whatever the server's zone", () => {
+    const a = event("2026-09-26T12:00:00Z", 1)
+    const result = buildDoorAnalytics(inputs({ logs: [log(a, "2026-09-26T12:00:00Z", 1)] }), [a])
+    expect(result.attendanceByHour.map((slot) => slot.time)).toEqual(["12:00", "12:15", "12:30", "12:45", "13:00"])
   })
 })
 

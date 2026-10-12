@@ -1,4 +1,4 @@
-import { describe, it, expect } from "vitest"
+import { afterEach, beforeEach, describe, it, expect } from "vitest"
 import { buildMoneyAnalytics, type MoneyInputs } from "./analytics-money"
 import type { FinanceTransactionRow, PayrollEntryRow } from "./xvm-api"
 import type { PageEvent } from "./event-window"
@@ -226,5 +226,25 @@ describe("buildMoneyAnalytics", () => {
     )
     expect(build({ events }, "30d").summary.total).toBe(20)
     expect(build({ events }, "90d").summary.total).toBe(30)
+  })
+})
+
+describe("buildMoneyAnalytics on a machine west of UTC", () => {
+  const original = process.env.TZ
+  beforeEach(() => {
+    process.env.TZ = "America/Los_Angeles"
+  })
+  afterEach(() => {
+    process.env.TZ = original
+  })
+
+  it("attributes payroll by UTC day, whatever the server's zone", () => {
+    const e = event({ start: "2026-09-20T10:00:00Z" })
+    const result = build({
+      events: [e],
+      rows: [row({ event_id: Number(e.id), amount: 100 })],
+      payroll: [pay({ total_amount_minor: 40, period_start: "2026-09-13T00:00:00Z", period_end: "2026-09-20T01:00:00Z" })],
+    })
+    expect(result.revenueByEvent[0]).toMatchObject({ payroll: 40 })
   })
 })

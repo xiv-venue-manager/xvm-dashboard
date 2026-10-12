@@ -87,7 +87,7 @@ function attendanceByHour(events: PageEvent[], logsOf: (event: PageEvent) => Pat
         index++
       }
       if (current < 0) current = 0
-      const key = time.toTimeString().substring(0, 5)
+      const key = time.toISOString().substring(11, 16)
       trends[key] = { total: (trends[key]?.total ?? 0) + current, count: (trends[key]?.count ?? 0) + 1 }
       time = new Date(time.getTime() + SLICE_MS)
       if (time.getTime() - start.getTime() > MAX_SPAN_MS) break

@@ -63,7 +63,9 @@ export async function proxy(req: NextRequest) {
       secureCookie: SESSION_COOKIE_SECURE,
     })
     if (!token) {
-      return NextResponse.redirect(new URL("/auth/signin", req.url))
+      const signInUrl = new URL("/auth/signin", req.url)
+      signInUrl.searchParams.set("callbackUrl", path + req.nextUrl.search)
+      return NextResponse.redirect(signInUrl)
     }
   }
 

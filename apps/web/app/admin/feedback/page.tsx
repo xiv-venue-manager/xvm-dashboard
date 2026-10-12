@@ -1,6 +1,6 @@
 "use client"
 
-import { useEffect, useState } from "react"
+import { useEffect, useRef, useState } from "react"
 import { useSession } from "next-auth/react"
 import { useRouter } from "next/navigation"
 import { Button } from "@/components/ui/button"
@@ -32,6 +32,7 @@ interface Feedback {
     id: string
     displayName: string
   } | null
+  issueUrl: string | null
 }
 
 type BadgeVariant = VariantProps<typeof badgeVariants>["variant"]
@@ -70,6 +71,8 @@ export default function AdminFeedbackPage() {
   const [editingId, setEditingId] = useState<string | null>(null)
   const [editStatus, setEditStatus] = useState<string>("")
   const [editNotes, setEditNotes] = useState<string>("")
+  const [linkedId, setLinkedId] = useState<string | null>(null)
+  const linkChecked = useRef(false)
 
   const fetchFeedback = async () => {
     try {
@@ -88,8 +91,16 @@ export default function AdminFeedbackPage() {
         throw new Error("Failed to fetch feedback")
       }
 
-      const data = await response.json()
+      const data: Feedback[] = await response.json()
       setFeedback(data)
+      if (!linkChecked.current) {
+        linkChecked.current = true
+        const requested = new URLSearchParams(window.location.search).get("report")
+        if (requested && data.some((item) => item.id === requested)) {
+          setExpandedId(requested)
+          setLinkedId(requested)
+        }
+      }
     } catch (error) {
       console.error("Error fetching feedback:", error)
     } finally {
@@ -110,6 +121,10 @@ export default function AdminFeedbackPage() {
       fetchFeedback()
     }
   }, [session, filterStatus, filterCategory])
+
+  useEffect(() => {
+    if (linkedId) document.getElementById(`report-${linkedId}`)?.scrollIntoView()
+  }, [linkedId])
 
   const startEditing = (item: Feedback) => {
     setEditingId(item.id)
@@ -249,13 +264,23 @@ export default function AdminFeedbackPage() {
           </Card>
         ) : (
           feedback.map((item) => (
-            <Card key={item.id}>
+            <Card key={item.id} id={`report-${item.id}`} className="scroll-mt-[84px]">
               <CardHeader>
                 <div className="flex items-start justify-between">
                   <div className="flex-1">
-                    <div className="flex items-center gap-2 mb-2">
+                    <div className="flex flex-wrap items-center gap-2 mb-2">
                       <Badge variant={categoryColors[item.category]}>{categoryLabels[item.category]}</Badge>
                       <Badge variant={statusColors[item.status]}>{item.status.replace("_", " ")}</Badge>
+                      {item.issueUrl && (
+                        <a
+                          href={item.issueUrl}
+                          target="_blank"
+                          rel="noopener noreferrer"
+                          className={badgeVariants({ variant: "outline" })}
+                        >
+                          GitHub issue
+                        </a>
+                      )}
                     </div>
                     <CardTitle className="text-xl mb-1">{item.subject}</CardTitle>
                     <CardDescription>

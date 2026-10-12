@@ -64,4 +64,14 @@ describe("toAdminFeedbackShape", () => {
     expect(shape.user.displayName).toBe("Person #3")
     expect(shape.reviewer?.displayName).toBe("Person #9")
   })
+
+  it("carries the GitHub issue a bug report was filed as", () => {
+    const shape = toAdminFeedbackShape(row({ issue_url: "https://github.com/xiv-venue-manager/xvm-api/issues/7" }))
+    expect(shape.issueUrl).toBe("https://github.com/xiv-venue-manager/xvm-api/issues/7")
+  })
+
+  it("has no issue before one is filed, or from an xvm-api that does not send the field yet", () => {
+    expect(toAdminFeedbackShape(row({ issue_url: null })).issueUrl).toBeNull()
+    expect(toAdminFeedbackShape(row()).issueUrl).toBeNull()
+  })
 })

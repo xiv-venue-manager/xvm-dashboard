@@ -22,6 +22,7 @@ export interface FeedbackPerson {
 export interface AdminFeedbackShape extends FeedbackShape {
   user: FeedbackPerson
   reviewer: FeedbackPerson | null
+  issueUrl: string | null
 }
 
 export function toXvmFeedbackValue(value: string): string {
@@ -54,5 +55,6 @@ export function toAdminFeedbackShape(row: AdminFeedbackRow): AdminFeedbackShape 
     user: person(row.person_id, row.person_display_name),
     reviewer:
       row.reviewed_by_person_id == null ? null : person(row.reviewed_by_person_id, row.reviewed_by_display_name),
+    issueUrl: row.issue_url ?? null,
   }
 }

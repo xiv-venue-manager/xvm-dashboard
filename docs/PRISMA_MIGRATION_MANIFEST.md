@@ -362,10 +362,9 @@ Rollback idea, unreviewed: Prisma is only read during the window, so rolling bac
 ### Waiting on Allegro
 
 - A home for the venue settings listed under Venues: tagline, tags, adult flag, open nights, default hours, the shift-bot settings and the notification toggles.
-- How the pot `enabled` flag is switched on, and whether the per-venue module toggles are enforced anywhere.
-- Whether xvm-api's recurrence generator would duplicate loaded future shifts and events when a rule is enabled.
+- How the pot `enabled` flag is switched on. Allegro recommends deriving it from positions (`pot_payout_mode` of `pot`) instead of storing it. Check first whether any of the 3 venues with the pot on has no pot position. Whether the per-venue module toggles are enforced anywhere is still open: `VenueModuleModel` exists, and nothing that enforces a toggle has been traced.
 - Frogge (decision 4) and the old-bot data (decision 5).
-- Whether `person_accounts` with provider `email` is meant to hold contact addresses, and whether a no-Discord person path should exist.
+- Whether a no-Discord person path should exist. One prod person has no Discord identity and 29 payroll payees are placeholder people, and nothing in xvm-api issues a pairing code for them automatically.
 - What to do with the Discord post tracking on 7 events (`discordMessageId` and related columns).
 - Which xvm-api tables and columns a direct load may rely on.
 

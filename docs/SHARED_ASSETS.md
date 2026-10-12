@@ -46,7 +46,7 @@ House-specific:
 | `server-time` | `getServerTimeLabel`, `formatServerTime`, `formatServerTimeRange`, `formatLocalTimeRange`, `getServerTimeIntlOptions` | |
 | `local-day` | `localDayKey`, `localHourLabel`, `browserTimeZone`, `localTimeInput`, `endOfLocalDayUtc` | Calendar days in a given timezone |
 | `shift-format` | `fmtHour`, `statusBadgeClass`, `toShiftRow`, `staffNameOf`, ... | Shift display |
-| `discord-picker-state` | `pickerProblem`, `offeredRoles`, `canReturnToList`, `showsManualEntry`, `memberQueryReady`, `memberSearchProblem` | The tested rules behind the Discord pickers. Put picker decisions here, not in the component |
+| `discord-picker-state` | `pickerProblem`, `offeredRoles`, `canReturnToList`, `canReturnToSearch`, `showsManualEntry`, `initials`, `MIN_MEMBER_QUERY`, `memberQueryReady`, `memberSearchProblem` | The tested rules behind the Discord pickers. `canReturnToList` and `canReturnToSearch` are the way-back rules, `initials` is the avatar fallback (the first two letters or digits of a name, `#` when it has none) used by `discord-guild-connect` and `user-picker`, and `MIN_MEMBER_QUERY` is the 2 character floor for a member search. Put picker decisions here, not in the component |
 | `display-name` | `resolveDisplayName` | The one order for what to call a staff member |
 | `roles` | `canManageVenue`, `isVenueOwner` | OWNER and MANAGER tier checks |
 | `redis-cache` | `getCached`, `setCache`, `getOrSet`, `invalidateCache`, `cacheKeys`, `cacheTTL` | Cache-aside. `getOrSet` cannot skip caching a failure, use `getCached` and `setCache` for that |

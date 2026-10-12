@@ -43,7 +43,7 @@ export function SavedShouts({ currentFields, currentTemplate, currentSeparator, 
     if (!label.trim()) return
     setS(true)
     setError(null)
-    const saved = await saveShout({
+    const result = await saveShout({
       label: label.trim(),
       fields: currentFields,
       templateId: currentTemplate,
@@ -51,11 +51,17 @@ export function SavedShouts({ currentFields, currentTemplate, currentSeparator, 
       decorId: currentDecor,
     })
     setS(false)
-    if (!saved) {
-      setError("Save failed. Try again.")
+    if (!result.ok) {
+      setError(
+        result.reason === "signed_out"
+          ? "Your session has expired. Sign in again to save."
+          : result.reason === "rejected"
+            ? (result.message ?? "That shout could not be saved.")
+            : "Save failed. Try again in a moment."
+      )
       return
     }
-    setLoaded((prev) => (prev?.ok ? { ok: true, shouts: [saved, ...prev.shouts] } : prev))
+    setLoaded((prev) => (prev?.ok ? { ok: true, shouts: [result.shout, ...prev.shouts] } : prev))
     setLabel("")
     setShowSave(false)
   }

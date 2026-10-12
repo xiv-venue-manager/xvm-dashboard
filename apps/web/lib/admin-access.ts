@@ -9,8 +9,10 @@ import { getValidXvmApiToken } from "@/lib/api/xvm-api-store"
  * Prisma's `User.isAdmin` decides who sees the dashboard's admin pages, while
  * xvm-api's `platform_admin` scope decides who may actually write. A dashboard
  * admin whose xvm-api credential lacks the scope gets a 403 from xvm-api, which
- * the routes pass through. The dashboard cannot pre-empt that today — `/me`
- * does not report scopes.
+ * the routes pass through. That could be pre-empted now: `/me` gained a `scopes`
+ * list on 2026-10-03, a day after this was written, so the gate could check for
+ * `platform_admin` itself and say so plainly rather than relaying xvm-api's 403.
+ * Not done here because it costs a `/me` call on every admin request.
  */
 export async function isAdminUser(userId: string): Promise<boolean> {
   const user = await prisma.user.findUnique({ where: { id: userId }, select: { isAdmin: true } })

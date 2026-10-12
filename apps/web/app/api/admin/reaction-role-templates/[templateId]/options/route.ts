@@ -16,7 +16,7 @@ export const POST = withRateLimit<Ctx>(
     if (gate.error) return gate.error
 
     const templateId = Number((await context.params).templateId)
-    if (!Number.isInteger(templateId)) {
+    if (!Number.isInteger(templateId) || templateId <= 0) {
       return NextResponse.json({ error: "Template not found" }, { status: 404 })
     }
 

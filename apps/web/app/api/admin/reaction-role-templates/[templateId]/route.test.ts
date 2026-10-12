@@ -58,6 +58,15 @@ describe("PATCH admin/reaction-role-templates/[templateId]", () => {
     expect(mockUpdate).toHaveBeenCalledWith("tok", 7, { description: null })
   })
 
+  it("rejects an id that is not a positive number", async () => {
+    // Number.isInteger alone admits 0 and negatives; xvm-api ids start at 1.
+    for (const id of ["0", "-5"]) {
+      const res = await patch(id, { name: "Pronouns" })
+      expect(res.status).toBe(404)
+    }
+    expect(mockUpdate).not.toHaveBeenCalled()
+  })
+
   it("rejects a non-numeric id before calling xvm-api", async () => {
     expect((await patch("not-a-number", { title: "x" })).status).toBe(404)
     expect(mockUpdate).not.toHaveBeenCalled()

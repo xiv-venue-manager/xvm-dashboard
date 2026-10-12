@@ -8,9 +8,12 @@ import { templateUpdateSchema } from "@/lib/api/reaction-role-template-input"
 
 type Ctx = { params: Promise<{ templateId: string }> }
 
+// Positive, not merely an integer: Number.isInteger admits 0 and negatives (and `Number("")`
+// is 0), and xvm-api ids start at 1, so those can only ever 404 there. Same check as
+// app/api/plugin/credentials/[credentialId].
 function parseTemplateId(raw: string) {
   const id = Number(raw)
-  return Number.isInteger(id) ? id : null
+  return Number.isInteger(id) && id > 0 ? id : null
 }
 
 export const PATCH = withRateLimit<Ctx>(

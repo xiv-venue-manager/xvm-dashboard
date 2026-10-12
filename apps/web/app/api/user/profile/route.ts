@@ -4,6 +4,8 @@ import { z } from "zod"
 import { authOptions } from "@/lib/auth"
 import { prisma } from "@/lib/prisma"
 import { Prisma } from "@/generated/prisma/client"
+import { getMe, updateMyDisplayName } from "@/lib/api/xvm-api"
+import { getValidXvmApiToken, xvmApiErrorResponse } from "@/lib/api/xvm-api-store"
 
 const profileSchema = z.object({
   displayName: z
@@ -28,11 +30,20 @@ export async function GET() {
 
   const user = await prisma.user.findUnique({
     where: { id: session.user.id },
-    select: { id: true, displayName: true, settings: true },
+    select: { id: true, settings: true },
   })
   if (!user) return NextResponse.json({ error: "User not found" }, { status: 404 })
 
-  return NextResponse.json(user)
+  let displayName: string | null = null
+  const token = await getValidXvmApiToken(session.user.id)
+  if (token) {
+    try {
+      displayName = (await getMe(token)).person?.display_name ?? null
+    } catch (err) {
+      await xvmApiErrorResponse(err, session.user.id, "[user profile] GET error")
+    }
+  }
+  return NextResponse.json({ ...user, displayName })
 }
 
 export async function PATCH(req: Request) {
@@ -50,29 +61,32 @@ export async function PATCH(req: Request) {
     throw error
   }
 
-  const updateData: { displayName?: string; settings?: Prisma.InputJsonValue } = {}
-
+  let displayName: string | undefined
   if (parsed.displayName !== undefined) {
-    updateData.displayName = parsed.displayName
+    const token = await getValidXvmApiToken(session.user.id)
+    if (!token) return NextResponse.json({ error: "xvm-api link not established yet" }, { status: 503 })
+    try {
+      displayName = (await updateMyDisplayName(token, parsed.displayName)).display_name
+    } catch (err) {
+      return xvmApiErrorResponse(err, session.user.id, "[user profile] PATCH error")
+    }
   }
 
-  if (parsed.notifications !== undefined) {
-    const existingUser = await prisma.user.findUnique({
-      where: { id: session.user.id },
-      select: { settings: true },
-    })
-    const currentSettings = (existingUser?.settings as Record<string, unknown>) ?? {}
-    updateData.settings = {
-      ...currentSettings,
-      notifications: parsed.notifications,
-    } as Prisma.InputJsonValue
-  }
-
-  const user = await prisma.user.update({
+  const existingUser = await prisma.user.findUnique({
     where: { id: session.user.id },
-    data: updateData,
-    select: { id: true, displayName: true, settings: true },
+    select: { settings: true },
   })
+  let settings = existingUser?.settings ?? null
+  if (parsed.notifications !== undefined) {
+    const currentSettings = (existingUser?.settings as Record<string, unknown>) ?? {}
+    settings = (
+      await prisma.user.update({
+        where: { id: session.user.id },
+        data: { settings: { ...currentSettings, notifications: parsed.notifications } as Prisma.InputJsonValue },
+        select: { settings: true },
+      })
+    ).settings
+  }
 
-  return NextResponse.json(user)
+  return NextResponse.json({ id: session.user.id, displayName, settings })
 }

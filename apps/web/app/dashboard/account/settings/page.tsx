@@ -32,6 +32,8 @@ export default function AccountSettingsPage() {
   const router = useRouter()
 
   const [displayName, setDisplayName] = useState("")
+  const [savedName, setSavedName] = useState("")
+  const [profileLoaded, setProfileLoaded] = useState(false)
   const [saving, setSaving] = useState(false)
   const [saved, setSaved] = useState(false)
   const [error, setError] = useState("")
@@ -47,25 +49,25 @@ export default function AccountSettingsPage() {
   const [newKeyName, setNewKeyName] = useState("")
   const [loadingKeys, setLoadingKeys] = useState(true)
 
-  // session loads asynchronously; seed the editable displayName field once it's available.
-  useEffect(() => {
-    // eslint-disable-next-line react-hooks/set-state-in-effect
-    if (session?.user?.name) setDisplayName(session.user.name)
-  }, [session])
-
   useEffect(() => {
     const loadProfile = async () => {
       try {
         const res = await fetch("/api/user/profile")
         if (res.ok) {
           const data = await res.json()
+          const name = typeof data.displayName === "string" ? data.displayName : ""
+          setSavedName(name)
+          setDisplayName(name)
+          setProfileLoaded(true)
           const settings = data.settings as { notifications?: Record<string, boolean> } | undefined
           if (settings?.notifications) {
             setNotifications((prev) => ({ ...prev, ...settings.notifications }))
           }
+        } else {
+          setError("Could not load your profile. Reload to edit it.")
         }
       } catch {
-        // Profile load failed, use defaults
+        setError("Could not load your profile. Reload to edit it.")
       }
     }
     loadProfile()
@@ -96,7 +98,7 @@ export default function AccountSettingsPage() {
         method: "PATCH",
         headers: { "Content-Type": "application/json" },
         body: JSON.stringify({
-          displayName: displayName.trim(),
+          ...(displayName.trim() && displayName.trim() !== savedName ? { displayName: displayName.trim() } : {}),
           notifications,
         }),
       })
@@ -104,6 +106,7 @@ export default function AccountSettingsPage() {
         const d = await res.json()
         throw new Error(d.error || "Failed to save")
       }
+      if (displayName.trim()) setSavedName(displayName.trim())
       setSaved(true)
       setTimeout(() => setSaved(false), 2500)
     } catch (e: unknown) {
@@ -171,7 +174,7 @@ export default function AccountSettingsPage() {
             <input
               value={displayName}
               onChange={(e) => setDisplayName(e.target.value)}
-              placeholder="Your name"
+              placeholder={session?.user?.name ?? "Your name"}
               className="w-full bg-background border border-[var(--blue-015)] rounded-[var(--radius-md)] px-[13px] py-[10px] text-[0.88rem] text-foreground outline-none focus:border-[var(--blue-035)] transition-colors"
             />
             <p className="field-hint">Shown in the user chip and dropdown.</p>
@@ -191,7 +194,7 @@ export default function AccountSettingsPage() {
 
           <button
             onClick={save}
-            disabled={saving || !displayName.trim()}
+            disabled={saving || !profileLoaded}
             className="xiv-btn-shimmer xiv-cta flex items-center gap-2 px-5 py-2.5 rounded-lg text-sm font-semibold disabled:opacity-50 disabled:cursor-not-allowed"
           >
             <Save className="w-4 h-4" />

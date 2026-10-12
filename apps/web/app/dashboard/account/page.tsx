@@ -4,6 +4,8 @@ import { redirect } from "next/navigation"
 import Link from "next/link"
 import { prisma } from "@/lib/prisma"
 import { myVenueRoles } from "@/lib/api/venue-access"
+import { getMe } from "@/lib/api/xvm-api"
+import { getValidXvmApiToken } from "@/lib/api/xvm-api-store"
 import { format } from "date-fns"
 import { User, Settings, Scroll, Users, Building2, ChevronRight } from "lucide-react"
 
@@ -14,6 +16,9 @@ export default async function ProfilePage() {
   const user = await prisma.user.findUnique({ where: { id: session.user.id } })
 
   if (!user) redirect("/auth/signin")
+
+  const token = await getValidXvmApiToken(session.user.id)
+  const displayName = token ? ((await getMe(token).catch(() => null))?.person?.display_name ?? null) : null
 
   const roles = await myVenueRoles(session.user.id)
   const venues = await prisma.venue.findMany({
@@ -79,9 +84,9 @@ export default async function ProfilePage() {
         {/* Info */}
         <div className="flex-1 min-w-0">
           <h2 className="text-[1.35rem] font-[var(--font-outfit)] font-semibold leading-tight">
-            {user.displayName || user.name || "User"}
+            {displayName || user.name || "User"}
           </h2>
-          {user.name && user.displayName && user.name !== user.displayName && (
+          {user.name && displayName && user.name !== displayName && (
             <p className="text-[0.82rem] text-muted-foreground mt-0.5">{user.name}</p>
           )}
           <p className="text-[0.82rem] text-muted-foreground mt-1">{user.email}</p>

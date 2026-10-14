@@ -1,8 +1,7 @@
 import { NextRequest, NextResponse } from "next/server"
 import { getServerSession } from "next-auth"
 import { authOptions } from "@/lib/auth"
-import { prisma } from "@/lib/prisma"
-import { requireVenueRole } from "@/lib/api/venue-access"
+import { requireMyVenue } from "@/lib/api/venue-access"
 import { xvmPageReader } from "@/lib/api/xvm-page-read"
 import {
   getEvent,
@@ -32,14 +31,12 @@ export async function GET(request: NextRequest, { params }: { params: Promise<{ 
   const type = searchParams.get("type") // "sales" | "patrons" | "staff" | null (all)
   const eventId = searchParams.get("eventId") // filter to a specific event
 
-  // Verify membership
-  const access = await requireVenueRole(session.user.id, venueId, "STAFF", "Forbidden")
-  if (!access.ok) return access.response
+  const lookup = await requireMyVenue(session.user.id, venueId, "[timeline] /me/venues read error")
+  if (!lookup.ok) return lookup.response
 
   const items: TimelineApiItem[] = []
 
-  const venue = await prisma.venue.findUnique({ where: { id: venueId }, select: { xvmApiVenueId: true } })
-  const readXvm = await xvmPageReader(session.user.id, venue?.xvmApiVenueId ?? null)
+  const readXvm = await xvmPageReader(session.user.id, lookup.venue.id)
   let windowTo = cursor ? new Date(cursor) : new Date()
   let windowFrom = new Date(windowTo.getTime() - TIMELINE_WINDOW_MS)
   if (eventId) {

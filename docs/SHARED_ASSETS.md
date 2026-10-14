@@ -28,6 +28,7 @@ House-specific:
 | `item-search-combobox` | Searching game items |
 | `discord-picker` | `RolePicker`, `ChannelPicker`, `DiscordOptionPicker`, `useDiscordOptions`: choose a Discord role or channel from the venue's server. Use these instead of a hand-rolled dropdown or a paste-an-id field |
 | `user-picker` | `UserPicker`: find a Discord member by typing part of the name, with entering an id as the fallback. Keyed to a venue |
+| `discord-members` | `MemberChip`, `useResolvedMembers`: put names and avatars on Discord ids a page already holds. `useResolvedMembers` asks the members route once per id, in as many requests as its cap needs; `MemberChip` renders whatever label the caller decided on. This is for a table of saved ids — `user-picker` is for choosing a new one |
 | `role-badge`, `breadcrumb`, `venue-eyebrow`, `copy-address-button` | Small display pieces |
 | `analytics/` | Charts |
 
@@ -47,6 +48,7 @@ House-specific:
 | `local-day` | `localDayKey`, `localHourLabel`, `browserTimeZone`, `localTimeInput`, `endOfLocalDayUtc` | Calendar days in a given timezone |
 | `shift-format` | `fmtHour`, `statusBadgeClass`, `toShiftRow`, `staffNameOf`, ... | Shift display |
 | `discord-picker-state` | `pickerProblem`, `offeredRoles`, `canReturnToList`, `canReturnToSearch`, `showsManualEntry`, `initials`, `MIN_MEMBER_QUERY`, `memberQueryReady`, `memberSearchProblem` | The tested rules behind the Discord pickers. `canReturnToList` and `canReturnToSearch` are the way-back rules, `initials` is the avatar fallback (the first two letters or digits of a name, `#` when it has none) used by `discord-guild-connect` and `user-picker`, and `MIN_MEMBER_QUERY` is the 2 character floor for a member search. Put picker decisions here, not in the component |
+| `discord-member-state` | `unresolvedIds`, `batches`, `memberLabel`, `MAX_RESOLVE` | The tested rules behind `discord-members`. Keyed on *asked*, not *found*: `getGuildMembers` omits a member who has left, so "do we have a name yet" re-requests them on every render. `batches` splits a list at `MAX_RESOLVE`, the members route's cap for one request — cap at the request, never in `unresolvedIds`, or the overflow is dropped instead of asked for |
 | `display-name` | `resolveDisplayName` | The one order for what to call a staff member |
 | `roles` | `canManageVenue`, `isVenueOwner` | OWNER and MANAGER tier checks |
 | `callback-url` | `signInCallbackUrl` | Where sign-in returns to. Link to `/auth/signin?callbackUrl=<path>`; anything but a same-origin path falls back to `/dashboard` |

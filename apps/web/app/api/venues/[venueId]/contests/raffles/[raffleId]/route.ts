@@ -2,9 +2,9 @@ import { NextResponse } from "next/server"
 import { getServerSession } from "next-auth"
 import { authOptions } from "@/lib/auth"
 import { z } from "zod"
-import { prisma } from "@/lib/prisma"
 import { withRateLimit } from "@/lib/middleware/with-rate-limit"
 import { getValidXvmApiToken, xvmApiErrorResponse } from "@/lib/api/xvm-api-store"
+import { requireMyVenue } from "@/lib/api/venue-access"
 import { updateRaffle, deleteRaffle } from "@/lib/api/xvm-api"
 
 const updateRaffleSchema = z.object({
@@ -14,19 +14,6 @@ const updateRaffleSchema = z.object({
   numWinners: z.number().int().min(1).max(50).nullable().optional(),
   autoNotify: z.boolean().nullable().optional(),
 })
-
-async function requireXvmVenueId(venueId: string) {
-  const venue = await prisma.venue.findUnique({ where: { id: venueId }, select: { xvmApiVenueId: true } })
-  if (!venue?.xvmApiVenueId) {
-    return {
-      error: NextResponse.json(
-        { error: "not_connected", message: "This venue hasn't been connected to xvm-api yet." },
-        { status: 409 }
-      ),
-    }
-  }
-  return { xvmApiVenueId: venue.xvmApiVenueId }
-}
 
 function parseRaffleId(raffleId: string) {
   const id = Number(raffleId)
@@ -55,8 +42,8 @@ export const PATCH = withRateLimit<{ params: Promise<{ venueId: string; raffleId
       return NextResponse.json({ error: "Invalid raffle id" }, { status: 400 })
     }
 
-    const gate = await requireXvmVenueId(venueId)
-    if (gate.error) return gate.error
+    const lookup = await requireMyVenue(session.user.id, venueId, "[contests] /me/venues read error")
+    if (!lookup.ok) return lookup.response
 
     let parsed: z.infer<typeof updateRaffleSchema>
     try {
@@ -69,7 +56,7 @@ export const PATCH = withRateLimit<{ params: Promise<{ venueId: string; raffleId
     }
 
     try {
-      const raffle = await updateRaffle(token, gate.xvmApiVenueId!, id, {
+      const raffle = await updateRaffle(token, lookup.venue.id, id, {
         name: parsed.name,
         cost_per_ticket: parsed.costPerTicket,
         winner_basis_points: parsed.winnerBasisPoints,
@@ -106,11 +93,11 @@ export const DELETE = withRateLimit<{ params: Promise<{ venueId: string; raffleI
       return NextResponse.json({ error: "Invalid raffle id" }, { status: 400 })
     }
 
-    const gate = await requireXvmVenueId(venueId)
-    if (gate.error) return gate.error
+    const lookup = await requireMyVenue(session.user.id, venueId, "[contests] /me/venues read error")
+    if (!lookup.ok) return lookup.response
 
     try {
-      await deleteRaffle(token, gate.xvmApiVenueId!, id)
+      await deleteRaffle(token, lookup.venue.id, id)
       return NextResponse.json({ success: true })
     } catch (err) {
       return xvmApiErrorResponse(err, session.user.id, "[contests/raffles/:id] DELETE error")

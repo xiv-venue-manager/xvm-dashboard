@@ -1,8 +1,7 @@
 import { getServerSession } from "next-auth"
 import { authOptions } from "@/lib/auth"
 import { redirect, notFound } from "next/navigation"
-import { prisma } from "@/lib/prisma"
-import { roleInVenue } from "@/lib/api/venue-access"
+import { resolveMyVenue } from "@/lib/api/venue-access"
 import { VenueLayout } from "@/components/venue-layout"
 import { ContestsBoard } from "@/components/contests-board"
 import { getValidXvmApiToken, invalidateXvmApiCredential, isXvmAuthFailure } from "@/lib/api/xvm-api-store"
@@ -14,21 +13,18 @@ export default async function ContestsPage({ params }: { params: Promise<{ slug:
 
   const { slug } = await params
 
-  const venue = await prisma.venue.findUnique({ where: { slug } })
-
-  const userRole = venue ? await roleInVenue(session.user.id, venue) : null
-  if (!venue || !userRole) notFound()
-
+  const venue = await resolveMyVenue(session.user.id, slug)
+  if (!venue) notFound()
+  const userRole = venue.role
 
   let giveaways: GiveawayRow[] = []
   let raffles: RaffleRow[] = []
-  const notConnected = !venue.xvmApiVenueId
   const token = await getValidXvmApiToken(session.user.id)
-  if (token && venue.xvmApiVenueId) {
+  if (token) {
     try {
       ;[giveaways, raffles] = await Promise.all([
-        listGiveaways(token, venue.xvmApiVenueId),
-        listRaffles(token, venue.xvmApiVenueId),
+        listGiveaways(token, venue.id),
+        listRaffles(token, venue.id),
       ])
     } catch (err) {
       console.error("[contests page] list error:", err)
@@ -56,7 +52,6 @@ export default async function ContestsPage({ params }: { params: Promise<{ slug:
           canManage={["OWNER", "MANAGER"].includes(userRole)}
           giveaways={giveaways}
           raffles={raffles}
-          notConnected={notConnected}
         />
       </div>
     </VenueLayout>

@@ -2,9 +2,9 @@ import { NextResponse } from "next/server"
 import { getServerSession } from "next-auth"
 import { authOptions } from "@/lib/auth"
 import { z } from "zod"
-import { prisma } from "@/lib/prisma"
 import { withRateLimit } from "@/lib/middleware/with-rate-limit"
 import { getValidXvmApiToken, xvmApiErrorResponse } from "@/lib/api/xvm-api-store"
+import { requireMyVenue } from "@/lib/api/venue-access"
 import { updateGiveaway, deleteGiveaway } from "@/lib/api/xvm-api"
 
 const updateGiveawaySchema = z.object({
@@ -18,19 +18,6 @@ const updateGiveawaySchema = z.object({
   numWinners: z.number().int().min(1).max(50).nullable().optional(),
   autoNotify: z.boolean().nullable().optional(),
 })
-
-async function requireXvmVenueId(venueId: string) {
-  const venue = await prisma.venue.findUnique({ where: { id: venueId }, select: { xvmApiVenueId: true } })
-  if (!venue?.xvmApiVenueId) {
-    return {
-      error: NextResponse.json(
-        { error: "not_connected", message: "This venue hasn't been connected to xvm-api yet." },
-        { status: 409 }
-      ),
-    }
-  }
-  return { xvmApiVenueId: venue.xvmApiVenueId }
-}
 
 function parseGiveawayId(giveawayId: string) {
   const id = Number(giveawayId)
@@ -59,8 +46,8 @@ export const PATCH = withRateLimit<{ params: Promise<{ venueId: string; giveaway
       return NextResponse.json({ error: "Invalid giveaway id" }, { status: 400 })
     }
 
-    const gate = await requireXvmVenueId(venueId)
-    if (gate.error) return gate.error
+    const lookup = await requireMyVenue(session.user.id, venueId, "[contests] /me/venues read error")
+    if (!lookup.ok) return lookup.response
 
     let parsed: z.infer<typeof updateGiveawaySchema>
     try {
@@ -73,7 +60,7 @@ export const PATCH = withRateLimit<{ params: Promise<{ venueId: string; giveaway
     }
 
     try {
-      const giveaway = await updateGiveaway(token, gate.xvmApiVenueId!, id, {
+      const giveaway = await updateGiveaway(token, lookup.venue.id, id, {
         name: parsed.name,
         description: parsed.description,
         prize: parsed.prize,
@@ -114,11 +101,11 @@ export const DELETE = withRateLimit<{ params: Promise<{ venueId: string; giveawa
       return NextResponse.json({ error: "Invalid giveaway id" }, { status: 400 })
     }
 
-    const gate = await requireXvmVenueId(venueId)
-    if (gate.error) return gate.error
+    const lookup = await requireMyVenue(session.user.id, venueId, "[contests] /me/venues read error")
+    if (!lookup.ok) return lookup.response
 
     try {
-      await deleteGiveaway(token, gate.xvmApiVenueId!, id)
+      await deleteGiveaway(token, lookup.venue.id, id)
       return NextResponse.json({ success: true })
     } catch (err) {
       return xvmApiErrorResponse(err, session.user.id, "[contests/giveaways/:id] DELETE error")

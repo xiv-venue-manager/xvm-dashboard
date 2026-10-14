@@ -146,6 +146,23 @@ describe("requireVenueRole", () => {
   })
 })
 
+describe("an unrecognised tier", () => {
+  it("is logged when it hides a venue, so a vanished venue can be found in the logs", async () => {
+    const warn = vi.spyOn(console, "warn").mockImplementation(() => {})
+    await myVenues("u1")
+    expect(warn).toHaveBeenCalledWith(expect.stringContaining('unrecognised membership tier "something-new"'))
+    warn.mockRestore()
+  })
+
+  it("stays quiet for the tiers the app knows", async () => {
+    const warn = vi.spyOn(console, "warn").mockImplementation(() => {})
+    m.listMyVenues.mockResolvedValue([row("ven_1", "owner"), row("ven_2", "manager"), row("ven_3", "staff")])
+    await myVenues("u1")
+    expect(warn).not.toHaveBeenCalled()
+    warn.mockRestore()
+  })
+})
+
 describe("myVenues", () => {
   it("lists the caller's venues with the effective role, dropping tiers the app does not know", async () => {
     expect(await myVenues("u1")).toEqual([

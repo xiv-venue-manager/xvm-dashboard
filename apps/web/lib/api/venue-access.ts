@@ -16,7 +16,9 @@ export class VenueAccessUnavailable extends Error {}
 
 function toRole(tier: string): VenueRole | null {
   const role = tier.toUpperCase()
-  return role === "OWNER" || role === "MANAGER" || role === "STAFF" ? role : null
+  if (role === "OWNER" || role === "MANAGER" || role === "STAFF") return role
+  console.warn(`[venue-access] unrecognised membership tier "${tier}"; the venue is hidden from this caller`)
+  return null
 }
 
 const rowsFor = cache(async (userId: string): Promise<MyVenueRow[]> => {
@@ -63,6 +65,9 @@ export async function myVenues(userId: string): Promise<MyVenue[]> {
   return venues
 }
 
+// An id is tried before a slug. That is unambiguous because xvm-api ids are a prefix, an underscore and
+// 16 alphanumerics (generate_short_id), while a slug is lowercase letters, digits and hyphens: the
+// underscore keeps the two apart. If xvm-api ever minted an unprefixed id, this would need a test.
 export async function resolveMyVenue(userId: string, ref: string): Promise<MyVenue | null> {
   const venues = await myVenues(userId)
   return venues.find((v) => v.id === ref) ?? venues.find((v) => v.slug === ref) ?? null

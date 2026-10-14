@@ -2,9 +2,9 @@ import { NextResponse } from "next/server"
 import { getServerSession } from "next-auth"
 import { authOptions } from "@/lib/auth"
 import { z } from "zod"
-import { prisma } from "@/lib/prisma"
 import { withRateLimit } from "@/lib/middleware/with-rate-limit"
 import { getValidXvmApiToken, xvmApiErrorResponse } from "@/lib/api/xvm-api-store"
+import { requireMyVenue } from "@/lib/api/venue-access"
 import { addPanelOption } from "@/lib/api/xvm-api"
 import { validators } from "@/lib/validation"
 
@@ -15,19 +15,6 @@ const addOptionSchema = z
     emoji: z.string().trim().min(1).max(64).nullable().optional(),
   })
   .refine((data) => data.label || data.emoji, { message: "A button needs a label or an emoji." })
-
-async function requireXvmVenueId(venueId: string) {
-  const venue = await prisma.venue.findUnique({ where: { id: venueId }, select: { xvmApiVenueId: true } })
-  if (!venue?.xvmApiVenueId) {
-    return {
-      error: NextResponse.json(
-        { error: "not_connected", message: "This venue hasn't been connected to xvm-api yet." },
-        { status: 409 }
-      ),
-    }
-  }
-  return { xvmApiVenueId: venue.xvmApiVenueId }
-}
 
 function parsePanelId(panelId: string) {
   const id = Number(panelId)
@@ -56,8 +43,8 @@ export const POST = withRateLimit<{ params: Promise<{ venueId: string; panelId: 
       return NextResponse.json({ error: "Invalid panel id" }, { status: 400 })
     }
 
-    const gate = await requireXvmVenueId(venueId)
-    if (gate.error) return gate.error
+    const lookup = await requireMyVenue(session.user.id, venueId, "[reaction-role-panels] /me/venues read error")
+    if (!lookup.ok) return lookup.response
 
     let data: z.infer<typeof addOptionSchema>
     try {
@@ -70,7 +57,7 @@ export const POST = withRateLimit<{ params: Promise<{ venueId: string; panelId: 
     }
 
     try {
-      const option = await addPanelOption(token, gate.xvmApiVenueId!, id, {
+      const option = await addPanelOption(token, lookup.venue.id, id, {
         role_id: data.roleId,
         label: data.label ?? null,
         emoji: data.emoji ?? null,

@@ -4,7 +4,6 @@ import { useEffect, useRef, useState } from "react"
 import { Button } from "@/components/ui/button"
 import { Badge } from "@/components/ui/badge"
 import { Card, CardContent, CardHeader } from "@/components/ui/card"
-import { Alert, AlertDescription } from "@/components/ui/alert"
 import { ChannelPicker } from "@/components/discord-picker"
 import {
   AlertDialog,
@@ -29,17 +28,13 @@ export interface ReactionRolePanelsBoardProps {
   canManage: boolean
   panels: PanelRow[]
   templates: TemplateRow[]
-  notConnected?: boolean
 }
-
-const NOT_CONNECTED_MESSAGE = "Ask the venue owner to connect this venue to xvm-api first."
 
 export function ReactionRolePanelsBoard({
   venueId,
   canManage,
   panels: initialPanels,
   templates,
-  notConnected,
 }: ReactionRolePanelsBoardProps) {
   const [panels, setPanels] = useState<PanelRow[]>(initialPanels)
   const [deleteTarget, setDeleteTarget] = useState<PanelRow | null>(null)
@@ -135,14 +130,6 @@ export function ReactionRolePanelsBoard({
         setPostChannelId("")
       }
     }
-  }
-
-  if (notConnected) {
-    return (
-      <Alert>
-        <AlertDescription>{NOT_CONNECTED_MESSAGE}</AlertDescription>
-      </Alert>
-    )
   }
 
   return (

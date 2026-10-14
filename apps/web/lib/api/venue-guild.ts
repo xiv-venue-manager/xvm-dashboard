@@ -1,6 +1,5 @@
 import { NextResponse } from "next/server"
-import { prisma } from "@/lib/prisma"
-import { requireVenueRole } from "@/lib/api/venue-access"
+import { requireMyVenue } from "@/lib/api/venue-access"
 import { getValidXvmApiToken, xvmApiErrorResponse } from "@/lib/api/xvm-api-store"
 import { getVenue } from "@/lib/api/xvm-api"
 import { getCached, setCache, cacheKeys, cacheTTL } from "@/lib/redis-cache"
@@ -11,29 +10,18 @@ export type VenueGuild = { ok: true; guildId: string } | { ok: false; response: 
 /**
  * The venue's Discord server, for a caller allowed to see it.
  *
- * Every picker needs the same four things established before it can ask Discord anything: that
- * the caller works at this venue, that the venue exists in xvm-api, that we hold a token for
- * them, and that a Discord server is linked. Each answers with its own status so the UI can tell
- * "you can't see this" from "nothing is connected yet" from "try again".
+ * Every picker needs the same three things established before it can ask Discord anything: that
+ * the caller works at this venue, that we hold a token for them, and that a Discord server is
+ * linked. Each answers with its own status so the UI can tell "you can't see this" from "nothing
+ * is connected yet" from "try again".
  *
- * STAFF, not MANAGER: the pickers are read-only option lists, and a staff member filling in a
- * form needs the same channel and role names a manager does. What they may then save is enforced
- * by the route that takes the submission.
+ * Any member, not only managers: the pickers are read-only option lists, and a staff member
+ * filling in a form needs the same channel and role names a manager does. What they may then
+ * save is enforced by the route that takes the submission.
  */
 export async function requireVenueGuild(userId: string, venueId: string): Promise<VenueGuild> {
-  const access = await requireVenueRole(userId, venueId, "STAFF", "You don't have access to this venue")
-  if (!access.ok) return { ok: false, response: access.response }
-
-  const venue = await prisma.venue.findUnique({ where: { id: venueId }, select: { xvmApiVenueId: true } })
-  if (!venue?.xvmApiVenueId) {
-    return {
-      ok: false,
-      response: NextResponse.json(
-        { error: "not_connected", message: "This venue hasn't been connected to xvm-api yet." },
-        { status: 409 }
-      ),
-    }
-  }
+  const lookup = await requireMyVenue(userId, venueId, "[venue guild] /me/venues read error")
+  if (!lookup.ok) return { ok: false, response: lookup.response }
 
   const token = await getValidXvmApiToken(userId)
   if (!token) {
@@ -44,7 +32,7 @@ export async function requireVenueGuild(userId: string, venueId: string): Promis
   }
 
   try {
-    const detail = await getVenue(token, venue.xvmApiVenueId)
+    const detail = await getVenue(token, lookup.venue.id)
     const link = detail.external_links.find((l) => l.provider === "DiscordGuild" && l.unlinked_at === null)
     if (!link) {
       return {

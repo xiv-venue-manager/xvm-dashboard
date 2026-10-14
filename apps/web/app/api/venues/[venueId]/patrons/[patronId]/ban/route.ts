@@ -1,10 +1,10 @@
 import { NextResponse } from "next/server"
 import { getServerSession } from "next-auth"
 import { authOptions } from "@/lib/auth"
-import { prisma } from "@/lib/prisma"
 import { z } from "zod"
 import { withRateLimit } from "@/lib/middleware/with-rate-limit"
 import { getValidXvmApiToken, xvmApiErrorResponse } from "@/lib/api/xvm-api-store"
+import { requireMyVenue } from "@/lib/api/venue-access"
 import { banPatron, unbanPatron } from "@/lib/api/xvm-api"
 
 const setBanSchema = z
@@ -16,19 +16,6 @@ const setBanSchema = z
     message: "reason is required when banning a patron",
     path: ["reason"],
   })
-
-async function requireXvmVenueId(venueId: string) {
-  const venue = await prisma.venue.findUnique({ where: { id: venueId }, select: { xvmApiVenueId: true } })
-  if (!venue?.xvmApiVenueId) {
-    return {
-      error: NextResponse.json(
-        { error: "not_connected", message: "This venue hasn't been connected to xvm-api yet." },
-        { status: 409 }
-      ),
-    }
-  }
-  return { xvmApiVenueId: venue.xvmApiVenueId }
-}
 
 function parsePatronId(patronId: string) {
   const id = Number(patronId)
@@ -59,8 +46,8 @@ export const PATCH = withRateLimit<{
       return NextResponse.json({ error: "Invalid patron id" }, { status: 400 })
     }
 
-    const gate = await requireXvmVenueId(venueId)
-    if (gate.error) return gate.error
+    const lookup = await requireMyVenue(session.user.id, venueId, "[patrons/:id/ban] /me/venues read error")
+    if (!lookup.ok) return lookup.response
 
     let data: z.infer<typeof setBanSchema>
     try {
@@ -74,8 +61,8 @@ export const PATCH = withRateLimit<{
 
     try {
       const patron = data.isBanned
-        ? await banPatron(token, gate.xvmApiVenueId!, id, data.reason!)
-        : await unbanPatron(token, gate.xvmApiVenueId!, id)
+        ? await banPatron(token, lookup.venue.id, id, data.reason!)
+        : await unbanPatron(token, lookup.venue.id, id)
       return NextResponse.json({ id: patron.id, isBanned: patron.is_banned })
     } catch (err) {
       return xvmApiErrorResponse(err, session.user.id, "[patrons/:id/ban] PATCH error")

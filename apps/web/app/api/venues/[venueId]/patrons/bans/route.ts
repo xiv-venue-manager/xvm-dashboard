@@ -1,11 +1,11 @@
 import { NextResponse } from "next/server"
 import { getServerSession } from "next-auth"
 import { authOptions } from "@/lib/auth"
-import { prisma } from "@/lib/prisma"
 import { z } from "zod"
 import { validators } from "@/lib/validation"
 import { withRateLimit } from "@/lib/middleware/with-rate-limit"
 import { getValidXvmApiToken, xvmApiErrorResponse } from "@/lib/api/xvm-api-store"
+import { requireMyVenue } from "@/lib/api/venue-access"
 import { banPatronByName } from "@/lib/api/xvm-api"
 
 const banByNameSchema = z.object({
@@ -33,13 +33,8 @@ export const POST = withRateLimit<{
     }
 
     const { venueId } = await context.params
-    const venue = await prisma.venue.findUnique({ where: { id: venueId }, select: { xvmApiVenueId: true } })
-    if (!venue?.xvmApiVenueId) {
-      return NextResponse.json(
-        { error: "not_connected", message: "This venue hasn't been connected to xvm-api yet." },
-        { status: 409 }
-      )
-    }
+    const lookup = await requireMyVenue(session.user.id, venueId, "[patrons/bans] /me/venues read error")
+    if (!lookup.ok) return lookup.response
 
     let data: z.infer<typeof banByNameSchema>
     try {
@@ -52,7 +47,7 @@ export const POST = withRateLimit<{
     }
 
     try {
-      const patron = await banPatronByName(token, venue.xvmApiVenueId, data.characterName, data.world, data.reason)
+      const patron = await banPatronByName(token, lookup.venue.id, data.characterName, data.world, data.reason)
       return NextResponse.json({ id: patron.id, isBanned: patron.is_banned })
     } catch (err) {
       return xvmApiErrorResponse(err, session.user.id, "[patrons/bans] POST error")

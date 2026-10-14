@@ -18,13 +18,20 @@ import {
   asMembership,
   atLeast,
   myVenueRoles,
+  myVenues,
+  requireMyVenue,
   requireVenueRole,
+  resolveMyVenue,
   roleInVenue,
 } from "@/lib/api/venue-access"
 
 const connected = { xvmApiVenueId: "ven_1" }
 const unconnected = { xvmApiVenueId: null }
-const row = (id: string, tier: string, effective = tier) => ({ venue: { id }, tier, effective_tier: effective })
+const row = (id: string, tier: string, effective = tier) => ({
+  venue: { id, name: `Venue ${id}`, slug: `slug-${id}`, data_center: "Aether", world: "Sargatanas" },
+  tier,
+  effective_tier: effective,
+})
 
 beforeEach(() => {
   vi.resetAllMocks()
@@ -136,5 +143,55 @@ describe("requireVenueRole", () => {
     const access = await requireVenueRole("u1", "p1", "STAFF", "nope")
     expect(access).toEqual({ ok: false, response: failure })
     expect(m.errorResponse).toHaveBeenCalledWith(expect.any(Error), "u1", "[venue access] /me/venues read error")
+  })
+})
+
+describe("myVenues", () => {
+  it("lists the caller's venues with the effective role, dropping tiers the app does not know", async () => {
+    expect(await myVenues("u1")).toEqual([
+      { id: "ven_1", name: "Venue ven_1", slug: "slug-ven_1", dataCenter: "Aether", world: "Sargatanas", role: "MANAGER" },
+      { id: "ven_2", name: "Venue ven_2", slug: "slug-ven_2", dataCenter: "Aether", world: "Sargatanas", role: "STAFF" },
+    ])
+  })
+})
+
+describe("resolveMyVenue", () => {
+  it("finds a venue by its xvm-api id or by its slug", async () => {
+    expect((await resolveMyVenue("u1", "ven_2"))?.id).toBe("ven_2")
+    expect((await resolveMyVenue("u1", "slug-ven_1"))?.id).toBe("ven_1")
+  })
+
+  it("answers null for a venue the caller is not a member of, so a stranger gets no access and no hint", async () => {
+    expect(await resolveMyVenue("u1", "ven_9")).toBeNull()
+    expect(await resolveMyVenue("u1", "slug-ven_3")).toBeNull()
+  })
+})
+
+describe("requireMyVenue", () => {
+  it("hands back the venue", async () => {
+    const found = await requireMyVenue("u1", "slug-ven_1", "[t]")
+    expect(found.ok).toBe(true)
+    if (found.ok) expect(found.venue.id).toBe("ven_1")
+  })
+
+  it("answers 404 for a venue that is not the caller's", async () => {
+    const found = await requireMyVenue("u1", "ven_9", "[t]")
+    expect(found.ok).toBe(false)
+    if (!found.ok) expect(found.response.status).toBe(404)
+  })
+
+  it("answers 503, never 404, when there is no credential", async () => {
+    m.token.mockResolvedValue(null)
+    const found = await requireMyVenue("u1", "ven_1", "[t]")
+    expect(found.ok).toBe(false)
+    if (!found.ok) expect(found.response.status).toBe(503)
+  })
+
+  it("hands an xvm-api failure to the shared error mapper under the caller's label", async () => {
+    const failure = NextResponse.json({ error: "xvm-api unavailable" }, { status: 502 })
+    m.listMyVenues.mockRejectedValue(new Error("down"))
+    m.errorResponse.mockResolvedValue(failure)
+    expect(await requireMyVenue("u1", "ven_1", "[t] read error")).toEqual({ ok: false, response: failure })
+    expect(m.errorResponse).toHaveBeenCalledWith(expect.any(Error), "u1", "[t] read error")
   })
 })

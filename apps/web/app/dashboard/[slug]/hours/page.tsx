@@ -1,8 +1,7 @@
 import { getServerSession } from "next-auth"
 import { authOptions } from "@/lib/auth"
 import { redirect, notFound } from "next/navigation"
-import { prisma } from "@/lib/prisma"
-import { roleInVenue } from "@/lib/api/venue-access"
+import { resolveMyVenue } from "@/lib/api/venue-access"
 import { VenueLayout } from "@/components/venue-layout"
 import { HoursBoard } from "@/components/hours-board"
 import { getValidXvmApiToken, invalidateXvmApiCredential, isXvmAuthFailure } from "@/lib/api/xvm-api-store"
@@ -14,19 +13,17 @@ export default async function HoursPage({ params }: { params: Promise<{ slug: st
 
   const { slug } = await params
 
-  const venue = await prisma.venue.findUnique({ where: { slug } })
-
-  const userRole = venue ? await roleInVenue(session.user.id, venue) : null
-  if (!venue || !userRole) notFound()
+  const venue = await resolveMyVenue(session.user.id, slug)
+  if (!venue) notFound()
+  const userRole = venue.role
 
 
   let hours: HoursRow[] = []
   let loadFailed = false
-  const notConnected = !venue.xvmApiVenueId
   const token = await getValidXvmApiToken(session.user.id)
-  if (token && venue.xvmApiVenueId) {
+  if (token) {
     try {
-      hours = await listHours(token, venue.xvmApiVenueId)
+      hours = await listHours(token, venue.id)
     } catch (err) {
       loadFailed = true
       console.error("[hours page] listHours error:", err)
@@ -34,7 +31,7 @@ export default async function HoursPage({ params }: { params: Promise<{ slug: st
         await invalidateXvmApiCredential(session.user.id)
       }
     }
-  } else if (!notConnected) {
+  } else {
     loadFailed = true
   }
 
@@ -55,7 +52,6 @@ export default async function HoursPage({ params }: { params: Promise<{ slug: st
           venueId={venue.id}
           canManage={["OWNER", "MANAGER"].includes(userRole)}
           hours={hours}
-          notConnected={notConnected}
           loadFailed={loadFailed}
           venueTimezone={venue.timezone}
         />

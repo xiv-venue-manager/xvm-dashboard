@@ -2,9 +2,9 @@ import { NextResponse } from "next/server"
 import { getServerSession } from "next-auth"
 import { authOptions } from "@/lib/auth"
 import { z } from "zod"
-import { prisma } from "@/lib/prisma"
 import { withRateLimit } from "@/lib/middleware/with-rate-limit"
 import { getValidXvmApiToken, xvmApiErrorResponse } from "@/lib/api/xvm-api-store"
+import { requireMyVenue } from "@/lib/api/venue-access"
 import { updateHours, deleteHours } from "@/lib/api/xvm-api"
 
 const updateHoursSchema = z
@@ -13,19 +13,6 @@ const updateHoursSchema = z
     enabled: z.boolean().nullable().optional(),
   })
   .strict()
-
-async function requireXvmVenueId(venueId: string) {
-  const venue = await prisma.venue.findUnique({ where: { id: venueId }, select: { xvmApiVenueId: true } })
-  if (!venue?.xvmApiVenueId) {
-    return {
-      error: NextResponse.json(
-        { error: "not_connected", message: "This venue hasn't been connected to xvm-api yet." },
-        { status: 409 }
-      ),
-    }
-  }
-  return { xvmApiVenueId: venue.xvmApiVenueId }
-}
 
 type Context = { params: Promise<{ venueId: string; hoursId: string }> }
 
@@ -47,8 +34,8 @@ export const PATCH = withRateLimit<Context>(
 
     const { venueId, hoursId } = await context.params
 
-    const gate = await requireXvmVenueId(venueId)
-    if (gate.error) return gate.error
+    const lookup = await requireMyVenue(session.user.id, venueId, "[hours] /me/venues read error")
+    if (!lookup.ok) return lookup.response
 
     let data: z.infer<typeof updateHoursSchema>
     try {
@@ -61,7 +48,7 @@ export const PATCH = withRateLimit<Context>(
     }
 
     try {
-      const hours = await updateHours(token, gate.xvmApiVenueId!, Number(hoursId), data)
+      const hours = await updateHours(token, lookup.venue.id, Number(hoursId), data)
       return NextResponse.json(hours)
     } catch (err) {
       return xvmApiErrorResponse(err, session.user.id, "[hours] PATCH error")
@@ -88,11 +75,11 @@ export const DELETE = withRateLimit<Context>(
 
     const { venueId, hoursId } = await context.params
 
-    const gate = await requireXvmVenueId(venueId)
-    if (gate.error) return gate.error
+    const lookup = await requireMyVenue(session.user.id, venueId, "[hours] /me/venues read error")
+    if (!lookup.ok) return lookup.response
 
     try {
-      await deleteHours(token, gate.xvmApiVenueId!, Number(hoursId))
+      await deleteHours(token, lookup.venue.id, Number(hoursId))
       return new NextResponse(null, { status: 204 })
     } catch (err) {
       return xvmApiErrorResponse(err, session.user.id, "[hours] DELETE error")

@@ -18,7 +18,6 @@ import {
 } from "@/components/ui/alert-dialog"
 import type { HoursCreate, HoursRow } from "@/lib/api/xvm-api"
 
-const NOT_CONNECTED_MESSAGE = "Ask the venue owner to connect this venue to xvm-api first."
 
 const FFXIVVENUES_SOURCE = "ffxivvenues"
 
@@ -27,7 +26,6 @@ const WEEK_OF_MONTH_NAMES: Record<number, string> = { "-1": "last", "1": "1st", 
 
 async function describeError(res: Response, fallback: string): Promise<string> {
   const body = await res.json().catch(() => ({}))
-  if (body?.error === "not_connected") return NOT_CONNECTED_MESSAGE
   return body?.error || body?.detail || fallback
 }
 
@@ -101,14 +99,12 @@ export function HoursBoard({
   venueId,
   canManage,
   hours,
-  notConnected,
   loadFailed,
   venueTimezone,
 }: {
   venueId: string
   canManage: boolean
   hours: HoursRow[]
-  notConnected?: boolean
   loadFailed?: boolean
   venueTimezone: string
 }) {
@@ -218,14 +214,6 @@ export function HoursBoard({
     } finally {
       setAdding(false)
     }
-  }
-
-  if (notConnected) {
-    return (
-      <Alert>
-        <AlertDescription>{NOT_CONNECTED_MESSAGE}</AlertDescription>
-      </Alert>
-    )
   }
 
   if (loadFailed) {

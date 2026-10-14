@@ -499,48 +499,6 @@ export function formatSaleLoggedEmbed(transaction: {
 }
 
 /**
- * Format a daily sales summary notification
- */
-export function formatDailySalesSummaryEmbed(summary: {
-  date: string
-  totalSales: number
-  totalRevenue: number
-  topService?: { name: string; sales: number } | null
-}): DiscordEmbed {
-  // Sanitize user inputs
-  const safeTopServiceName = sanitizeForDiscord(summary.topService?.name, 256)
-
-  const fields = [
-    {
-      name: "Total Sales",
-      value: `${summary.totalSales} transactions`,
-      inline: true,
-    },
-    {
-      name: "Total Revenue",
-      value: `${summary.totalRevenue.toLocaleString()} Gil`,
-      inline: true,
-    },
-  ]
-
-  if (summary.topService) {
-    fields.push({
-      name: "Top Service",
-      value: `${safeTopServiceName} (${summary.topService.sales} sales)`,
-      inline: false,
-    })
-  }
-
-  return {
-    title: "📊 Daily Sales Summary",
-    description: `Sales report for **${summary.date}**`,
-    color: DiscordColors.Info,
-    fields,
-    timestamp: new Date().toISOString(),
-  }
-}
-
-/**
  * Format a staff joined notification
  */
 export function formatStaffJoinedEmbed(staff: { name: string | null; role: string }): DiscordEmbed {

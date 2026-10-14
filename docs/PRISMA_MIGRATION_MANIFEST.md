@@ -103,7 +103,7 @@ xvm-api also has venue fields Prisma lacks (`room`, `subdivision`, and the task,
 | Prisma table | Dev code | Status | xvm-api target | Notes |
 |---|---|---|---|---|
 | `services` | r web 2, w web 2 | Live | `Service`, `ServiceCategory`, `ServiceInventory` | Only plugin inventory routes remain. `migrate-services-to-xvm-api.ts` exists and writes the new id back to Prisma. |
-| `transactions` | r web 1 | Live | `Transaction` | The daily-sales-summary cron still reads it, so that summary posts wrong numbers. The plugin writes sales to Prisma until xvm-api#50, so Prisma and xvm-api both hold live sales. Decide how much history moves. |
+| `transactions` | none | Cut over | `Transaction` | The daily-sales-summary cron was the last reader and is deleted (webhook retirement, decision 2026-09-09: the summary posts again as a scheduled job on the xvm-api and bot side, Allegro's). Sales are written through `lib/api/transactions.ts` into xvm-api. Decide how much history moves. |
 | `payroll_entries`, `pot_distributions`, `venue_pot_settings` | none | Cut over | `PayrollEntry`, `PotDistribution`, `VenuePayrollSettings` | Move needed. Whether pot settings map to `VenuePayrollSettings` is not confirmed. |
 
 ### Shifts and tasks

@@ -8,7 +8,7 @@
 
 **Tech Stack:** C# on .NET 10, Dalamud plugin (`xvm-plugin-dev`, the local copy), xunit.
 
-**Status:** Built in the plugin (xvm-plugin-dev PR #3) and verified in game against the dev API. Roles and the inventory tab were not checked, because they need xvm-api #158 and #157 deployed. It follows the pairing plan (`2026-10-10-plugin-pairing.md`) and needs a linked plugin.
+**Status:** Built in the plugin (xvm-plugin-dev PR #3) and verified in game against the dev API. Roles and the inventory tab were not checked, because roles need xvm-api #158 deployed and the inventory tab needs the API's `inventory` module read. It follows the pairing plan (`2026-10-10-plugin-pairing.md`) and needs a linked plugin.
 
 ---
 
@@ -21,7 +21,7 @@
 | D3 | The plugin's writes (sales, patron visits, clock-in and out, claims, bans, room actions, inventory) still use the old routes and the old venue ids until the write plan. In the dev plugin they are broken in that gap. That is accepted because only dev builds exist and XIV-App Sync is switched off. | Proposed, confirm |
 | D4 | Pending shifts (xvm `pending_approval`) map to `PENDING`, which the Shifts tab does not draw, so they stay hidden. `scheduled`, `active`, `completed` map to `SCHEDULED`, `ACTIVE`, `COMPLETED`, the only three the tab and `Plugin.cs` act on. | Proposed |
 | D5 | Gil prices copy straight across: `price_minor` equals gil (the dashboard's `minorUnitsToGil` is the identity). A missing price becomes `"0"`, which the Sales tab parses. | Verified |
-| D6 | The inventory tab shows when the venue's `inventory_enabled` setting is on. That setting is a new field on the venue, proposed in xvm-api #157 and returned on every `/me/venues` row, so the plugin needs no extra call. | Decided (user), needs #157 |
+| D6 | The inventory tab shows when the venue's `inventory` module is enabled. xvm-api already has that switch (`GET /venues/{id}/modules`, any member can read it), so no new field is needed: xvm-api #157 proposed `inventory_enabled` on `/me/venues`, and was closed for that reason. The plugin pays one extra request when a venue is selected. A failed read counts as off. The route returns an entry for every module, with `enabled: false` where the venue has no row, so a missing entry cannot happen today; the plugin treats one as off anyway, as a guard against that contract changing. | Decided (user), changed after #157 closed |
 | D7 | Venue addresses and the user role on services are not needed. Nothing in the plugin reads `XIVAppVenue.Addresses` or `ServicesResponse.UserRole`, so they stay empty. | Verified (grep) |
 | D8 | A member's own jobs come from their `/me/venues` row (`membership_id` and `position_ids`, proposed in xvm-api #158), plus the positions list for the names. The plugin never reads the roster. | Decided (user), needs #158 |
 
@@ -31,7 +31,7 @@ All of these returned 200 for an owner at five venues (the three new `/me/venues
 
 | Plugin read | xvm-api call | Fields used |
 |---|---|---|
-| venues | `GET /me/venues` | `[{venue: {id, name, slug, inventory_enabled, ...}, tier, effective_tier, membership_id, position_ids}]`. `inventory_enabled`, `membership_id` and `position_ids` are new (xvm-api #157 and #158). |
+| venues | `GET /me/venues` | `[{venue: {id, name, slug, ...}, tier, effective_tier, membership_id, position_ids}]`. `membership_id` and `position_ids` are new (xvm-api #158). |
 | shifts | `GET /venues/{id}/shifts?from&to&mine=true` and `...&open_only=true` | `id, position_id, scheduled_start, scheduled_end, actual_start, actual_end, notes, status`. A window is at most 60 days. |
 | roles | the venue's `/me/venues` row for `position_ids`, then `GET /venues/{id}/positions` | positions: `id, name` |
 | services | `GET /venues/{id}/services` and `GET /venues/{id}/services/categories` | `id, name, description, price_minor, category_id, inventory{linked_item_id, linked_item_name, linked_item_icon, stock_count}`; categories `id, name` |
@@ -55,7 +55,7 @@ Plugin (`~/xvm-plugin-dev`, branch `feat/xvm-reads` from `feat/account-link`):
 
 Tasks 1 to 3 are pure code with tests and need no game. Task 4 adds the HTTP layer, also tested without the game. Tasks 5 and 6 wire it in and need a build. Task 7 is the in-game check and Task 8 the staff-tier check. Confirm D3 before Task 5.
 
-**Needs xvm-api #157 (`inventory_enabled`) and #158 (`membership_id` and `position_ids` on `/me/venues`) merged and deployed to the API the plugin points at.** Until then roles come back empty and the inventory tab stays hidden; everything else works. Both are read from fields the replies simply lack today, so the plugin code is safe against the old shape (missing fields read as empty and off).
+**Needs xvm-api #158 (`membership_id` and `position_ids` on `/me/venues`) merged and deployed to the API the plugin points at.** Until then roles come back empty; everything else works. The fields are ones the replies simply lack today, so the plugin code is safe against the old shape (missing fields read as empty). The inventory tab needs nothing new: it reads `GET /venues/{id}/modules`, which is already deployed.
 
 Confirm with the user before any `dotnet` command in this repo, and before the clean build's `rm -rf` of `bin` and `obj`.
 
@@ -97,8 +97,11 @@ namespace VenueManager
   internal sealed record XvmVenue(
     [property: JsonPropertyName("id")] string Id,
     [property: JsonPropertyName("name")] string Name,
-    [property: JsonPropertyName("slug")] string Slug,
-    [property: JsonPropertyName("inventory_enabled")] bool InventoryEnabled);
+    [property: JsonPropertyName("slug")] string Slug);
+
+  internal sealed record XvmModule(
+    [property: JsonPropertyName("module")] string Module,
+    [property: JsonPropertyName("enabled")] bool Enabled);
 
   internal sealed record XvmMyVenue(
     [property: JsonPropertyName("venue")] XvmVenue Venue,
@@ -184,8 +187,8 @@ public class XvmApiMappingTests
     {
         var venues = XvmApiMapping.MapVenues(new[]
         {
-            new XvmMyVenue(new XvmVenue("ven_1", "The Velvet Lotus", "velvet-lotus", true), "owner", 11, new List<int>()),
-            new XvmMyVenue(new XvmVenue("ven_2", "Moon Bar", "moon-bar", false), "staff", 12, null),
+            new XvmMyVenue(new XvmVenue("ven_1", "The Velvet Lotus", "velvet-lotus"), "owner", 11, new List<int>()),
+            new XvmMyVenue(new XvmVenue("ven_2", "Moon Bar", "moon-bar"), "staff", 12, null),
         });
 
         Assert.Equal(2, venues.Count);
@@ -599,15 +602,17 @@ public class XvmApiReadsTests
     }
 
     [Fact]
-    public async Task Inventory_follows_the_venues_inventory_enabled_flag()
+    public async Task Inventory_follows_the_venues_inventory_module()
     {
         var handler = new RoutedHandler()
-            .On("/me/venues", "[{\"venue\":{\"id\":\"v1\",\"name\":\"Lotus\",\"slug\":\"lotus\",\"inventory_enabled\":true},\"tier\":\"staff\",\"effective_tier\":\"staff\",\"membership_id\":7,\"position_ids\":[]},{\"venue\":{\"id\":\"v2\",\"name\":\"Moon\",\"slug\":\"moon\"},\"tier\":\"owner\",\"effective_tier\":\"owner\",\"membership_id\":8,\"position_ids\":[]}]");
+            .On("/venues/v1/modules", "[{\"module\":\"rooms\",\"enabled\":true},{\"module\":\"inventory\",\"enabled\":true}]")
+            .On("/venues/v2/modules", "[{\"module\":\"rooms\",\"enabled\":true},{\"module\":\"inventory\",\"enabled\":false}]")
+            .On("/venues/v3/modules", "[{\"module\":\"rooms\",\"enabled\":true}]");
         var reads = Reads(handler);
 
         Assert.True(await reads.GetInventoryEnabledAsync("v1"));
         Assert.False(await reads.GetInventoryEnabledAsync("v2"));
-        Assert.False(await reads.GetInventoryEnabledAsync("unknown"));
+        Assert.False(await reads.GetInventoryEnabledAsync("v3"));
     }
 
     [Fact]
@@ -721,7 +726,7 @@ namespace VenueManager
     }
 
     public async Task<bool> GetInventoryEnabledAsync(string venueId) =>
-      (await MyVenueAsync(venueId))?.Venue.InventoryEnabled ?? false;
+      (await GetAsync<List<XvmModule>>($"{Venue(venueId)}/modules"))?.Any(m => m.Module == "inventory" && m.Enabled) ?? false;
 
     public async Task<List<BannedPatron>> GetBannedPatronsAsync(string venueId) =>
       XvmApiMapping.MapBanned(await GetAsync<List<XvmBanned>>($"{Venue(venueId)}/patrons/banned") ?? new List<XvmBanned>());
@@ -946,7 +951,7 @@ Everything above was verified as an owner. Plain staff are most plugin users.
 
 - [ ] **Step 1:** With an account that is only **staff** at some venue, link the plugin and run Task 7 there.
 - [ ] **Step 2:** For any read that returns 403 for staff, record the endpoint here and ask Allegro whether it should be open to any member (positions, services, bans and the roster are documented as readable by any member).
-- [ ] **Step 3:** Confirm a staff member sees the inventory tab exactly when the venue's `inventory_enabled` is on, and sees their own jobs on the Shifts tab.
+- [ ] **Step 3:** Confirm a staff member sees the inventory tab exactly when the venue's `inventory` module is enabled, and sees their own jobs on the Shifts tab.
 
 ---
 

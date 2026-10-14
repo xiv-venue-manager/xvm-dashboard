@@ -28,7 +28,7 @@ import {
 const connected = { xvmApiVenueId: "ven_1" }
 const unconnected = { xvmApiVenueId: null }
 const row = (id: string, tier: string, effective = tier) => ({
-  venue: { id, name: `Venue ${id}`, slug: `slug-${id}`, data_center: "Aether", world: "Sargatanas" },
+  venue: { id, name: `Venue ${id}`, slug: `slug-${id}`, data_center: "Aether", world: "Sargatanas", timezone: "Europe/London" },
   tier,
   effective_tier: effective,
 })
@@ -149,8 +149,8 @@ describe("requireVenueRole", () => {
 describe("myVenues", () => {
   it("lists the caller's venues with the effective role, dropping tiers the app does not know", async () => {
     expect(await myVenues("u1")).toEqual([
-      { id: "ven_1", name: "Venue ven_1", slug: "slug-ven_1", dataCenter: "Aether", world: "Sargatanas", role: "MANAGER" },
-      { id: "ven_2", name: "Venue ven_2", slug: "slug-ven_2", dataCenter: "Aether", world: "Sargatanas", role: "STAFF" },
+      { id: "ven_1", name: "Venue ven_1", slug: "slug-ven_1", dataCenter: "Aether", world: "Sargatanas", timezone: "Europe/London", role: "MANAGER" },
+      { id: "ven_2", name: "Venue ven_2", slug: "slug-ven_2", dataCenter: "Aether", world: "Sargatanas", timezone: "Europe/London", role: "STAFF" },
     ])
   })
 })

@@ -3,17 +3,13 @@ import { describe, it, expect, vi, beforeEach } from "vitest"
 const m = vi.hoisted(() => ({
   session: vi.fn(),
   access: vi.fn(),
-  venue: vi.fn(),
   getEvent: vi.fn(),
   listPatronLogs: vi.fn(),
 }))
 
 vi.mock("next-auth", () => ({ getServerSession: m.session }))
 vi.mock("@/lib/auth", () => ({ authOptions: {} }))
-vi.mock("@/lib/api/venue-access", () => ({ requireVenueRole: m.access }))
-vi.mock("@/lib/prisma", () => ({
-  prisma: { venue: { findUnique: m.venue } },
-}))
+vi.mock("@/lib/api/venue-access", () => ({ requireMyVenue: m.access }))
 vi.mock("@/lib/api/xvm-page-read", () => ({
   xvmPageReader: async () => (_label: string, _fallback: unknown, call: (t: string, v: string) => Promise<unknown>) =>
     call("tok", "xv-1"),
@@ -27,6 +23,7 @@ vi.mock("@/lib/api/xvm-api", async (importOriginal) => ({
   listShifts: vi.fn().mockResolvedValue([]),
 }))
 
+import { NextResponse } from "next/server"
 import { GET } from "./route"
 import type { PatronLogRow } from "@/lib/api/xvm-api"
 
@@ -41,8 +38,7 @@ const row = (id: number, eventId: number | null, ago: number) =>
 beforeEach(() => {
   vi.clearAllMocks()
   m.session.mockResolvedValue({ user: { id: "user-1" } })
-  m.access.mockResolvedValue({ ok: true, role: "STAFF" })
-  m.venue.mockResolvedValue({ xvmApiVenueId: "xv-1" })
+  m.access.mockResolvedValue({ ok: true, venue: { id: "xv-1", role: "STAFF" } })
   m.getEvent.mockResolvedValue({ starts_at: minutesAgo(120), ends_at: minutesAgo(-60) })
 })
 
@@ -96,6 +92,15 @@ describe("GET timeline patron items", () => {
 
   it("does not read patron logs for a legacy non-numeric event id", async () => {
     await get("type=patrons&eventId=cm1abc")
+    expect(m.listPatronLogs).not.toHaveBeenCalled()
+  })
+})
+
+describe("GET timeline access", () => {
+  it("returns the lookup's refusal for a venue the caller is not in, without asking xvm-api for anything", async () => {
+    m.access.mockResolvedValue({ ok: false, response: NextResponse.json({ error: "Venue not found" }, { status: 404 }) })
+    const res = await get("")
+    expect(res.status).toBe(404)
     expect(m.listPatronLogs).not.toHaveBeenCalled()
   })
 })

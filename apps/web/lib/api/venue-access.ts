@@ -34,14 +34,30 @@ const tiersFor = cache(async (userId: string): Promise<Map<string, VenueRole>> =
   return tiers
 })
 
-export type MyVenue = { id: string; name: string; slug: string; dataCenter: string; world: string; role: VenueRole }
+export type MyVenue = {
+  id: string
+  name: string
+  slug: string
+  dataCenter: string
+  world: string
+  timezone: string
+  role: VenueRole
+}
 
 export async function myVenues(userId: string): Promise<MyVenue[]> {
   const venues: MyVenue[] = []
   for (const { venue, effective_tier } of await rowsFor(userId)) {
     const role = toRole(effective_tier)
     if (role) {
-      venues.push({ id: venue.id, name: venue.name, slug: venue.slug, dataCenter: venue.data_center, world: venue.world, role })
+      venues.push({
+        id: venue.id,
+        name: venue.name,
+        slug: venue.slug,
+        dataCenter: venue.data_center,
+        world: venue.world,
+        timezone: venue.timezone,
+        role,
+      })
     }
   }
   return venues

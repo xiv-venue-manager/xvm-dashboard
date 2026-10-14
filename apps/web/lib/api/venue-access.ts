@@ -1,7 +1,7 @@
 import { cache } from "react"
 import { NextResponse } from "next/server"
 import { prisma } from "@/lib/prisma"
-import { listMyVenues } from "@/lib/api/xvm-api"
+import { listMyVenues, type MyVenueRow } from "@/lib/api/xvm-api"
 import { getValidXvmApiToken, xvmApiErrorResponse } from "@/lib/api/xvm-api-store"
 
 export type VenueRole = "OWNER" | "MANAGER" | "STAFF"
@@ -19,16 +19,38 @@ function toRole(tier: string): VenueRole | null {
   return role === "OWNER" || role === "MANAGER" || role === "STAFF" ? role : null
 }
 
-const tiersFor = cache(async (userId: string): Promise<Map<string, VenueRole>> => {
+const rowsFor = cache(async (userId: string): Promise<MyVenueRow[]> => {
   const token = await getValidXvmApiToken(userId)
   if (!token) throw new VenueAccessUnavailable("No valid xvm-api credential")
+  return listMyVenues(token)
+})
+
+const tiersFor = cache(async (userId: string): Promise<Map<string, VenueRole>> => {
   const tiers = new Map<string, VenueRole>()
-  for (const row of await listMyVenues(token)) {
+  for (const row of await rowsFor(userId)) {
     const role = toRole(row.effective_tier)
     if (role) tiers.set(row.venue.id, role)
   }
   return tiers
 })
+
+export type MyVenue = { id: string; name: string; slug: string; dataCenter: string; world: string; role: VenueRole }
+
+export async function myVenues(userId: string): Promise<MyVenue[]> {
+  const venues: MyVenue[] = []
+  for (const { venue, effective_tier } of await rowsFor(userId)) {
+    const role = toRole(effective_tier)
+    if (role) {
+      venues.push({ id: venue.id, name: venue.name, slug: venue.slug, dataCenter: venue.data_center, world: venue.world, role })
+    }
+  }
+  return venues
+}
+
+export async function resolveMyVenue(userId: string, ref: string): Promise<MyVenue | null> {
+  const venues = await myVenues(userId)
+  return venues.find((v) => v.id === ref) ?? venues.find((v) => v.slug === ref) ?? null
+}
 
 export async function roleInVenue(
   userId: string,
@@ -79,5 +101,20 @@ export async function requireVenueRole(
       return { ok: false, response: NextResponse.json({ error: "xvm-api link not established yet" }, { status: 503 }) }
     }
     return { ok: false, response: await xvmApiErrorResponse(err, userId, "[venue access] /me/venues read error") }
+  }
+}
+
+export type VenueLookup = { ok: true; venue: MyVenue } | { ok: false; response: NextResponse }
+
+export async function requireMyVenue(userId: string, ref: string, logLabel: string): Promise<VenueLookup> {
+  try {
+    const venue = await resolveMyVenue(userId, ref)
+    if (venue) return { ok: true, venue }
+    return { ok: false, response: NextResponse.json({ error: "Venue not found" }, { status: 404 }) }
+  } catch (err) {
+    if (err instanceof VenueAccessUnavailable) {
+      return { ok: false, response: NextResponse.json({ error: "xvm-api link not established yet" }, { status: 503 }) }
+    }
+    return { ok: false, response: await xvmApiErrorResponse(err, userId, logLabel) }
   }
 }

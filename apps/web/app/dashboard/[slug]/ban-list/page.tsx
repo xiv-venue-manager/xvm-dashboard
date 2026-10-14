@@ -1,8 +1,7 @@
 import { getServerSession } from "next-auth"
 import { authOptions } from "@/lib/auth"
 import { redirect, notFound } from "next/navigation"
-import { prisma } from "@/lib/prisma"
-import { roleInVenue } from "@/lib/api/venue-access"
+import { resolveMyVenue } from "@/lib/api/venue-access"
 import { VenueLayout } from "@/components/venue-layout"
 import { BanListManager } from "@/components/ban-list-manager"
 import { getValidXvmApiToken, invalidateXvmApiCredential, isXvmAuthFailure } from "@/lib/api/xvm-api-store"
@@ -14,22 +13,20 @@ export default async function BanListPage({ params }: { params: Promise<{ slug: 
 
   const { slug } = await params
 
-  const venue = await prisma.venue.findUnique({ where: { slug } })
-
-  const userRole = venue ? await roleInVenue(session.user.id, venue) : null
-  if (!venue || !userRole) notFound()
+  const venue = await resolveMyVenue(session.user.id, slug)
+  if (!venue) notFound()
+  const userRole = venue.role
 
   if (!["OWNER", "MANAGER"].includes(userRole)) notFound()
 
   let banned: PatronSummary[] = []
   let memberships: MembershipRow[] = []
-  const notConnected = !venue.xvmApiVenueId
   const token = await getValidXvmApiToken(session.user.id)
-  if (token && venue.xvmApiVenueId) {
+  if (token) {
     try {
       const [patrons, members] = await Promise.all([
-        listPatrons(token, venue.xvmApiVenueId),
-        listMemberships(token, venue.xvmApiVenueId),
+        listPatrons(token, venue.id),
+        listMemberships(token, venue.id),
       ])
       banned = patrons.filter((p) => p.is_banned)
       memberships = members
@@ -58,7 +55,6 @@ export default async function BanListPage({ params }: { params: Promise<{ slug: 
 
         <BanListManager
           venueId={venue.id}
-          notConnected={notConnected}
           patrons={banned.map((p) => ({
             id: String(p.id),
             characterName: p.character_name,

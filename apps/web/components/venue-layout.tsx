@@ -3,7 +3,7 @@ import { ActiveVenueTracker } from "./active-venue-tracker"
 import { ReactNode } from "react"
 import { getServerSession } from "next-auth"
 import { authOptions } from "@/lib/auth"
-import { prisma } from "@/lib/prisma"
+import { myVenues } from "@/lib/api/venue-access"
 
 interface VenueLayoutProps {
   children: ReactNode
@@ -15,22 +15,7 @@ interface VenueLayoutProps {
 export async function VenueLayout({ children, venueSlug, venueName, userRole }: VenueLayoutProps) {
   const session = await getServerSession(authOptions)
 
-  const venues = await prisma.venue.findMany({
-    where: {
-      memberships: {
-        some: {
-          userId: session?.user?.id,
-        },
-      },
-    },
-    select: {
-      id: true,
-      name: true,
-      slug: true,
-      dataCenter: true,
-      world: true,
-    },
-  })
+  const venues = session?.user?.id ? await myVenues(session.user.id) : []
 
   return (
     <div className="relative min-h-screen">

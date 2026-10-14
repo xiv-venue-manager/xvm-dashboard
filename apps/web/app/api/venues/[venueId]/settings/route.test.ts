@@ -46,15 +46,31 @@ beforeEach(() => {
   m.channel.mockResolvedValue({ ok: true })
 })
 
+const connected = () =>
+  m.venueFind.mockResolvedValue({
+    settings: { shiftBot: shiftBot(OLD_CHANNEL) },
+    xvmApiVenueId: "xv-1",
+    venueType: null,
+  })
+
 describe("PUT /api/venues/[venueId]/settings, shift bot channel", () => {
-  it("checks a channel that changed, and saves it when it is in the venue's server", async () => {
+  it("checks a channel that changed against the venue's xvm-api id, and saves it when it is in the venue's server", async () => {
+    connected()
     const res = await put({ shiftBot: shiftBot(CHANNEL) })
     expect(res.status).toBe(200)
-    expect(m.channel).toHaveBeenCalledWith("user-1", "vn_1", CHANNEL)
+    expect(m.channel).toHaveBeenCalledWith("user-1", "xv-1", CHANNEL)
     expect(m.venueUpdate).toHaveBeenCalledTimes(1)
   })
 
+  it("is 409 not_connected for a changed channel on a venue with no xvm-api venue, and saves nothing", async () => {
+    const res = await put({ shiftBot: shiftBot(CHANNEL) })
+    expect(res.status).toBe(409)
+    expect(m.channel).not.toHaveBeenCalled()
+    expect(m.venueUpdate).not.toHaveBeenCalled()
+  })
+
   it("refuses a changed channel that is outside the venue's server, and saves nothing", async () => {
+    connected()
     m.channel.mockResolvedValue({
       ok: false,
       response: NextResponse.json({ error: "channel_not_in_guild" }, { status: 400 }),

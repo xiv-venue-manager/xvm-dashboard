@@ -289,7 +289,7 @@ export default function InviteStaffPage({ params }: { params: Promise<{ slug: st
                   Discord user ID <span className="text-muted-foreground">(optional)</span>
                 </Label>
                 {venueId ? (
-                  <UserPicker id="discordId" venueId={venueId} value={discordId} onChange={setDiscordId} disabled={isLoading} />
+                  <UserPicker id="discordId" venueId={slug} value={discordId} onChange={setDiscordId} disabled={isLoading} />
                 ) : (
                   <Input
                     id="discordId"

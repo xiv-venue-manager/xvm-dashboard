@@ -55,7 +55,7 @@ export async function myVenues(userId: string): Promise<MyVenue[]> {
         slug: venue.slug,
         dataCenter: venue.data_center,
         world: venue.world,
-        timezone: venue.timezone ?? "UTC",
+        timezone: venue.timezone,
         role,
       })
     }

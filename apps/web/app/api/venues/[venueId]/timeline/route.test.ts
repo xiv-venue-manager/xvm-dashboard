@@ -23,6 +23,7 @@ vi.mock("@/lib/api/xvm-api", async (importOriginal) => ({
   listShifts: vi.fn().mockResolvedValue([]),
 }))
 
+import { NextResponse } from "next/server"
 import { GET } from "./route"
 import type { PatronLogRow } from "@/lib/api/xvm-api"
 
@@ -91,6 +92,15 @@ describe("GET timeline patron items", () => {
 
   it("does not read patron logs for a legacy non-numeric event id", async () => {
     await get("type=patrons&eventId=cm1abc")
+    expect(m.listPatronLogs).not.toHaveBeenCalled()
+  })
+})
+
+describe("GET timeline access", () => {
+  it("returns the lookup's refusal for a venue the caller is not in, without asking xvm-api for anything", async () => {
+    m.access.mockResolvedValue({ ok: false, response: NextResponse.json({ error: "Venue not found" }, { status: 404 }) })
+    const res = await get("")
+    expect(res.status).toBe(404)
     expect(m.listPatronLogs).not.toHaveBeenCalled()
   })
 })

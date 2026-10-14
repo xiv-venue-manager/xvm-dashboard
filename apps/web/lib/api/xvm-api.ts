@@ -177,7 +177,7 @@ export interface VenueRow {
   slug: string
   data_center: string
   world: string
-  timezone?: string | null
+  timezone: string
 }
 
 export interface VenueImageRow {

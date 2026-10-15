@@ -84,8 +84,6 @@ export default function SettingsPage({ params }: { params: Promise<{ slug: strin
   const [error, setError] = useState("")
   const [success, setSuccess] = useState(false)
   const [isDeleting, setIsDeleting] = useState(false)
-  const [isSyncing, setIsSyncing] = useState(false)
-  const [syncResult, setSyncResult] = useState("")
   const [venueId, setVenueId] = useState<string>("")
 
   const locationProblem = isLoading
@@ -1197,39 +1195,7 @@ export default function SettingsPage({ params }: { params: Promise<{ slug: strin
                       min={1}
                       className="flex-1 bg-background border-[var(--blue-015)] focus:border-[var(--blue-035)] text-sm h-9"
                     />
-                    {settings.partakeTeamId && (
-                      <Button
-                        type="button"
-                        variant="outline-blue"
-                        size="sm"
-                        disabled={isSyncing}
-                        onClick={async () => {
-                          setIsSyncing(true)
-                          setSyncResult("")
-                          try {
-                            const res = await fetch(`/api/venues/${venueId}/sync-partake`, { method: "POST" })
-                            if (!res.ok) {
-                              const d = await res.json()
-                              throw new Error(d.error || "Sync failed")
-                            }
-                            const d = await res.json()
-                            setSyncResult(`Synced: ${d.results.created} new, ${d.results.updated} updated`)
-                            setTimeout(() => setSyncResult(""), 5000)
-                          } catch (err: unknown) {
-                            setSyncResult(err instanceof Error ? err.message : "Sync failed")
-                          } finally {
-                            setIsSyncing(false)
-                          }
-                        }}
-                      >
-                        {isSyncing ? "Syncing…" : "Sync now"}
-                      </Button>
-                    )}
                   </div>
-                  {syncResult && <p className="text-xs text-emerald-400">{syncResult}</p>}
-                  {settings.partakeTeamId && (
-                    <p className="text-xs text-[var(--fg-faint)]">Syncs automatically every hour.</p>
-                  )}
                 </div>
               </div>
 

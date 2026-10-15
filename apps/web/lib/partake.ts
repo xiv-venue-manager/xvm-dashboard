@@ -1,6 +1,3 @@
-import { prisma } from "@/lib/prisma"
-import type { EventType } from "@/generated/prisma/client"
-
 const PARTAKE_API = "https://api.partake.gg/"
 const USER_AGENT = "XIV-Venue-Manager/1.0"
 
@@ -51,18 +48,6 @@ interface PartakeEvent {
 }
 
 /**
- * Map Partake tags to our EventType enum.
- */
-function mapEventType(tags: string[]): EventType {
-  const tagStr = tags.join(" ").toLowerCase()
-  if (tagStr.includes("nightlife") || tagStr.includes("entertainment")) return "SOCIAL"
-  if (tagStr.includes("performance") || tagStr.includes("music") || tagStr.includes("concert")) return "PERFORMANCE"
-  if (tagStr.includes("game") || tagStr.includes("trivia") || tagStr.includes("contest")) return "GAME_NIGHT"
-  if (tagStr.includes("special") || tagStr.includes("grand opening") || tagStr.includes("anniversary")) return "SPECIAL"
-  return "OTHER"
-}
-
-/**
  * Fetch upcoming events from Partake for a given team ID.
  */
 export async function fetchPartakeEvents(teamId: number): Promise<PartakeEvent[]> {
@@ -87,99 +72,4 @@ export async function fetchPartakeEvents(teamId: number): Promise<PartakeEvent[]
 
   const json = await res.json()
   return json.data?.events ?? []
-}
-
-/**
- * Sync events from Partake for a single venue.
- * Returns summary of created/updated/skipped counts.
- */
-export async function syncVenuePartakeEvents(venue: { id: string; ownerId: string; partakeTeamId: number }) {
-  const results = { synced: 0, created: 0, updated: 0, skipped: 0, errors: 0 }
-
-  const events = await fetchPartakeEvents(venue.partakeTeamId)
-
-  for (const pe of events) {
-    const existing = await prisma.event.findUnique({
-      where: { partakeEventId: pe.id },
-    })
-
-    const locationStr = pe.locationData?.server?.name
-      ? `${pe.location} (${pe.locationData.server.name} - ${pe.locationData.dataCenter.name})`
-      : pe.location || null
-
-    const eventData = {
-      title: pe.title,
-      description: pe.description || null,
-      location: locationStr,
-      eventType: mapEventType(pe.tags),
-      status: "PUBLISHED" as const,
-      startTime: new Date(pe.startsAt),
-      endTime: new Date(pe.endsAt),
-      timezone: "UTC",
-      partakeAttendeeCount: pe.attendeeCount > 0 ? pe.attendeeCount : null,
-    }
-
-    if (existing) {
-      if (
-        existing.title !== eventData.title ||
-        existing.description !== eventData.description ||
-        existing.location !== eventData.location ||
-        existing.startTime.toISOString() !== eventData.startTime.toISOString() ||
-        existing.endTime.toISOString() !== eventData.endTime.toISOString()
-      ) {
-        await prisma.event.update({
-          where: { partakeEventId: pe.id },
-          data: eventData,
-        })
-        results.updated++
-      } else {
-        results.skipped++
-      }
-    } else {
-      await prisma.event.create({
-        data: {
-          ...eventData,
-          venueId: venue.id,
-          createdById: venue.ownerId,
-          partakeEventId: pe.id,
-        },
-      })
-      results.created++
-    }
-    results.synced++
-  }
-
-  return results
-}
-
-/**
- * Sync events from Partake for all venues that have a partakeTeamId configured.
- * Returns summary of created/updated/skipped counts.
- */
-export async function syncPartakeEvents() {
-  const venues = await prisma.venue.findMany({
-    where: { partakeTeamId: { not: null }, isActive: true },
-    select: { id: true, ownerId: true, partakeTeamId: true, name: true },
-  })
-
-  const totals = { synced: 0, created: 0, updated: 0, skipped: 0, errors: 0 }
-
-  for (const venue of venues) {
-    try {
-      const results = await syncVenuePartakeEvents({
-        id: venue.id,
-        ownerId: venue.ownerId,
-        partakeTeamId: venue.partakeTeamId!,
-      })
-      totals.synced += results.synced
-      totals.created += results.created
-      totals.updated += results.updated
-      totals.skipped += results.skipped
-    } catch (error) {
-      console.error(`[Partake Sync] Error syncing venue "${venue.name}":`, error)
-      totals.errors++
-    }
-  }
-
-  return totals
 }

@@ -31,29 +31,6 @@ export function postVenueGraduation(venue: { name: string; slug: string }, miles
   postToBot("/webhook/venue-graduation", { venue, milestone })
 }
 
-export function postTonightList(
-  venues: {
-    name: string
-    slug: string
-    dataCenter: string
-    world: string
-    district?: string | null
-    ward?: number | null
-    plot?: number | null
-    scheduledStart: Date
-    scheduledEnd: Date
-  }[]
-) {
-  postToBot(
-    "/webhook/tonight",
-    venues.map((v) => ({
-      ...v,
-      scheduledStart: v.scheduledStart.toISOString(),
-      scheduledEnd: v.scheduledEnd.toISOString(),
-    }))
-  )
-}
-
 export async function postPatronVisitXp(venueId: string, characterName: string, world: string) {
   const rows = await prisma.$queryRaw<{ discordId: string | null; name: string }[]>`
     SELECT u."discordId", v.name

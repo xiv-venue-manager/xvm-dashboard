@@ -240,7 +240,13 @@ export const PUT = withRateLimit<{ params: Promise<{ venueId: string }> }>(
       // re-checking an unchanged one would block unrelated saves on a venue whose server is not linked.
       const newChannelId = validatedData.shiftBot?.channelId
       if (newChannelId && newChannelId !== parseVenueSettings(venue.settings).shiftBot?.channelId) {
-        const channel = await requireChannelInGuild(session.user.id, venueId, newChannelId)
+        if (!venue.xvmApiVenueId) {
+          return NextResponse.json(
+            { error: "not_connected", message: "This venue hasn't been connected to xvm-api yet." },
+            { status: 409 }
+          )
+        }
+        const channel = await requireChannelInGuild(session.user.id, venue.xvmApiVenueId, newChannelId)
         if (!channel.ok) return channel.response
       }
 

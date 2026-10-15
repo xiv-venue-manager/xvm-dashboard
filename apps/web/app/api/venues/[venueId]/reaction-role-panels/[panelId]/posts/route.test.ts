@@ -4,7 +4,7 @@ import { NextResponse } from "next/server"
 const m = vi.hoisted(() => ({
   session: vi.fn(),
   token: vi.fn(),
-  venue: vi.fn(),
+  lookup: vi.fn(),
   channel: vi.fn(),
   postPanel: vi.fn(),
 }))
@@ -12,7 +12,7 @@ const m = vi.hoisted(() => ({
 vi.mock("next-auth", () => ({ getServerSession: m.session }))
 vi.mock("@/lib/auth", () => ({ authOptions: {} }))
 vi.mock("@/lib/middleware/with-rate-limit", () => ({ withRateLimit: (handler: unknown) => handler }))
-vi.mock("@/lib/prisma", () => ({ prisma: { venue: { findUnique: m.venue } } }))
+vi.mock("@/lib/api/venue-access", () => ({ requireMyVenue: m.lookup }))
 vi.mock("@/lib/api/xvm-api-store", async () => {
   const actual = await vi.importActual<typeof import("@/lib/api/xvm-api-store")>("@/lib/api/xvm-api-store")
   return { ...actual, getValidXvmApiToken: m.token, invalidateXvmApiCredential: vi.fn() }
@@ -34,7 +34,7 @@ beforeEach(() => {
   vi.clearAllMocks()
   m.session.mockResolvedValue({ user: { id: "user-1" } })
   m.token.mockResolvedValue("tok")
-  m.venue.mockResolvedValue({ xvmApiVenueId: "xv-1" })
+  m.lookup.mockResolvedValue({ ok: true, venue: { id: "xv-1" } })
   m.channel.mockResolvedValue({ ok: true })
   m.postPanel.mockResolvedValue(undefined)
 })

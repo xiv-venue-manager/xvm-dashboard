@@ -2,8 +2,7 @@ import { describe, it, expect, vi, beforeEach } from "vitest"
 import { NextResponse } from "next/server"
 
 const m = vi.hoisted(() => ({
-  role: vi.fn(),
-  venue: vi.fn(),
+  lookup: vi.fn(),
   token: vi.fn(),
   getVenue: vi.fn(),
   cached: vi.fn(),
@@ -12,8 +11,7 @@ const m = vi.hoisted(() => ({
   channelInfo: vi.fn(),
 }))
 
-vi.mock("@/lib/api/venue-access", () => ({ requireVenueRole: m.role }))
-vi.mock("@/lib/prisma", () => ({ prisma: { venue: { findUnique: m.venue } } }))
+vi.mock("@/lib/api/venue-access", () => ({ requireMyVenue: m.lookup }))
 vi.mock("@/lib/api/xvm-api-store", async () => {
   const actual = await vi.importActual<typeof import("@/lib/api/xvm-api-store")>("@/lib/api/xvm-api-store")
   return { ...actual, getValidXvmApiToken: m.token, invalidateXvmApiCredential: vi.fn() }
@@ -55,8 +53,7 @@ const liveLink = (over: Record<string, unknown> = {}) => ({
 beforeEach(() => {
   vi.clearAllMocks()
   vi.spyOn(console, "error").mockImplementation(() => {})
-  m.role.mockResolvedValue({ ok: true, role: "STAFF" })
-  m.venue.mockResolvedValue({ xvmApiVenueId: "xv-1" })
+  m.lookup.mockResolvedValue({ ok: true, venue: { id: "xv-1", role: "STAFF" } })
   m.token.mockResolvedValue("tok")
   m.getVenue.mockResolvedValue(links([liveLink()]))
   m.cached.mockResolvedValue(null)
@@ -70,28 +67,18 @@ describe("requireVenueGuild", () => {
     expect(result).toEqual({ ok: true, guildId: GUILD })
   })
 
-  it("asks for STAFF, so a staff member can read a picker's options", async () => {
-    // The minimum is the whole authorization decision here and it is not visible in the
-    // response, so it is asserted directly rather than inferred from a refusal.
-    await requireVenueGuild("user-1", "vn_1")
-    expect(m.role).toHaveBeenCalledWith("user-1", "vn_1", "STAFF", expect.any(String))
+  it("asks xvm-api about the venue the lookup resolved, not the id it was given", async () => {
+    await requireVenueGuild("user-1", "some-slug")
+    expect(m.lookup).toHaveBeenCalledWith("user-1", "some-slug", expect.any(String))
+    expect(m.getVenue).toHaveBeenCalledWith("tok", "xv-1")
   })
 
   it("passes the gate's own refusal straight through, without asking xvm-api anything", async () => {
     const response = NextResponse.json({ error: "nope" }, { status: 403 })
-    m.role.mockResolvedValue({ ok: false, response })
+    m.lookup.mockResolvedValue({ ok: false, response })
     const result = await requireVenueGuild("user-1", "vn_1")
     expect(result).toEqual({ ok: false, response })
     expect(m.getVenue).not.toHaveBeenCalled()
-  })
-
-  it("is 409 not_connected when the venue has no xvm-api venue", async () => {
-    m.venue.mockResolvedValue({ xvmApiVenueId: null })
-    const result = await requireVenueGuild("user-1", "vn_1")
-    expect(result.ok).toBe(false)
-    if (result.ok) return
-    expect(result.response.status).toBe(409)
-    expect((await result.response.json()).error).toBe("not_connected")
   })
 
   it("is 503 when the xvm-api credential has lapsed", async () => {

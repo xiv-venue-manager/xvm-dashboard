@@ -30,6 +30,7 @@ import {
   Ban,
   DoorOpen,
   Smile,
+  Zap,
   type LucideIcon,
 } from "lucide-react"
 
@@ -275,6 +276,12 @@ export function VenueSidebar({
           href: `/dashboard/${venueSlug}/reaction-roles`,
           label: "Reaction Roles",
           icon: Smile,
+          roles: ["OWNER", "MANAGER"],
+        },
+        {
+          href: `/dashboard/${venueSlug}/auto-reactor`,
+          label: "Auto-Reactor",
+          icon: Zap,
           roles: ["OWNER", "MANAGER"],
         },
       ],

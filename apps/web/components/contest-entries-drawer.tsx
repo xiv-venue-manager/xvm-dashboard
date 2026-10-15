@@ -22,10 +22,8 @@ interface ContestEntriesDrawerProps {
   onOpenChange: (open: boolean) => void
 }
 
-// A raffle is entered from Discord, so most entrants have no dashboard account for
-// resolveEntryNames to find and rendered as a shortened id. Ask Discord for the rest.
-// display_name still wins where it exists, but provisionally: #179 froze users.displayName,
-// which resolveEntryNames reads, so a rename since then shows the old name over the live one.
+// A raffle is entered from Discord, so most entrants do not work at the venue and have no name from
+// resolveEntryNames. Ask Discord for those. The venue's own name for a member wins where it exists.
 function entrantLabel(entry: ResolvedEntry, member: DiscordMember | undefined): string {
   if (entry.display_name) return entry.display_name
   return memberLabel(entry.discord_user_id, member)

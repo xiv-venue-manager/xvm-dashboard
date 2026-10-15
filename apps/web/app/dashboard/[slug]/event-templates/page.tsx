@@ -42,11 +42,6 @@ interface EventTemplate {
   eventType: string
   defaultStartTime: string
   defaultEndTime: string
-  createdBy: {
-    id: string
-    name: string | null
-    displayName: string | null
-  } | null
 }
 
 const eventTypeLabels: Record<string, string> = {
@@ -299,11 +294,6 @@ export default function EventTemplatesPage() {
                     </div>
                     {template.description && (
                       <p className="text-sm text-muted-foreground line-clamp-2">{template.description}</p>
-                    )}
-                    {template.createdBy && (
-                      <p className="text-xs text-muted-foreground mt-2">
-                        Created by {template.createdBy.displayName || template.createdBy.name}
-                      </p>
                     )}
                   </div>
                 </CardContent>

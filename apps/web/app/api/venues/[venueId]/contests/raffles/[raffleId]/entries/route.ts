@@ -39,7 +39,7 @@ export const GET = withRateLimit<{ params: Promise<{ venueId: string; raffleId: 
 
     try {
       const entries = await listRaffleEntries(token, lookup.venue.id, id)
-      const resolved = await resolveEntryNames(entries)
+      const resolved = await resolveEntryNames(token, lookup.venue.id, entries)
       return NextResponse.json(resolved)
     } catch (err) {
       return xvmApiErrorResponse(err, session.user.id, "[contests/raffles/:id/entries] GET error")

@@ -2,27 +2,14 @@ import { NextResponse } from "next/server"
 import { getServerSession } from "next-auth"
 import { authOptions } from "@/lib/auth"
 import { z } from "zod"
-import { prisma } from "@/lib/prisma"
 import { withRateLimit } from "@/lib/middleware/with-rate-limit"
 import { getValidXvmApiToken, xvmApiErrorResponse } from "@/lib/api/xvm-api-store"
+import { requireMyVenue } from "@/lib/api/venue-access"
 import { creditTickets, refundTickets } from "@/lib/api/xvm-api"
 
 const creditSchema = z.object({
   quantity: z.number().int().min(1).max(10_000).optional(),
 })
-
-async function requireXvmVenueId(venueId: string) {
-  const venue = await prisma.venue.findUnique({ where: { id: venueId }, select: { xvmApiVenueId: true } })
-  if (!venue?.xvmApiVenueId) {
-    return {
-      error: NextResponse.json(
-        { error: "not_connected", message: "This venue hasn't been connected to xvm-api yet." },
-        { status: 409 }
-      ),
-    }
-  }
-  return { xvmApiVenueId: venue.xvmApiVenueId }
-}
 
 function parseRaffleId(raffleId: string) {
   const id = Number(raffleId)
@@ -59,8 +46,8 @@ export const PUT = withRateLimit<{ params: Promise<{ venueId: string; raffleId: 
       return NextResponse.json({ error: "Invalid discord user id" }, { status: 400 })
     }
 
-    const gate = await requireXvmVenueId(venueId)
-    if (gate.error) return gate.error
+    const lookup = await requireMyVenue(session.user.id, venueId, "[contests] /me/venues read error")
+    if (!lookup.ok) return lookup.response
 
     let parsed: z.infer<typeof creditSchema>
     try {
@@ -73,7 +60,7 @@ export const PUT = withRateLimit<{ params: Promise<{ venueId: string; raffleId: 
     }
 
     try {
-      const entry = await creditTickets(token, gate.xvmApiVenueId!, id, discordUserId, { quantity: parsed.quantity })
+      const entry = await creditTickets(token, lookup.venue.id, id, discordUserId, { quantity: parsed.quantity })
       return NextResponse.json(entry)
     } catch (err) {
       return xvmApiErrorResponse(err, session.user.id, "[contests/raffles/:id/entries/:discordUserId] PUT error")
@@ -108,11 +95,11 @@ export const DELETE = withRateLimit<{ params: Promise<{ venueId: string; raffleI
       return NextResponse.json({ error: "Invalid discord user id" }, { status: 400 })
     }
 
-    const gate = await requireXvmVenueId(venueId)
-    if (gate.error) return gate.error
+    const lookup = await requireMyVenue(session.user.id, venueId, "[contests] /me/venues read error")
+    if (!lookup.ok) return lookup.response
 
     try {
-      await refundTickets(token, gate.xvmApiVenueId!, id, discordUserId)
+      await refundTickets(token, lookup.venue.id, id, discordUserId)
       return NextResponse.json({ success: true })
     } catch (err) {
       return xvmApiErrorResponse(err, session.user.id, "[contests/raffles/:id/entries/:discordUserId] DELETE error")

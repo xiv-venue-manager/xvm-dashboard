@@ -4,7 +4,6 @@ import { useState } from "react"
 import { Button } from "@/components/ui/button"
 import { Badge } from "@/components/ui/badge"
 import { Card, CardContent, CardHeader } from "@/components/ui/card"
-import { Alert, AlertDescription } from "@/components/ui/alert"
 import {
   AlertDialog,
   AlertDialogAction,
@@ -28,10 +27,7 @@ export interface ContestsBoardProps {
   canManage: boolean
   giveaways: GiveawayRow[]
   raffles: RaffleRow[]
-  notConnected?: boolean
 }
-
-const NOT_CONNECTED_MESSAGE = "Ask the venue owner to connect this venue to xvm-api first."
 
 function winnerNames(winners: { discord_user_id: string }[]): string {
   return winners.map((w) => `${w.discord_user_id.slice(0, 4)}...${w.discord_user_id.slice(-4)}`).join(", ")
@@ -54,7 +50,7 @@ async function fetchContests(venueId: string): Promise<Contest[]> {
   ]
 }
 
-export function ContestsBoard({ venueId, canManage, giveaways, raffles, notConnected }: ContestsBoardProps) {
+export function ContestsBoard({ venueId, canManage, giveaways, raffles }: ContestsBoardProps) {
   const [contests, setContests] = useState<Contest[]>([
     ...giveaways.map((g) => ({ kind: "giveaway" as const, ...g })),
     ...raffles.map((r) => ({ kind: "raffle" as const, ...r })),
@@ -101,14 +97,6 @@ export function ContestsBoard({ venueId, canManage, giveaways, raffles, notConne
       setRolling(false)
       setRollTarget(null)
     }
-  }
-
-  if (notConnected) {
-    return (
-      <Alert>
-        <AlertDescription>{NOT_CONNECTED_MESSAGE}</AlertDescription>
-      </Alert>
-    )
   }
 
   return (

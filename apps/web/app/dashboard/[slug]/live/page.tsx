@@ -120,6 +120,7 @@ export default async function LivePage({ params }: { params: Promise<{ slug: str
         {activeEvent ? (
           <LiveDashboard
             venueId={venue.id}
+            xvmApiVenueId={venue.xvmApiVenueId!}
             event={{
               id: activeEvent.id ?? "",
               title: activeEvent.title,

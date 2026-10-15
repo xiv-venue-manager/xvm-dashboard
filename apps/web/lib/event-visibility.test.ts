@@ -15,7 +15,7 @@ vi.mock("@/lib/api/xvm-api", () => ({ getVenue: mockGetVenue }))
 
 import { eventHiddenFromStaff } from "./event-visibility"
 
-const connected = { settings: null, xvmApiVenueId: "venue-1" }
+const connected = "venue-1"
 
 beforeEach(() => {
   vi.clearAllMocks()
@@ -53,12 +53,5 @@ describe("eventHiddenFromStaff", () => {
   it("fails closed when the user has no xvm-api token", async () => {
     mockGetToken.mockResolvedValue(null)
     expect(await eventHiddenFromStaff("u", "STAFF", connected, "DRAFT")).toBe(true)
-  })
-
-  it("reads the setting from venue settings when the venue is not connected", async () => {
-    const hidden = { settings: { eventVisibility: "published" }, xvmApiVenueId: null }
-    const open = { settings: {}, xvmApiVenueId: null }
-    expect(await eventHiddenFromStaff("u", "STAFF", hidden, "DRAFT")).toBe(true)
-    expect(await eventHiddenFromStaff("u", "STAFF", open, "DRAFT")).toBe(false)
   })
 })

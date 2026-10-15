@@ -1,8 +1,7 @@
 import { NextRequest, NextResponse } from "next/server"
 import { getServerSession } from "next-auth"
 import { authOptions } from "@/lib/auth"
-import { prisma } from "@/lib/prisma"
-import { requireVenueRole } from "@/lib/api/venue-access"
+import { requireMyVenue } from "@/lib/api/venue-access"
 import { z } from "zod"
 import { withRateLimit } from "@/lib/middleware/with-rate-limit"
 import { validators } from "@/lib/validation"
@@ -27,22 +26,6 @@ const eventSchema = z.object({
   recurrenceRule: z.enum(["WEEKLY", "BIWEEKLY", "MONTHLY"]).optional(),
 })
 
-async function requireXvmVenueId(venueId: string) {
-  const venue = await prisma.venue.findUnique({
-    where: { id: venueId },
-    select: { xvmApiVenueId: true, settings: true },
-  })
-  if (!venue?.xvmApiVenueId) {
-    return {
-      error: NextResponse.json(
-        { error: "not_connected", message: "This venue hasn't been connected to xvm-api yet." },
-        { status: 409 }
-      ),
-    }
-  }
-  return { venue, xvmApiVenueId: venue.xvmApiVenueId }
-}
-
 export const POST = withRateLimit<{ params: Promise<{ venueId: string }> }>(
   async (request: NextRequest, context) => {
     if (!context?.params) {
@@ -61,8 +44,8 @@ export const POST = withRateLimit<{ params: Promise<{ venueId: string }> }>(
 
     const { venueId } = await context.params
 
-    const gate = await requireXvmVenueId(venueId)
-    if (gate.error) return gate.error
+    const lookup = await requireMyVenue(session.user.id, venueId, "[events] /me/venues read error")
+    if (!lookup.ok) return lookup.response
 
     let data: z.infer<typeof eventSchema>
     try {
@@ -93,11 +76,11 @@ export const POST = withRateLimit<{ params: Promise<{ venueId: string }> }>(
         ? (
             await createEventSeries(
               token,
-              gate.xvmApiVenueId,
+              lookup.venue.id,
               toSeriesCreateData(base, data.recurrenceRule, data.startTime, data.endTime, timeZone)
             )
           ).seed
-        : await createEvent(token, gate.xvmApiVenueId, {
+        : await createEvent(token, lookup.venue.id, {
             ...base,
             starts_at: data.startTime.toISOString(),
             ends_at: data.endTime.toISOString(),
@@ -128,11 +111,8 @@ export const GET = withRateLimit<{ params: Promise<{ venueId: string }> }>(
 
     const { venueId } = await context.params
 
-    const gate = await requireXvmVenueId(venueId)
-    if (gate.error) return gate.error
-
-    const access = await requireVenueRole(session.user.id, venueId, "STAFF", "You don't have access to this venue")
-    if (!access.ok) return access.response
+    const lookup = await requireMyVenue(session.user.id, venueId, "[events] /me/venues read error")
+    if (!lookup.ok) return lookup.response
 
     const searchParams = request.nextUrl.searchParams
     const status = searchParams.get("status")
@@ -147,7 +127,7 @@ export const GET = withRateLimit<{ params: Promise<{ venueId: string }> }>(
     }
 
     try {
-      const items = await listEvents(token, gate.xvmApiVenueId, {
+      const items = await listEvents(token, lookup.venue.id, {
         from: from.toISOString(),
         to: to.toISOString(),
         includeCancelled: true,
@@ -156,7 +136,7 @@ export const GET = withRateLimit<{ params: Promise<{ venueId: string }> }>(
       if (status) {
         events = events.filter((event) => event.status === status)
       }
-      if (access.role === "STAFF" && (await eventVisibilityFor(session.user.id, gate.venue)) === "published") {
+      if (lookup.venue.role === "STAFF" && (await eventVisibilityFor(session.user.id, lookup.venue.id)) === "published") {
         events = events.filter((event) => event.status !== "DRAFT")
       }
       return NextResponse.json(events)

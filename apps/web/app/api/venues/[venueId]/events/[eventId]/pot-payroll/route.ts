@@ -1,7 +1,7 @@
 import { NextResponse } from "next/server"
 import { getServerSession } from "next-auth"
 import { authOptions } from "@/lib/auth"
-import { prisma } from "@/lib/prisma"
+import { requireMyVenue } from "@/lib/api/venue-access"
 import { withRateLimit } from "@/lib/middleware/with-rate-limit"
 import { getValidXvmApiToken, xvmApiErrorResponse } from "@/lib/api/xvm-api-store"
 import { generatePot, previewPot } from "@/lib/api/xvm-api"
@@ -28,20 +28,10 @@ async function authorize(context: RouteContext | undefined) {
     return { error: NextResponse.json({ error: "Event not found" }, { status: 404 }) }
   }
 
-  const venue = await prisma.venue.findFirst({
-    where: { OR: [{ id: venueId }, { slug: venueId }] },
-    select: { xvmApiVenueId: true },
-  })
-  if (!venue?.xvmApiVenueId) {
-    return {
-      error: NextResponse.json(
-        { error: "not_connected", message: "This venue hasn't been connected to xvm-api yet." },
-        { status: 409 }
-      ),
-    }
-  }
+  const lookup = await requireMyVenue(session.user.id, venueId, "[pot-payroll] /me/venues read error")
+  if (!lookup.ok) return { error: lookup.response }
 
-  return { userId: session.user.id, token, xvmApiVenueId: venue.xvmApiVenueId, eventId: Number(eventId) }
+  return { userId: session.user.id, token, xvmApiVenueId: lookup.venue.id, eventId: Number(eventId) }
 }
 
 export const GET = withRateLimit<RouteContext>(

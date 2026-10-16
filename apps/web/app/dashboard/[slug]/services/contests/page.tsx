@@ -23,8 +23,8 @@ export default async function ContestsPage({ params }: { params: Promise<{ slug:
   if (token) {
     try {
       ;[giveaways, raffles] = await Promise.all([
-        listGiveaways(token, venue.id),
-        listRaffles(token, venue.id),
+        listGiveaways(token, venue.id, { includeRolled: true }),
+        listRaffles(token, venue.id, { includeRolled: true }),
       ])
     } catch (err) {
       console.error("[contests page] list error:", err)

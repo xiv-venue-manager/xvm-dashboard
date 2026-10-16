@@ -2169,9 +2169,29 @@ export async function listGiveawayEntries(personToken: string, venueId: string, 
   return xvmFetch<EntryRow[]>(`/venues/${venueId}/giveaways/${giveawayId}/entries`, {}, personToken)
 }
 
-export async function rollGiveaway(personToken: string, venueId: string, giveawayId: number): Promise<GiveawayRoll> {
+export async function rollGiveaway(
+  personToken: string,
+  venueId: string,
+  giveawayId: number,
+  options: { reroll?: boolean } = {}
+): Promise<GiveawayRoll> {
   if (!process.env.XVM_API_BASE_URL) throw new Error("XVM_API_BASE_URL is not set")
-  return xvmFetch<GiveawayRoll>(`/venues/${venueId}/giveaways/${giveawayId}/roll`, { method: "POST" }, personToken)
+  const query = options.reroll ? "?reroll=true" : ""
+  return xvmFetch<GiveawayRoll>(`/venues/${venueId}/giveaways/${giveawayId}/roll${query}`, { method: "POST" }, personToken)
+}
+
+export async function postGiveaway(
+  personToken: string,
+  venueId: string,
+  giveawayId: number,
+  data: { channel_id: string }
+): Promise<void> {
+  if (!process.env.XVM_API_BASE_URL) throw new Error("XVM_API_BASE_URL is not set")
+  return xvmFetch<void>(
+    `/venues/${venueId}/giveaways/${giveawayId}/posts`,
+    { method: "POST", body: JSON.stringify(data) },
+    personToken
+  )
 }
 
 export interface RaffleRow {
@@ -2288,9 +2308,29 @@ export async function refundTickets(
   )
 }
 
-export async function rollRaffle(personToken: string, venueId: string, raffleId: number): Promise<RaffleRoll> {
+export async function rollRaffle(
+  personToken: string,
+  venueId: string,
+  raffleId: number,
+  options: { reroll?: boolean } = {}
+): Promise<RaffleRoll> {
   if (!process.env.XVM_API_BASE_URL) throw new Error("XVM_API_BASE_URL is not set")
-  return xvmFetch<RaffleRoll>(`/venues/${venueId}/raffles/${raffleId}/roll`, { method: "POST" }, personToken)
+  const query = options.reroll ? "?reroll=true" : ""
+  return xvmFetch<RaffleRoll>(`/venues/${venueId}/raffles/${raffleId}/roll${query}`, { method: "POST" }, personToken)
+}
+
+export async function postRaffle(
+  personToken: string,
+  venueId: string,
+  raffleId: number,
+  data: { channel_id: string }
+): Promise<void> {
+  if (!process.env.XVM_API_BASE_URL) throw new Error("XVM_API_BASE_URL is not set")
+  return xvmFetch<void>(
+    `/venues/${venueId}/raffles/${raffleId}/posts`,
+    { method: "POST", body: JSON.stringify(data) },
+    personToken
+  )
 }
 
 // ── Payroll API ────────────────────────────────────────────────

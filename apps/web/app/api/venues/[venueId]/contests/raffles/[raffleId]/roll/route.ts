@@ -37,7 +37,8 @@ export const POST = withRateLimit<{ params: Promise<{ venueId: string; raffleId:
     if (!lookup.ok) return lookup.response
 
     try {
-      const result = await rollRaffle(token, lookup.venue.id, id)
+      const reroll = new URL(request.url).searchParams.get("reroll") === "true"
+      const result = await rollRaffle(token, lookup.venue.id, id, { reroll })
       return NextResponse.json(result)
     } catch (err) {
       return xvmApiErrorResponse(err, session.user.id, "[contests/raffles/:id/roll] POST error")

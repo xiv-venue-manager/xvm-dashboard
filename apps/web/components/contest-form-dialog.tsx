@@ -202,6 +202,9 @@ export function ContestFormDialog({ venueId, trigger, onCreated }: ContestFormDi
           <div className="space-y-2">
             <Label>Ends at (optional)</Label>
             <DateTimePicker date={endAt} onDateChange={setEndAt} placeholder="No end date" />
+            <p className="text-xs text-muted-foreground">
+              It closes and draws itself at this time. Leave it blank to roll by hand.
+            </p>
           </div>
 
           <div className="flex items-center justify-between">

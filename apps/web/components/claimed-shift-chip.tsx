@@ -5,12 +5,12 @@ import { useRouter } from "next/navigation"
 
 interface ClaimedShiftChipProps {
   shiftId: number
-  venueId: string
+  venueSlug: string
   timeLabel: string
   canManage: boolean
 }
 
-export function ClaimedShiftChip({ shiftId, venueId, timeLabel, canManage }: ClaimedShiftChipProps) {
+export function ClaimedShiftChip({ shiftId, venueSlug, timeLabel, canManage }: ClaimedShiftChipProps) {
   const router = useRouter()
   const [loading, setLoading] = useState<"approve" | "reject" | null>(null)
   const [error, setError] = useState<string | null>(null)
@@ -18,7 +18,7 @@ export function ClaimedShiftChip({ shiftId, venueId, timeLabel, canManage }: Cla
   async function handleAction(action: "approve" | "reject") {
     setLoading(action)
     setError(null)
-    const res = await fetch(`/api/venues/${venueId}/shifts/${shiftId}`, {
+    const res = await fetch(`/api/venues/${venueSlug}/shifts/${shiftId}`, {
       method: "PATCH",
       headers: { "Content-Type": "application/json" },
       body: JSON.stringify({ action }),

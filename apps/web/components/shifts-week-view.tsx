@@ -63,7 +63,6 @@ export interface ShiftsWeekViewProps {
   isCurrentWeek: boolean
   fmtWeekLabelST: string // pre-formatted "Mon 2 Jun" for the ST week label
   slug: string
-  venueId: string
   currentMembershipId: number
   canManage: boolean
   staffForDialog: StaffOption[]
@@ -315,7 +314,7 @@ export function ShiftsWeekView(props: ShiftsWeekViewProps) {
                         <ClaimedShiftChip
                           key={shift.id}
                           shiftId={shift.id}
-                          venueId={props.venueId}
+                          venueSlug={props.slug}
                           timeLabel={`${hourLabelOf(shift.scheduledStart)}–${hourLabelOf(shift.scheduledEnd)}${shift.roleName ? ` · ${shift.roleName}` : ""}`}
                           canManage={props.canManage}
                         />
@@ -357,7 +356,7 @@ export function ShiftsWeekView(props: ShiftsWeekViewProps) {
                       <div key={shift.id} className="flex items-center gap-1">
                         <OpenShiftChip
                           shiftId={shift.id}
-                          venueId={props.venueId}
+                          venueSlug={props.slug}
                           timeLabel={`${hourLabelOf(shift.scheduledStart)}–${hourLabelOf(shift.scheduledEnd)}${shift.roleName ? ` · ${shift.roleName}` : ""}`}
                         />
                         {props.canManage &&

@@ -30,7 +30,6 @@ interface ShiftDayDialogProps {
   canManage: boolean
   currentMembershipId: number
   venueSlug: string
-  venueId: string
   staffForDialog: ShiftStaffOption[]
   roles: ShiftRoleOption[]
   staffNames: StaffNameLookup
@@ -43,7 +42,6 @@ export function ShiftDayDialog({
   canManage,
   currentMembershipId,
   venueSlug,
-  venueId,
   staffForDialog,
   roles,
   staffNames,
@@ -99,7 +97,7 @@ export function ShiftDayDialog({
                   <div className="flex items-center gap-1 flex-shrink-0">
                     <OpenShiftChip
                       shiftId={shift.id}
-                      venueId={venueId}
+                      venueSlug={venueSlug}
                       timeLabel={`${hourLabelFor(shift.scheduledStart, timeZone)}–${hourLabelFor(shift.scheduledEnd, timeZone)}`}
                     />
                     {canManage && (
@@ -167,7 +165,7 @@ export function ShiftDayDialog({
                   {shift.status === "CLAIMED" ? (
                     <ClaimedShiftChip
                       shiftId={shift.id}
-                      venueId={venueId}
+                      venueSlug={venueSlug}
                       timeLabel={`${hourLabelFor(shift.scheduledStart, timeZone)}–${hourLabelFor(shift.scheduledEnd, timeZone)}`}
                       canManage={canManage}
                     />

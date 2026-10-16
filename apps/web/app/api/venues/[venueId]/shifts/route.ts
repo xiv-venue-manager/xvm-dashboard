@@ -1,9 +1,9 @@
 import { NextResponse } from "next/server"
 import { getServerSession } from "next-auth"
 import { authOptions } from "@/lib/auth"
-import { prisma } from "@/lib/prisma"
 import { withRateLimit } from "@/lib/middleware/with-rate-limit"
 import { getValidXvmApiToken, xvmApiErrorResponse } from "@/lib/api/xvm-api-store"
+import { requireMyVenue } from "@/lib/api/venue-access"
 import { listShifts, createShift, type ShiftRow } from "@/lib/api/xvm-api"
 import { z } from "zod"
 
@@ -35,25 +35,6 @@ function toShiftShape(shift: ShiftRow) {
   }
 }
 
-async function requireXvmVenueId(venueId: string) {
-  // Shift routes are called with a venue slug from several client components
-  // (ClockShiftButton, DeleteShiftButton), unlike Roles' id-only convention -
-  // matches the original Prisma route's slug-or-id lookup.
-  const venue = await prisma.venue.findFirst({
-    where: { OR: [{ id: venueId }, { slug: venueId }] },
-    select: { xvmApiVenueId: true },
-  })
-  if (!venue?.xvmApiVenueId) {
-    return {
-      error: NextResponse.json(
-        { error: "not_connected", message: "This venue hasn't been connected to xvm-api yet." },
-        { status: 409 }
-      ),
-    }
-  }
-  return { xvmApiVenueId: venue.xvmApiVenueId }
-}
-
 /**
  * GET /api/venues/[venueId]/shifts
  * List shifts for a venue. xvm-api requires an explicit from/to window, capped at 60 days.
@@ -77,15 +58,15 @@ export const GET = withRateLimit<{ params: Promise<{ venueId: string }> }>(
 
     const { venueId } = await context.params
 
-    const gate = await requireXvmVenueId(venueId)
-    if (gate.error) return gate.error
+    const lookup = await requireMyVenue(session.user.id, venueId, "[shifts] /me/venues read error")
+    if (!lookup.ok) return lookup.response
 
     const url = request.nextUrl
     const from = url.searchParams.get("from") ?? new Date(Date.now() - 7 * 24 * 60 * 60 * 1000).toISOString()
     const to = url.searchParams.get("to") ?? new Date(Date.now() + 30 * 24 * 60 * 60 * 1000).toISOString()
 
     try {
-      const shifts = await listShifts(token, gate.xvmApiVenueId!, { from, to, includeCancelled: true })
+      const shifts = await listShifts(token, lookup.venue.id, { from, to, includeCancelled: true })
       return NextResponse.json({ shifts: shifts.map(toShiftShape) })
     } catch (err) {
       return xvmApiErrorResponse(err, session.user.id, "[shifts] GET error")
@@ -131,8 +112,8 @@ export const POST = withRateLimit<{ params: Promise<{ venueId: string }> }>(
 
     const { venueId } = await context.params
 
-    const gate = await requireXvmVenueId(venueId)
-    if (gate.error) return gate.error
+    const lookup = await requireMyVenue(session.user.id, venueId, "[shifts] /me/venues read error")
+    if (!lookup.ok) return lookup.response
 
     let data: z.infer<typeof createShiftSchema>
     try {
@@ -152,7 +133,7 @@ export const POST = withRateLimit<{ params: Promise<{ venueId: string }> }>(
     }
 
     try {
-      const shift = await createShift(token, gate.xvmApiVenueId!, {
+      const shift = await createShift(token, lookup.venue.id, {
         scheduled_start: data.scheduledStart,
         scheduled_end: data.scheduledEnd,
         position_id: data.roleId ?? null,

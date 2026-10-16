@@ -271,7 +271,7 @@ export default function SalesPage({ params }: { params: Promise<{ slug: string }
                     <div className="p-5">
                       <TransactionsList
                         transactions={transactions}
-                        venueId={venueId}
+                        venueSlug={slug}
                         onTransactionsChange={setTransactions}
                       />
                     </div>

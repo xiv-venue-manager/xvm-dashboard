@@ -42,7 +42,7 @@ beforeEach(() => {
     xvmApiVenueId: null,
     venueType: null,
   })
-  m.venueUpdate.mockResolvedValue({ settings: {}, discordWebhookUrl: null, partakeTeamId: null })
+  m.venueUpdate.mockResolvedValue({ settings: {}, discordWebhookUrl: null })
   m.channel.mockResolvedValue({ ok: true })
 })
 

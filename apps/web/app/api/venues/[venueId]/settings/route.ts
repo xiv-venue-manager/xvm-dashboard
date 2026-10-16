@@ -36,8 +36,6 @@ const updateSettingsSchema = z.object({
   discordWebhooks: discordWebhooksSchema.optional(),
   // Keep for backward compatibility
   discordWebhookUrl: z.string().url().optional().or(z.literal("")),
-  // Partake integration
-  partakeTeamId: z.number().int().positive().nullable().optional(),
   // Venue type
   venueType: z
     .enum([
@@ -112,7 +110,6 @@ export const GET = withRateLimit<{ params: Promise<{ venueId: string }> }>(
         select: {
           settings: true,
           discordWebhookUrl: true,
-          partakeTeamId: true,
           venueType: true,
           froggeToken: true,
           xvmApiVenueId: true,
@@ -126,7 +123,6 @@ export const GET = withRateLimit<{ params: Promise<{ venueId: string }> }>(
       const responseBody: Record<string, unknown> = {
         ...parseVenueSettings(venue.settings),
         discordWebhookUrl: venue.discordWebhookUrl,
-        partakeTeamId: venue.partakeTeamId,
         venueType: venue.venueType,
         froggeToken: venue.froggeToken,
       }
@@ -253,7 +249,6 @@ export const PUT = withRateLimit<{ params: Promise<{ venueId: string }> }>(
       // Extract top-level venue columns and xvm-api-owned visibility fields from validated data
       const {
         discordWebhookUrl,
-        partakeTeamId,
         venueType,
         taskVisibility,
         salesVisibility,
@@ -305,21 +300,16 @@ export const PUT = withRateLimit<{ params: Promise<{ venueId: string }> }>(
           ...(discordWebhookUrl !== undefined && {
             discordWebhookUrl: discordWebhookUrl || null,
           }),
-          ...(partakeTeamId !== undefined && {
-            partakeTeamId: partakeTeamId,
-          }),
         },
         select: {
           settings: true,
           discordWebhookUrl: true,
-          partakeTeamId: true,
         },
       })
 
       const putResponseBody: Record<string, unknown> = {
         ...parseVenueSettings(updatedVenue.settings),
         discordWebhookUrl: updatedVenue.discordWebhookUrl,
-        partakeTeamId: updatedVenue.partakeTeamId,
         venueType: venue.venueType,
       }
 

@@ -4,7 +4,7 @@ import { authOptions } from "@/lib/auth"
 import { z } from "zod"
 import { withRateLimit } from "@/lib/middleware/with-rate-limit"
 import { venueEventBus } from "@/lib/sse/venue-events"
-import { getValidXvmApiToken, xvmApiErrorResponse } from "@/lib/api/xvm-api-store"
+import { getValidXvmApiPersonId, getValidXvmApiToken, xvmApiErrorResponse } from "@/lib/api/xvm-api-store"
 import { requireMyVenue } from "@/lib/api/venue-access"
 import { createReservation, releaseRoom, getRoom, type Room } from "@/lib/api/xvm-api"
 
@@ -77,8 +77,12 @@ export const PATCH = withRateLimit<{
     try {
       let room: Room
       if (parsed.action === "reserve") {
+        const namesSomeone = parsed.reserved_person_id != null || parsed.reserved_character_name != null
+        const reservedPersonId = namesSomeone
+          ? (parsed.reserved_person_id ?? null)
+          : await getValidXvmApiPersonId(session.user.id)
         await createReservation(token, lookup.venue.id, id, {
-          reserved_person_id: parsed.reserved_person_id ?? null,
+          reserved_person_id: reservedPersonId,
           reserved_character_name: parsed.reserved_character_name ?? null,
           reserved_world: parsed.reserved_world ?? null,
           start_at: new Date().toISOString(),

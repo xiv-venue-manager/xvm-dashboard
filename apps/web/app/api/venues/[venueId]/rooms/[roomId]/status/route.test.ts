@@ -3,6 +3,7 @@ import { describe, it, expect, vi, beforeEach } from "vitest"
 const m = vi.hoisted(() => ({
   session: vi.fn(),
   token: vi.fn(),
+  personId: vi.fn(),
   requireVenue: vi.fn(),
   reserve: vi.fn(),
   release: vi.fn(),
@@ -17,6 +18,7 @@ vi.mock("@/lib/api/venue-access", () => ({ requireMyVenue: m.requireVenue }))
 vi.mock("@/lib/sse/venue-events", () => ({ venueEventBus: { emit: m.emit } }))
 vi.mock("@/lib/api/xvm-api-store", () => ({
   getValidXvmApiToken: m.token,
+  getValidXvmApiPersonId: m.personId,
   xvmApiErrorResponse: () => new Response(null, { status: 500 }),
 }))
 vi.mock("@/lib/api/xvm-api", () => ({
@@ -45,6 +47,7 @@ beforeEach(() => {
   vi.resetAllMocks()
   m.session.mockResolvedValue({ user: { id: "u1" } })
   m.token.mockResolvedValue("tok")
+  m.personId.mockResolvedValue(7)
   m.requireVenue.mockResolvedValue({ ok: true, venue: { id: "ven_1" } })
   m.reserve.mockResolvedValue({ id: 1 })
   m.getRoom.mockResolvedValue(room)
@@ -52,6 +55,21 @@ beforeEach(() => {
 })
 
 describe("room status", () => {
+  it("reserves for the caller when the request names no one", async () => {
+    expect((await patch({ action: "reserve" })).status).toBe(200)
+    expect(m.reserve).toHaveBeenCalledWith(
+      "tok",
+      "ven_1",
+      4,
+      expect.objectContaining({ reserved_person_id: 7, reserved_character_name: null })
+    )
+  })
+
+  it("does not add the caller when a character name is given", async () => {
+    await patch({ action: "reserve", reserved_character_name: "Mira" })
+    expect(m.reserve).toHaveBeenCalledWith("tok", "ven_1", 4, expect.objectContaining({ reserved_person_id: null }))
+  })
+
   it("reserves a room and publishes the change under the xvm-api venue id the stream subscribes with", async () => {
     const res = await patch({ action: "reserve", reserved_character_name: "Mira" })
     expect(res.status).toBe(200)

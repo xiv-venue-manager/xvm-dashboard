@@ -2,9 +2,9 @@ import { NextRequest, NextResponse } from "next/server"
 import { getServerSession } from "next-auth"
 import { z } from "zod"
 import { authOptions } from "@/lib/auth"
-import { prisma } from "@/lib/prisma"
 import { withRateLimit } from "@/lib/middleware/with-rate-limit"
 import { getValidXvmApiToken, xvmApiErrorResponse } from "@/lib/api/xvm-api-store"
+import { requireMyVenue } from "@/lib/api/venue-access"
 import { updatePayrollEntry, deletePayrollEntry, type PayrollEntryRow } from "@/lib/api/xvm-api"
 import { minorUnitsToGil, minutesToHours } from "@/lib/api/position-convert"
 
@@ -33,22 +33,6 @@ function toDashboardEntry(row: PayrollEntryRow) {
   }
 }
 
-async function requireXvmVenueId(venueId: string) {
-  const venue = await prisma.venue.findFirst({
-    where: { OR: [{ id: venueId }, { slug: venueId }] },
-    select: { xvmApiVenueId: true },
-  })
-  if (!venue?.xvmApiVenueId) {
-    return {
-      error: NextResponse.json(
-        { error: "not_connected", message: "This venue hasn't been connected to xvm-api yet." },
-        { status: 409 }
-      ),
-    }
-  }
-  return { xvmApiVenueId: venue.xvmApiVenueId }
-}
-
 export const PATCH = withRateLimit<{ params: Promise<{ venueId: string; payrollId: string }> }>(
   async (request: NextRequest, context) => {
     if (!context?.params) return NextResponse.json({ error: "Invalid request" }, { status: 400 })
@@ -65,8 +49,8 @@ export const PATCH = withRateLimit<{ params: Promise<{ venueId: string; payrollI
       return NextResponse.json({ error: "Invalid payroll entry id" }, { status: 400 })
     }
 
-    const gate = await requireXvmVenueId(venueId)
-    if (gate.error) return gate.error
+    const lookup = await requireMyVenue(session.user.id, venueId, "[payroll/[payrollId]] /me/venues read error")
+    if (!lookup.ok) return lookup.response
 
     let data: z.infer<typeof patchSchema>
     try {
@@ -79,7 +63,7 @@ export const PATCH = withRateLimit<{ params: Promise<{ venueId: string; payrollI
     }
 
     try {
-      const row = await updatePayrollEntry(token, gate.xvmApiVenueId!, entryId, {
+      const row = await updatePayrollEntry(token, lookup.venue.id, entryId, {
         is_paid: data.isPaid,
         notes: data.notes,
       })
@@ -107,11 +91,11 @@ export const DELETE = withRateLimit<{ params: Promise<{ venueId: string; payroll
       return NextResponse.json({ error: "Invalid payroll entry id" }, { status: 400 })
     }
 
-    const gate = await requireXvmVenueId(venueId)
-    if (gate.error) return gate.error
+    const lookup = await requireMyVenue(session.user.id, venueId, "[payroll/[payrollId]] /me/venues read error")
+    if (!lookup.ok) return lookup.response
 
     try {
-      await deletePayrollEntry(token, gate.xvmApiVenueId!, entryId)
+      await deletePayrollEntry(token, lookup.venue.id, entryId)
       return NextResponse.json({ success: true, message: "Payroll entry deleted" })
     } catch (err) {
       return xvmApiErrorResponse(err, session.user.id, "[payroll] DELETE error")

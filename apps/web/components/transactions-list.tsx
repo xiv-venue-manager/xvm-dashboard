@@ -40,11 +40,11 @@ export interface Transaction {
 
 interface TransactionsListProps {
   transactions: Transaction[]
-  venueId: string
+  venueSlug: string
   onTransactionsChange: (transactions: Transaction[]) => void
 }
 
-export function TransactionsList({ transactions, venueId, onTransactionsChange }: TransactionsListProps) {
+export function TransactionsList({ transactions, venueSlug, onTransactionsChange }: TransactionsListProps) {
   const [editingTransaction, setEditingTransaction] = useState<Transaction | null>(null)
   const [deletingTransaction, setDeletingTransaction] = useState<Transaction | null>(null)
   const [isSubmitting, setIsSubmitting] = useState(false)
@@ -92,7 +92,7 @@ export function TransactionsList({ transactions, venueId, onTransactionsChange }
 
     setIsSubmitting(true)
     try {
-      const response = await fetch(`/api/venues/${venueId}/transactions/${editingTransaction.id}`, {
+      const response = await fetch(`/api/venues/${venueSlug}/transactions/${editingTransaction.id}`, {
         method: "PATCH",
         headers: { "Content-Type": "application/json" },
         body: JSON.stringify({
@@ -139,7 +139,7 @@ export function TransactionsList({ transactions, venueId, onTransactionsChange }
     try {
       // This voids the transaction in xvm-api (an audit row survives) rather
       // than hard-deleting it - it just disappears from this list.
-      const response = await fetch(`/api/venues/${venueId}/transactions/${deletingTransaction.id}`, {
+      const response = await fetch(`/api/venues/${venueSlug}/transactions/${deletingTransaction.id}`, {
         method: "DELETE",
       })
 

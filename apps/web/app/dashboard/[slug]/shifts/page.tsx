@@ -216,7 +216,6 @@ export default async function ShiftsPage({
             currentMembershipId={currentMembershipId}
             canManage={canManage}
             venueSlug={slug}
-            venueId={venue.id}
             staffForDialog={staffForDialog}
             roles={venueRoles}
             staffNames={staffNames}
@@ -283,7 +282,6 @@ export default async function ShiftsPage({
               isCurrentWeek={isCurrentWeek}
               fmtWeekLabelST={fmtWeekLabel(weekStart)}
               slug={slug}
-              venueId={venue.id}
               currentMembershipId={currentMembershipId}
               canManage={canManage}
               staffForDialog={staffForDialog}

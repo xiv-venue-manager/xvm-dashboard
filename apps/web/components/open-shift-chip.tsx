@@ -5,11 +5,11 @@ import { useRouter } from "next/navigation"
 
 interface OpenShiftChipProps {
   shiftId: number
-  venueId: string
+  venueSlug: string
   timeLabel: string
 }
 
-export function OpenShiftChip({ shiftId, venueId, timeLabel }: OpenShiftChipProps) {
+export function OpenShiftChip({ shiftId, venueSlug, timeLabel }: OpenShiftChipProps) {
   const router = useRouter()
   const [step, setStep] = useState<"idle" | "confirm" | "loading" | "pending">("idle")
   const [error, setError] = useState<string | null>(null)
@@ -17,7 +17,7 @@ export function OpenShiftChip({ shiftId, venueId, timeLabel }: OpenShiftChipProp
   async function handleConfirm() {
     setStep("loading")
     setError(null)
-    const res = await fetch(`/api/venues/${venueId}/shifts/${shiftId}`, {
+    const res = await fetch(`/api/venues/${venueSlug}/shifts/${shiftId}`, {
       method: "PATCH",
       headers: { "Content-Type": "application/json" },
       body: JSON.stringify({ action: "claim" }),

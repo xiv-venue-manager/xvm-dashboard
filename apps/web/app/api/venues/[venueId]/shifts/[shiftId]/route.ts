@@ -1,8 +1,8 @@
 import { NextResponse } from "next/server"
 import { getServerSession } from "next-auth"
 import { authOptions } from "@/lib/auth"
-import { prisma } from "@/lib/prisma"
 import { getValidXvmApiToken, xvmApiErrorResponse } from "@/lib/api/xvm-api-store"
+import { requireMyVenue } from "@/lib/api/venue-access"
 import {
   claimShift,
   approveShift,
@@ -38,22 +38,6 @@ function toShiftShape(shift: ShiftRow) {
   }
 }
 
-async function requireXvmVenueId(venueId: string) {
-  const venue = await prisma.venue.findFirst({
-    where: { OR: [{ id: venueId }, { slug: venueId }] },
-    select: { xvmApiVenueId: true },
-  })
-  if (!venue?.xvmApiVenueId) {
-    return {
-      error: NextResponse.json(
-        { error: "not_connected", message: "This venue hasn't been connected to xvm-api yet." },
-        { status: 409 }
-      ),
-    }
-  }
-  return { xvmApiVenueId: venue.xvmApiVenueId }
-}
-
 const patchSchema = z.object({
   action: z.enum(["clock-in", "clock-out", "claim", "approve", "reject"]),
 })
@@ -84,8 +68,8 @@ export async function PATCH(
     return NextResponse.json({ error: "Shift not found" }, { status: 404 })
   }
 
-  const gate = await requireXvmVenueId(venueId)
-  if (gate.error) return gate.error
+  const lookup = await requireMyVenue(session.user.id, venueId, "[shifts/[shiftId]] /me/venues read error")
+  if (!lookup.ok) return lookup.response
 
   const parsed = patchSchema.safeParse(await request.json())
   if (!parsed.success) {
@@ -96,19 +80,19 @@ export async function PATCH(
     let shift: ShiftRow
     switch (parsed.data.action) {
       case "claim":
-        shift = await claimShift(token, gate.xvmApiVenueId!, shiftId)
+        shift = await claimShift(token, lookup.venue.id, shiftId)
         break
       case "approve":
-        shift = await approveShift(token, gate.xvmApiVenueId!, shiftId)
+        shift = await approveShift(token, lookup.venue.id, shiftId)
         break
       case "reject":
-        shift = await rejectShift(token, gate.xvmApiVenueId!, shiftId)
+        shift = await rejectShift(token, lookup.venue.id, shiftId)
         break
       case "clock-in":
-        shift = await clockInShift(token, gate.xvmApiVenueId!, shiftId)
+        shift = await clockInShift(token, lookup.venue.id, shiftId)
         break
       case "clock-out":
-        shift = await clockOutShift(token, gate.xvmApiVenueId!, shiftId)
+        shift = await clockOutShift(token, lookup.venue.id, shiftId)
         break
     }
     return NextResponse.json({ success: true, shift: toShiftShape(shift) })
@@ -143,11 +127,11 @@ export async function DELETE(
     return NextResponse.json({ error: "Shift not found" }, { status: 404 })
   }
 
-  const gate = await requireXvmVenueId(venueId)
-  if (gate.error) return gate.error
+  const lookup = await requireMyVenue(session.user.id, venueId, "[shifts/[shiftId]] /me/venues read error")
+  if (!lookup.ok) return lookup.response
 
   try {
-    const shift = await cancelShift(token, gate.xvmApiVenueId!, shiftId, null)
+    const shift = await cancelShift(token, lookup.venue.id, shiftId, null)
     return NextResponse.json({ success: true, shift: toShiftShape(shift) })
   } catch (err) {
     return xvmApiErrorResponse(err, session.user.id, "[shifts] DELETE error")

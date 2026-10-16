@@ -1,12 +1,11 @@
 import { NextResponse } from "next/server"
 import { getServerSession } from "next-auth"
 import { authOptions } from "@/lib/auth"
-import { prisma } from "@/lib/prisma"
-import { requireVenueRole } from "@/lib/api/venue-access"
 import { z } from "zod"
 import { withRateLimit } from "@/lib/middleware/with-rate-limit"
 import { validators } from "@/lib/validation"
 import { getValidXvmApiToken, xvmApiErrorResponse } from "@/lib/api/xvm-api-store"
+import { requireMyVenue } from "@/lib/api/venue-access"
 import { updateFinanceTransaction, voidFinanceTransaction } from "@/lib/api/xvm-api"
 import { gilToMinorUnits } from "@/lib/api/position-convert"
 
@@ -17,19 +16,6 @@ const updateTransactionSchema = z.object({
   customerName: validators.customerName.optional(),
   notes: validators.transactionNotes.optional(),
 })
-
-async function requireXvmVenueId(venueId: string) {
-  const venue = await prisma.venue.findUnique({ where: { id: venueId }, select: { xvmApiVenueId: true } })
-  if (!venue?.xvmApiVenueId) {
-    return {
-      error: NextResponse.json(
-        { error: "not_connected", message: "This venue hasn't been connected to xvm-api yet." },
-        { status: 409 }
-      ),
-    }
-  }
-  return { xvmApiVenueId: venue.xvmApiVenueId }
-}
 
 // PATCH - Update a transaction
 export const PATCH = withRateLimit<{ params: Promise<{ venueId: string; transactionId: string }> }>(
@@ -45,17 +31,13 @@ export const PATCH = withRateLimit<{ params: Promise<{ venueId: string; transact
 
     const { params } = context
     const { venueId, transactionId } = await params
-
-    const access = await requireVenueRole(session.user.id, venueId, "STAFF", "You don't have access to this venue")
-    if (!access.ok) return access.response
-
     const token = await getValidXvmApiToken(session.user.id)
     if (!token) {
       return NextResponse.json({ error: "xvm-api link not established yet" }, { status: 503 })
     }
 
-    const gate = await requireXvmVenueId(venueId)
-    if (gate.error) return gate.error
+    const lookup = await requireMyVenue(session.user.id, venueId, "[transactions/[transactionId]] /me/venues read error")
+    if (!lookup.ok) return lookup.response
 
     let validatedData: z.infer<typeof updateTransactionSchema>
     try {
@@ -68,7 +50,7 @@ export const PATCH = withRateLimit<{ params: Promise<{ venueId: string; transact
     }
 
     try {
-      const transaction = await updateFinanceTransaction(token, gate.xvmApiVenueId!, Number(transactionId), {
+      const transaction = await updateFinanceTransaction(token, lookup.venue.id, Number(transactionId), {
         amount: validatedData.amount !== undefined ? (gilToMinorUnits(validatedData.amount) ?? undefined) : undefined,
         customer_name: validatedData.customerName,
         notes: validatedData.notes,
@@ -100,20 +82,16 @@ export const DELETE = withRateLimit<{ params: Promise<{ venueId: string; transac
 
     const { params } = context
     const { venueId, transactionId } = await params
-
-    const access = await requireVenueRole(session.user.id, venueId, "STAFF", "You don't have access to this venue")
-    if (!access.ok) return access.response
-
     const token = await getValidXvmApiToken(session.user.id)
     if (!token) {
       return NextResponse.json({ error: "xvm-api link not established yet" }, { status: 503 })
     }
 
-    const gate = await requireXvmVenueId(venueId)
-    if (gate.error) return gate.error
+    const lookup = await requireMyVenue(session.user.id, venueId, "[transactions/[transactionId]] /me/venues read error")
+    if (!lookup.ok) return lookup.response
 
     try {
-      await voidFinanceTransaction(token, gate.xvmApiVenueId!, Number(transactionId), {
+      await voidFinanceTransaction(token, lookup.venue.id, Number(transactionId), {
         reason: "Deleted via dashboard",
       })
 

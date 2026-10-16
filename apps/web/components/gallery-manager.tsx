@@ -7,11 +7,11 @@ import type { VenueImage } from "@/lib/api/xvm-api"
 const MAX_UPLOAD_BYTES = 8 * 1024 * 1024
 
 interface GalleryManagerProps {
-  venueId: string
+  venueSlug: string
   initialImages: VenueImage[]
 }
 
-export function GalleryManager({ venueId, initialImages }: GalleryManagerProps) {
+export function GalleryManager({ venueSlug, initialImages }: GalleryManagerProps) {
   const [images, setImages] = useState<VenueImage[]>(initialImages)
   const [uploading, setUploading] = useState(false)
   const [error, setError] = useState("")
@@ -28,7 +28,7 @@ export function GalleryManager({ venueId, initialImages }: GalleryManagerProps) 
     try {
       const form = new FormData()
       form.append("file", file)
-      const res = await fetch(`/api/venues/${venueId}/gallery`, { method: "POST", body: form })
+      const res = await fetch(`/api/venues/${venueSlug}/gallery`, { method: "POST", body: form })
       if (!res.ok) {
         const d = await res.json()
         throw new Error(d.error || "Upload failed")
@@ -46,7 +46,7 @@ export function GalleryManager({ venueId, initialImages }: GalleryManagerProps) 
   const remove = async (imageId: number) => {
     setError("")
     try {
-      const res = await fetch(`/api/venues/${venueId}/gallery`, {
+      const res = await fetch(`/api/venues/${venueSlug}/gallery`, {
         method: "DELETE",
         headers: { "Content-Type": "application/json" },
         body: JSON.stringify({ imageId }),

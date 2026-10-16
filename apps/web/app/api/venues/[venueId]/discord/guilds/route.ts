@@ -1,9 +1,9 @@
 import { NextResponse } from "next/server"
 import { getServerSession } from "next-auth"
 import { authOptions } from "@/lib/auth"
-import { prisma } from "@/lib/prisma"
 import { withRateLimit } from "@/lib/middleware/with-rate-limit"
 import { getValidXvmApiToken, isVenueOwner, xvmApiErrorResponse } from "@/lib/api/xvm-api-store"
+import { requireMyVenue } from "@/lib/api/venue-access"
 import { getVenue, listMemberships } from "@/lib/api/xvm-api"
 import { discordGrantFrom, listManageableGuilds } from "@/lib/discord-user"
 import { getGuildPresence } from "@/lib/discord-rest"
@@ -35,13 +35,8 @@ export const GET = withRateLimit<{ params: Promise<{ venueId: string }> }>(
 
     const { venueId } = await context.params
 
-    const venue = await prisma.venue.findUnique({ where: { id: venueId }, select: { xvmApiVenueId: true } })
-    if (!venue?.xvmApiVenueId) {
-      return NextResponse.json(
-        { error: "not_connected", message: "This venue hasn't been connected to xvm-api yet." },
-        { status: 409 }
-      )
-    }
+    const lookup = await requireMyVenue(session.user.id, venueId, "[discord guilds] /me/venues read error")
+    if (!lookup.ok) return lookup.response
 
     const token = await getValidXvmApiToken(session.user.id)
     if (!token) {
@@ -55,10 +50,10 @@ export const GET = withRateLimit<{ params: Promise<{ venueId: string }> }>(
       linked_by_person_id: number | null
     } | null
     try {
-      if (!(await isVenueOwner(session.user.id, token, venue.xvmApiVenueId))) {
+      if (!(await isVenueOwner(session.user.id, token, lookup.venue.id))) {
         return NextResponse.json({ error: "Only the venue owner can connect a Discord server" }, { status: 403 })
       }
-      const detail = await getVenue(token, venue.xvmApiVenueId)
+      const detail = await getVenue(token, lookup.venue.id)
       live =
         detail.external_links.find((link) => link.provider === "DiscordGuild" && link.unlinked_at === null) ?? null
     } catch (err) {
@@ -83,7 +78,7 @@ export const GET = withRateLimit<{ params: Promise<{ venueId: string }> }>(
         linkId: live.id,
         guildId: live.external_id,
         linkedAt: live.linked_at,
-        linkedBy: await linkerName(token, venue.xvmApiVenueId, live.linked_by_person_id),
+        linkedBy: await linkerName(token, lookup.venue.id, live.linked_by_person_id),
         name: presence.name,
         iconUrl: presence.iconUrl,
       }

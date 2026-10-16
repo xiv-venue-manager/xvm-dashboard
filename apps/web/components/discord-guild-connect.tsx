@@ -55,7 +55,7 @@ function GuildIcon({ name, iconUrl, className }: { name: string; iconUrl: string
 
 // The venue's Discord server, as a link xvm-api holds rather than a channel id a person copies.
 // Everything downstream — role, channel, member and emoji pickers — needs this to exist first.
-export function DiscordGuildConnect({ venueId }: { venueId: string }) {
+export function DiscordGuildConnect({ venueSlug }: { venueSlug: string }) {
   const [state, setState] = useState<Candidates | null>(null)
   const [loadError, setLoadError] = useState<string | null>(null)
   const [chosen, setChosen] = useState("")
@@ -66,7 +66,7 @@ export function DiscordGuildConnect({ venueId }: { venueId: string }) {
   const load = useCallback(async () => {
     setError(null)
     try {
-      const res = await fetch(`/api/venues/${venueId}/discord/guilds`)
+      const res = await fetch(`/api/venues/${venueSlug}/discord/guilds`)
       if (!res.ok) {
         const body = await res.json().catch(() => null)
         setLoadError(body?.message ?? body?.error ?? `Couldn't load your servers (error ${res.status}).`)
@@ -77,7 +77,7 @@ export function DiscordGuildConnect({ venueId }: { venueId: string }) {
     } catch {
       setLoadError("Couldn't reach the server.")
     }
-  }, [venueId])
+  }, [venueSlug])
 
   useEffect(() => {
     // Genuine fetch, not derivable from props during render.
@@ -90,7 +90,7 @@ export function DiscordGuildConnect({ venueId }: { venueId: string }) {
     setSaving(true)
     setError(null)
     try {
-      const res = await fetch(`/api/venues/${venueId}/discord/link`, {
+      const res = await fetch(`/api/venues/${venueSlug}/discord/link`, {
         method: "POST",
         headers: { "Content-Type": "application/json" },
         body: JSON.stringify({ guildId: chosen }),
@@ -111,7 +111,7 @@ export function DiscordGuildConnect({ venueId }: { venueId: string }) {
     setUnlinking(true)
     setError(null)
     try {
-      const res = await fetch(`/api/venues/${venueId}/discord/link`, { method: "DELETE" })
+      const res = await fetch(`/api/venues/${venueSlug}/discord/link`, { method: "DELETE" })
       if (!res.ok) {
         const body = await res.json().catch(() => null)
         setError(body?.message ?? body?.error ?? "Couldn't disconnect that server.")

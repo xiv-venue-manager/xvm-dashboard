@@ -161,7 +161,7 @@ export default function SettingsPage({ params }: { params: Promise<{ slug: strin
         setVenueId(venue.id)
         setVenueDataCenter(venue.dataCenter ?? "")
         setVenueWorld(venue.world ?? "")
-        fetch(`/api/venues/${venue.id}/gallery`)
+        fetch(`/api/venues/${slug}/gallery`)
           .then((res) => (res.ok ? res.json() : []))
           .then((images: VenueImage[]) => setGalleryImages(images))
           .catch(() => setGalleryImages([]))
@@ -217,10 +217,10 @@ export default function SettingsPage({ params }: { params: Promise<{ slug: strin
           setShiftBotTemplates(settingsData.shiftBot?.templates ?? [])
         }
 
-        const potLoad = loadPotSettings(venue.id).catch(() => {})
+        const potLoad = loadPotSettings(slug).catch(() => {})
 
         if (venue.xvmApiVenueId) {
-          fetch(`/api/venues/${venue.id}/ffxivvenues`)
+          fetch(`/api/venues/${slug}/ffxivvenues`)
             .then((r) => (r.ok ? r.json() : null))
             .then((data: ListingLinkRow | null) => setFfxivLink(data && !data.unlinked_at ? data : null))
             .catch(() => setFfxivLink(null))
@@ -333,7 +333,7 @@ export default function SettingsPage({ params }: { params: Promise<{ slug: strin
       }
 
       // Save pot payroll settings (separate relational table, own route)
-      const potSettingsRes = await fetch(`/api/venues/${venueId}/pot-settings`, {
+      const potSettingsRes = await fetch(`/api/venues/${slug}/pot-settings`, {
         method: "PUT",
         headers: { "Content-Type": "application/json" },
         body: JSON.stringify({
@@ -418,7 +418,7 @@ export default function SettingsPage({ params }: { params: Promise<{ slug: strin
     setFfxivLoading(true)
     setFfxivError(null)
     try {
-      const res = await fetch(`/api/venues/${venueId}/ffxivvenues`, {
+      const res = await fetch(`/api/venues/${slug}/ffxivvenues`, {
         method: "POST",
         headers: { "Content-Type": "application/json" },
         body: JSON.stringify({ ffxivvenuesId: ffxivSelected }),
@@ -436,7 +436,7 @@ export default function SettingsPage({ params }: { params: Promise<{ slug: strin
     setFfxivSyncing(true)
     setFfxivError(null)
     try {
-      const res = await fetch(`/api/venues/${venueId}/ffxivvenues/sync`, { method: "POST" })
+      const res = await fetch(`/api/venues/${slug}/ffxivvenues/sync`, { method: "POST" })
       const body = await res.json().catch(() => null)
       if (res.status === 404 || res.status === 409) setFfxivLink(null)
       if (!res.ok) throw new Error(body?.error ?? "Sync failed")
@@ -456,7 +456,7 @@ export default function SettingsPage({ params }: { params: Promise<{ slug: strin
     setFfxivUnlinking(true)
     setFfxivError(null)
     try {
-      const res = await fetch(`/api/venues/${venueId}/ffxivvenues`, { method: "DELETE" })
+      const res = await fetch(`/api/venues/${slug}/ffxivvenues`, { method: "DELETE" })
       if (!res.ok && res.status !== 204 && res.status !== 404) {
         const body = await res.json().catch(() => null)
         throw new Error(body?.error ?? "Failed to unlink")
@@ -490,7 +490,7 @@ export default function SettingsPage({ params }: { params: Promise<{ slug: strin
       const result = await res.json()
       setXvmApiVenueId(result.id)
       setXvmApiVenueLinkedAt(new Date().toISOString())
-      loadPotSettings(venueId).catch(() => {})
+      loadPotSettings(slug).catch(() => {})
     } catch (e) {
       setXvmConnectError(e instanceof Error ? e.message : "Failed to connect")
     } finally {
@@ -730,7 +730,7 @@ export default function SettingsPage({ params }: { params: Promise<{ slug: strin
                 <p className="text-xs text-[var(--fg-faint)] mb-4">
                   Upload photos of your venue. They appear on your public profile. Max 9 images, 10 MB each.
                 </p>
-                {venueId && <GalleryManager venueId={venueId} initialImages={galleryImages} />}
+                {venueId && <GalleryManager venueSlug={slug} initialImages={galleryImages} />}
               </div>
             </section>
 
@@ -1374,7 +1374,7 @@ export default function SettingsPage({ params }: { params: Promise<{ slug: strin
                   <div className="idesc">Which Discord server this venue belongs to</div>
                 </div>
                 {userRole === "OWNER" ? (
-                  <DiscordGuildConnect venueId={venueId} />
+                  <DiscordGuildConnect venueSlug={slug} />
                 ) : (
                   <p className="text-xs text-[var(--fg-faint)]">Only the venue owner can change this.</p>
                 )}
@@ -1656,7 +1656,7 @@ export default function SettingsPage({ params }: { params: Promise<{ slug: strin
                     <div className="idesc">Group transactions for reporting — optional, sales work without one</div>
                   </div>
                   <div className="w-full">
-                    <FinanceCategoriesSettings key={xvmApiVenueId ?? "disconnected"} venueId={venueId} />
+                    <FinanceCategoriesSettings key={xvmApiVenueId ?? "disconnected"} venueSlug={slug} />
                   </div>
                 </div>
               )}

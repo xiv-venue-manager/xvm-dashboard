@@ -4,7 +4,7 @@ import { useEffect, useState } from "react"
 import { Button } from "@/components/ui/button"
 
 interface FinanceCategoriesSettingsProps {
-  venueId: string
+  venueSlug: string
 }
 
 interface FinanceCategoryRow {
@@ -21,7 +21,7 @@ const APPLIES_TO_OPTIONS: { value: "revenue" | "expense" | "payout" | ""; label:
   { value: "payout", label: "Payout" },
 ]
 
-export function FinanceCategoriesSettings({ venueId }: FinanceCategoriesSettingsProps) {
+export function FinanceCategoriesSettings({ venueSlug }: FinanceCategoriesSettingsProps) {
   const [categories, setCategories] = useState<FinanceCategoryRow[]>([])
   const [isLoading, setIsLoading] = useState(true)
   const [error, setError] = useState<string | null>(null)
@@ -31,7 +31,7 @@ export function FinanceCategoriesSettings({ venueId }: FinanceCategoriesSettings
 
   useEffect(() => {
     let cancelled = false
-    fetch(`/api/venues/${venueId}/finance-categories`)
+    fetch(`/api/venues/${venueSlug}/finance-categories`)
       .then((r) => (r.ok ? r.json() : Promise.reject(new Error("Failed to load categories"))))
       .then((data: FinanceCategoryRow[]) => {
         if (!cancelled) setCategories(data)
@@ -45,14 +45,14 @@ export function FinanceCategoriesSettings({ venueId }: FinanceCategoriesSettings
     return () => {
       cancelled = true
     }
-  }, [venueId])
+  }, [venueSlug])
 
   async function handleAdd() {
     if (!newName.trim()) return
     setIsSaving(true)
     setError(null)
     try {
-      const res = await fetch(`/api/venues/${venueId}/finance-categories`, {
+      const res = await fetch(`/api/venues/${venueSlug}/finance-categories`, {
         method: "POST",
         headers: { "Content-Type": "application/json" },
         body: JSON.stringify({
@@ -78,7 +78,7 @@ export function FinanceCategoriesSettings({ venueId }: FinanceCategoriesSettings
   async function handleDelete(categoryId: number) {
     setError(null)
     try {
-      const res = await fetch(`/api/venues/${venueId}/finance-categories/${categoryId}`, { method: "DELETE" })
+      const res = await fetch(`/api/venues/${venueSlug}/finance-categories/${categoryId}`, { method: "DELETE" })
       if (!res.ok) {
         const d = await res.json()
         throw new Error(d.error || "Failed to delete category")

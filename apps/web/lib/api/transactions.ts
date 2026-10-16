@@ -175,10 +175,10 @@ export async function createTransaction(venueId: string, staffUserId: string, in
     )
   }
 
-  venueEventBus.emit(venueId, {
+  venueEventBus.emit(xvmApiVenueId, {
     id: `sale_${newTransaction.id}`,
     type: "sale",
-    venueId,
+    venueId: xvmApiVenueId,
     timestamp: newTransaction.created_at,
     data: {
       amount: amountDollars,

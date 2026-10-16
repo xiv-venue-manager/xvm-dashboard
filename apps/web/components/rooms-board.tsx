@@ -58,12 +58,12 @@ function reserverLabel(room: Room): string {
 }
 
 export function RoomsBoard({
-  venueId,
+  venueSlug,
   canManage,
   rooms,
   notConnected,
 }: {
-  venueId: string
+  venueSlug: string
   canManage: boolean
   rooms: RoomItem[]
   notConnected?: boolean
@@ -83,7 +83,7 @@ export function RoomsBoard({
   const [deleteTarget, setDeleteTarget] = useState<RoomItem | null>(null)
 
   useEffect(() => {
-    const es = new EventSource("/api/stream/" + venueId)
+    const es = new EventSource("/api/stream/" + venueSlug)
     es.onmessage = (e) => {
       try {
         const msg = JSON.parse(e.data)
@@ -97,7 +97,7 @@ export function RoomsBoard({
       } catch {}
     }
     return () => es.close()
-  }, [venueId])
+  }, [venueSlug])
 
   useEffect(() => {
     if (error || success) {
@@ -113,7 +113,7 @@ export function RoomsBoard({
     if (pendingIds.has(room.id)) return
     setPendingIds((prev) => new Set(prev).add(room.id))
     try {
-      const res = await fetch(`/api/venues/${venueId}/rooms/${room.id}/status`, {
+      const res = await fetch(`/api/venues/${venueSlug}/rooms/${room.id}/status`, {
         method: "PATCH",
         headers: { "Content-Type": "application/json" },
         body: JSON.stringify({ action: "reserve" }),
@@ -139,7 +139,7 @@ export function RoomsBoard({
     if (pendingIds.has(room.id)) return
     setPendingIds((prev) => new Set(prev).add(room.id))
     try {
-      const res = await fetch(`/api/venues/${venueId}/rooms/${room.id}/status`, {
+      const res = await fetch(`/api/venues/${venueSlug}/rooms/${room.id}/status`, {
         method: "PATCH",
         headers: { "Content-Type": "application/json" },
         body: JSON.stringify({ action: "release" }),
@@ -171,7 +171,7 @@ export function RoomsBoard({
     const prevNotes = room.notes
     setLocalRooms((prev) => prev.map((r) => (r.id === room.id ? { ...r, notes: trimmed || null } : r)))
     try {
-      const res = await fetch(`/api/venues/${venueId}/rooms/${room.id}`, {
+      const res = await fetch(`/api/venues/${venueSlug}/rooms/${room.id}`, {
         method: "PATCH",
         headers: { "Content-Type": "application/json" },
         body: JSON.stringify({ notes: trimmed || null }),
@@ -201,7 +201,7 @@ export function RoomsBoard({
     setAdding(true)
     setError(null)
     try {
-      const res = await fetch(`/api/venues/${venueId}/rooms`, {
+      const res = await fetch(`/api/venues/${venueSlug}/rooms`, {
         method: "POST",
         headers: { "Content-Type": "application/json" },
         body: JSON.stringify({ name }),
@@ -230,7 +230,7 @@ export function RoomsBoard({
     const prevName = room.name
     setLocalRooms((prev) => prev.map((r) => (r.id === room.id ? { ...r, name } : r)))
     try {
-      const res = await fetch(`/api/venues/${venueId}/rooms/${room.id}`, {
+      const res = await fetch(`/api/venues/${venueSlug}/rooms/${room.id}`, {
         method: "PATCH",
         headers: { "Content-Type": "application/json" },
         body: JSON.stringify({ name }),
@@ -267,7 +267,7 @@ export function RoomsBoard({
     const prevNumber = room.room_number
     setLocalRooms((prev) => prev.map((r) => (r.id === room.id ? { ...r, room_number: roomNumber } : r)))
     try {
-      const res = await fetch(`/api/venues/${venueId}/rooms/${room.id}`, {
+      const res = await fetch(`/api/venues/${venueSlug}/rooms/${room.id}`, {
         method: "PATCH",
         headers: { "Content-Type": "application/json" },
         body: JSON.stringify({ roomNumber }),
@@ -295,7 +295,7 @@ export function RoomsBoard({
     setPendingIds((prev) => new Set(prev).add(room.id))
     setLocalRooms((prev) => prev.map((r) => (r.id === room.id ? { ...r, locked: nextLocked } : r)))
     try {
-      const res = await fetch(`/api/venues/${venueId}/rooms/${room.id}`, {
+      const res = await fetch(`/api/venues/${venueSlug}/rooms/${room.id}`, {
         method: "PATCH",
         headers: { "Content-Type": "application/json" },
         body: JSON.stringify({ locked: nextLocked }),
@@ -323,7 +323,7 @@ export function RoomsBoard({
     setPendingIds((prev) => new Set(prev).add(room.id))
     setLocalRooms((prev) => prev.map((r) => (r.id === room.id ? { ...r, disabled: nextDisabled } : r)))
     try {
-      const res = await fetch(`/api/venues/${venueId}/rooms/${room.id}`, {
+      const res = await fetch(`/api/venues/${venueSlug}/rooms/${room.id}`, {
         method: "PATCH",
         headers: { "Content-Type": "application/json" },
         body: JSON.stringify({ disabled: nextDisabled }),
@@ -352,7 +352,7 @@ export function RoomsBoard({
     const prevList = localRooms
     setLocalRooms((prev) => prev.filter((r) => r.id !== room.id))
     try {
-      const res = await fetch(`/api/venues/${venueId}/rooms/${room.id}`, { method: "DELETE" })
+      const res = await fetch(`/api/venues/${venueSlug}/rooms/${room.id}`, { method: "DELETE" })
       if (!res.ok) {
         setLocalRooms(prevList)
         setError(await describeError(res, "Failed to delete room"))

@@ -1,8 +1,7 @@
 import { NextRequest } from "next/server"
 import { getServerSession } from "next-auth"
 import { authOptions } from "@/lib/auth"
-import { prisma } from "@/lib/prisma"
-import { atLeast, requireVenueRole } from "@/lib/api/venue-access"
+import { atLeast, requireMyVenue } from "@/lib/api/venue-access"
 import { venueEventBus, type VenueEvent } from "@/lib/sse/venue-events"
 import { xvmPageReader } from "@/lib/api/xvm-page-read"
 import { getVenue, type RevenueVisibility, type SalesVisibility } from "@/lib/api/xvm-api"
@@ -19,12 +18,11 @@ export async function GET(request: NextRequest, { params }: { params: Promise<{ 
 
   const { venueId } = await params
 
-  const access = await requireVenueRole(session.user.id, venueId, "STAFF", "Forbidden")
-  if (!access.ok) return access.response
+  const lookup = await requireMyVenue(session.user.id, venueId, "[stream] /me/venues read error")
+  if (!lookup.ok) return lookup.response
 
-  const isManager = atLeast(access.role, "MANAGER")
-  const venue = await prisma.venue.findUnique({ where: { id: venueId }, select: { xvmApiVenueId: true } })
-  const readXvm = await xvmPageReader(session.user.id, venue?.xvmApiVenueId ?? null)
+  const isManager = atLeast(lookup.venue.role, "MANAGER")
+  const readXvm = await xvmPageReader(session.user.id, lookup.venue.id)
   const visibility = isManager
     ? { sales: "all" as SalesVisibility, revenue: "all" as RevenueVisibility }
     : await readXvm<{ sales: SalesVisibility; revenue: RevenueVisibility }>(
@@ -59,7 +57,7 @@ export async function GET(request: NextRequest, { params }: { params: Promise<{ 
       }, 30000)
 
       // Subscribe to venue events
-      const unsubscribe = venueEventBus.subscribe(venueId, (event: VenueEvent) => {
+      const unsubscribe = venueEventBus.subscribe(lookup.venue.id, (event: VenueEvent) => {
         const outgoing = outgoingEvent(viewer, event)
         if (!outgoing) return
         try {

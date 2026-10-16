@@ -147,7 +147,7 @@ export const POST = withRateLimit(
 )
 
 export const GET = withRateLimit(
-  async (request: NextRequest) => {
+  async () => {
     try {
       const session = await getServerSession(authOptions)
       if (!session?.user?.id) {

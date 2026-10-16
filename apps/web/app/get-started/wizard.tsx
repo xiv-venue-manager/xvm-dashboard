@@ -2,7 +2,6 @@
 
 import { useState } from "react"
 import { useRouter } from "next/navigation"
-import Link from "next/link"
 import { ArrowLeft, ArrowRight, Check, ExternalLink } from "lucide-react"
 import { FFXIV_DISTRICTS, addressProblem } from "@/lib/venue-location"
 
@@ -47,7 +46,7 @@ const STEP_META = [
 ]
 
 // ── Component ────────────────────────────────────────────────────
-export function GetStartedWizard({ userName }: { userName: string }) {
+export function GetStartedWizard() {
   const router = useRouter()
 
   const [step, setStep] = useState(1)

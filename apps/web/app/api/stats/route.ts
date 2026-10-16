@@ -1,9 +1,9 @@
-import { NextRequest, NextResponse } from "next/server"
+import { NextResponse } from "next/server"
 import { withRateLimit } from "@/lib/middleware/with-rate-limit"
 import { getPublicStats } from "@/lib/public-stats"
 
 export const GET = withRateLimit(
-  async (_req: NextRequest) => {
+  async () => {
     try {
       const stats = await getPublicStats()
       return NextResponse.json(stats, {

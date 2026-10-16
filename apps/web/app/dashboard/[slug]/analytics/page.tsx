@@ -4,10 +4,10 @@ import { useEffect, useState } from "react"
 import { useParams, useRouter } from "next/navigation"
 import { VenueLayoutClient } from "@/components/venue-layout-client"
 import { VenueEyebrow } from "@/components/venue-eyebrow"
-import { Card, CardContent, CardDescription, CardHeader, CardTitle } from "@/components/ui/card"
+import { Card } from "@/components/ui/card"
 import { Table, TableBody, TableCell, TableHead, TableHeader, TableRow } from "@/components/ui/table"
 import { format } from "date-fns"
-import { TrendingUp, DollarSign, Users, Calendar, Target, Download } from "lucide-react"
+import { TrendingUp, DollarSign, Users, Target, Download } from "lucide-react"
 import { StatReadout } from "@/components/ui/stat-readout"
 import { LocalTime } from "@/components/server-time"
 import { PageLoading } from "@/components/ui/loading-spinner"
@@ -218,7 +218,6 @@ export default function AnalyticsPage() {
 
   // analyticsData must be non-null past this point
   if (!analyticsData) return null
-  // eslint-disable-next-line @typescript-eslint/no-non-null-assertion
   const data = analyticsData!
 
   // Use pre-calculated values from API
@@ -511,7 +510,7 @@ export default function AnalyticsPage() {
                           count: data.patronMix.vip,
                           color: "var(--warning)",
                         },
-                      ].map(({ label, pct, count, color }) => (
+                      ].map(({ label, pct, color }) => (
                         <div key={label} className="flex items-center gap-2 px-4 py-2">
                           <div className="flex items-center gap-1.5 w-20 flex-shrink-0">
                             <span className="w-2 h-2 rounded-[2px] flex-shrink-0" style={{ background: color }} />

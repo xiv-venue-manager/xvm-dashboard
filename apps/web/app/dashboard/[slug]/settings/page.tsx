@@ -16,7 +16,6 @@ import { DiscordGuildConnect } from "@/components/discord-guild-connect"
 import { ChannelPicker } from "@/components/discord-picker"
 import type { VenueImage } from "@/lib/api/xvm-api"
 import { Checkbox } from "@/components/ui/checkbox"
-import { Card, CardContent, CardDescription, CardHeader, CardTitle } from "@/components/ui/card"
 import { Select, SelectContent, SelectItem, SelectTrigger, SelectValue } from "@/components/ui/select"
 import { Alert, AlertDescription } from "@/components/ui/alert"
 import {

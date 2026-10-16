@@ -70,12 +70,11 @@ export async function POST(req: Request) {
   if (!session?.user?.id) return NextResponse.json({ error: "Unauthorized" }, { status: 401 })
 
   const body = await req.json()
-  let filename: string, contentType: (typeof ALLOWED_TYPES)[number], size: number
+  let filename: string, contentType: (typeof ALLOWED_TYPES)[number]
   try {
     const parsed = uploadSchema.parse(body)
     filename = parsed.filename
     contentType = parsed.contentType
-    size = parsed.size
   } catch (error) {
     if (error instanceof z.ZodError) {
       return NextResponse.json(

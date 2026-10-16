@@ -2,11 +2,10 @@ import { getServerSession } from "next-auth"
 import { authOptions } from "@/lib/auth"
 import { redirect, notFound } from "next/navigation"
 import Link from "next/link"
-import { Card, CardContent } from "@/components/ui/card"
+import { Card } from "@/components/ui/card"
 import { Badge } from "@/components/ui/badge"
 import { Button } from "@/components/ui/button"
 import { StatReadout } from "@/components/ui/stat-readout"
-import { CrystalDivider } from "@/components/ui/crystal-divider"
 import { prisma } from "@/lib/prisma"
 import { roleInVenue } from "@/lib/api/venue-access"
 import { xvmPageReader, xvmPersonReader } from "@/lib/api/xvm-page-read"
@@ -34,7 +33,7 @@ import { AnnouncementBanner } from "@/components/announcement-banner"
 import { CharacterLinkNudge } from "@/components/character-link-nudge"
 import { TodayDateLabel } from "@/components/today-date-label"
 import { listEventsInRange, type PageEvent } from "@/lib/api/event-window"
-import { format, subDays, subWeeks, formatDistanceToNow } from "date-fns"
+import { format, subDays, formatDistanceToNow } from "date-fns"
 import {
   Radio,
   ArrowRight,
@@ -465,7 +464,6 @@ export default async function VenueDashboardPage({ params }: { params: Promise<{
                     dueDate: t.dueDate ? format(t.dueDate, "d MMM") : null,
                     priority: t.priority,
                   }))}
-                  venueSlug={slug}
                 />
               ) : (
                 <div className="flex flex-col items-center justify-center h-full gap-2 text-center py-4">

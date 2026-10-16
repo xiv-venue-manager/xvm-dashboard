@@ -7,7 +7,7 @@ import { useParams, useRouter } from "next/navigation"
 import { Button } from "@/components/ui/button"
 import { VenueLayoutClient } from "@/components/venue-layout-client"
 import { VenueEyebrow } from "@/components/venue-eyebrow"
-import { Card, CardContent, CardDescription, CardHeader, CardTitle } from "@/components/ui/card"
+import { Card } from "@/components/ui/card"
 import { StatReadout } from "@/components/ui/stat-readout"
 import {
   Dialog,
@@ -22,10 +22,9 @@ import { Select, SelectContent, SelectItem, SelectTrigger, SelectValue } from "@
 import { Input } from "@/components/ui/input"
 import { Label } from "@/components/ui/label"
 import { Textarea } from "@/components/ui/textarea"
-import { Badge } from "@/components/ui/badge"
 import { Avatar, AvatarFallback, AvatarImage } from "@/components/ui/avatar"
 import { format } from "date-fns"
-import { Plus, DollarSign, Clock, CheckCircle2, XCircle, Zap, Trash2, Users } from "lucide-react"
+import { Plus, Zap, Trash2, Users } from "lucide-react"
 import { PageLoading } from "@/components/ui/loading-spinner"
 import { resolveDisplayName } from "@/lib/display-name"
 import {
@@ -179,8 +178,6 @@ export default function PayrollPage() {
   >(null)
   const [genAllLoading, setGenAllLoading] = useState(false)
   const [genAllCreating, setGenAllCreating] = useState(false)
-
-  const venueId = params?.slug as string
 
   const fetchPayrollEntries = async () => {
     try {

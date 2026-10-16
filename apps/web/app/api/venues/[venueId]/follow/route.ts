@@ -19,7 +19,7 @@ export async function POST(_req: Request, { params }: { params: Promise<{ venueI
   const venue = await getVenue(venueId)
   if (!venue) return NextResponse.json({ error: "Not found" }, { status: 404 })
 
-  const result = await prisma.venueFollow.upsert({
+  await prisma.venueFollow.upsert({
     where: { userId_venueId: { userId: session.user.id, venueId: venue.id } },
     create: { userId: session.user.id, venueId: venue.id },
     update: {},

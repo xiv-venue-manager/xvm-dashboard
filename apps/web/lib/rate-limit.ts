@@ -74,7 +74,7 @@ export async function checkLimit(identifier: string, limit: number, windowSec: n
       remaining: Math.max(0, limit - count),
       reset,
     }
-  } catch (e) {
+  } catch {
     return memLimit(identifier, limit, windowMs)
   }
 }

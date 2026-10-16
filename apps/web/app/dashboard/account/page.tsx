@@ -7,7 +7,7 @@ import { myVenueRoles } from "@/lib/api/venue-access"
 import { getMe } from "@/lib/api/xvm-api"
 import { getValidXvmApiToken } from "@/lib/api/xvm-api-store"
 import { format } from "date-fns"
-import { User, Settings, Scroll, Users, Building2, ChevronRight } from "lucide-react"
+import { Settings, Scroll, Building2, ChevronRight } from "lucide-react"
 
 export default async function ProfilePage() {
   const session = await getServerSession(authOptions)

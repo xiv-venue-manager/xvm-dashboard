@@ -129,9 +129,7 @@ export const POST = withRateLimit<{ params: Promise<{ venueId: string }> }>(
       const validatedData = createTransactionSchema.parse(body)
 
       // Delegate row creation, webhook dispatch, and cache invalidation to
-      // the shared helper. The plugin route (/api/plugin/transactions) uses
-      // the exact same helper with an api-key-derived userId, so the two
-      // surfaces are guaranteed to produce identical side effects.
+      // the shared helper.
       const newTransaction = await createTransaction(venueId, session.user.id, validatedData)
 
       return NextResponse.json(newTransaction, { status: 201 })

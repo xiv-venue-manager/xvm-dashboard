@@ -16,11 +16,8 @@ import { gilToMinorUnits, minorUnitsToGil } from "@/lib/api/position-convert"
 import { findLiveEventId } from "@/lib/api/event-window"
 
 /**
- * Shared validation schema for transaction creation. Used by both the
- * session-authed web route (/api/venues/[venueId]/transactions) and the
- * api-key-authed plugin route (/api/plugin/transactions). Keeping the
- * schema here means the two callers can't drift - adding a field in one
- * place adds it in both.
+ * Shared validation schema for transaction creation, used by the
+ * session-authed web route (/api/venues/[venueId]/transactions).
  */
 export const createTransactionSchema = z.object({
   serviceId: z.string().optional(),

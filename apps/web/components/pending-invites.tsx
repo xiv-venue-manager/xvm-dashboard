@@ -54,11 +54,7 @@ export function PendingInvites({ invites, slug, canManageStaff }: PendingInvites
     setSendingId(inviteId)
     setSendError(null)
     try {
-      const venueResponse = await fetch(`/api/venues?slug=${slug}`)
-      const venues = await venueResponse.json()
-      const venue = venues.find((v: { slug: string }) => v.slug === slug)
-
-      const response = await fetch(`/api/venues/${venue.id}/staff/invites/${inviteId}/send`, { method: "POST" })
+      const response = await fetch(`/api/venues/${slug}/staff/invites/${inviteId}/send`, { method: "POST" })
       if (!response.ok) {
         const data = await response.json()
         throw new Error(data.message || data.error || "Failed to send invite")
@@ -79,11 +75,7 @@ export function PendingInvites({ invites, slug, canManageStaff }: PendingInvites
     setReissuingId(inviteId)
     setReissueError(null)
     try {
-      const venueResponse = await fetch(`/api/venues?slug=${slug}`)
-      const venues = await venueResponse.json()
-      const venue = venues.find((v: { slug: string }) => v.slug === slug)
-
-      const response = await fetch(`/api/venues/${venue.id}/staff/invites/${inviteId}/reissue`, { method: "POST" })
+      const response = await fetch(`/api/venues/${slug}/staff/invites/${inviteId}/reissue`, { method: "POST" })
       const data = await response.json()
       if (!response.ok) {
         throw new Error(data.message || data.error || "Failed to regenerate link")
@@ -100,12 +92,7 @@ export function PendingInvites({ invites, slug, canManageStaff }: PendingInvites
   const deleteInvite = async (inviteId: number) => {
     setDeletingId(inviteId)
     try {
-      // Get venue ID first
-      const venueResponse = await fetch(`/api/venues?slug=${slug}`)
-      const venues = await venueResponse.json()
-      const venue = venues.find((v: { slug: string }) => v.slug === slug)
-
-      const response = await fetch(`/api/venues/${venue.id}/staff/invites/${inviteId}`, {
+      const response = await fetch(`/api/venues/${slug}/staff/invites/${inviteId}`, {
         method: "DELETE",
       })
 

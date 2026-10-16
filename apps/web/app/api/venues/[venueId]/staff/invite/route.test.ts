@@ -10,7 +10,7 @@ const { mockSession, mockToken, mockVenue, mockCreate } = vi.hoisted(() => ({
 vi.mock("next-auth", () => ({ getServerSession: mockSession }))
 vi.mock("@/lib/auth", () => ({ authOptions: {} }))
 vi.mock("@/lib/middleware/with-rate-limit", () => ({ withRateLimit: (handler: unknown) => handler }))
-vi.mock("@/lib/prisma", () => ({ prisma: { venue: { findFirst: mockVenue } } }))
+vi.mock("@/lib/api/venue-access", () => ({ requireMyVenue: mockVenue }))
 vi.mock("@/lib/api/xvm-api-store", () => ({
   getValidXvmApiToken: mockToken,
   xvmApiErrorResponse: () => new Response(null, { status: 500 }),
@@ -29,7 +29,7 @@ beforeEach(() => {
   vi.clearAllMocks()
   mockSession.mockResolvedValue({ user: { id: "user-1" } })
   mockToken.mockResolvedValue("tok")
-  mockVenue.mockResolvedValue({ xvmApiVenueId: "xvm-1" })
+  mockVenue.mockResolvedValue({ ok: true, venue: { id: "xvm-1" } })
   mockCreate.mockResolvedValue({ id: 9, token: "abc", expires_at: "2026-10-01T00:00:00Z" })
 })
 

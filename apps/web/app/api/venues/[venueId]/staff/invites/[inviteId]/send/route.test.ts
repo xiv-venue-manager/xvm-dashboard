@@ -10,7 +10,7 @@ const { mockSession, mockToken, mockVenue, mockSend } = vi.hoisted(() => ({
 vi.mock("next-auth", () => ({ getServerSession: mockSession }))
 vi.mock("@/lib/auth", () => ({ authOptions: {} }))
 vi.mock("@/lib/middleware/with-rate-limit", () => ({ withRateLimit: (handler: unknown) => handler }))
-vi.mock("@/lib/prisma", () => ({ prisma: { venue: { findFirst: mockVenue } } }))
+vi.mock("@/lib/api/venue-access", () => ({ requireMyVenue: mockVenue }))
 vi.mock("@/lib/api/xvm-api-store", () => ({
   getValidXvmApiToken: mockToken,
   xvmApiErrorResponse: () => new Response(null, { status: 500 }),
@@ -29,7 +29,7 @@ beforeEach(() => {
   vi.clearAllMocks()
   mockSession.mockResolvedValue({ user: { id: "user-1" } })
   mockToken.mockResolvedValue("tok")
-  mockVenue.mockResolvedValue({ xvmApiVenueId: "xvm-1" })
+  mockVenue.mockResolvedValue({ ok: true, venue: { id: "xvm-1" } })
   mockSend.mockResolvedValue(undefined)
 })
 
@@ -53,10 +53,10 @@ describe("POST staff/invites/[inviteId]/send", () => {
     expect(mockSend).not.toHaveBeenCalled()
   })
 
-  it("rejects a venue that has no xvm-api link", async () => {
-    mockVenue.mockResolvedValue({ xvmApiVenueId: null })
+  it("answers 404 for a venue the caller cannot see", async () => {
+    mockVenue.mockResolvedValue({ ok: false, response: new Response(null, { status: 404 }) })
     const res = await call("venue-1", "9")
-    expect(res.status).toBe(409)
+    expect(res.status).toBe(404)
     expect(mockSend).not.toHaveBeenCalled()
   })
 })

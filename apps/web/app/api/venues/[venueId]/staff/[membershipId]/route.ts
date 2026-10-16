@@ -1,10 +1,10 @@
 import { NextResponse } from "next/server"
 import { getServerSession } from "next-auth"
 import { authOptions } from "@/lib/auth"
-import { prisma } from "@/lib/prisma"
 import { z } from "zod"
 import { withRateLimit } from "@/lib/middleware/with-rate-limit"
 import { getValidXvmApiToken, getValidXvmApiPersonId, xvmApiErrorResponse } from "@/lib/api/xvm-api-store"
+import { requireMyVenue } from "@/lib/api/venue-access"
 import {
   setNickname,
   setTier,
@@ -30,22 +30,6 @@ const updateStaffSchema = z.object({
   role: z.enum(["OWNER", "MANAGER", "STAFF"]).optional(),
   additionalRoleIds: z.array(z.number()).optional(),
 })
-
-async function requireXvmVenueId(venueId: string) {
-  const venue = await prisma.venue.findFirst({
-    where: { OR: [{ id: venueId }, { slug: venueId }] },
-    select: { id: true, xvmApiVenueId: true },
-  })
-  if (!venue?.xvmApiVenueId) {
-    return {
-      error: NextResponse.json(
-        { error: "not_connected", message: "This venue hasn't been connected to xvm-api yet." },
-        { status: 409 }
-      ),
-    }
-  }
-  return { prismaVenueId: venue.id, xvmApiVenueId: venue.xvmApiVenueId }
-}
 
 // Mirrors staff/route.ts's toStaffShape (duplicated per this codebase's
 // per-route-file convention).
@@ -96,8 +80,8 @@ export const PUT = withRateLimit<{ params: Promise<{ venueId: string; membership
       return NextResponse.json({ error: "Staff member not found" }, { status: 404 })
     }
 
-    const gate = await requireXvmVenueId(venueId)
-    if (gate.error) return gate.error
+    const lookup = await requireMyVenue(session.user.id, venueId, "[staff/[membershipId]] /me/venues read error")
+    if (!lookup.ok) return lookup.response
 
     let data: z.infer<typeof updateStaffSchema>
     try {
@@ -118,17 +102,17 @@ export const PUT = withRateLimit<{ params: Promise<{ venueId: string; membership
       // tasks/[taskId]/route.ts uses for its own descriptive-edit + assign split.
       try {
         if (data.nickname !== undefined) {
-          current = await setNickname(token, gate.xvmApiVenueId!, id, data.nickname)
+          current = await setNickname(token, lookup.venue.id, id, data.nickname)
         }
         if (data.role !== undefined) {
-          current = await setTier(token, gate.xvmApiVenueId!, id, data.role.toLowerCase() as "owner" | "manager" | "staff")
+          current = await setTier(token, lookup.venue.id, id, data.role.toLowerCase() as "owner" | "manager" | "staff")
         }
         if (data.additionalRoleIds !== undefined) {
-          current = await setMembershipPositions(token, gate.xvmApiVenueId!, id, data.additionalRoleIds)
+          current = await setMembershipPositions(token, lookup.venue.id, id, data.additionalRoleIds)
         }
       } catch (stepErr) {
         if (current && stepErr instanceof XvmApiError && stepErr.status !== 401) {
-          const positions = await listPositions(token, gate.xvmApiVenueId!)
+          const positions = await listPositions(token, lookup.venue.id)
           const positionsById = new Map(positions.map((p) => [p.id, p]))
           return NextResponse.json(
             { ...toStaffShape(current, positionsById, venueId), partial: true, error: xvmErrorMessage(stepErr) },
@@ -139,14 +123,14 @@ export const PUT = withRateLimit<{ params: Promise<{ venueId: string; membership
       }
 
       if (!current) {
-        const memberships = await listMemberships(token, gate.xvmApiVenueId!)
+        const memberships = await listMemberships(token, lookup.venue.id)
         current = memberships.find((m) => m.id === id)
         if (!current) {
           return NextResponse.json({ error: "Staff member not found" }, { status: 404 })
         }
       }
 
-      const positions = await listPositions(token, gate.xvmApiVenueId!)
+      const positions = await listPositions(token, lookup.venue.id)
       const positionsById = new Map(positions.map((p) => [p.id, p]))
       return NextResponse.json(toStaffShape(current, positionsById, venueId))
     } catch (err) {
@@ -178,12 +162,12 @@ export const DELETE = withRateLimit<{ params: Promise<{ venueId: string; members
       return NextResponse.json({ error: "Staff member not found" }, { status: 404 })
     }
 
-    const gate = await requireXvmVenueId(venueId)
-    if (gate.error) return gate.error
+    const lookup = await requireMyVenue(session.user.id, venueId, "[staff/[membershipId]] /me/venues read error")
+    if (!lookup.ok) return lookup.response
 
     try {
       const callerPersonId = await getValidXvmApiPersonId(session.user.id)
-      const memberships = await listMemberships(token, gate.xvmApiVenueId!)
+      const memberships = await listMemberships(token, lookup.venue.id)
 
       const targetMembership = memberships.find((m) => m.id === id)
       if (!targetMembership) {
@@ -202,39 +186,25 @@ export const DELETE = withRateLimit<{ params: Promise<{ venueId: string; members
 
       // Terminate first - xvm-api's own guards (last-owner protection, etc.)
       // can still refuse this. Doing the cleanup below only after it succeeds
-      // means a refused termination never leaves tasks unassigned or API keys
-      // revoked for someone who's still an active member.
-      await terminateMembership(token, gate.xvmApiVenueId!, id)
+      // means a refused termination never leaves tasks unassigned for someone
+      // who's still an active member.
+      await terminateMembership(token, lookup.venue.id, id)
 
       // Once termination has landed, a cleanup failure must never surface as a
       // plain error - the member really is terminated at that point, and a
       // blanket error response would tell the caller otherwise while leaving
       // tasks half-cleaned. Same partial-success shape PUT above uses.
       try {
-        const tasks = await listTasks(token, gate.xvmApiVenueId!, {})
+        const tasks = await listTasks(token, lookup.venue.id, {})
         const openAssignedTasks = tasks.filter(
           (t) => t.assigned_membership_id === id && !t.completed_at && !t.cancelled_at
         )
         await Promise.all(
-          openAssignedTasks.map((task) => assignTask(token, gate.xvmApiVenueId!, task.id, { membership_id: null }))
+          openAssignedTasks.map((task) => assignTask(token, lookup.venue.id, task.id, { membership_id: null }))
         )
-
-        const discordId = targetMembership.person.discord_id
-        const account = discordId
-          ? await prisma.account.findFirst({
-              where: { provider: "discord", providerAccountId: discordId },
-              select: { userId: true },
-            })
-          : null
-        if (account) {
-          await prisma.apiKey.updateMany({
-            where: { userId: account.userId, venueId: gate.prismaVenueId!, revokedAt: null },
-            data: { revokedAt: new Date() },
-          })
-        }
       } catch (cleanupErr) {
         const message =
-          cleanupErr instanceof XvmApiError ? xvmErrorMessage(cleanupErr) : "Task/key cleanup failed after termination"
+          cleanupErr instanceof XvmApiError ? xvmErrorMessage(cleanupErr) : "Task cleanup failed after termination"
         return NextResponse.json({ success: true, partial: true, error: message }, { status: 200 })
       }
 

@@ -2,10 +2,10 @@ import { NextResponse } from "next/server"
 import { getServerSession } from "next-auth"
 import { z } from "zod"
 import { authOptions } from "@/lib/auth"
-import { prisma } from "@/lib/prisma"
 import { withRateLimit } from "@/lib/middleware/with-rate-limit"
 import { validators } from "@/lib/validation"
 import { getValidXvmApiToken, xvmApiErrorResponse } from "@/lib/api/xvm-api-store"
+import { requireMyVenue } from "@/lib/api/venue-access"
 import { createInvite } from "@/lib/api/xvm-api"
 
 const inviteSchema = z.object({
@@ -13,22 +13,6 @@ const inviteSchema = z.object({
   invitedName: z.string().max(100, "Name too long (max 100 characters)").optional().nullable(),
   discordId: validators.snowflake.optional().nullable(),
 })
-
-async function requireXvmVenueId(venueId: string) {
-  const venue = await prisma.venue.findFirst({
-    where: { OR: [{ id: venueId }, { slug: venueId }] },
-    select: { xvmApiVenueId: true },
-  })
-  if (!venue?.xvmApiVenueId) {
-    return {
-      error: NextResponse.json(
-        { error: "not_connected", message: "This venue hasn't been connected to xvm-api yet." },
-        { status: 409 }
-      ),
-    }
-  }
-  return { xvmApiVenueId: venue.xvmApiVenueId }
-}
 
 export const POST = withRateLimit<{ params: Promise<{ venueId: string }> }>(
   async (request, context) => {
@@ -47,8 +31,8 @@ export const POST = withRateLimit<{ params: Promise<{ venueId: string }> }>(
     }
 
     const { venueId } = await context.params
-    const gate = await requireXvmVenueId(venueId)
-    if (gate.error) return gate.error
+    const lookup = await requireMyVenue(session.user.id, venueId, "[staff/invite] /me/venues read error")
+    if (!lookup.ok) return lookup.response
 
     let role: "STAFF" | "MANAGER" | "OWNER", invitedName: string | null | undefined, discordId: string | null | undefined
     try {
@@ -69,7 +53,7 @@ export const POST = withRateLimit<{ params: Promise<{ venueId: string }> }>(
       // other xvm-api-cutover route in this codebase re-checks tier
       // client-side (see roles/route.ts, tasks/route.ts), so this matches
       // established pattern rather than duplicating the old Prisma-era check.
-      const invite = await createInvite(token, gate.xvmApiVenueId!, {
+      const invite = await createInvite(token, lookup.venue.id, {
         display_name: invitedName || "Unnamed",
         tier: role.toLowerCase() as "owner" | "manager" | "staff",
         external_id: discordId || null,

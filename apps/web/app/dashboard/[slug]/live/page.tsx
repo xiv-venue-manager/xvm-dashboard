@@ -3,8 +3,7 @@ import { authOptions } from "@/lib/auth"
 import { redirect, notFound } from "next/navigation"
 import Link from "next/link"
 import { Card, CardContent } from "@/components/ui/card"
-import { prisma } from "@/lib/prisma"
-import { roleInVenue } from "@/lib/api/venue-access"
+import { resolveMyVenue } from "@/lib/api/venue-access"
 import { VenueLayout } from "@/components/venue-layout"
 import { LiveDashboard } from "@/components/live-dashboard"
 import { resolveDisplayName } from "@/lib/display-name"
@@ -32,13 +31,12 @@ export default async function LivePage({ params }: { params: Promise<{ slug: str
 
   const { slug } = await params
 
-  const venue = await prisma.venue.findUnique({ where: { slug } })
-
-  const userRole = venue ? await roleInVenue(session.user.id, venue) : null
-  if (!venue || !userRole) notFound()
+  const venue = await resolveMyVenue(session.user.id, slug)
+  if (!venue) notFound()
+  const userRole = venue.role
 
   const canManage = ["OWNER", "MANAGER"].includes(userRole)
-  const readXvm = await xvmPageReader(session.user.id, venue.xvmApiVenueId)
+  const readXvm = await xvmPageReader(session.user.id, venue.id)
   const revenueVisibility = await readXvm<RevenueVisibility>(
     "live page venue",
     "hide",
@@ -120,7 +118,7 @@ export default async function LivePage({ params }: { params: Promise<{ slug: str
         {activeEvent ? (
           <LiveDashboard
             venueSlug={venue.slug}
-            xvmApiVenueId={venue.xvmApiVenueId!}
+            xvmApiVenueId={venue.id}
             event={{
               id: activeEvent.id ?? "",
               title: activeEvent.title,

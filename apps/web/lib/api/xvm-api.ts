@@ -2333,6 +2333,92 @@ export async function postRaffle(
   )
 }
 
+// ── Auto-reactor ───────────────────────────────────────────────
+
+export interface AutoReactorRuleRow {
+  id: number
+  channel_id: string | null
+  keyword: string | null
+  role_id: string | null
+  emoji: string
+  created_at: string
+}
+
+export interface AutoReactorRuleCreate {
+  channel_id?: string | null
+  keyword?: string | null
+  role_id?: string | null
+  emoji: string
+}
+
+export interface AutoReactorRuleUpdate {
+  channel_id?: string | null
+  keyword?: string | null
+  role_id?: string | null
+  emoji?: string
+}
+
+export interface ModuleRow {
+  module: string
+  enabled: boolean
+}
+
+export async function listAutoReactorRules(personToken: string, venueId: string): Promise<AutoReactorRuleRow[]> {
+  if (!process.env.XVM_API_BASE_URL) throw new Error("XVM_API_BASE_URL is not set")
+  return xvmFetch<AutoReactorRuleRow[]>(`/venues/${venueId}/auto-reactor-rules`, {}, personToken)
+}
+
+export async function createAutoReactorRule(
+  personToken: string,
+  venueId: string,
+  data: AutoReactorRuleCreate
+): Promise<AutoReactorRuleRow> {
+  if (!process.env.XVM_API_BASE_URL) throw new Error("XVM_API_BASE_URL is not set")
+  return xvmFetch<AutoReactorRuleRow>(
+    `/venues/${venueId}/auto-reactor-rules`,
+    { method: "POST", body: JSON.stringify(data) },
+    personToken
+  )
+}
+
+export async function updateAutoReactorRule(
+  personToken: string,
+  venueId: string,
+  ruleId: number,
+  data: AutoReactorRuleUpdate
+): Promise<AutoReactorRuleRow> {
+  if (!process.env.XVM_API_BASE_URL) throw new Error("XVM_API_BASE_URL is not set")
+  return xvmFetch<AutoReactorRuleRow>(
+    `/venues/${venueId}/auto-reactor-rules/${ruleId}`,
+    { method: "PATCH", body: JSON.stringify(data) },
+    personToken
+  )
+}
+
+export async function deleteAutoReactorRule(personToken: string, venueId: string, ruleId: number): Promise<void> {
+  if (!process.env.XVM_API_BASE_URL) throw new Error("XVM_API_BASE_URL is not set")
+  return xvmFetch<void>(`/venues/${venueId}/auto-reactor-rules/${ruleId}`, { method: "DELETE" }, personToken)
+}
+
+export async function listModules(personToken: string, venueId: string): Promise<ModuleRow[]> {
+  if (!process.env.XVM_API_BASE_URL) throw new Error("XVM_API_BASE_URL is not set")
+  return xvmFetch<ModuleRow[]>(`/venues/${venueId}/modules`, {}, personToken)
+}
+
+export async function setModule(
+  personToken: string,
+  venueId: string,
+  module: string,
+  enabled: boolean
+): Promise<ModuleRow> {
+  if (!process.env.XVM_API_BASE_URL) throw new Error("XVM_API_BASE_URL is not set")
+  return xvmFetch<ModuleRow>(
+    `/venues/${venueId}/modules/${module}`,
+    { method: "PUT", body: JSON.stringify({ enabled }) },
+    personToken
+  )
+}
+
 // ── Payroll API ────────────────────────────────────────────────
 
 export type PaymentType = "fixed_salary" | "hourly" | "pot_share"

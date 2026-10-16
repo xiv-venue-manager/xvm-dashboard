@@ -20,6 +20,7 @@ import {
   myVenueRoles,
   myVenues,
   requireMyVenue,
+  requireMyVenueRole,
   requireVenueRole,
   resolveMyVenue,
   roleInVenue,
@@ -210,5 +211,27 @@ describe("requireMyVenue", () => {
     m.errorResponse.mockResolvedValue(failure)
     expect(await requireMyVenue("u1", "ven_1", "[t] read error")).toEqual({ ok: false, response: failure })
     expect(m.errorResponse).toHaveBeenCalledWith(expect.any(Error), "u1", "[t] read error")
+  })
+})
+
+describe("requireMyVenueRole", () => {
+  it("hands back the venue when the caller's role is high enough", async () => {
+    const found = await requireMyVenueRole("u1", "ven_1", "STAFF", "no", "[t]")
+    expect(found.ok).toBe(true)
+    if (found.ok) expect(found.venue.id).toBe("ven_1")
+  })
+
+  it("refuses with the route's own message when the role is too low", async () => {
+    const found = await requireMyVenueRole("u1", "ven_1", "OWNER", "Only the owner can do that", "[t]")
+    expect(found.ok).toBe(false)
+    if (found.ok) return
+    expect(found.response.status).toBe(403)
+    expect(await found.response.json()).toEqual({ error: "Only the owner can do that" })
+  })
+
+  it("answers 404, not 403, for a venue that is not the caller's", async () => {
+    const found = await requireMyVenueRole("u1", "ven_9", "STAFF", "no", "[t]")
+    expect(found.ok).toBe(false)
+    if (!found.ok) expect(found.response.status).toBe(404)
   })
 })

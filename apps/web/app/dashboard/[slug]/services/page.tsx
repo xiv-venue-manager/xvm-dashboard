@@ -137,9 +137,9 @@ export default function ServicesPage({ params }: { params: Promise<{ slug: strin
 
         // Get services, roles, categories, and inventory settings
         const [servicesResponse, rolesResponse, categoriesResponse] = await Promise.all([
-          fetch(`/api/venues/${venue.id}/services`),
-          fetch(`/api/venues/${venue.id}/roles`),
-          fetch(`/api/venues/${venue.id}/services/categories`),
+          fetch(`/api/venues/${slug}/services`),
+          fetch(`/api/venues/${slug}/roles`),
+          fetch(`/api/venues/${slug}/services/categories`),
           fetch(`/api/venues/${venue.id}/inventory-settings`)
             .then((r) => (r.ok ? r.json() : null))
             .then((data) => {
@@ -232,7 +232,7 @@ export default function ServicesPage({ params }: { params: Promise<{ slug: strin
     const roleName = (id: number) => roles.find((r) => r.id === id)?.name ?? `role ${id}`
     const results = await Promise.all([
       ...toGrant.map(async (positionId) => {
-        const response = await fetch(`/api/venues/${venueId}/services/${serviceId}/positions`, {
+        const response = await fetch(`/api/venues/${slug}/services/${serviceId}/positions`, {
           method: "POST",
           headers: { "Content-Type": "application/json" },
           body: JSON.stringify({ positionId }),
@@ -240,7 +240,7 @@ export default function ServicesPage({ params }: { params: Promise<{ slug: strin
         return response.ok ? null : `grant position ${roleName(positionId)}`
       }),
       ...toRevoke.map(async (positionId) => {
-        const response = await fetch(`/api/venues/${venueId}/services/${serviceId}/positions/${positionId}`, {
+        const response = await fetch(`/api/venues/${slug}/services/${serviceId}/positions/${positionId}`, {
           method: "DELETE",
         })
         return response.ok ? null : `revoke position ${roleName(positionId)}`
@@ -261,7 +261,7 @@ export default function ServicesPage({ params }: { params: Promise<{ slug: strin
   ): Promise<string[]> {
     const failures: string[] = []
     if (formData.linkedItem) {
-      const linkResponse = await fetch(`/api/venues/${venueId}/services/${serviceId}/inventory`, {
+      const linkResponse = await fetch(`/api/venues/${slug}/services/${serviceId}/inventory`, {
         method: "PUT",
         headers: { "Content-Type": "application/json" },
         body: JSON.stringify({
@@ -276,7 +276,7 @@ export default function ServicesPage({ params }: { params: Promise<{ slug: strin
       const baseline = sameItem ? (previousStockCount ?? 0) : 0
       const delta = stockCount - baseline
       if (delta !== 0) {
-        const movementResponse = await fetch(`/api/venues/${venueId}/services/${serviceId}/inventory/movements`, {
+        const movementResponse = await fetch(`/api/venues/${slug}/services/${serviceId}/inventory/movements`, {
           method: "POST",
           headers: { "Content-Type": "application/json" },
           body: JSON.stringify({ reason: delta > 0 ? "restock" : "adjustment", delta }),
@@ -284,7 +284,7 @@ export default function ServicesPage({ params }: { params: Promise<{ slug: strin
         if (!movementResponse.ok) failures.push(delta > 0 ? "restock movement" : "adjustment movement")
       }
     } else if (previousLinkedItemId !== null) {
-      const unlinkResponse = await fetch(`/api/venues/${venueId}/services/${serviceId}/inventory`, { method: "DELETE" })
+      const unlinkResponse = await fetch(`/api/venues/${slug}/services/${serviceId}/inventory`, { method: "DELETE" })
       if (!unlinkResponse.ok) failures.push("unlink inventory")
     }
     return failures
@@ -300,7 +300,7 @@ export default function ServicesPage({ params }: { params: Promise<{ slug: strin
     setFormError("")
 
     try {
-      const response = await fetch(`/api/venues/${venueId}/services`, {
+      const response = await fetch(`/api/venues/${slug}/services`, {
         method: "POST",
         headers: { "Content-Type": "application/json" },
         body: JSON.stringify({
@@ -324,7 +324,7 @@ export default function ServicesPage({ params }: { params: Promise<{ slug: strin
       ]
 
       // Re-fetch so the card reflects the positions/inventory just applied.
-      const finalResponse = await fetch(`/api/venues/${venueId}/services/${created.id}`)
+      const finalResponse = await fetch(`/api/venues/${slug}/services/${created.id}`)
       const finalRow = finalResponse.ok ? await finalResponse.json() : created
       setServices([toServiceShape(finalRow), ...services])
       setIsCreateDialogOpen(false)
@@ -351,7 +351,7 @@ export default function ServicesPage({ params }: { params: Promise<{ slug: strin
     setFormError("")
 
     try {
-      const response = await fetch(`/api/venues/${venueId}/services/${editingService.id}`, {
+      const response = await fetch(`/api/venues/${slug}/services/${editingService.id}`, {
         method: "PATCH",
         headers: { "Content-Type": "application/json" },
         body: JSON.stringify({
@@ -378,7 +378,7 @@ export default function ServicesPage({ params }: { params: Promise<{ slug: strin
         )),
       ]
 
-      const finalResponse = await fetch(`/api/venues/${venueId}/services/${editingService.id}`)
+      const finalResponse = await fetch(`/api/venues/${slug}/services/${editingService.id}`)
       const finalRow = finalResponse.ok ? await finalResponse.json() : null
       if (finalRow) {
         const updatedService = toServiceShape(finalRow)
@@ -401,7 +401,7 @@ export default function ServicesPage({ params }: { params: Promise<{ slug: strin
 
   const handleDeleteService = async (service: Service) => {
     try {
-      const response = await fetch(`/api/venues/${venueId}/services/${service.id}`, {
+      const response = await fetch(`/api/venues/${slug}/services/${service.id}`, {
         method: "DELETE",
       })
 
@@ -418,7 +418,7 @@ export default function ServicesPage({ params }: { params: Promise<{ slug: strin
 
   const handleToggleService = async (service: Service) => {
     try {
-      const response = await fetch(`/api/venues/${venueId}/services/${service.id}`, {
+      const response = await fetch(`/api/venues/${slug}/services/${service.id}`, {
         method: "PATCH",
         headers: { "Content-Type": "application/json" },
         body: JSON.stringify({ isActive: !service.isActive }),
@@ -472,7 +472,7 @@ export default function ServicesPage({ params }: { params: Promise<{ slug: strin
     if (!newCategoryName.trim()) return
     setIsCreatingCategory(true)
     try {
-      const response = await fetch(`/api/venues/${venueId}/services/categories`, {
+      const response = await fetch(`/api/venues/${slug}/services/categories`, {
         method: "POST",
         headers: { "Content-Type": "application/json" },
         body: JSON.stringify({ name: newCategoryName.trim() }),

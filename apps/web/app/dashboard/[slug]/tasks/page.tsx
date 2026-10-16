@@ -145,7 +145,7 @@ export default function TasksPage({ params }: { params: Promise<{ slug: string }
         }
 
         // Get roles
-        const rolesResponse = await fetch(`/api/venues/${venue.id}/roles`)
+        const rolesResponse = await fetch(`/api/venues/${slug}/roles`)
         if (rolesResponse.ok) {
           const rolesData = await rolesResponse.json()
           setRoles(rolesData)

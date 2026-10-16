@@ -2,7 +2,7 @@ import { describe, it, expect, vi, beforeEach } from "vitest"
 
 const m = vi.hoisted(() => ({
   session: vi.fn(),
-  venueFind: vi.fn(),
+  requireVenue: vi.fn(),
   token: vi.fn(),
   fetchMoney: vi.fn(),
   fetchDoor: vi.fn(),
@@ -11,7 +11,7 @@ const m = vi.hoisted(() => ({
 vi.mock("next-auth", () => ({ getServerSession: m.session }))
 vi.mock("@/lib/auth", () => ({ authOptions: {} }))
 vi.mock("@/lib/middleware/with-rate-limit", () => ({ withRateLimit: (handler: unknown) => handler }))
-vi.mock("@/lib/prisma", () => ({ prisma: { venue: { findFirst: m.venueFind } } }))
+vi.mock("@/lib/api/venue-access", () => ({ requireMyVenue: m.requireVenue }))
 vi.mock("@/lib/api/xvm-api-store", async () => {
   const actual = await vi.importActual<typeof import("@/lib/api/xvm-api-store")>("@/lib/api/xvm-api-store")
   return { ...actual, getValidXvmApiToken: m.token, invalidateXvmApiCredential: vi.fn() }
@@ -48,7 +48,7 @@ const completedEvent = () => ({
 beforeEach(() => {
   vi.resetAllMocks()
   m.session.mockResolvedValue({ user: { id: "user-1" } })
-  m.venueFind.mockResolvedValue({ id: "venue-1", name: "Test-Venue", xvmApiVenueId: "xvm-venue" })
+  m.requireVenue.mockResolvedValue({ ok: true, venue: { id: "xvm-venue", name: "Test-Venue" } })
   m.token.mockResolvedValue("person-token")
   m.fetchMoney.mockResolvedValue({ events: [], rows: [], payroll: [] })
   m.fetchDoor.mockResolvedValue({ logs: [], patrons: [], followerCount: 0 })
@@ -60,16 +60,10 @@ describe("GET /api/venues/[venueId]/analytics", () => {
     expect((await call()).status).toBe(401)
   })
 
-  it("answers 404 for an unknown venue", async () => {
-    m.venueFind.mockResolvedValue(null)
+  it("answers 404 for a venue the caller cannot see, before reading anything from xvm-api", async () => {
+    m.requireVenue.mockResolvedValue({ ok: false, response: new Response(null, { status: 404 }) })
     expect((await call()).status).toBe(404)
-  })
-
-  it("answers 409 for a venue not connected to xvm-api", async () => {
-    m.venueFind.mockResolvedValue({ id: "venue-1", name: "Test-Venue", xvmApiVenueId: null })
-    const res = await call()
-    expect(res.status).toBe(409)
-    expect((await res.json()).error).toBe("not_connected")
+    expect(m.fetchMoney).not.toHaveBeenCalled()
   })
 
   it("answers 503 when the xvm-api link has lapsed", async () => {

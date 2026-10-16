@@ -1,8 +1,7 @@
 import { NextResponse } from "next/server"
 import { getServerSession } from "next-auth"
 import { authOptions } from "@/lib/auth"
-import { prisma } from "@/lib/prisma"
-import { getPublicVenuesForIds } from "@/lib/api/xvm-api"
+import { myVenues } from "@/lib/api/venue-access"
 
 const SHOUT_ORIGIN = "https://shout.xivvenuemanager.com"
 
@@ -25,21 +24,9 @@ export async function GET() {
     return cors(NextResponse.json({ user: null }, { status: 200 }))
   }
 
-  const venues = await prisma.venue.findMany({
-    where: { ownerId: session.user.id, isActive: true },
-    select: { id: true, slug: true, xvmApiVenueId: true },
-    orderBy: { slug: "asc" },
-  })
-
-  const xvmVenueIds = venues.map((v) => v.xvmApiVenueId).filter((id): id is string => id !== null)
-  const profileByVenue = xvmVenueIds.length > 0 ? await getPublicVenuesForIds(xvmVenueIds) : {}
-
-  const namedVenues = venues
-    .map((v) => ({
-      id: v.id,
-      slug: v.slug,
-      name: (v.xvmApiVenueId ? profileByVenue[v.xvmApiVenueId]?.name : undefined) ?? v.slug,
-    }))
+  const namedVenues = (await myVenues(session.user.id).catch(() => []))
+    .filter((v) => v.role === "OWNER")
+    .map(({ id, slug, name }) => ({ id, slug, name }))
     .sort((a, b) => a.name.localeCompare(b.name))
 
   return cors(

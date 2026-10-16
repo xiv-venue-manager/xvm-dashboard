@@ -1,9 +1,9 @@
 import { NextResponse } from "next/server"
 import { getServerSession } from "next-auth"
 import { authOptions } from "@/lib/auth"
-import { prisma } from "@/lib/prisma"
 import { withRateLimit } from "@/lib/middleware/with-rate-limit"
 import { getValidXvmApiToken, xvmApiErrorResponse } from "@/lib/api/xvm-api-store"
+import { requireMyVenue } from "@/lib/api/venue-access"
 import {
   buildMoneyAnalytics,
   fetchMoneyInputs,
@@ -30,22 +30,9 @@ export const GET = withRateLimit<{ params: Promise<{ venueId: string }> }>(
 
       const { venueId } = await context.params
 
-      // Look up venue by slug or ID
-      const venue = await prisma.venue.findFirst({
-        where: { OR: [{ id: venueId }, { slug: venueId }] },
-        select: { id: true, name: true, xvmApiVenueId: true },
-      })
-
-      if (!venue) {
-        return NextResponse.json({ error: "Venue not found" }, { status: 404 })
-      }
-
-      if (!venue.xvmApiVenueId) {
-        return NextResponse.json(
-          { error: "not_connected", message: "This venue hasn't been connected to xvm-api yet." },
-          { status: 409 }
-        )
-      }
+      const lookup = await requireMyVenue(session.user.id, venueId, "[analytics] /me/venues read error")
+      if (!lookup.ok) return lookup.response
+      const venue = lookup.venue
 
       const token = await getValidXvmApiToken(session.user.id)
       if (!token) {
@@ -60,9 +47,9 @@ export const GET = withRateLimit<{ params: Promise<{ venueId: string }> }>(
       let doorEvents
       let doorInputs
       try {
-        moneyInputs = await fetchMoneyInputs(token, venue.xvmApiVenueId, period, now)
+        moneyInputs = await fetchMoneyInputs(token, venue.id, period, now)
         doorEvents = recentDoorEvents(moneyInputs, period)
-        doorInputs = await fetchDoorInputs(token, venue.xvmApiVenueId, doorEvents)
+        doorInputs = await fetchDoorInputs(token, venue.id, doorEvents)
       } catch (err) {
         return xvmApiErrorResponse(err, session.user.id, "[analytics] xvm-api read error")
       }

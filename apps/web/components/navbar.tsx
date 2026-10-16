@@ -1,6 +1,6 @@
 import { getServerSession } from "next-auth"
 import { authOptions } from "@/lib/auth"
-import { prisma } from "@/lib/prisma"
+import { myVenues } from "@/lib/api/venue-access"
 import { NavbarClient } from "./navbar-client"
 
 export async function Navbar() {
@@ -8,14 +8,8 @@ export async function Navbar() {
 
   let venues: Array<{ id: string; name: string; slug: string; role: string }> = []
   if (session?.user?.id) {
-    const memberships = await prisma.membership.findMany({
-      where: { userId: session.user.id },
-      select: {
-        role: true,
-        venue: { select: { id: true, name: true, slug: true } },
-      },
-    })
-    venues = memberships.map((m) => ({ ...m.venue, role: m.role }))
+    const mine = await myVenues(session.user.id).catch(() => [])
+    venues = mine.map(({ id, name, slug, role }) => ({ id, name, slug, role }))
   }
 
   return <NavbarClient session={session} venues={venues} />

@@ -53,6 +53,17 @@ describe("transaction item", () => {
     )
   })
 
+  it("accepts null notes and customer name, which is what the edit dialog sends for blank fields", async () => {
+    const res = await patch({ amount: 2500, customerName: null, notes: null })
+    expect(res.status).toBe(200)
+    expect(m.update).toHaveBeenCalledWith(
+      "tok",
+      "ven_1",
+      12,
+      expect.objectContaining({ amount: gilToMinorUnits(2500), customer_name: null, notes: null })
+    )
+  })
+
   it("voids a transaction on delete", async () => {
     const res = await del()
     expect(res.status).toBe(200)

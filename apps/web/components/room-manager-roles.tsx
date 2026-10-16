@@ -11,10 +11,12 @@ type Role = {
 
 export function RoomManagerRoles({
   venueId,
+  venueSlug,
   canManage,
   initialRoleIds = [],
 }: {
   venueId: string
+  venueSlug: string
   canManage: boolean
   initialRoleIds?: string[]
 }) {
@@ -23,11 +25,11 @@ export function RoomManagerRoles({
   const [saving, setSaving] = useState(false)
 
   useEffect(() => {
-    fetch(`/api/venues/${venueId}/roles`)
+    fetch(`/api/venues/${venueSlug}/roles`)
       .then((r) => r.json())
       .then((data) => setRoles(data.roles ?? []))
       .catch(() => {})
-  }, [venueId])
+  }, [venueSlug])
 
   const toggleRole = (roleId: string) => {
     const next = new Set(selectedRoleIds)

@@ -139,3 +139,15 @@ export async function requireMyVenue(userId: string, ref: string, logLabel: stri
     return { ok: false, response: await xvmApiErrorResponse(err, userId, logLabel) }
   }
 }
+
+export async function requireMyVenueRole(
+  userId: string,
+  ref: string,
+  minimum: VenueRole,
+  forbiddenMessage: string,
+  logLabel: string
+): Promise<VenueLookup> {
+  const lookup = await requireMyVenue(userId, ref, logLabel)
+  if (!lookup.ok || atLeast(lookup.venue.role, minimum)) return lookup
+  return { ok: false, response: NextResponse.json({ error: forbiddenMessage }, { status: 403 }) }
+}

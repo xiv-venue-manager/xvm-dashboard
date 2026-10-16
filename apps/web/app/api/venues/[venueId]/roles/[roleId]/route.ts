@@ -2,8 +2,8 @@ import { NextResponse } from "next/server"
 import { getServerSession } from "next-auth"
 import { authOptions } from "@/lib/auth"
 import { z } from "zod"
-import { prisma } from "@/lib/prisma"
 import { withRateLimit } from "@/lib/middleware/with-rate-limit"
+import { requireMyVenue } from "@/lib/api/venue-access"
 import { getValidXvmApiToken, xvmApiErrorResponse } from "@/lib/api/xvm-api-store"
 import { listPositions, updatePosition, deletePosition, type PositionRow } from "@/lib/api/xvm-api"
 import { hexColorToInt, intColorToHex, gilToMinorUnits, minorUnitsToGil } from "@/lib/api/position-convert"
@@ -30,19 +30,6 @@ function toRoleShape(position: PositionRow) {
   }
 }
 
-async function requireXvmVenueId(venueId: string) {
-  const venue = await prisma.venue.findUnique({ where: { id: venueId }, select: { xvmApiVenueId: true } })
-  if (!venue?.xvmApiVenueId) {
-    return {
-      error: NextResponse.json(
-        { error: "not_connected", message: "This venue hasn't been connected to xvm-api yet." },
-        { status: 409 }
-      ),
-    }
-  }
-  return { xvmApiVenueId: venue.xvmApiVenueId }
-}
-
 export const GET = withRateLimit<{ params: Promise<{ venueId: string; roleId: string }> }>(
   async (request, context) => {
     if (!context?.params) {
@@ -65,11 +52,11 @@ export const GET = withRateLimit<{ params: Promise<{ venueId: string; roleId: st
       return NextResponse.json({ error: "Role not found" }, { status: 404 })
     }
 
-    const gate = await requireXvmVenueId(venueId)
-    if (gate.error) return gate.error
+    const lookup = await requireMyVenue(session.user.id, venueId, "[roles] /me/venues read error")
+    if (!lookup.ok) return lookup.response
 
     try {
-      const positions = await listPositions(token, gate.xvmApiVenueId!)
+      const positions = await listPositions(token, lookup.venue.id)
       const position = positions.find((p) => p.id === positionId)
       if (!position) {
         return NextResponse.json({ error: "Role not found" }, { status: 404 })
@@ -104,8 +91,8 @@ export const PUT = withRateLimit<{ params: Promise<{ venueId: string; roleId: st
       return NextResponse.json({ error: "Role not found" }, { status: 404 })
     }
 
-    const gate = await requireXvmVenueId(venueId)
-    if (gate.error) return gate.error
+    const lookup = await requireMyVenue(session.user.id, venueId, "[roles] /me/venues read error")
+    if (!lookup.ok) return lookup.response
 
     let data: z.infer<typeof updateRoleSchema>
     try {
@@ -125,7 +112,7 @@ export const PUT = withRateLimit<{ params: Promise<{ venueId: string; roleId: st
     }
 
     try {
-      const position = await updatePosition(token, gate.xvmApiVenueId!, positionId, {
+      const position = await updatePosition(token, lookup.venue.id, positionId, {
         name: data.name,
         color,
         responsibilities: data.responsibilities,
@@ -161,11 +148,11 @@ export const DELETE = withRateLimit<{ params: Promise<{ venueId: string; roleId:
       return NextResponse.json({ error: "Role not found" }, { status: 404 })
     }
 
-    const gate = await requireXvmVenueId(venueId)
-    if (gate.error) return gate.error
+    const lookup = await requireMyVenue(session.user.id, venueId, "[roles] /me/venues read error")
+    if (!lookup.ok) return lookup.response
 
     try {
-      const positions = await listPositions(token, gate.xvmApiVenueId!)
+      const positions = await listPositions(token, lookup.venue.id)
       const position = positions.find((p) => p.id === positionId)
       if (!position) {
         return NextResponse.json({ error: "Role not found" }, { status: 404 })
@@ -177,7 +164,7 @@ export const DELETE = withRateLimit<{ params: Promise<{ venueId: string; roleId:
         )
       }
 
-      await deletePosition(token, gate.xvmApiVenueId!, positionId)
+      await deletePosition(token, lookup.venue.id, positionId)
       return NextResponse.json({ success: true })
     } catch (err) {
       return xvmApiErrorResponse(err, session.user.id, "[roles] DELETE error")

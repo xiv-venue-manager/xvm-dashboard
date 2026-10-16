@@ -2,8 +2,7 @@ import { NextResponse } from "next/server"
 import { getServerSession } from "next-auth"
 import { authOptions } from "@/lib/auth"
 import { z } from "zod"
-import { prisma } from "@/lib/prisma"
-import { requireVenueRole } from "@/lib/api/venue-access"
+import { requireMyVenueRole } from "@/lib/api/venue-access"
 import { withRateLimit } from "@/lib/middleware/with-rate-limit"
 import { getValidXvmApiToken, xvmApiErrorResponse } from "@/lib/api/xvm-api-store"
 import { listStockMovements, createStockMovement } from "@/lib/api/xvm-api"
@@ -16,19 +15,6 @@ const createMovementSchema = z
   })
   .strict()
 
-async function requireXvmVenueId(venueId: string) {
-  const venue = await prisma.venue.findUnique({ where: { id: venueId }, select: { xvmApiVenueId: true } })
-  if (!venue?.xvmApiVenueId) {
-    return {
-      error: NextResponse.json(
-        { error: "not_connected", message: "This venue hasn't been connected to xvm-api yet." },
-        { status: 409 }
-      ),
-    }
-  }
-  return { xvmApiVenueId: venue.xvmApiVenueId }
-}
-
 export const GET = withRateLimit<{ params: Promise<{ venueId: string; serviceId: string }> }>(
   async (request, context) => {
     if (!context?.params) return NextResponse.json({ error: "Invalid request" }, { status: 400 })
@@ -39,19 +25,16 @@ export const GET = withRateLimit<{ params: Promise<{ venueId: string; serviceId:
     }
 
     const { venueId, serviceId } = await context.params
-    const access = await requireVenueRole(session.user.id, venueId, "STAFF", "You don't have access to this venue")
-    if (!access.ok) return access.response
+    const lookup = await requireMyVenueRole(session.user.id, venueId, "STAFF", "You don't have access to this venue", "[stock movements] /me/venues read error")
+    if (!lookup.ok) return lookup.response
 
     const token = await getValidXvmApiToken(session.user.id)
     if (!token) {
       return NextResponse.json({ error: "xvm-api link not established yet" }, { status: 503 })
     }
 
-    const gate = await requireXvmVenueId(venueId)
-    if (gate.error) return gate.error
-
     try {
-      const movements = await listStockMovements(token, gate.xvmApiVenueId!, Number(serviceId))
+      const movements = await listStockMovements(token, lookup.venue.id, Number(serviceId))
       return NextResponse.json(movements)
     } catch (err) {
       return xvmApiErrorResponse(err, session.user.id, "[services/[serviceId]/inventory/movements] GET error")
@@ -70,16 +53,13 @@ export const POST = withRateLimit<{ params: Promise<{ venueId: string; serviceId
     }
 
     const { venueId, serviceId } = await context.params
-    const access = await requireVenueRole(session.user.id, venueId, "MANAGER", "You don't have permission to manage service inventory")
-    if (!access.ok) return access.response
+    const lookup = await requireMyVenueRole(session.user.id, venueId, "MANAGER", "You don't have permission to manage service inventory", "[stock movements] /me/venues read error")
+    if (!lookup.ok) return lookup.response
 
     const token = await getValidXvmApiToken(session.user.id)
     if (!token) {
       return NextResponse.json({ error: "xvm-api link not established yet" }, { status: 503 })
     }
-
-    const gate = await requireXvmVenueId(venueId)
-    if (gate.error) return gate.error
 
     let data: z.infer<typeof createMovementSchema>
     try {
@@ -92,7 +72,7 @@ export const POST = withRateLimit<{ params: Promise<{ venueId: string; serviceId
     }
 
     try {
-      const movement = await createStockMovement(token, gate.xvmApiVenueId!, Number(serviceId), data)
+      const movement = await createStockMovement(token, lookup.venue.id, Number(serviceId), data)
       return NextResponse.json(movement, { status: 201 })
     } catch (err) {
       return xvmApiErrorResponse(err, session.user.id, "[services/[serviceId]/inventory/movements] POST error")

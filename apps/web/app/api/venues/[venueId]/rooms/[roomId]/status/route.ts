@@ -2,24 +2,11 @@ import { NextResponse } from "next/server"
 import { getServerSession } from "next-auth"
 import { authOptions } from "@/lib/auth"
 import { z } from "zod"
-import { prisma } from "@/lib/prisma"
 import { withRateLimit } from "@/lib/middleware/with-rate-limit"
 import { venueEventBus } from "@/lib/sse/venue-events"
 import { getValidXvmApiToken, xvmApiErrorResponse } from "@/lib/api/xvm-api-store"
+import { requireMyVenue } from "@/lib/api/venue-access"
 import { createReservation, releaseRoom, getRoom, type Room } from "@/lib/api/xvm-api"
-
-async function requireXvmVenueId(venueId: string) {
-  const venue = await prisma.venue.findUnique({ where: { id: venueId }, select: { xvmApiVenueId: true } })
-  if (!venue?.xvmApiVenueId) {
-    return {
-      error: NextResponse.json(
-        { error: "not_connected", message: "This venue hasn't been connected to xvm-api yet." },
-        { status: 409 }
-      ),
-    }
-  }
-  return { xvmApiVenueId: venue.xvmApiVenueId }
-}
 
 // Action-discriminated body: xvm-api has no isOccupied flag, occupying a
 // room means creating a reservation and vacating means releasing it.
@@ -74,8 +61,8 @@ export const PATCH = withRateLimit<{
       return NextResponse.json({ error: "Invalid room id" }, { status: 400 })
     }
 
-    const venueGate = await requireXvmVenueId(venueId)
-    if (venueGate.error) return venueGate.error
+    const lookup = await requireMyVenue(session.user.id, venueId, "[rooms/[roomId]/status] /me/venues read error")
+    if (!lookup.ok) return lookup.response
 
     let parsed: z.infer<typeof setStatusSchema>
     try {
@@ -90,7 +77,7 @@ export const PATCH = withRateLimit<{
     try {
       let room: Room
       if (parsed.action === "reserve") {
-        await createReservation(token, venueGate.xvmApiVenueId!, id, {
+        await createReservation(token, lookup.venue.id, id, {
           reserved_person_id: parsed.reserved_person_id ?? null,
           reserved_character_name: parsed.reserved_character_name ?? null,
           reserved_world: parsed.reserved_world ?? null,
@@ -99,11 +86,12 @@ export const PATCH = withRateLimit<{
         })
         // createReservation returns a Reservation, not the room — re-fetch
         // the room so the response/SSE payload carries the full current state.
-        room = await getRoom(token, venueGate.xvmApiVenueId!, id)
+        room = await getRoom(token, lookup.venue.id, id)
       } else {
-        room = await releaseRoom(token, venueGate.xvmApiVenueId!, id)
+        await releaseRoom(token, lookup.venue.id, id)
+        room = await getRoom(token, lookup.venue.id, id)
       }
-      emitRoomStatus(venueId, room)
+      emitRoomStatus(lookup.venue.id, room)
       return NextResponse.json(room)
     } catch (err) {
       return xvmApiErrorResponse(err, session.user.id, "[rooms/:id/status] error")

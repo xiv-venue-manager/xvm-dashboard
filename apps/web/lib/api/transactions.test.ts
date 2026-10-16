@@ -41,6 +41,7 @@ vi.mock("@/lib/discord-webhook", () => ({
 
 import { createTransaction, InsufficientStockError, type CreateTransactionInput } from "./transactions"
 import { XvmApiError } from "@/lib/api/xvm-api"
+import { venueEventBus } from "@/lib/sse/venue-events"
 
 describe("createTransaction (xvm-api)", () => {
   beforeEach(() => {
@@ -73,6 +74,20 @@ describe("createTransaction (xvm-api)", () => {
     voided_by_person_id: null,
     void_reason: null,
   }
+
+  it("publishes the sale under the xvm-api venue id, the key the stream subscribes with", async () => {
+    mockCreateFinanceTransaction.mockResolvedValue(financeTransactionResponse)
+    mockGetService.mockResolvedValue({ id: 3, name: "Drink", inventory: { stock_count: 5 } })
+
+    await createTransaction("venue1", "user1", {
+      serviceId: "3",
+      type: "SALE",
+      amount: 4500,
+      customerName: "Bob",
+    } satisfies CreateTransactionInput)
+
+    expect(venueEventBus.emit).toHaveBeenCalledWith(42, expect.objectContaining({ type: "sale", venueId: 42 }))
+  })
 
   it("creates a sale transaction and returns the real post-sale stock count", async () => {
     mockCreateFinanceTransaction.mockResolvedValue(financeTransactionResponse)

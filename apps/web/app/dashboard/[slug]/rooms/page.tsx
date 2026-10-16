@@ -52,7 +52,7 @@ export default async function RoomsPage({ params }: { params: Promise<{ slug: st
         </div>
 
         <RoomsBoard
-          venueId={venue.id}
+          venueSlug={venue.slug}
           canManage={["OWNER", "MANAGER"].includes(userRole)}
           rooms={rooms}
           notConnected={notConnected}

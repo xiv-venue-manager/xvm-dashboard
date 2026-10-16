@@ -56,7 +56,7 @@ interface StaffRosterItem {
 }
 
 interface LiveDashboardProps {
-  venueId: string
+  venueSlug: string
   xvmApiVenueId: string
   event: LiveEvent
   isUpcoming: boolean
@@ -75,7 +75,7 @@ interface LiveDashboardProps {
 }
 
 export function LiveDashboard({
-  venueId,
+  venueSlug,
   xvmApiVenueId,
   event,
   isUpcoming,
@@ -178,7 +178,7 @@ export function LiveDashboard({
 
   // SSE
   useEffect(() => {
-    const es = new EventSource("/api/stream/" + venueId)
+    const es = new EventSource("/api/stream/" + venueSlug)
     es.onmessage = (e) => {
       try {
         const data = JSON.parse(e.data)
@@ -272,7 +272,7 @@ export function LiveDashboard({
     }
     es.onerror = () => setConnected(false)
     return () => es.close()
-  }, [venueId, showRevenue, revenueUnavailable, scopeSalesToOwn, currentUserId])
+  }, [venueSlug, showRevenue, revenueUnavailable, scopeSalesToOwn, currentUserId])
 
   const fiClass = (type: ActivityItem["type"]) => {
     if (type === "patron_enter")

@@ -136,7 +136,7 @@ export function CreateShiftDialog({
       setEventId(prefill?.eventId ?? "")
       setOpen(false)
       router.refresh()
-    } catch (e) {
+    } catch {
       setError("Network error")
     } finally {
       setSubmitting(false)

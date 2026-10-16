@@ -26,39 +26,7 @@ function relTime(iso: string | null): string {
   return `${d}d ago`
 }
 import { Button } from "@/components/ui/button"
-import { Card, CardContent, CardDescription, CardHeader, CardTitle } from "@/components/ui/card"
-import { LatestPluginVersion } from "@/components/latest-plugin-version"
-import {
-  Gamepad2,
-  Calendar,
-  Radio,
-  Clock,
-  Users,
-  Coins,
-  BarChart3,
-  ShoppingBag,
-  Banknote,
-  Building2,
-  Lock,
-  Smartphone,
-  Bell,
-  Link2,
-  CheckCircle2,
-  BookOpen,
-  Crown,
-  Drama,
-  ArrowRight,
-  Check,
-} from "lucide-react"
-
-function FeatureCheck({ children }: { children: React.ReactNode }) {
-  return (
-    <li className="flex items-start gap-2">
-      <Check className="h-4 w-4 text-emerald-500 flex-shrink-0 mt-0.5" aria-hidden="true" />
-      <span>{children}</span>
-    </li>
-  )
-}
+import { ShoppingBag, Banknote, Building2, Lock, Smartphone, Bell, Link2, CheckCircle2, ArrowRight } from "lucide-react"
 
 function IconBadge({
   children,
@@ -213,7 +181,7 @@ export default async function Home() {
                       time: "1m ago",
                       blue: true,
                     },
-                  ].map(({ icon, label, time, blue }, i) => (
+                  ].map(({ label, time, blue }, i) => (
                     <div
                       key={i}
                       className={`flex items-center gap-2.5 px-4 py-2.5 text-[0.8rem] ${i > 0 ? "border-t border-[var(--blue-008)]" : ""}`}

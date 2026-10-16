@@ -1,4 +1,4 @@
-import { NextRequest, NextResponse } from "next/server"
+import { NextResponse } from "next/server"
 import { getServerSession } from "next-auth"
 import { authOptions } from "@/lib/auth"
 import { prisma } from "@/lib/prisma"
@@ -97,7 +97,7 @@ export const GET = withRateLimit<{ params: Promise<{ venueId: string }> }>(
   { requests: 60, window: "1 m" }
 )
 
-export async function POST(request: NextRequest, { params }: { params: Promise<{ venueId: string }> }) {
+export async function POST() {
   // This endpoint has been deprecated in favor of the invite link system
   // Use POST /api/venues/[venueId]/staff/invite instead
   return NextResponse.json(

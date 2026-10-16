@@ -2,7 +2,6 @@
 
 import { useEffect, useState } from "react"
 import { useSession, signOut } from "next-auth/react"
-import { useRouter } from "next/navigation"
 import Link from "next/link"
 import { ArrowLeft, Save, LogOut, Trash2, Bell, Key } from "lucide-react"
 import {
@@ -19,7 +18,6 @@ import {
 
 export default function AccountSettingsPage() {
   const { data: session } = useSession()
-  const router = useRouter()
 
   const [displayName, setDisplayName] = useState("")
   const [savedName, setSavedName] = useState("")

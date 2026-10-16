@@ -119,7 +119,7 @@ export default function InviteStaffPage({ params }: { params: Promise<{ slug: st
           text: `You've been invited to join ${name ? name + "'s venue" : "our venue"} staff! Click the link to accept:`,
           url: inviteUrl,
         })
-      } catch (err) {
+      } catch {
         // User cancelled share or error occurred
       }
     }

@@ -42,14 +42,6 @@ function fmtWeekLabel(d: Date): string {
   return d.toLocaleString("en-GB", { timeZone: "UTC", weekday: "short", day: "numeric", month: "short" })
 }
 
-const statusChip: Record<string, string> = {
-  SCHEDULED: "bg-[rgba(0,180,255,0.10)] text-[var(--xiv-blue)] border-[rgba(0,180,255,0.28)]",
-  ACTIVE: "bg-emerald-500/10 text-emerald-400 border-emerald-500/20",
-  COMPLETED: "bg-zinc-500/10 text-zinc-400 border-zinc-500/20",
-  MISSED: "bg-amber-500/10 text-amber-400 border-amber-500/20",
-  CANCELLED: "bg-zinc-500/10 text-zinc-400 border-zinc-500/15 line-through",
-}
-
 export default async function ShiftsPage({
   params,
   searchParams,

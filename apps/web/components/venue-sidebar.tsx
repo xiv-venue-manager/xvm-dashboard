@@ -237,7 +237,6 @@ function MobileBottom({ userName, userEmail, mounted, onNavigate }: MobileBottom
 
 export function VenueSidebar({
   venueSlug,
-  venueName,
   userRole,
   userName,
   userEmail,

@@ -1,4 +1,4 @@
-export function getServerTimeLabel(_dataCenter: string | null | undefined): string {
+export function getServerTimeLabel(): string {
   return "ST"
 }
 

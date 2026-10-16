@@ -149,7 +149,7 @@ export const authOptions: NextAuthOptions = {
     async signIn(message) {
       console.log("NextAuth signIn event:", message.user?.id)
     },
-    async signOut(message) {
+    async signOut() {
       console.log("NextAuth signOut event")
     },
     async createUser(message) {
@@ -164,7 +164,7 @@ export const authOptions: NextAuthOptions = {
         })
       }
     },
-    async session(message) {
+    async session() {
       // Don't log session events in production to reduce noise
       if (process.env.NODE_ENV === "development") {
         console.log("NextAuth session event")

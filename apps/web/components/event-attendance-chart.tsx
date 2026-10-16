@@ -79,9 +79,6 @@ export function EventAttendanceChart({ venueId, eventId, className }: EventAtten
     )
   }
 
-  // Calculate max for domain padding
-  const maxCount = Math.max(...data.map((d) => d.count))
-
   return (
     <Card className={className}>
       <CardHeader>

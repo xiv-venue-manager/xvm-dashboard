@@ -1,8 +1,6 @@
 "use client"
 
 import { useEffect, useState } from "react"
-import { useRouter } from "next/navigation"
-import Link from "next/link"
 import { Button } from "@/components/ui/button"
 import { VenueLayoutClient } from "@/components/venue-layout-client"
 import { VenueEyebrow } from "@/components/venue-eyebrow"
@@ -21,7 +19,7 @@ import {
   DropdownMenuTrigger,
 } from "@/components/ui/dropdown-menu"
 import { ChevronDown, Check } from "lucide-react"
-import { Card, CardContent, CardDescription, CardHeader, CardTitle } from "@/components/ui/card"
+import { Card, CardContent } from "@/components/ui/card"
 import { StatReadout } from "@/components/ui/stat-readout"
 import {
   Dialog,
@@ -78,7 +76,6 @@ interface Service {
 }
 
 export default function ServicesPage({ params }: { params: Promise<{ slug: string }> }) {
-  const router = useRouter()
   const [slug, setSlug] = useState<string>("")
   const [venueId, setVenueId] = useState<string>("")
   const [userRole, setUserRole] = useState<string | null>(null)

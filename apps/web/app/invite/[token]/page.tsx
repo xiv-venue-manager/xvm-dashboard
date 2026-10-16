@@ -30,7 +30,7 @@ interface InviteDetails {
 
 export default function InvitePage({ params }: { params: Promise<{ token: string }> }) {
   const unwrappedParams = use(params)
-  const { data: session, status } = useSession()
+  const { data: session } = useSession()
   const router = useRouter()
   const [inviteDetails, setInviteDetails] = useState<InviteDetails | null>(null)
   const [loading, setLoading] = useState(true)

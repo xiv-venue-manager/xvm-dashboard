@@ -4,8 +4,6 @@
  */
 
 import sharp from "sharp"
-import { writeFileSync } from "fs"
-import { join } from "path"
 
 const sizes = [
   { name: "icon-16", size: 16, output: "public/icon-16x16.png" },

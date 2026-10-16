@@ -11,13 +11,14 @@ interface Task {
   priority?: string | null
 }
 
-export function OverviewTasks({ tasks, venueSlug }: { tasks: Task[]; venueSlug: string }) {
+export function OverviewTasks({ tasks }: { tasks: Task[] }) {
   const [done, setDone] = useState<Set<string>>(new Set())
 
   const toggle = (id: string) =>
     setDone((prev) => {
       const next = new Set(prev)
-      next.has(id) ? next.delete(id) : next.add(id)
+      if (next.has(id)) next.delete(id)
+      else next.add(id)
       return next
     })
 

@@ -436,7 +436,7 @@ export function RoomsBoard({
                     <>
                       {room.name ?? "Unnamed room"}
                       {room.room_number != null && (
-                        <span className="t-muted" style={{ marginLeft: 6, fontSize: "0.75rem" }}>
+                        <span className="t-muted sm:hidden" style={{ marginLeft: 6, fontSize: "0.75rem" }}>
                           #{room.room_number}
                         </span>
                       )}

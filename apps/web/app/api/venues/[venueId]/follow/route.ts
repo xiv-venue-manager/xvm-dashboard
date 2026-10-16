@@ -7,7 +7,7 @@ import { notifyVenueOwners } from "@/lib/notify"
 async function getVenue(venueId: string) {
   return prisma.venue.findFirst({
     where: { OR: [{ id: venueId }, { slug: venueId }], isActive: true },
-    select: { id: true, name: true },
+    select: { id: true, name: true, slug: true },
   })
 }
 
@@ -31,7 +31,7 @@ export async function POST(_req: Request, { params }: { params: Promise<{ venueI
     type: "NEW_FOLLOWER",
     title: "New follower",
     body: `${followerName} started following ${venue.name}.`,
-    link: `/dashboard/${venue.id}/analytics`,
+    link: `/dashboard/${venue.slug}/analytics`,
   }).catch(() => {})
 
   return NextResponse.json({ following: true })

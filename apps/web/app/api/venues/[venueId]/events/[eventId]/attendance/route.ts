@@ -1,8 +1,7 @@
 import { NextRequest, NextResponse } from "next/server"
 import { getServerSession } from "next-auth"
 import { authOptions } from "@/lib/auth"
-import { prisma } from "@/lib/prisma"
-import { requireVenueRole } from "@/lib/api/venue-access"
+import { requireMyVenue } from "@/lib/api/venue-access"
 import { withRateLimit } from "@/lib/middleware/with-rate-limit"
 import { getValidXvmApiToken, xvmApiErrorResponse } from "@/lib/api/xvm-api-store"
 import { getEvent } from "@/lib/api/xvm-api"
@@ -27,17 +26,8 @@ export const GET = withRateLimit<{ params: Promise<{ venueId: string; eventId: s
       const { params } = context
       const { venueId, eventId } = await params
 
-      // Check permissions
-      const access = await requireVenueRole(session.user.id, venueId, "STAFF", "You don't have access to this venue")
-      if (!access.ok) return access.response
-
-      const venue = await prisma.venue.findUnique({ where: { id: venueId }, select: { xvmApiVenueId: true } })
-      if (!venue?.xvmApiVenueId) {
-        return NextResponse.json(
-          { error: "not_connected", message: "This venue hasn't been connected to xvm-api yet." },
-          { status: 409 }
-        )
-      }
+      const lookup = await requireMyVenue(session.user.id, venueId, "[attendance] /me/venues read error")
+      if (!lookup.ok) return lookup.response
 
       const token = await getValidXvmApiToken(session.user.id)
       if (!token) {
@@ -50,8 +40,8 @@ export const GET = withRateLimit<{ params: Promise<{ venueId: string; eventId: s
 
       let logs
       try {
-        await getEvent(token, venue.xvmApiVenueId, Number(eventId))
-        logs = await listAllPatronLogs(token, venue.xvmApiVenueId, { eventId: Number(eventId), classification: "patron" })
+        await getEvent(token, lookup.venue.id, Number(eventId))
+        logs = await listAllPatronLogs(token, lookup.venue.id, { eventId: Number(eventId), classification: "patron" })
       } catch (err) {
         return xvmApiErrorResponse(err, session.user.id, "[attendance] xvm-api read error")
       }

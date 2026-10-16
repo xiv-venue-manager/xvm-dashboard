@@ -1,9 +1,9 @@
 import { describe, it, expect, vi, beforeEach } from "vitest"
+import { NextResponse } from "next/server"
 
 const m = vi.hoisted(() => ({
   session: vi.fn(),
   venue: vi.fn(),
-  access: vi.fn(),
   token: vi.fn(),
   getEvent: vi.fn(),
   updateEvent: vi.fn(),
@@ -17,10 +17,7 @@ const m = vi.hoisted(() => ({
 vi.mock("next-auth", () => ({ getServerSession: m.session }))
 vi.mock("@/lib/auth", () => ({ authOptions: {} }))
 vi.mock("@/lib/middleware/with-rate-limit", () => ({ withRateLimit: (handler: unknown) => handler }))
-vi.mock("@/lib/api/venue-access", () => ({ requireVenueRole: m.access }))
-vi.mock("@/lib/prisma", () => ({
-  prisma: { venue: { findUnique: m.venue } },
-}))
+vi.mock("@/lib/api/venue-access", () => ({ requireMyVenue: m.venue }))
 vi.mock("@/lib/event-visibility", () => ({ eventHiddenFromStaff: m.hidden }))
 vi.mock("@/lib/api/xvm-api-store", async () => {
   const actual = await vi.importActual<typeof import("@/lib/api/xvm-api-store")>("@/lib/api/xvm-api-store")
@@ -76,8 +73,7 @@ beforeEach(() => {
   vi.spyOn(console, "error").mockImplementation(() => {})
   m.session.mockResolvedValue({ user: { id: "user-1" } })
   m.token.mockResolvedValue("tok")
-  m.venue.mockResolvedValue({ xvmApiVenueId: "xv-1", settings: null })
-  m.access.mockResolvedValue({ ok: true, role: "OWNER" })
+  m.venue.mockResolvedValue({ ok: true, venue: { id: "xv-1", role: "OWNER" } })
   m.hidden.mockResolvedValue(false)
   m.getEvent.mockResolvedValue(row())
 })
@@ -89,9 +85,10 @@ describe("event id handling", () => {
     expect(m.getEvent).not.toHaveBeenCalled()
   })
 
-  it("returns 409 for a venue that is not connected", async () => {
-    m.venue.mockResolvedValue({ xvmApiVenueId: null, settings: null })
-    expect((await call(GET)).status).toBe(409)
+  it("refuses a venue the caller is not in without calling xvm-api", async () => {
+    m.venue.mockResolvedValue({ ok: false, response: NextResponse.json({ error: "Venue not found" }, { status: 404 }) })
+    expect((await call(GET)).status).toBe(404)
+    expect(m.getEvent).not.toHaveBeenCalled()
   })
 })
 
@@ -113,13 +110,13 @@ describe("GET", () => {
   it("hides a draft from staff when visibility is published-only", async () => {
     m.hidden.mockResolvedValue(true)
     expect((await call(GET)).status).toBe(404)
-    expect(m.hidden).toHaveBeenCalledWith("user-1", "OWNER", expect.anything(), "DRAFT")
+    expect(m.hidden).toHaveBeenCalledWith("user-1", "OWNER", "xv-1", "DRAFT")
   })
 
   it("shows staff an in-progress event as published, not hidden by its derived ACTIVE status", async () => {
     m.getEvent.mockResolvedValue(row({ published_at: future(-3), starts_at: future(-1), ends_at: future(2) }))
     await call(GET)
-    expect(m.hidden).toHaveBeenCalledWith("user-1", "OWNER", expect.anything(), "PUBLISHED")
+    expect(m.hidden).toHaveBeenCalledWith("user-1", "OWNER", "xv-1", "PUBLISHED")
   })
 })
 

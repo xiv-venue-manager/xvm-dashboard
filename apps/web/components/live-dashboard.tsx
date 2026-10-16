@@ -59,6 +59,7 @@ interface StaffRosterItem {
 
 interface LiveDashboardProps {
   venueId: string
+  xvmApiVenueId: string
   event: LiveEvent
   isUpcoming: boolean
   initialPatronCount: number
@@ -77,6 +78,7 @@ interface LiveDashboardProps {
 
 export function LiveDashboard({
   venueId,
+  xvmApiVenueId,
   event,
   isUpcoming,
   initialPatronCount,
@@ -106,7 +108,7 @@ export function LiveDashboard({
   async function handleEndEvent() {
     setEnding(true)
     try {
-      const res = await fetch(`/api/venues/${venueId}/events/${event.id}`, {
+      const res = await fetch(`/api/venues/${xvmApiVenueId}/events/${event.id}`, {
         method: "PATCH",
         headers: { "Content-Type": "application/json" },
         body: JSON.stringify({ endTime: new Date().toISOString() }),
@@ -139,7 +141,7 @@ export function LiveDashboard({
   // Load historical activity
   useEffect(() => {
     if (isUpcoming || !event.id) return
-    fetch(`/api/venues/${venueId}/timeline?eventId=${event.id}&limit=50`)
+    fetch(`/api/venues/${xvmApiVenueId}/timeline?eventId=${event.id}&limit=50`)
       .then((r) => r.json())
       .then((data) => {
         if (!Array.isArray(data.items)) return
@@ -174,7 +176,7 @@ export function LiveDashboard({
         )
       })
       .catch(() => {})
-  }, [venueId, event.id, isUpcoming])
+  }, [xvmApiVenueId, event.id, isUpcoming])
 
   // SSE
   useEffect(() => {

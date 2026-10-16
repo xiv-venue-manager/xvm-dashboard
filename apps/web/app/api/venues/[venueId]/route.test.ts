@@ -6,20 +6,20 @@ const m = vi.hoisted(() => ({
   token: vi.fn(),
   errorResponse: vi.fn(),
   updateVenue: vi.fn(),
-  venueFindUnique: vi.fn(),
+  requireVenue: vi.fn(),
   invalidate: vi.fn(),
 }))
 
 vi.mock("next-auth", () => ({ getServerSession: m.session }))
 vi.mock("@/lib/auth", () => ({ authOptions: {} }))
 vi.mock("@/lib/middleware/with-rate-limit", () => ({ withRateLimit: (handler: unknown) => handler }))
-vi.mock("@/lib/prisma", () => ({ prisma: { venue: { findUnique: m.venueFindUnique } } }))
+vi.mock("@/lib/prisma", () => ({ prisma: {} }))
 vi.mock("@/lib/redis-cache", () => ({
   invalidateCache: m.invalidate,
   cacheKeys: { venue: (id: string) => `venue:${id}`, venueBySlug: (s: string) => `venue:slug:${s}`, userVenues: (id: string) => `user:${id}:venues` },
 }))
 vi.mock("@/lib/api/xvm-api-store", () => ({ getValidXvmApiToken: m.token, xvmApiErrorResponse: m.errorResponse }))
-vi.mock("@/lib/api/venue-access", () => ({ requireVenueRole: vi.fn() }))
+vi.mock("@/lib/api/venue-access", () => ({ requireVenueRole: vi.fn(), requireMyVenue: m.requireVenue }))
 vi.mock("@/lib/api/xvm-api", () => ({ updateVenue: m.updateVenue }))
 
 import { PATCH } from "@/app/api/venues/[venueId]/route"
@@ -40,9 +40,24 @@ beforeEach(() => {
   vi.resetAllMocks()
   m.session.mockResolvedValue({ user: { id: "u1" } })
   m.token.mockResolvedValue("tok")
-  m.venueFindUnique.mockResolvedValue({ xvmApiVenueId: "ven_1", slug: "velvet-lotus" })
+  m.requireVenue.mockResolvedValue({ ok: true, venue: { id: "ven_1", slug: "velvet-lotus" } })
   m.updateVenue.mockResolvedValue({ id: "ven_1" })
   m.invalidate.mockResolvedValue(undefined)
+})
+
+describe("PATCH /api/venues/[venueId] lookup", () => {
+  it("updates the xvm-api venue resolved from the caller's venues", async () => {
+    expect((await patch({ name: "New name" })).status).toBe(200)
+    expect(m.requireVenue).toHaveBeenCalledWith("u1", "v1", expect.any(String))
+    expect(m.updateVenue).toHaveBeenCalledWith("tok", "ven_1", { name: "New name" })
+    expect(m.invalidate).toHaveBeenCalledWith("venue:slug:velvet-lotus")
+  })
+
+  it("answers 404 for a venue the caller cannot see and updates nothing", async () => {
+    m.requireVenue.mockResolvedValue({ ok: false, response: new Response(null, { status: 404 }) })
+    expect((await patch({ name: "x" })).status).toBe(404)
+    expect(m.updateVenue).not.toHaveBeenCalled()
+  })
 })
 
 describe("PATCH /api/venues/[venueId] address", () => {

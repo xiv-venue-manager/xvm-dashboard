@@ -294,7 +294,7 @@ export default function SettingsPage({ params }: { params: Promise<{ slug: strin
       if (locationProblem) throw new Error(`Venue location: ${locationProblem}`)
 
       // Save venue profile DB fields (name, description) via PATCH
-      const profileRes = await fetch(`/api/venues/${venueId}`, {
+      const profileRes = await fetch(`/api/venues/${slug}`, {
         method: "PATCH",
         headers: { "Content-Type": "application/json" },
         body: JSON.stringify({
@@ -681,7 +681,7 @@ export default function SettingsPage({ params }: { params: Promise<{ slug: strin
                   </p>
                   {venueId && (
                     <LogoUpload
-                      venueId={venueId}
+                      venueSlug={slug}
                       initialUrl={logoUrl}
                       galleryImages={galleryImages.map((img) => img.image_url)}
                       onUpdate={setLogoUrl}
@@ -691,7 +691,7 @@ export default function SettingsPage({ params }: { params: Promise<{ slug: strin
                 <div className="border-t border-[var(--blue-015)]" />
                 <div className="space-y-1.5">
                   <Label>Banner image</Label>
-                  {venueId && <BannerUpload venueId={venueId} initialUrl={bannerUrl} onUpdate={setBannerUrl} />}
+                  {venueId && <BannerUpload venueSlug={slug} initialUrl={bannerUrl} onUpdate={setBannerUrl} />}
                 </div>
                 <div className="space-y-1.5">
                   <Label htmlFor="venue-desc">Description</Label>

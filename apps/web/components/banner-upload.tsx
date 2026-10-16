@@ -7,12 +7,12 @@ import { Button } from "@/components/ui/button"
 import { apiFetch, ApiError } from "@/lib/api-fetch"
 
 interface BannerUploadProps {
-  venueId: string
+  venueSlug: string
   initialUrl: string | null
   onUpdate: (url: string | null) => void
 }
 
-export function BannerUpload({ venueId, initialUrl, onUpdate }: BannerUploadProps) {
+export function BannerUpload({ venueSlug, initialUrl, onUpdate }: BannerUploadProps) {
   const [url, setUrl] = useState<string | null>(initialUrl)
   const [uploading, setUploading] = useState(false)
   const inputRef = useRef<HTMLInputElement>(null)
@@ -28,7 +28,7 @@ export function BannerUpload({ venueId, initialUrl, onUpdate }: BannerUploadProp
 
       await apiFetch(uploadUrl, { method: "PUT", body: file, headers: { "Content-Type": file.type } })
 
-      await apiFetch(`/api/venues/${venueId}`, {
+      await apiFetch(`/api/venues/${venueSlug}`, {
         method: "PATCH",
         headers: { "Content-Type": "application/json" },
         body: JSON.stringify({ bannerUrl: storedUrl }),
@@ -48,7 +48,7 @@ export function BannerUpload({ venueId, initialUrl, onUpdate }: BannerUploadProp
   const remove = async () => {
     setUploading(true)
     try {
-      await apiFetch(`/api/venues/${venueId}`, {
+      await apiFetch(`/api/venues/${venueSlug}`, {
         method: "PATCH",
         headers: { "Content-Type": "application/json" },
         body: JSON.stringify({ bannerUrl: null }),

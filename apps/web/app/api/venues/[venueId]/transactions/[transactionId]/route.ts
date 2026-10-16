@@ -13,8 +13,8 @@ import { gilToMinorUnits } from "@/lib/api/position-convert"
 // after the fact isn't scoped by this cutover.
 const updateTransactionSchema = z.object({
   amount: validators.amount.optional(),
-  customerName: validators.customerName.optional(),
-  notes: validators.transactionNotes.optional(),
+  customerName: validators.customerName.nullable(),
+  notes: validators.transactionNotes.nullable(),
 })
 
 // PATCH - Update a transaction

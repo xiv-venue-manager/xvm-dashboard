@@ -85,7 +85,7 @@ export const PATCH = withRateLimit<{
       return NextResponse.json({ error: "Invalid room id" }, { status: 400 })
     }
 
-    const lookup = await requireMyVenue(userId, venueId, "[rooms/[roomId]] /me/venues read error")
+    const lookup = await requireMyVenue(session.user.id, venueId, "[rooms/[roomId]] /me/venues read error")
     if (!lookup.ok) return lookup.response
 
     let data: Parameters<typeof updateRoom>[3]

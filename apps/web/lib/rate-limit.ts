@@ -99,14 +99,3 @@ export function buildRateLimitResponse(rl: RateLimitResult, message: string): Ne
     }
   )
 }
-
-/**
- * Budgets tuned for plugin traffic. Plugin polls ~once/min per active
- * screen, plus user-driven writes that are rare (clock-in 2x/shift, etc).
- * These caps are abuse-only territory - real use won't come close.
- */
-export const budgets = {
-  pluginRead: { limit: 120, windowSec: 60 }, // polling endpoints
-  pluginWrite: { limit: 60, windowSec: 60 }, // logs + clock actions
-  keyMgmt: { limit: 20, windowSec: 60 }, // UI-driven key CRUD
-} as const

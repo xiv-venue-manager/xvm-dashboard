@@ -174,7 +174,7 @@ export default function SettingsPage({ params }: { params: Promise<{ slug: strin
         }
 
         // Get settings
-        const settingsResponse = await fetch(`/api/venues/${venue.id}/settings`)
+        const settingsResponse = await fetch(`/api/venues/${slug}/settings`)
         if (!settingsResponse.ok) setXvmUnavailable(true)
         if (settingsResponse.ok) {
           const settingsData = await settingsResponse.json()
@@ -324,7 +324,7 @@ export default function SettingsPage({ params }: { params: Promise<{ slug: strin
       }
 
       // Save settings JSON (tagline, tags, hours, permissions, webhooks etc.)
-      const settingsRes = await fetch(`/api/venues/${venueId}/settings`, {
+      const settingsRes = await fetch(`/api/venues/${slug}/settings`, {
         method: "PUT",
         headers: { "Content-Type": "application/json" },
         body: JSON.stringify({

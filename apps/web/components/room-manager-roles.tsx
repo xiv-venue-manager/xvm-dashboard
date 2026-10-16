@@ -10,12 +10,10 @@ type Role = {
 }
 
 export function RoomManagerRoles({
-  venueId,
   venueSlug,
   canManage,
   initialRoleIds = [],
 }: {
-  venueId: string
   venueSlug: string
   canManage: boolean
   initialRoleIds?: string[]
@@ -41,7 +39,7 @@ export function RoomManagerRoles({
   const save = async () => {
     setSaving(true)
     try {
-      await fetch(`/api/venues/${venueId}/settings`, {
+      await fetch(`/api/venues/${venueSlug}/settings`, {
         method: "PATCH",
         headers: { "Content-Type": "application/json" },
         body: JSON.stringify({ roomManagerRoleIds: Array.from(selectedRoleIds) }),

@@ -15,7 +15,7 @@ const m = vi.hoisted(() => ({
 vi.mock("next-auth", () => ({ getServerSession: m.session }))
 vi.mock("@/lib/auth", () => ({ authOptions: {} }))
 vi.mock("@/lib/middleware/with-rate-limit", () => ({ withRateLimit: (handler: unknown) => handler }))
-vi.mock("@/lib/prisma", () => ({ prisma: { venue: { findUnique: m.venue } } }))
+vi.mock("@/lib/api/venue-access", () => ({ requireMyVenue: m.venue }))
 vi.mock("@/lib/api/xvm-api-store", async () => {
   const actual = await vi.importActual<typeof import("@/lib/api/xvm-api-store")>("@/lib/api/xvm-api-store")
   return {
@@ -57,7 +57,7 @@ beforeEach(() => {
   vi.clearAllMocks()
   vi.spyOn(console, "error").mockImplementation(() => {})
   m.session.mockResolvedValue({ user: { id: "user-1" } })
-  m.venue.mockResolvedValue({ xvmApiVenueId: "xv-1" })
+  m.venue.mockResolvedValue({ ok: true, venue: { id: "xv-1", slug: "lilypad" } })
   m.isOwner.mockResolvedValue(true)
   m.token.mockResolvedValue("tok")
   m.getVenue.mockResolvedValue(links())
@@ -97,11 +97,11 @@ describe("GET /api/venues/[venueId]/discord/guilds", () => {
     expect(m.manageable).not.toHaveBeenCalled()
   })
 
-  it("is 409 not_connected when the venue has no xvm-api link", async () => {
-    m.venue.mockResolvedValue({ xvmApiVenueId: null })
+  it("is 404 for a venue the caller cannot see", async () => {
+    m.venue.mockResolvedValue({ ok: false, response: new Response(JSON.stringify({ error: "Venue not found" }), { status: 404 }) })
     const res = await get()
-    expect(res.status).toBe(409)
-    expect((await res.json()).error).toBe("not_connected")
+    expect(res.status).toBe(404)
+    expect((await res.json()).error).toBe("Venue not found")
   })
 
   it("is 503 when the xvm-api credential has lapsed", async () => {

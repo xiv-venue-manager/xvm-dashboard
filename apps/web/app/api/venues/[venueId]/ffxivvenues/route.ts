@@ -2,9 +2,9 @@ import { NextResponse } from "next/server"
 import { getServerSession } from "next-auth"
 import { authOptions } from "@/lib/auth"
 import { z } from "zod"
-import { prisma } from "@/lib/prisma"
 import { withRateLimit } from "@/lib/middleware/with-rate-limit"
 import { getValidXvmApiToken, xvmApiErrorResponse } from "@/lib/api/xvm-api-store"
+import { requireMyVenue } from "@/lib/api/venue-access"
 import { getFfxivLink, linkFfxivListing, unlinkFfxivListing } from "@/lib/api/xvm-api"
 
 const linkSchema = z.object({ ffxivvenuesId: z.string().trim().min(1).max(64) }).strict()
@@ -21,17 +21,10 @@ async function authorize(context: Ctx | undefined) {
   if (!token) return { error: NextResponse.json({ error: "xvm-api link not established yet" }, { status: 503 }) }
 
   const { venueId } = await context.params
-  const venue = await prisma.venue.findUnique({ where: { id: venueId }, select: { xvmApiVenueId: true } })
-  if (!venue?.xvmApiVenueId) {
-    return {
-      error: NextResponse.json(
-        { error: "not_connected", message: "This venue hasn't been connected to xvm-api yet." },
-        { status: 409 }
-      ),
-    }
-  }
+  const lookup = await requireMyVenue(session.user.id, venueId, "[ffxivvenues] /me/venues read error")
+  if (!lookup.ok) return { error: lookup.response }
 
-  return { error: null, userId: session.user.id, token, xvmApiVenueId: venue.xvmApiVenueId }
+  return { error: null, userId: session.user.id, token, xvmApiVenueId: lookup.venue.id }
 }
 
 export const GET = withRateLimit<Ctx>(

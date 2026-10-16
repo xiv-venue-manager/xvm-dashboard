@@ -1,24 +1,11 @@
 import { NextResponse } from "next/server"
 import { getServerSession } from "next-auth"
 import { authOptions } from "@/lib/auth"
-import { prisma } from "@/lib/prisma"
 import { withRateLimit } from "@/lib/middleware/with-rate-limit"
 import { invalidateCache, cacheKeys } from "@/lib/redis-cache"
 import { getValidXvmApiToken, xvmApiErrorResponse } from "@/lib/api/xvm-api-store"
+import { requireMyVenue } from "@/lib/api/venue-access"
 import { getVenue, uploadVenueImage, deleteVenueImage } from "@/lib/api/xvm-api"
-
-async function requireXvmVenueId(venueId: string) {
-  const venue = await prisma.venue.findUnique({ where: { id: venueId }, select: { xvmApiVenueId: true } })
-  if (!venue?.xvmApiVenueId) {
-    return {
-      error: NextResponse.json(
-        { error: "not_connected", message: "This venue hasn't been connected to xvm-api yet." },
-        { status: 409 }
-      ),
-    }
-  }
-  return { xvmApiVenueId: venue.xvmApiVenueId }
-}
 
 // GET: the venue's current gallery images
 export const GET = withRateLimit<{ params: Promise<{ venueId: string }> }>(
@@ -35,11 +22,11 @@ export const GET = withRateLimit<{ params: Promise<{ venueId: string }> }>(
     const token = await getValidXvmApiToken(session.user.id)
     if (!token) return NextResponse.json({ error: "xvm-api link not established yet" }, { status: 503 })
 
-    const gate = await requireXvmVenueId(venueId)
-    if (gate.error) return gate.error
+    const lookup = await requireMyVenue(session.user.id, venueId, "[gallery] /me/venues read error")
+    if (!lookup.ok) return lookup.response
 
     try {
-      const detail = await getVenue(token, gate.xvmApiVenueId!)
+      const detail = await getVenue(token, lookup.venue.id)
       return NextResponse.json(detail.images)
     } catch (err) {
       return xvmApiErrorResponse(err, session.user.id, "[gallery] GET error")
@@ -63,8 +50,8 @@ export const POST = withRateLimit<{ params: Promise<{ venueId: string }> }>(
     const token = await getValidXvmApiToken(session.user.id)
     if (!token) return NextResponse.json({ error: "xvm-api link not established yet" }, { status: 503 })
 
-    const gate = await requireXvmVenueId(venueId)
-    if (gate.error) return gate.error
+    const lookup = await requireMyVenue(session.user.id, venueId, "[gallery] /me/venues read error")
+    if (!lookup.ok) return lookup.response
 
     const form = await request.formData()
     const file = form.get("file")
@@ -73,7 +60,7 @@ export const POST = withRateLimit<{ params: Promise<{ venueId: string }> }>(
     }
 
     try {
-      const image = await uploadVenueImage(token, gate.xvmApiVenueId!, file)
+      const image = await uploadVenueImage(token, lookup.venue.id, file)
       await invalidateCache(cacheKeys.userVenues(session.user.id))
       return NextResponse.json(image, { status: 201 })
     } catch (err) {
@@ -98,8 +85,8 @@ export const DELETE = withRateLimit<{ params: Promise<{ venueId: string }> }>(
     const token = await getValidXvmApiToken(session.user.id)
     if (!token) return NextResponse.json({ error: "xvm-api link not established yet" }, { status: 503 })
 
-    const gate = await requireXvmVenueId(venueId)
-    if (gate.error) return gate.error
+    const lookup = await requireMyVenue(session.user.id, venueId, "[gallery] /me/venues read error")
+    if (!lookup.ok) return lookup.response
 
     let imageId: number
     try {
@@ -113,7 +100,7 @@ export const DELETE = withRateLimit<{ params: Promise<{ venueId: string }> }>(
     }
 
     try {
-      await deleteVenueImage(token, gate.xvmApiVenueId!, imageId)
+      await deleteVenueImage(token, lookup.venue.id, imageId)
       await invalidateCache(cacheKeys.userVenues(session.user.id))
       return NextResponse.json({ success: true })
     } catch (err) {

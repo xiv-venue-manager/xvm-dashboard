@@ -42,18 +42,18 @@ function statusBadge(status: string): { label: string; className: string } {
   }
 }
 
-// owner_membership_id / reserved_person_id are opaque ids with no name
-// resolution endpoint yet - fall back to a numeric label instead of
-// pretending we can look up a display name.
-function reserverLabel(room: Room): string {
+export type RoomPeopleNames = { byPersonId: Record<number, string>; byMembershipId: Record<number, string> }
+
+// Names come from the venue roster, which a viewer may not be allowed to read; an id with no name falls back to a numeric label.
+function reserverLabel(room: Room, names: RoomPeopleNames): string {
   const res = room.current_reservation
   if (res?.is_current) {
     if (res.reserved_character_name) {
       return res.reserved_world ? `${res.reserved_character_name} @ ${res.reserved_world}` : res.reserved_character_name
     }
-    if (res.reserved_person_id != null) return `Member #${res.reserved_person_id}`
+    if (res.reserved_person_id != null) return names.byPersonId[res.reserved_person_id] ?? `Member #${res.reserved_person_id}`
   }
-  if (room.owner_membership_id != null) return `Member #${room.owner_membership_id}`
+  if (room.owner_membership_id != null) return names.byMembershipId[room.owner_membership_id] ?? `Member #${room.owner_membership_id}`
   return "—"
 }
 
@@ -61,11 +61,13 @@ export function RoomsBoard({
   venueSlug,
   canManage,
   rooms,
+  names,
   notConnected,
 }: {
   venueSlug: string
   canManage: boolean
   rooms: RoomItem[]
+  names: RoomPeopleNames
   notConnected?: boolean
 }) {
   const [localRooms, setLocalRooms] = useState(rooms)
@@ -493,7 +495,7 @@ export function RoomsBoard({
                 </td>
                 <td>
                   {(() => {
-                    const label = reserverLabel(room)
+                    const label = reserverLabel(room, names)
                     return <span className={label === "—" ? "t-muted" : ""}>{label}</span>
                   })()}
                 </td>

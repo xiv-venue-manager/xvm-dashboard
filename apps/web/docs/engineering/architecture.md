@@ -190,9 +190,8 @@ Four scheduled jobs run from a separate `cron-jobs` container:
 | -------------- | ----------------------- | ---------------------------------------------------------------------- |
 | `*/5 * * * *`  | `update-event-statuses` | Transition events between PUBLISHED → ACTIVE → COMPLETED based on time |
 | `*/15 * * * *` | `event-reminders`       | Send Discord webhook reminders before events                           |
-| `0 * * * *`    | `sync-partake-events`   | Pull from Partake.gg API                                               |
 
-All three authenticate via `verifyCronAuth(request)` with constant-time comparison.
+All of them authenticate via `verifyCronAuth(request)` with constant-time comparison.
 
 ## Production deployment
 

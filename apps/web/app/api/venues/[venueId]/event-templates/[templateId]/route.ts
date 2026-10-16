@@ -1,11 +1,11 @@
 import { NextResponse } from "next/server"
 import { getServerSession } from "next-auth"
 import { authOptions } from "@/lib/auth"
-import { prisma } from "@/lib/prisma"
 import { z } from "zod"
 import { withRateLimit } from "@/lib/middleware/with-rate-limit"
 import { validators } from "@/lib/validation"
 import { getValidXvmApiToken, xvmApiErrorResponse } from "@/lib/api/xvm-api-store"
+import { requireMyVenue } from "@/lib/api/venue-access"
 import { updateEventTemplate, deleteEventTemplate } from "@/lib/api/xvm-api"
 import { HHMM_PATTERN, minutesOfDay, toDashboardTemplateShape } from "@/lib/api/event-template-shape"
 
@@ -17,19 +17,6 @@ const updateTemplateSchema = z.object({
   defaultStartTime: z.string().regex(HHMM_PATTERN, "Invalid time format. Use HH:MM").optional(),
   defaultEndTime: z.string().regex(HHMM_PATTERN, "Invalid time format. Use HH:MM").optional(),
 })
-
-async function requireXvmVenueId(venueId: string) {
-  const venue = await prisma.venue.findUnique({ where: { id: venueId }, select: { xvmApiVenueId: true } })
-  if (!venue?.xvmApiVenueId) {
-    return {
-      error: NextResponse.json(
-        { error: "not_connected", message: "This venue hasn't been connected to xvm-api yet." },
-        { status: 409 }
-      ),
-    }
-  }
-  return { xvmApiVenueId: venue.xvmApiVenueId }
-}
 
 function parseTemplateId(templateId: string) {
   const id = Number(templateId)
@@ -59,8 +46,8 @@ export const PATCH = withRateLimit<{ params: Promise<{ venueId: string; template
       return NextResponse.json({ error: "Invalid template id" }, { status: 400 })
     }
 
-    const gate = await requireXvmVenueId(venueId)
-    if (gate.error) return gate.error
+    const lookup = await requireMyVenue(session.user.id, venueId, "[event-templates/[templateId]] /me/venues read error")
+    if (!lookup.ok) return lookup.response
 
     let data: z.infer<typeof updateTemplateSchema>
     try {
@@ -92,7 +79,7 @@ export const PATCH = withRateLimit<{ params: Promise<{ venueId: string; template
     }
 
     try {
-      const template = await updateEventTemplate(token, gate.xvmApiVenueId!, id, {
+      const template = await updateEventTemplate(token, lookup.venue.id, id, {
         ...(data.name !== undefined && { name: data.name }),
         ...(data.title !== undefined && { title: data.title }),
         ...(data.description !== undefined && { description: data.description }),
@@ -131,11 +118,11 @@ export const DELETE = withRateLimit<{ params: Promise<{ venueId: string; templat
       return NextResponse.json({ error: "Invalid template id" }, { status: 400 })
     }
 
-    const gate = await requireXvmVenueId(venueId)
-    if (gate.error) return gate.error
+    const lookup = await requireMyVenue(session.user.id, venueId, "[event-templates/[templateId]] /me/venues read error")
+    if (!lookup.ok) return lookup.response
 
     try {
-      await deleteEventTemplate(token, gate.xvmApiVenueId!, id)
+      await deleteEventTemplate(token, lookup.venue.id, id)
       return NextResponse.json({ success: true })
     } catch (err) {
       return xvmApiErrorResponse(err, session.user.id, "[event-templates/:id] DELETE error")

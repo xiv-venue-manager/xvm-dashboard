@@ -1,11 +1,11 @@
 import { NextResponse } from "next/server"
 import { getServerSession } from "next-auth"
 import { authOptions } from "@/lib/auth"
-import { prisma } from "@/lib/prisma"
 import { z } from "zod"
 import { withRateLimit } from "@/lib/middleware/with-rate-limit"
 import { validators } from "@/lib/validation"
 import { getValidXvmApiToken, xvmApiErrorResponse } from "@/lib/api/xvm-api-store"
+import { requireMyVenue } from "@/lib/api/venue-access"
 import { listEventTemplates, createEventTemplate } from "@/lib/api/xvm-api"
 import { HHMM_PATTERN, minutesOfDay, toDashboardTemplateShape } from "@/lib/api/event-template-shape"
 
@@ -17,19 +17,6 @@ const createTemplateSchema = z.object({
   defaultStartTime: z.string().regex(HHMM_PATTERN, "Invalid time format. Use HH:MM").default("19:00"),
   defaultEndTime: z.string().regex(HHMM_PATTERN, "Invalid time format. Use HH:MM").default("22:00"),
 })
-
-async function requireXvmVenueId(venueId: string) {
-  const venue = await prisma.venue.findUnique({ where: { id: venueId }, select: { xvmApiVenueId: true } })
-  if (!venue?.xvmApiVenueId) {
-    return {
-      error: NextResponse.json(
-        { error: "not_connected", message: "This venue hasn't been connected to xvm-api yet." },
-        { status: 409 }
-      ),
-    }
-  }
-  return { xvmApiVenueId: venue.xvmApiVenueId }
-}
 
 // GET - List all event templates for a venue
 export const GET = withRateLimit<{ params: Promise<{ venueId: string }> }>(
@@ -50,11 +37,11 @@ export const GET = withRateLimit<{ params: Promise<{ venueId: string }> }>(
 
     const { venueId } = await context.params
 
-    const gate = await requireXvmVenueId(venueId)
-    if (gate.error) return gate.error
+    const lookup = await requireMyVenue(session.user.id, venueId, "[event-templates] /me/venues read error")
+    if (!lookup.ok) return lookup.response
 
     try {
-      const templates = await listEventTemplates(token, gate.xvmApiVenueId!)
+      const templates = await listEventTemplates(token, lookup.venue.id)
       return NextResponse.json(templates.map(toDashboardTemplateShape))
     } catch (err) {
       return xvmApiErrorResponse(err, session.user.id, "[event-templates] GET error")
@@ -82,8 +69,8 @@ export const POST = withRateLimit<{ params: Promise<{ venueId: string }> }>(
 
     const { venueId } = await context.params
 
-    const gate = await requireXvmVenueId(venueId)
-    if (gate.error) return gate.error
+    const lookup = await requireMyVenue(session.user.id, venueId, "[event-templates] /me/venues read error")
+    if (!lookup.ok) return lookup.response
 
     let data: z.infer<typeof createTemplateSchema>
     try {
@@ -102,7 +89,7 @@ export const POST = withRateLimit<{ params: Promise<{ venueId: string }> }>(
     if (durationMinutes <= 0) durationMinutes += 24 * 60 // end time past midnight
 
     try {
-      const template = await createEventTemplate(token, gate.xvmApiVenueId!, {
+      const template = await createEventTemplate(token, lookup.venue.id, {
         name: data.name,
         title: data.title,
         description: data.description ?? null,

@@ -128,7 +128,7 @@ export default async function ShiftsPage({
   const heldInWeek = seatsHeldBy(weekShiftsRaw)
   const weekShifts: ShiftRow[] = [
     ...weekShiftsRaw.map((s) => toShiftRow(s, s.position_id ? (roleNameById.get(s.position_id) ?? null) : null)),
-    ...openBoard.filter((b) => !heldInWeek.has(b.id)).map(toOpenSlot),
+    ...openBoard.map((b) => toOpenSlot(b, heldInWeek.has(b.id))),
   ]
   const activeCount = nowShifts.filter((s) => s.status === "active").length
 
@@ -148,7 +148,7 @@ export default async function ShiftsPage({
     const heldInCalendar = seatsHeldBy(calendarRaw)
     calendarShifts = [
       ...calendarRaw.map((s) => toShiftRow(s, s.position_id ? (roleNameById.get(s.position_id) ?? null) : null)),
-      ...calendarBoard.filter((b) => !heldInCalendar.has(b.id)).map(toOpenSlot),
+      ...calendarBoard.map((b) => toOpenSlot(b, heldInCalendar.has(b.id))),
     ]
   }
 

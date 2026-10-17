@@ -68,6 +68,7 @@ export interface ShiftRow {
   membershipId: number | null
   eventShiftId: number | null
   seatsLeft: number | null
+  heldByMe: boolean
   roleId: number | null
   roleName: string | null
   payrollEntryId: number | null
@@ -85,6 +86,7 @@ export function toShiftRow(shift: ApiShiftRow, roleName: string | null): ShiftRo
     membershipId: shift.membership_id,
     eventShiftId: shift.event_shift_id,
     seatsLeft: null,
+    heldByMe: false,
     roleId: shift.position_id,
     roleName,
     payrollEntryId: shift.payroll_entry_id,
@@ -103,12 +105,13 @@ export function toShiftRow(shift: ApiShiftRow, roleName: string | null): ShiftRo
   }
 }
 
-export function toOpenSlot(shift: BoardShift): ShiftRow {
+export function toOpenSlot(shift: BoardShift, heldByMe: boolean): ShiftRow {
   return {
     id: -shift.id,
     membershipId: null,
     eventShiftId: shift.id,
     seatsLeft: shift.capacity - shift.taken - shift.pending,
+    heldByMe,
     roleId: shift.position_id,
     roleName: shift.position_name,
     payrollEntryId: null,

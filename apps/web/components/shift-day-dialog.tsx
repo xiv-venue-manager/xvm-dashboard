@@ -95,11 +95,15 @@ export function ShiftDayDialog({
                     </div>
                   </div>
                   <div className="flex items-center gap-1 flex-shrink-0">
-                    <OpenShiftChip
-                      eventShiftId={shift.eventShiftId ?? 0}
-                      venueSlug={venueSlug}
-                      timeLabel={`${hourLabelFor(shift.scheduledStart, timeZone)}–${hourLabelFor(shift.scheduledEnd, timeZone)}`}
-                    />
+                    {shift.heldByMe ? (
+                      <span className="text-xs text-muted-foreground">You hold a seat</span>
+                    ) : (
+                      <OpenShiftChip
+                        eventShiftId={shift.eventShiftId ?? 0}
+                        venueSlug={venueSlug}
+                        timeLabel={`${hourLabelFor(shift.scheduledStart, timeZone)}–${hourLabelFor(shift.scheduledEnd, timeZone)}`}
+                      />
+                    )}
                   </div>
                 </div>
               )

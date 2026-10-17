@@ -20,7 +20,7 @@ const board: BoardShift = {
 
 describe("toOpenSlot", () => {
   it("turns a board shift into one open row that counts the seats still free", () => {
-    expect(toOpenSlot(board)).toMatchObject({
+    expect(toOpenSlot(board, false)).toMatchObject({
       id: -20,
       eventShiftId: 20,
       membershipId: null,
@@ -34,7 +34,12 @@ describe("toOpenSlot", () => {
   })
 
   it("uses an id that cannot collide with a seat's own", () => {
-    expect(toOpenSlot(board).id).toBeLessThan(0)
+    expect(toOpenSlot(board, false).id).toBeLessThan(0)
+  })
+
+  it("remembers when the viewer already holds a seat on the shift", () => {
+    expect(toOpenSlot(board, true).heldByMe).toBe(true)
+    expect(toOpenSlot(board, false).heldByMe).toBe(false)
   })
 })
 

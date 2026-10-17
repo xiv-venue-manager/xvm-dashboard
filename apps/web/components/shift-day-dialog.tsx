@@ -10,7 +10,6 @@ import { ClockShiftButton } from "@/components/clock-shift-button"
 import { DeleteShiftButton } from "@/components/delete-shift-button"
 import { OpenShiftChip } from "@/components/open-shift-chip"
 import { ClaimedShiftChip } from "@/components/claimed-shift-chip"
-import { Copy } from "lucide-react"
 import {
   dayKeyFor,
   hourLabelFor,
@@ -19,7 +18,7 @@ import {
   type CalendarShift,
   type StaffNameLookup,
 } from "@/lib/shift-format"
-import { browserTimeZone, localTimeInput } from "@/lib/local-day"
+import { browserTimeZone } from "@/lib/local-day"
 import { useMounted } from "@/lib/use-mounted"
 import type { ShiftStaffOption, ShiftRoleOption } from "@/lib/api/xvm-api"
 
@@ -88,6 +87,7 @@ export function ShiftDayDialog({
                     <div className="text-sm">
                       <div className="font-medium text-amber-400">
                         Open{shift.roleName ? ` · ${shift.roleName}` : ""}
+                        {shift.seatsLeft && shift.seatsLeft > 1 ? ` · ${shift.seatsLeft} seats` : ""}
                       </div>
                       <div className="text-xs text-muted-foreground">
                         {hourLabelFor(shift.scheduledStart, timeZone)}–{hourLabelFor(shift.scheduledEnd, timeZone)}
@@ -96,37 +96,10 @@ export function ShiftDayDialog({
                   </div>
                   <div className="flex items-center gap-1 flex-shrink-0">
                     <OpenShiftChip
-                      shiftId={shift.id}
+                      eventShiftId={shift.eventShiftId ?? 0}
                       venueSlug={venueSlug}
                       timeLabel={`${hourLabelFor(shift.scheduledStart, timeZone)}–${hourLabelFor(shift.scheduledEnd, timeZone)}`}
                     />
-                    {canManage && (
-                      <CreateShiftDialog
-                        venueSlug={venueSlug}
-                        staff={staffForDialog}
-                        roles={roles}
-                        trigger={
-                          <Button variant="ghost" size="sm" aria-label="Duplicate shift" className="h-6 w-6 p-0">
-                            <Copy className="h-3.5 w-3.5" />
-                          </Button>
-                        }
-                        prefill={{
-                          mode: "open",
-                          roleId: shift.roleId ?? undefined,
-                          date: dayKeyFor(date, timeZone),
-                          startTime: mounted
-                            ? localTimeInput(shift.scheduledStart, timeZone!)
-                            : new Date(shift.scheduledStart).toISOString().slice(11, 16),
-                          endTime: mounted
-                            ? localTimeInput(shift.scheduledEnd, timeZone!)
-                            : new Date(shift.scheduledEnd).toISOString().slice(11, 16),
-                          notes: shift.notes ?? undefined,
-                        }}
-                      />
-                    )}
-                    {canManage && (
-                      <DeleteShiftButton venueSlug={venueSlug} shiftId={shift.id} hasPayroll={false} />
-                    )}
                   </div>
                 </div>
               )

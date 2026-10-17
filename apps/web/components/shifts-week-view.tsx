@@ -51,7 +51,6 @@ const statusBadge: Record<string, string> = {
   ACTIVE: "bg-emerald-500/10 text-emerald-500 border-emerald-500/20",
   COMPLETED: "bg-zinc-500/10 text-zinc-400 border-zinc-500/20",
   MISSED: "bg-amber-500/10 text-amber-500 border-amber-500/20",
-  UNFILLED: "bg-amber-500/10 text-amber-500 border-amber-500/20",
   CANCELLED: "bg-red-500/10 text-red-400 border-red-500/20",
 }
 
@@ -170,7 +169,10 @@ export function ShiftsWeekView(props: ShiftsWeekViewProps) {
 
   const shownWeekShifts = props.weekShifts.filter((s) => weekDayKeys.includes(dayKeyOf(s.scheduledStart)))
   const activeWeekShifts = shownWeekShifts.filter((s) => s.status !== "CANCELLED")
-  const openSlots = shownWeekShifts.filter((s) => s.status === "OPEN" || s.status === "CLAIMED").length
+  const openSlots = shownWeekShifts.reduce(
+    (total, s) => total + (s.status === "OPEN" ? (s.seatsLeft ?? 1) : s.status === "CLAIMED" ? 1 : 0),
+    0
+  )
   const missedCount = shownWeekShifts.filter((s) => s.status === "MISSED").length
   const coverPct =
     activeWeekShifts.length === 0
@@ -355,15 +357,10 @@ export function ShiftsWeekView(props: ShiftsWeekViewProps) {
                     {dayShifts.map((shift) => (
                       <div key={shift.id} className="flex items-center gap-1">
                         <OpenShiftChip
-                          shiftId={shift.id}
+                          eventShiftId={shift.eventShiftId ?? 0}
                           venueSlug={props.slug}
                           timeLabel={`${hourLabelOf(shift.scheduledStart)}–${hourLabelOf(shift.scheduledEnd)}${shift.roleName ? ` · ${shift.roleName}` : ""}`}
                         />
-                        {props.canManage &&
-                          duplicateShiftDialog(shift, { mode: "open", roleId: shift.roleId ?? undefined })}
-                        {props.canManage && (
-                          <DeleteShiftButton venueSlug={props.slug} shiftId={shift.id} hasPayroll={false} />
-                        )}
                       </div>
                     ))}
                   </div>

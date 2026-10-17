@@ -1,7 +1,7 @@
 // apps/web/lib/shift-format.ts
 
 import { localDayKey, localHourLabel } from "./local-day"
-import type { ShiftRow as ApiShiftRow, ShiftApiStatus } from "./api/xvm-api"
+import type { BoardShift, ShiftRow as ApiShiftRow, ShiftApiStatus } from "./api/xvm-api"
 
 // FFXIV server time = UTC (see apps/web/app/dashboard/[slug]/shifts/page.tsx).
 // These mirror that page's private utcDayKey/fmtHour helpers so the calendar
@@ -41,7 +41,6 @@ export type ShiftUiStatus =
   | "COMPLETED"
   | "CANCELLED"
   | "MISSED"
-  | "UNFILLED"
 
 export const SHIFT_STATUS_SHAPE: Record<ShiftApiStatus, ShiftUiStatus> = {
   pending_approval: "CLAIMED",
@@ -57,7 +56,6 @@ export const statusBadgeClass: Record<string, string> = {
   ACTIVE: "bg-emerald-500/10 text-emerald-500 border-emerald-500/20",
   COMPLETED: "bg-zinc-500/10 text-zinc-400 border-zinc-500/20",
   MISSED: "bg-amber-500/10 text-amber-500 border-amber-500/20",
-  UNFILLED: "bg-amber-500/10 text-amber-500 border-amber-500/20",
   CANCELLED: "bg-red-500/10 text-red-400 border-red-500/20",
 }
 
@@ -68,6 +66,8 @@ export type StaffNameLookup = Map<number, string>
 export interface ShiftRow {
   id: number
   membershipId: number | null
+  eventShiftId: number | null
+  seatsLeft: number | null
   roleId: number | null
   roleName: string | null
   payrollEntryId: number | null
@@ -83,6 +83,8 @@ export function toShiftRow(shift: ApiShiftRow, roleName: string | null): ShiftRo
   return {
     id: shift.id,
     membershipId: shift.membership_id,
+    eventShiftId: shift.event_shift_id,
+    seatsLeft: null,
     roleId: shift.position_id,
     roleName,
     payrollEntryId: shift.payroll_entry_id,
@@ -98,6 +100,22 @@ export function toShiftRow(shift: ApiShiftRow, roleName: string | null): ShiftRo
     scheduledEnd: shift.scheduled_end ?? shift.actual_end ?? shift.scheduled_start ?? shift.actual_start ?? new Date().toISOString(),
     status: SHIFT_STATUS_SHAPE[shift.status],
     notes: shift.notes,
+  }
+}
+
+export function toOpenSlot(shift: BoardShift): ShiftRow {
+  return {
+    id: -shift.id,
+    membershipId: null,
+    eventShiftId: shift.id,
+    seatsLeft: shift.capacity - shift.taken - shift.pending,
+    roleId: shift.position_id,
+    roleName: shift.position_name,
+    payrollEntryId: null,
+    scheduledStart: shift.starts_at,
+    scheduledEnd: shift.ends_at,
+    status: "OPEN",
+    notes: null,
   }
 }
 

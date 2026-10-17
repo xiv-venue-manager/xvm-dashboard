@@ -268,8 +268,8 @@ export function RoomsBoard({
     const raw = roomNumberInput.trim()
     setRoomNumberInput("")
     const roomNumber = raw === "" ? null : parseInt(raw, 10)
-    if (raw !== "" && (isNaN(roomNumber!) || roomNumber! < 0 || roomNumber! > 999)) {
-      setError("Room number must be 0–999")
+    if (raw !== "" && (isNaN(roomNumber!) || roomNumber! < 1 || roomNumber! > 999)) {
+      setError("Room number must be 1–999")
       return
     }
     if (roomNumber === room.room_number) return

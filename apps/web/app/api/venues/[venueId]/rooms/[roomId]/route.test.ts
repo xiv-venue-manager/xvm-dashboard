@@ -61,6 +61,13 @@ describe("room item", () => {
     expect(m.remove).not.toHaveBeenCalled()
   })
 
+  it("rejects a room number xvm-api would refuse, and clears one with null", async () => {
+    expect((await patch({ roomNumber: 0 })).status).toBe(400)
+    expect(m.update).not.toHaveBeenCalled()
+    expect((await patch({ roomNumber: null })).status).toBe(200)
+    expect(m.update).toHaveBeenCalledWith("tok", "ven_1", 4, { room_number: null })
+  })
+
   it("rejects a non-numeric room id before resolving the venue", async () => {
     expect((await get("abc")).status).toBe(400)
     expect(m.requireVenue).not.toHaveBeenCalled()

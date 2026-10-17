@@ -18,12 +18,9 @@ interface NavbarClientProps {
   venues: Array<{ id: string; name: string; slug: string; role: string }>
 }
 
-const PLUGIN_STALE_MS = 5 * 60 * 1000 // 5 minutes
-
 export function NavbarClient({ session, venues }: NavbarClientProps) {
   const { toggle } = useSidebar()
   const pathname = usePathname()
-  const [pluginSynced, setPluginSynced] = useState(false)
   const [notifications, setNotifications] = useState<
     Array<{ id: string; type: string; title: string; body: string; link?: string; read: boolean; createdAt: string }>
   >([])
@@ -41,33 +38,6 @@ export function NavbarClient({ session, venues }: NavbarClientProps) {
   // Current venue context for user chip subtitle
   const currentSlug = pathname?.match(/^\/dashboard\/([^/]+)/)?.[1]
   const currentVenue = currentSlug ? venues.find((v) => v.slug === currentSlug) : undefined
-
-  // Poll plugin sync status every 30s when on a venue page
-  useEffect(() => {
-    if (!isVenuePage || !currentVenue?.id) {
-      // Resets the sync pill when leaving a venue page, not derivable from props/state during render.
-      // eslint-disable-next-line react-hooks/set-state-in-effect
-      setPluginSynced(false)
-      return
-    }
-    let cancelled = false
-    const check = async () => {
-      try {
-        const res = await fetch(`/api/venues/${currentVenue.id}/plugin-status`)
-        if (!res.ok || cancelled) return
-        const { lastUsedAt } = await res.json()
-        if (!cancelled) setPluginSynced(!!lastUsedAt && Date.now() - new Date(lastUsedAt).getTime() < PLUGIN_STALE_MS)
-      } catch {
-        /* network error — keep last state */
-      }
-    }
-    check()
-    const interval = setInterval(check, 30_000)
-    return () => {
-      cancelled = true
-      clearInterval(interval)
-    }
-  }, [isVenuePage, currentVenue?.id])
 
   // Fetch notifications on mount + every 60s
   useEffect(() => {
@@ -154,14 +124,6 @@ export function NavbarClient({ session, venues }: NavbarClientProps) {
                     <span className="hidden sm:inline">Dashboard</span>
                   </Link>
                 </Button>
-              )}
-
-              {/* Sync pill — hidden on mobile, only shown when plugin recently synced */}
-              {isVenuePage && pluginSynced && (
-                <div className="hidden [@media(min-width:1081px)]:inline-flex items-center gap-2 px-[11px] py-[5px] rounded-full text-[0.74rem] font-medium font-mono border border-[rgba(16,185,129,0.25)] bg-[rgba(16,185,129,0.08)] text-[var(--success-text)]">
-                  <span className="xiv-live-dot scale-75" />
-                  Plugin synced
-                </div>
               )}
 
               {/* Bell */}

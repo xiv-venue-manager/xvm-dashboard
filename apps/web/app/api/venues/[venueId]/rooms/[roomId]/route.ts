@@ -10,7 +10,7 @@ import { getRoom, updateRoom, deleteRoom } from "@/lib/api/xvm-api"
 const updateRoomSchema = z.object({
   name: z.string().trim().min(1).max(100).optional(),
   notes: z.string().trim().max(500).nullable().optional(),
-  roomNumber: z.number().int().min(0).max(999).nullable().optional(),
+  roomNumber: z.number().int().min(1).max(999).nullable().optional(),
   locked: z.boolean().optional(),
   disabled: z.boolean().optional(),
 })

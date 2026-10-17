@@ -77,6 +77,7 @@ export function RoomsBoard({
   const [renamingId, setRenamingId] = useState<number | null>(null)
   const [renameInput, setRenameInput] = useState("")
   const [newRoomName, setNewRoomName] = useState("")
+  const [newRoomNumber, setNewRoomNumber] = useState("")
   const [adding, setAdding] = useState(false)
   const [editingRoomNumberId, setEditingRoomNumberId] = useState<number | null>(null)
   const [roomNumberInput, setRoomNumberInput] = useState("")
@@ -200,13 +201,19 @@ export function RoomsBoard({
   async function addRoom() {
     const name = newRoomName.trim()
     if (!name || adding) return
+    const rawNumber = newRoomNumber.trim()
+    const roomNumber = rawNumber === "" ? undefined : parseInt(rawNumber, 10)
+    if (roomNumber !== undefined && (isNaN(roomNumber) || roomNumber < 1 || roomNumber > 999)) {
+      setError("Room number must be 1–999")
+      return
+    }
     setAdding(true)
     setError(null)
     try {
       const res = await fetch(`/api/venues/${venueSlug}/rooms`, {
         method: "POST",
         headers: { "Content-Type": "application/json" },
-        body: JSON.stringify({ name }),
+        body: JSON.stringify({ name, roomNumber }),
       })
       if (!res.ok) {
         setError(await describeError(res, "Failed to add room"))
@@ -215,6 +222,7 @@ export function RoomsBoard({
       const created: Room = await res.json()
       setLocalRooms((prev) => [...prev, created])
       setNewRoomName("")
+      setNewRoomNumber("")
       setSuccess("Room added")
     } catch {
       setError("Network error adding room")
@@ -260,8 +268,8 @@ export function RoomsBoard({
     const raw = roomNumberInput.trim()
     setRoomNumberInput("")
     const roomNumber = raw === "" ? null : parseInt(raw, 10)
-    if (raw !== "" && (isNaN(roomNumber!) || roomNumber! < 0 || roomNumber! > 999)) {
-      setError("Room number must be 0–999")
+    if (raw !== "" && (isNaN(roomNumber!) || roomNumber! < 1 || roomNumber! > 999)) {
+      setError("Room number must be 1–999")
       return
     }
     if (roomNumber === room.room_number) return
@@ -622,6 +630,17 @@ export function RoomsBoard({
             onChange={(e) => setNewRoomName(e.target.value)}
             placeholder="New room name…"
             className="max-w-[240px]"
+            onKeyDown={(e) => e.key === "Enter" && addRoom()}
+          />
+          <Input
+            type="number"
+            inputMode="numeric"
+            min={1}
+            max={999}
+            value={newRoomNumber}
+            onChange={(e) => setNewRoomNumber(e.target.value)}
+            placeholder="Room #"
+            className="max-w-[100px]"
             onKeyDown={(e) => e.key === "Enter" && addRoom()}
           />
           <Button type="button" size="sm" disabled={!newRoomName.trim() || adding} onClick={addRoom}>

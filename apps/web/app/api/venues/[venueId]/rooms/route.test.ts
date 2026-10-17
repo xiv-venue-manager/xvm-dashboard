@@ -49,6 +49,16 @@ describe("rooms collection", () => {
     expect(m.create).toHaveBeenCalledWith("tok", "ven_1", { name: "Annex" })
   })
 
+  it("passes an optional room number through as room_number", async () => {
+    expect((await post({ name: "Annex", roomNumber: 12 })).status).toBeLessThan(300)
+    expect(m.create).toHaveBeenCalledWith("tok", "ven_1", { name: "Annex", room_number: 12 })
+  })
+
+  it("rejects a room number xvm-api would refuse", async () => {
+    expect((await post({ name: "Annex", roomNumber: 0 })).status).toBe(400)
+    expect(m.create).not.toHaveBeenCalled()
+  })
+
   it("rejects a blank name before calling xvm-api", async () => {
     expect((await post({ name: "  " })).status).toBe(400)
     expect(m.create).not.toHaveBeenCalled()

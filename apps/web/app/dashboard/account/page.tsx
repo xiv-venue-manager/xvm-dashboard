@@ -3,7 +3,7 @@ import { authOptions } from "@/lib/auth"
 import { redirect } from "next/navigation"
 import Link from "next/link"
 import { prisma } from "@/lib/prisma"
-import { myVenueRoles } from "@/lib/api/venue-access"
+import { myVenues } from "@/lib/api/venue-access"
 import { getMe } from "@/lib/api/xvm-api"
 import { getValidXvmApiToken } from "@/lib/api/xvm-api-store"
 import { format } from "date-fns"
@@ -20,12 +20,7 @@ export default async function ProfilePage() {
   const token = await getValidXvmApiToken(session.user.id)
   const displayName = token ? ((await getMe(token).catch(() => null))?.person?.display_name ?? null) : null
 
-  const roles = await myVenueRoles(session.user.id)
-  const venues = await prisma.venue.findMany({
-    where: { id: { in: [...roles.keys()] } },
-    select: { id: true, name: true, slug: true, dataCenter: true, world: true },
-    orderBy: { name: "asc" },
-  })
+  const venues = (await myVenues(session.user.id).catch(() => [])).sort((a, b) => a.name.localeCompare(b.name))
 
   const initials = user.name
     ? user.name
@@ -131,7 +126,7 @@ export default async function ProfilePage() {
                   </p>
                 </div>
                 <div className="flex items-center gap-3 flex-shrink-0">
-                  <span className="tag capitalize">{roles.get(venue.id)?.toLowerCase()}</span>
+                  <span className="tag capitalize">{venue.role.toLowerCase()}</span>
                   <ChevronRight className="w-4 h-4 text-[var(--fg-faint)]" />
                 </div>
               </Link>

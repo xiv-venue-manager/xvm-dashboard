@@ -35,6 +35,14 @@ export interface ContestsBoardProps {
   raffles: RaffleRow[]
 }
 
+type ContestTab = "all" | "giveaway" | "raffle"
+
+const CONTEST_TABS: { key: ContestTab; label: string }[] = [
+  { key: "all", label: "All" },
+  { key: "giveaway", label: "Giveaways" },
+  { key: "raffle", label: "Raffles" },
+]
+
 interface Winner {
   discord_user_id: string
   display_name?: string | null
@@ -85,6 +93,7 @@ export function ContestsBoard({ venueId, canManage, giveaways, raffles }: Contes
   const [postChannelId, setPostChannelId] = useState("")
   const [posting, setPosting] = useState(false)
   const [now, setNow] = useState<number | null>(null)
+  const [activeTab, setActiveTab] = useState<ContestTab>("all")
   const winnersRequested = useRef<Set<string>>(new Set())
 
   function contestKey(c: Contest): string {
@@ -185,6 +194,13 @@ export function ContestsBoard({ venueId, canManage, giveaways, raffles }: Contes
     }
   }
 
+  const counts: Record<ContestTab, number> = {
+    all: contests.length,
+    giveaway: contests.filter((c) => c.kind === "giveaway").length,
+    raffle: contests.filter((c) => c.kind === "raffle").length,
+  }
+  const visibleContests = activeTab === "all" ? contests : contests.filter((c) => c.kind === activeTab)
+
   return (
     <div>
       {canManage && (
@@ -193,11 +209,27 @@ export function ContestsBoard({ venueId, canManage, giveaways, raffles }: Contes
         </div>
       )}
 
-      {contests.length === 0 ? (
-        <p className="text-sm text-muted-foreground">No contests yet.</p>
+      <div className="tabs mb-4">
+        {CONTEST_TABS.map(({ key, label }) => (
+          <button
+            key={key}
+            type="button"
+            onClick={() => setActiveTab(key)}
+            className={`tab${activeTab === key ? " active" : ""}`}
+          >
+            {label}
+            <span style={{ fontSize: "0.68rem", opacity: activeTab === key ? 0.7 : 0.5 }}>{counts[key]}</span>
+          </button>
+        ))}
+      </div>
+
+      {visibleContests.length === 0 ? (
+        <p className="text-sm text-muted-foreground">
+          {activeTab === "all" ? "No contests yet." : `No ${activeTab === "giveaway" ? "giveaways" : "raffles"} yet.`}
+        </p>
       ) : (
         <div className="grid grid-cols-1 sm:grid-cols-2 lg:grid-cols-3 gap-4">
-          {contests.map((c) => {
+          {visibleContests.map((c) => {
             const isRolled = c.rolled_at !== null
             const entryCount = c.entry_count
             return (

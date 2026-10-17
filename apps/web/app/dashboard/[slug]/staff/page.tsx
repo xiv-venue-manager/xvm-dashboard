@@ -229,7 +229,7 @@ export default async function StaffPage({ params }: { params: Promise<{ slug: st
           {/* Former Staff */}
           <FormerStaff members={formerStaff} slug={slug} canManageStaff={canManageStaff} />
 
-          {canManageStaff && <StaffVisibilitySettings venueId={venue.id} />}
+          {canManageStaff && <StaffVisibilitySettings venueSlug={venue.slug} />}
         </div>
       </div>
     </VenueLayout>

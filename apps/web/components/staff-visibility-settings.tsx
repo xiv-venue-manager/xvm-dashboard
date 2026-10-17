@@ -7,7 +7,7 @@ import { PageLoading } from "@/components/ui/loading-spinner"
 import { readVisibility, type VisibilityFields } from "@/lib/visibility-settings"
 
 interface StaffVisibilitySettingsProps {
-  venueId: string
+  venueSlug: string
 }
 
 const ROWS: {
@@ -47,7 +47,7 @@ const ROWS: {
   },
 ]
 
-export function StaffVisibilitySettings({ venueId }: StaffVisibilitySettingsProps) {
+export function StaffVisibilitySettings({ venueSlug }: StaffVisibilitySettingsProps) {
   const [values, setValues] = useState<VisibilityFields | null>(null)
   const [unavailable, setUnavailable] = useState(false)
   const [attempt, setAttempt] = useState(0)
@@ -56,7 +56,7 @@ export function StaffVisibilitySettings({ venueId }: StaffVisibilitySettingsProp
   const [saved, setSaved] = useState(false)
 
   useEffect(() => {
-    fetch(`/api/venues/${venueId}/settings`)
+    fetch(`/api/venues/${venueSlug}/settings`)
       .then((res) => (res.ok ? res.json() : null))
       .then((data) => {
         const loaded = data ? readVisibility(data) : null
@@ -64,7 +64,7 @@ export function StaffVisibilitySettings({ venueId }: StaffVisibilitySettingsProp
         else setUnavailable(true)
       })
       .catch(() => setUnavailable(true))
-  }, [venueId, attempt])
+  }, [venueSlug, attempt])
 
   const retry = () => {
     setUnavailable(false)
@@ -77,7 +77,7 @@ export function StaffVisibilitySettings({ venueId }: StaffVisibilitySettingsProp
     setError("")
     setSaved(false)
     try {
-      const res = await fetch(`/api/venues/${venueId}/settings`, {
+      const res = await fetch(`/api/venues/${venueSlug}/settings`, {
         method: "PUT",
         headers: { "Content-Type": "application/json" },
         body: JSON.stringify(values),

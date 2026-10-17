@@ -59,7 +59,6 @@ export default async function RoomsPage({ params }: { params: Promise<{ slug: st
         />
 
         <RoomManagerRoles
-          venueId={venue.id}
           venueSlug={venue.slug}
           canManage={["OWNER", "MANAGER"].includes(userRole)}
           initialRoleIds={roomManagerRoleIds}

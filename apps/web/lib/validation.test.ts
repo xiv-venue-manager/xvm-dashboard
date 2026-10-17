@@ -1,6 +1,20 @@
 import { describe, it, expect } from "vitest"
 import { validators } from "./validation"
 
+describe("validators.snowflake", () => {
+  it("accepts real ids, the largest xvm-api can store, and zero-padded ids", () => {
+    for (const id of ["123456789012345678", "9223372036854775807", "00000000000000000001"]) {
+      expect(validators.snowflake.safeParse(id).success).toBe(true)
+    }
+  })
+
+  it("rejects an id one above that, a 20-digit id, and non-digits", () => {
+    for (const id of ["9223372036854775808", "99999999999999999999", "12a", "", "-1"]) {
+      expect(validators.snowflake.safeParse(id).success).toBe(false)
+    }
+  })
+})
+
 describe("validators.feedbackStatus", () => {
   it("accepts each real FeedbackStatus enum value", () => {
     for (const status of ["NEW", "UNDER_REVIEW", "PLANNED", "IN_PROGRESS", "COMPLETED", "WONT_FIX"]) {

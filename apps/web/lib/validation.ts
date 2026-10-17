@@ -9,8 +9,20 @@ import { FFXIV_DISTRICTS } from "@/lib/venue-location"
 // coerce to number, real IDs exceed Number.MAX_SAFE_INTEGER.
 export const SNOWFLAKE_PATTERN = /^\d+$/
 
+// xvm-api stores Discord ids in a signed 64-bit column, so anything above this crashes there with a 500.
+const MAX_SNOWFLAKE = "9223372036854775807"
+
+function fitsInt64(digits: string): boolean {
+  const trimmed = digits.replace(/^0+/, "")
+  return trimmed.length < MAX_SNOWFLAKE.length || (trimmed.length === MAX_SNOWFLAKE.length && trimmed <= MAX_SNOWFLAKE)
+}
+
 export const validators = {
-  snowflake: z.string().max(20).regex(SNOWFLAKE_PATTERN, "Must be a numeric Discord ID"),
+  snowflake: z
+    .string()
+    .max(20)
+    .regex(SNOWFLAKE_PATTERN, "Must be a numeric Discord ID")
+    .refine(fitsInt64, "Not a valid Discord ID"),
   venueName: z.string().min(1, "Name is required").max(100, "Name too long (max 100 characters)"),
   venueDescription: z.string().max(2000, "Description too long (max 2000 characters)").optional().nullable(),
   venueDistrict: z.enum(FFXIV_DISTRICTS).optional().nullable(),

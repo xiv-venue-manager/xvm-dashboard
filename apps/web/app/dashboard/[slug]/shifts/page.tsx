@@ -2,8 +2,7 @@ import { getServerSession } from "next-auth"
 import { authOptions } from "@/lib/auth"
 import { redirect, notFound } from "next/navigation"
 import Link from "next/link"
-import { prisma } from "@/lib/prisma"
-import { roleInVenue } from "@/lib/api/venue-access"
+import { resolveMyVenue } from "@/lib/api/venue-access"
 import { VenueLayout } from "@/components/venue-layout"
 import { CreateShiftDialog } from "@/components/create-shift-dialog"
 import { ShiftsCalendar } from "@/components/shifts-calendar"
@@ -55,23 +54,10 @@ export default async function ShiftsPage({
   const { slug } = await params
   const { w, view = "week" } = await searchParams
 
-  const venue = await prisma.venue.findUnique({ where: { slug } })
-  const venueRole = venue ? await roleInVenue(session.user.id, venue) : null
-  if (!venue || !venueRole) notFound()
-  if (!venue.xvmApiVenueId) {
-    return (
-      <VenueLayout venueSlug={venue.slug} venueName={venue.name} userRole={venueRole}>
-        <div className="page-inner">
-          <h1 className="page-h1">Shifts</h1>
-          <p className="text-muted-foreground mt-4">
-            This venue hasn&apos;t been connected to xvm-api yet - shifts aren&apos;t available until it is.
-          </p>
-        </div>
-      </VenueLayout>
-    )
-  }
+  const venue = await resolveMyVenue(session.user.id, slug)
+  if (!venue) notFound()
 
-  const xvmApiVenueId = venue.xvmApiVenueId
+  const xvmApiVenueId = venue.id
   const token = await getValidXvmApiToken(session.user.id)
   if (!token) {
     redirect("/auth/signin")

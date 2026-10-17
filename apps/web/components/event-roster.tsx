@@ -7,7 +7,9 @@ import { Input } from "@/components/ui/input"
 import { Select, SelectContent, SelectItem, SelectTrigger, SelectValue } from "@/components/ui/select"
 import { ClaimedShiftChip } from "@/components/claimed-shift-chip"
 import { OpenShiftChip } from "@/components/open-shift-chip"
-import { fmtHour } from "@/lib/shift-format"
+import { hourLabelFor } from "@/lib/shift-format"
+import { browserTimeZone } from "@/lib/local-day"
+import { useMounted } from "@/lib/use-mounted"
 import type { RosterPosition, RosterShift, ShiftStaffOption } from "@/lib/api/xvm-api"
 
 interface EventRosterProps {
@@ -22,9 +24,9 @@ interface EventRosterProps {
   defaultEndsAt: string
 }
 
-function dayLabel(iso: string): string {
+function dayLabel(iso: string, timeZone: string | null): string {
   return new Date(iso).toLocaleDateString("en-GB", {
-    timeZone: "UTC",
+    timeZone: timeZone ?? "UTC",
     weekday: "short",
     day: "numeric",
     month: "short",
@@ -40,6 +42,8 @@ function toLocalInput(iso: string): string {
 export function EventRoster(props: EventRosterProps) {
   const { venueSlug, eventId, canManage, currentMembershipId, roster, positionOptions, staff } = props
   const router = useRouter()
+  const mounted = useMounted()
+  const timeZone = mounted ? browserTimeZone() : null
   const [error, setError] = useState<string | null>(null)
   const [busy, setBusy] = useState(false)
   const [newPosition, setNewPosition] = useState<string>("")
@@ -122,7 +126,7 @@ export function EventRoster(props: EventRosterProps) {
     const cancelled = shift.cancelled_at !== null
     const free = shift.capacity - shift.taken - shift.pending
     const iAmSeated = shift.people.some((p) => p.membership_id === currentMembershipId)
-    const timeLabel = `${dayLabel(shift.starts_at)} · ${fmtHour(shift.starts_at)}–${fmtHour(shift.ends_at)}`
+    const timeLabel = `${dayLabel(shift.starts_at, timeZone)} · ${hourLabelFor(shift.starts_at, timeZone)}–${hourLabelFor(shift.ends_at, timeZone)}`
     return (
       <div
         key={shift.id}
@@ -132,7 +136,9 @@ export function EventRoster(props: EventRosterProps) {
           <div className="text-sm font-medium">
             {timeLabel}
             <span className="ml-2 text-xs text-muted-foreground">
-              {cancelled ? "Cancelled" : `${shift.taken + shift.pending} of ${shift.capacity} seats`}
+              {cancelled
+                ? "Cancelled"
+                : `${shift.taken + shift.pending} of ${shift.capacity} ${shift.capacity === 1 ? "seat" : "seats"}`}
             </span>
           </div>
           {canManage && !cancelled && (
@@ -158,6 +164,7 @@ export function EventRoster(props: EventRosterProps) {
             ) : (
               canManage &&
               confirmable(`remove-${person.shift_id}`, "Remove", async () => {
+                setError(null)
                 const res = await fetch(`${base}/shifts/${person.shift_id}`, {
                   method: "PATCH",
                   headers: { "Content-Type": "application/json" },

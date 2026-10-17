@@ -940,7 +940,7 @@ export default function ServicesPage({ params }: { params: Promise<{ slug: strin
                 <div className="space-y-2 border-t pt-4">
                   <Label>Linked FFXIV Item (optional)</Label>
                   <ItemSearchCombobox
-                    venueId={venueId}
+                    venueSlug={slug}
                     value={formData.linkedItem}
                     onChange={(item) => setFormData({ ...formData, linkedItem: item })}
                   />
@@ -1082,7 +1082,7 @@ export default function ServicesPage({ params }: { params: Promise<{ slug: strin
                 <div className="space-y-2 border-t pt-4">
                   <Label>Linked FFXIV Item (optional)</Label>
                   <ItemSearchCombobox
-                    venueId={venueId}
+                    venueSlug={slug}
                     value={formData.linkedItem}
                     onChange={(item) => setFormData({ ...formData, linkedItem: item })}
                   />

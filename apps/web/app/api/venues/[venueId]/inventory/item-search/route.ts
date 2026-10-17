@@ -1,8 +1,7 @@
 import { NextRequest, NextResponse } from "next/server"
 import { getServerSession } from "next-auth"
 import { authOptions } from "@/lib/auth"
-import { prisma } from "@/lib/prisma"
-import { requireVenueRole } from "@/lib/api/venue-access"
+import { atLeast, requireMyVenue } from "@/lib/api/venue-access"
 import { withRateLimit } from "@/lib/middleware/with-rate-limit"
 
 const XIVAPI_BASE_URL = process.env.XIVAPI_BASE_URL ?? "https://v2.xivapi.com"
@@ -35,15 +34,11 @@ export const GET = withRateLimit<{ params: Promise<{ venueId: string }> }>(
       }
 
       const { venueId } = await context.params
-      const venue = await prisma.venue.findFirst({
-        where: { OR: [{ id: venueId }, { slug: venueId }] },
-      })
-      if (!venue) {
-        return NextResponse.json({ error: "Venue not found" }, { status: 404 })
+      const lookup = await requireMyVenue(session.user.id, venueId, "[item-search] /me/venues read error")
+      if (!lookup.ok) return lookup.response
+      if (!atLeast(lookup.venue.role, "MANAGER")) {
+        return NextResponse.json({ error: "Owner or Manager role required" }, { status: 403 })
       }
-
-      const access = await requireVenueRole(session.user.id, venue.id, "MANAGER", "Owner or Manager role required")
-      if (!access.ok) return access.response
 
       const { searchParams } = new URL(request.url)
       const query = searchParams.get("query")?.trim()

@@ -9,6 +9,7 @@ import { listRooms, createRoom } from "@/lib/api/xvm-api"
 
 const createRoomSchema = z.object({
   name: z.string().trim().min(1).max(100),
+  roomNumber: z.number().int().min(1).max(999).optional(),
 })
 
 export const GET = withRateLimit<{ params: Promise<{ venueId: string }> }>(
@@ -63,10 +64,9 @@ export const POST = withRateLimit<{ params: Promise<{ venueId: string }> }>(
     const lookup = await requireMyVenue(session.user.id, venueId, "[rooms] /me/venues read error")
     if (!lookup.ok) return lookup.response
 
-    let name: string
+    let input: z.infer<typeof createRoomSchema>
     try {
-      const body = await request.json()
-      name = createRoomSchema.parse(body).name
+      input = createRoomSchema.parse(await request.json())
     } catch (err) {
       if (err instanceof z.ZodError) {
         return NextResponse.json({ error: "Invalid request", details: err.flatten() }, { status: 400 })
@@ -75,7 +75,10 @@ export const POST = withRateLimit<{ params: Promise<{ venueId: string }> }>(
     }
 
     try {
-      const room = await createRoom(token, lookup.venue.id, { name })
+      const room = await createRoom(token, lookup.venue.id, {
+        name: input.name,
+        ...(input.roomNumber !== undefined && { room_number: input.roomNumber }),
+      })
       return NextResponse.json(room)
     } catch (err) {
       return xvmApiErrorResponse(err, session.user.id, "[rooms] POST error")

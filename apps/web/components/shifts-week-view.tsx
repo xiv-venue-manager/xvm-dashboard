@@ -1,17 +1,14 @@
 "use client"
 
 import { Fragment } from "react"
-import { Copy } from "lucide-react"
-import { Button } from "@/components/ui/button"
 import { Avatar, AvatarFallback, AvatarImage } from "@/components/ui/avatar"
 import { Card, CardContent } from "@/components/ui/card"
 import { Badge } from "@/components/ui/badge"
-import { CreateShiftDialog } from "@/components/create-shift-dialog"
 import { ClaimedShiftChip } from "@/components/claimed-shift-chip"
 import { OpenShiftChip } from "@/components/open-shift-chip"
 import { DeleteShiftButton } from "@/components/delete-shift-button"
 import { ClockShiftButton } from "@/components/clock-shift-button"
-import { localDayKey, localHourLabel, browserTimeZone, localTimeInput } from "@/lib/local-day"
+import { localDayKey, localHourLabel, browserTimeZone } from "@/lib/local-day"
 import { staffNameOf, type ShiftRow, type StaffNameLookup } from "@/lib/shift-format"
 import { useMounted } from "@/lib/use-mounted"
 
@@ -27,23 +24,6 @@ function utcDayKey(d: Date): string {
 function addDayToKey(key: string): string {
   const [y, m, d] = key.split("-").map(Number)
   return utcDayKey(new Date(Date.UTC(y, m - 1, d + 1)))
-}
-
-interface StaffOption {
-  id: number
-  name: string
-  image: string | null
-}
-
-interface RoleOption {
-  id: number
-  name: string
-}
-
-interface EventOption {
-  id: string
-  name: string
-  startsAt: string
 }
 
 const statusBadge: Record<string, string> = {
@@ -64,10 +44,7 @@ export interface ShiftsWeekViewProps {
   slug: string
   currentMembershipId: number
   canManage: boolean
-  staffForDialog: StaffOption[]
-  venueRoles: RoleOption[]
   staffNames: StaffNameLookup
-  eventsForDialog: EventOption[]
 }
 
 export function ShiftsWeekView(props: ShiftsWeekViewProps) {
@@ -85,36 +62,6 @@ export function ShiftsWeekView(props: ShiftsWeekViewProps) {
           const h12 = h % 12 || 12
           return m === 0 ? `${h12}${ampm}` : `${h12}:${String(m).padStart(2, "0")}${ampm}`
         })()
-
-  function duplicateShiftDialog(
-    shift: ShiftRow,
-    modeField: { mode: "assign"; membershipId: number | undefined } | { mode: "open"; roleId: number | undefined }
-  ) {
-    return (
-      <CreateShiftDialog
-        venueSlug={props.slug}
-        staff={props.staffForDialog}
-        roles={props.venueRoles}
-        events={props.eventsForDialog}
-        trigger={
-          <Button variant="ghost" size="sm" aria-label="Duplicate shift" className="h-6 w-6 p-0">
-            <Copy className="h-3.5 w-3.5" />
-          </Button>
-        }
-        prefill={{
-          ...modeField,
-          date: dayKeyOf(shift.scheduledStart),
-          startTime: mounted
-            ? localTimeInput(shift.scheduledStart, timeZone)
-            : new Date(shift.scheduledStart).toISOString().slice(11, 16),
-          endTime: mounted
-            ? localTimeInput(shift.scheduledEnd, timeZone)
-            : new Date(shift.scheduledEnd).toISOString().slice(11, 16),
-          notes: shift.notes ?? undefined,
-        }}
-      />
-    )
-  }
 
   const weekStart = new Date(props.weekStartISO)
   const weekDays = Array.from({ length: 7 }, (_, i) => {
@@ -324,11 +271,6 @@ export function ShiftsWeekView(props: ShiftsWeekViewProps) {
                             {hourLabelOf(shift.scheduledStart)}–{hourLabelOf(shift.scheduledEnd)}
                             {shift.roleName ? ` · ${shift.roleName}` : ""}
                           </span>
-                          {props.canManage &&
-                            duplicateShiftDialog(shift, {
-                              mode: "assign",
-                              membershipId: shift.membershipId ?? undefined,
-                            })}
                         </div>
                       )
                     )}

@@ -6,7 +6,6 @@ import { Button } from "@/components/ui/button"
 import { Card, CardContent } from "@/components/ui/card"
 import { ChevronLeft, ChevronRight } from "lucide-react"
 import { dayKeyFor, hourLabelFor, type CalendarShift, type StaffNameLookup } from "@/lib/shift-format"
-import type { ShiftStaffOption, ShiftRoleOption } from "@/lib/api/xvm-api"
 import { browserTimeZone } from "@/lib/local-day"
 import { ShiftDayDialog } from "@/components/shift-day-dialog"
 import { useMounted } from "@/lib/use-mounted"
@@ -16,8 +15,6 @@ interface ShiftsCalendarProps {
   currentMembershipId: number
   canManage: boolean
   venueSlug: string
-  staffForDialog: ShiftStaffOption[]
-  roles: ShiftRoleOption[]
   staffNames: StaffNameLookup
   todayKeyST: string
 }
@@ -45,8 +42,6 @@ export function ShiftsCalendar({
   currentMembershipId,
   canManage,
   venueSlug,
-  staffForDialog,
-  roles,
   staffNames,
   todayKeyST,
 }: ShiftsCalendarProps) {
@@ -174,8 +169,6 @@ export function ShiftsCalendar({
         canManage={canManage}
         currentMembershipId={currentMembershipId}
         venueSlug={venueSlug}
-        staffForDialog={staffForDialog}
-        roles={roles}
         staffNames={staffNames}
       />
     </div>

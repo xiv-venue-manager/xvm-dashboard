@@ -4,23 +4,19 @@ import { redirect, notFound } from "next/navigation"
 import Link from "next/link"
 import { resolveMyVenue } from "@/lib/api/venue-access"
 import { VenueLayout } from "@/components/venue-layout"
-import { CreateShiftDialog } from "@/components/create-shift-dialog"
 import { ShiftsCalendar } from "@/components/shifts-calendar"
 import { ShiftsWeekView } from "@/components/shifts-week-view"
 import { getValidXvmApiToken } from "@/lib/api/xvm-api-store"
 import {
-  listEvents,
   listShiftBoard,
   listShiftBoardChunked,
   listShifts,
   listShiftsChunked,
-  listShiftStaffAndRoles,
   listMemberships,
   listPositions,
   getMe,
   type ShiftRow as ApiShiftRow,
 } from "@/lib/api/xvm-api"
-import { toShiftEventOptions, type ShiftEventOption } from "@/lib/shift-event-options"
 import { toOpenSlot, toShiftRow, type ShiftRow, type StaffNameLookup } from "@/lib/shift-format"
 
 // Week start = Monday in UTC (FFXIV server time = UTC)
@@ -152,20 +148,6 @@ export default async function ShiftsPage({
     ]
   }
 
-  const { staff: staffForDialog, roles: venueRoles } = await listShiftStaffAndRoles(token, xvmApiVenueId)
-
-  let eventsForDialog: ShiftEventOption[] = []
-  try {
-    eventsForDialog = toShiftEventOptions(
-      await listEvents(token, xvmApiVenueId, {
-        from: new Date(now.getTime() - 14 * 24 * 60 * 60 * 1000).toISOString(),
-        to: new Date(now.getTime() + 45 * 24 * 60 * 60 * 1000).toISOString(),
-      })
-    )
-  } catch (error) {
-    console.error("[shifts] event picker read error:", error)
-  }
-
   return (
     <VenueLayout venueSlug={venue.slug} venueName={venue.name} userRole={userRole}>
       <div className="page-inner">
@@ -180,14 +162,6 @@ export default async function ShiftsPage({
             </div>
             <h1 className="page-h1">Shifts</h1>
           </div>
-          {canManage && (
-            <CreateShiftDialog
-              venueSlug={slug}
-              staff={staffForDialog}
-              roles={venueRoles}
-              events={eventsForDialog}
-            />
-          )}
         </div>
 
         {/* View Tabs */}
@@ -220,8 +194,6 @@ export default async function ShiftsPage({
             currentMembershipId={currentMembershipId}
             canManage={canManage}
             venueSlug={slug}
-            staffForDialog={staffForDialog}
-            roles={venueRoles}
             staffNames={staffNames}
             todayKeyST={todayKeyST}
           />
@@ -288,10 +260,7 @@ export default async function ShiftsPage({
               slug={slug}
               currentMembershipId={currentMembershipId}
               canManage={canManage}
-              staffForDialog={staffForDialog}
-              venueRoles={venueRoles}
               staffNames={staffNames}
-              eventsForDialog={eventsForDialog}
             />
           </>
         )}

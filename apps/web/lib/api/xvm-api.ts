@@ -970,7 +970,7 @@ export interface PositionCreate {
   color?: number | null
   responsibilities?: string | null
   hourly_rate_minor?: number | null
-  discord_role_id?: number | null
+  discord_role_id?: string | null
 }
 
 export interface PositionUpdate {
@@ -978,7 +978,7 @@ export interface PositionUpdate {
   color?: number | null
   responsibilities?: string | null
   hourly_rate_minor?: number | null
-  discord_role_id?: number | null
+  discord_role_id?: string | null
 }
 
 export interface PositionRow {
@@ -989,7 +989,7 @@ export interface PositionRow {
   hourly_rate_minor: number | null
   pot_payout_mode: string
   contractor_shares_pot: boolean
-  discord_role_id: number | null
+  discord_role_id: string | null
   member_ids: number[]
 }
 

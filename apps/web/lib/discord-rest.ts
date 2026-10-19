@@ -285,6 +285,20 @@ export async function getGuildEmojis(guildId: string): Promise<DiscordFetchResul
   return { ok: true, data: result.data.map((e) => ({ id: e.id, name: e.name, animated: e.animated })) }
 }
 
+// The application's own emoji, usable in any guild the bot is in - unlike a guild's, which only
+// render inside it. Two calls because the emoji route wants a concrete application id, and it
+// answers `{ items: [...] }` rather than the bare array the guild route returns.
+export async function getApplicationEmojis(): Promise<DiscordFetchResult<DiscordEmojiOption[]>> {
+  const app = await discordFetchJson<{ id: string }>("/applications/@me")
+  if (!app.ok) return app
+
+  const result = await discordFetchJson<{ items: { id: string; name: string; animated: boolean }[] }>(
+    `/applications/${app.data.id}/emojis`,
+  )
+  if (!result.ok) return result
+  return { ok: true, data: result.data.items.map((e) => ({ id: e.id, name: e.name, animated: e.animated })) }
+}
+
 export interface DiscordMemberOption {
   id: string
   username: string

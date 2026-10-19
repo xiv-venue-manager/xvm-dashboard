@@ -49,6 +49,8 @@ export const cacheKeys = {
   discordRoles: (guildId: string) => `discord:${guildId}:roles`,
   discordChannels: (guildId: string) => `discord:${guildId}:channels`,
   discordEmojis: (guildId: string) => `discord:${guildId}:emojis`,
+  // The bot's own emoji belong to no guild, so this one key serves every caller.
+  discordAppEmojis: () => `discord:app:emojis`,
   // Per member rather than per request: a form holding five saved ids where four are cached
   // should fetch one, not five.
   discordMember: (guildId: string, userId: string) => `discord:${guildId}:member:${userId}`,

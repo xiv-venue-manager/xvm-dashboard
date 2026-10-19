@@ -6,7 +6,9 @@
 //   2. Token read from process.env.DISCORD_BOT_TOKEN (same var lib/discord-bot.ts uses).
 //      NOTE: every function here only works for guilds THAT BOT IS IN — for venue guilds
 //      that means Frogge's token, which is a team decision to settle before wiring.
-//   3. DiscordEmojiOption + guildIconUrl inlined (they live in separate Frogge modules).
+//   3. guildIconUrl inlined (it lives in a separate Frogge module). DiscordEmojiOption was
+//      inlined too until lib/emoji.ts arrived; it lives there now, re-exported below, because
+//      a Client Component needs the type and must not reach into this file for it.
 // Original design notes below are Frogge's, unedited.
 //
 // Direct calls to Discord's REST API from the Dashboard server itself. No discord.js
@@ -15,16 +17,14 @@
 // Every exported mutation here must NEVER throw — degrade to a soft failure code the
 // caller can surface, not blow up the whole request.
 
+import type { DiscordEmojiOption } from "@/lib/emoji"
+
 const DISCORD_API = "https://discord.com/api/v10"
 const BOT_TOKEN = process.env.DISCORD_BOT_TOKEN!
 
 export type DiscordSyncFailure = "forbidden" | "not_found" | "unknown"
 
-export interface DiscordEmojiOption {
-  id: string
-  name: string
-  animated: boolean
-}
+export type { DiscordEmojiOption }
 
 function guildIconUrl(guildId: string, iconHash: string | null, size = 256): string | null {
   if (!iconHash) return null

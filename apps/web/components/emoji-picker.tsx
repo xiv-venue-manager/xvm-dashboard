@@ -4,7 +4,6 @@ import { useEffect, useRef, useState } from "react"
 import emojiByChar from "unicode-emoji-json/data-by-emoji.json"
 import orderedEmoji from "unicode-emoji-json/data-ordered-emoji.json"
 import { Input } from "@/components/ui/input"
-import { Button } from "@/components/ui/button"
 import { cn } from "@/lib/utils"
 import {
   customEmojiCdnUrl,
@@ -74,7 +73,6 @@ export function EmojiPicker({
   ariaLabel,
 }: EmojiPickerProps) {
   const [open, setOpen] = useState(false)
-  const [focusSearch, setFocusSearch] = useState(false)
   const [query, setQuery] = useState("")
   const [customEmoji, setCustomEmoji] = useState<DiscordEmojiOption[] | null>(null)
   const [fetchFailed, setFetchFailed] = useState(false)
@@ -92,12 +90,7 @@ export function EmojiPicker({
 
   // On first open rather than on mount: a page renders one of these per role row, and a list
   // nobody has opened should not spend a request.
-  //
-  // `searchFirst` is false when the field itself was clicked: the search box autofocuses, and
-  // stealing the caret out of a field somebody just clicked into would break typing and paste,
-  // which is the half of this control the picker is meant to add to rather than replace.
-  function handleOpen(searchFirst: boolean) {
-    setFocusSearch(searchFirst)
+  function handleOpen() {
     setOpen(true)
     if (customEmoji !== null) return
     const url = source === "application" ? "/api/admin/discord/emojis" : `/api/venues/${venueId}/discord/emojis`
@@ -143,11 +136,19 @@ export function EmojiPicker({
       <div className="relative">
         <Input
           aria-label={ariaLabel}
+          aria-expanded={open}
           value={value}
           onChange={(e) => onChange(e.target.value)}
           // Click rather than focus: a row tabs colour, emoji, name, save, and opening on focus
-          // would flash the picker open at every pass. Typing still works with it open.
-          onClick={() => handleOpen(false)}
+          // would flash the picker open at every pass. Typing still works with it open, and the
+          // caret stays here - the search box does not steal it, or a paste would land there.
+          onClick={handleOpen}
+          // The field is the only way in now, so ArrowDown is the keyboard equivalent of
+          // clicking it. Escape closes, since there is no button left to toggle.
+          onKeyDown={(e) => {
+            if (e.key === "ArrowDown" && !open) handleOpen()
+            if (e.key === "Escape" && open) setOpen(false)
+          }}
           placeholder="🎉"
           maxLength={maxLength}
           disabled={disabled}
@@ -162,24 +163,12 @@ export function EmojiPicker({
           />
         )}
       </div>
-      <Button
-        type="button"
-        size="sm"
-        variant="outline"
-        aria-expanded={open}
-        disabled={disabled}
-        onClick={() => (open ? setOpen(false) : handleOpen(true))}
-      >
-        Pick
-      </Button>
-
       {open && (
         <div className="absolute left-0 top-full z-50 mt-1 w-72 rounded-lg border border-[var(--blue-015)] bg-background p-2.5 shadow-md">
           <Input
             value={query}
             onChange={(e) => setQuery(e.target.value)}
             placeholder="Search emoji..."
-            autoFocus={focusSearch}
             className="h-8 text-sm"
           />
 

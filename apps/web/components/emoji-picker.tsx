@@ -74,6 +74,7 @@ export function EmojiPicker({
   ariaLabel,
 }: EmojiPickerProps) {
   const [open, setOpen] = useState(false)
+  const [focusSearch, setFocusSearch] = useState(false)
   const [query, setQuery] = useState("")
   const [customEmoji, setCustomEmoji] = useState<DiscordEmojiOption[] | null>(null)
   const [fetchFailed, setFetchFailed] = useState(false)
@@ -91,7 +92,12 @@ export function EmojiPicker({
 
   // On first open rather than on mount: a page renders one of these per role row, and a list
   // nobody has opened should not spend a request.
-  function handleOpen() {
+  //
+  // `searchFirst` is false when the field itself was clicked: the search box autofocuses, and
+  // stealing the caret out of a field somebody just clicked into would break typing and paste,
+  // which is the half of this control the picker is meant to add to rather than replace.
+  function handleOpen(searchFirst: boolean) {
+    setFocusSearch(searchFirst)
     setOpen(true)
     if (customEmoji !== null) return
     const url = source === "application" ? "/api/admin/discord/emojis" : `/api/venues/${venueId}/discord/emojis`
@@ -139,6 +145,9 @@ export function EmojiPicker({
           aria-label={ariaLabel}
           value={value}
           onChange={(e) => onChange(e.target.value)}
+          // Click rather than focus: a row tabs colour, emoji, name, save, and opening on focus
+          // would flash the picker open at every pass. Typing still works with it open.
+          onClick={() => handleOpen(false)}
           placeholder="🎉"
           maxLength={maxLength}
           disabled={disabled}
@@ -159,7 +168,7 @@ export function EmojiPicker({
         variant="outline"
         aria-expanded={open}
         disabled={disabled}
-        onClick={() => (open ? setOpen(false) : handleOpen())}
+        onClick={() => (open ? setOpen(false) : handleOpen(true))}
       >
         Pick
       </Button>
@@ -170,7 +179,7 @@ export function EmojiPicker({
             value={query}
             onChange={(e) => setQuery(e.target.value)}
             placeholder="Search emoji..."
-            autoFocus
+            autoFocus={focusSearch}
             className="h-8 text-sm"
           />
 

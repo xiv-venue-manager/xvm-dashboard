@@ -29,6 +29,8 @@ House-specific:
 | `discord-picker` | `RolePicker`, `ChannelPicker`, `DiscordOptionPicker`, `useDiscordOptions`: choose a Discord role or channel from the venue's server. Use these instead of a hand-rolled dropdown or a paste-an-id field |
 | `user-picker` | `UserPicker`: find a Discord member by typing part of the name, with entering an id as the fallback. Keyed to a venue |
 | `discord-members` | `MemberChip`, `useResolvedMembers`: put names and avatars on Discord ids a page already holds. `useResolvedMembers` asks the members route once per id, in as many requests as its cap needs; `MemberChip` renders whatever label the caller decided on. This is for a table of saved ids — `user-picker` is for choosing a new one |
+| `emoji-picker` | `EmojiPicker`: an emoji field — a text input that still takes a typed or pasted value, with a picker beside it. `source="venue"` offers that venue's custom emoji, `source="application"` the bot's own, for a platform surface with no venue to scope to. Unicode either way |
+| `emoji-glyph` | `EmojiGlyph`: render a stored emoji value. A custom emoji is `<:name:id>` markup, which shows as literal text anywhere it is not passed through this |
 | `role-badge`, `breadcrumb`, `venue-eyebrow`, `copy-address-button` | Small display pieces |
 | `analytics/` | Charts |
 
@@ -49,6 +51,7 @@ House-specific:
 | `shift-format` | `fmtHour`, `statusBadgeClass`, `toShiftRow`, `staffNameOf`, ... | Shift display |
 | `discord-picker-state` | `pickerProblem`, `offeredRoles`, `canReturnToList`, `canReturnToSearch`, `showsManualEntry`, `initials`, `MIN_MEMBER_QUERY`, `memberQueryReady`, `memberSearchProblem` | The tested rules behind the Discord pickers. `canReturnToList` and `canReturnToSearch` are the way-back rules, `initials` is the avatar fallback (the first two letters or digits of a name, `#` when it has none) used by `discord-guild-connect` and `user-picker`, and `MIN_MEMBER_QUERY` is the 2 character floor for a member search. Put picker decisions here, not in the component |
 | `discord-member-state` | `unresolvedIds`, `batches`, `memberLabel`, `MAX_RESOLVE` | The tested rules behind `discord-members`. Keyed on *asked*, not *found*: `getGuildMembers` omits a member who has left, so "do we have a name yet" re-requests them on every render. `batches` splits a list at `MAX_RESOLVE`, the members route's cap for one request — cap at the request, never in `unresolvedIds`, or the overflow is dropped instead of asked for |
+| `emoji` | `DiscordEmojiOption`, `customEmojiCdnUrl`, `customEmojiMarkup`, `parseCustomEmojiMarkup`, `twemojiCdnUrl` | Emoji resolution behind `emoji-picker` and `emoji-glyph`. Client-safe on purpose: `DiscordEmojiOption` lives here rather than in `discord-rest`, which holds the bot token and must stay out of a Client Component's imports. `twemojiCdnUrl` answers null for anything that is not an emoji — it is gated on `twemoji.test` so a plain string cannot come back as a CDN URL built from its own letters |
 | `display-name` | `resolveDisplayName` | The one order for what to call a staff member |
 | `roles` | `canManageVenue`, `isVenueOwner` | OWNER and MANAGER tier checks |
 | `callback-url` | `signInCallbackUrl` | Where sign-in returns to. Link to `/auth/signin?callbackUrl=<path>`; anything but a same-origin path falls back to `/dashboard` |

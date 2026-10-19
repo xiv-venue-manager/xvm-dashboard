@@ -8,12 +8,14 @@ import { getValidXvmApiToken, xvmApiErrorResponse } from "@/lib/api/xvm-api-stor
 import { listPositions, updatePosition, deletePosition, type PositionRow } from "@/lib/api/xvm-api"
 import { hexColorToInt, intColorToHex, gilToMinorUnits, minorUnitsToGil } from "@/lib/api/position-convert"
 import { validators } from "@/lib/validation"
+import { requireRoleInGuild } from "@/lib/api/venue-guild"
 
 const updateRoleSchema = z.object({
   name: validators.roleName.optional(),
   responsibilities: validators.roleDescription,
   color: z.string().optional(),
   hourlyRate: z.number().positive().nullable().optional(),
+  discordRoleId: validators.snowflake.nullable().optional(),
 })
 
 function toRoleShape(position: PositionRow) {
@@ -25,6 +27,7 @@ function toRoleShape(position: PositionRow) {
     hourlyRate: minorUnitsToGil(position.hourly_rate_minor),
     potPayoutMode: position.pot_payout_mode,
     contractorSharesPot: position.contractor_shares_pot,
+    discordRoleId: position.discord_role_id,
     permissions: null,
     _count: { memberships: position.member_ids.length },
   }
@@ -112,11 +115,21 @@ export const PUT = withRateLimit<{ params: Promise<{ venueId: string; roleId: st
     }
 
     try {
+      if (data.discordRoleId) {
+        const held = (await listPositions(token, lookup.venue.id)).find((p) => p.id === positionId)
+        if (!held) {
+          return NextResponse.json({ error: "Role not found" }, { status: 404 })
+        }
+        const check = await requireRoleInGuild(session.user.id, venueId, data.discordRoleId, held.discord_role_id)
+        if (!check.ok) return check.response
+      }
+
       const position = await updatePosition(token, lookup.venue.id, positionId, {
         name: data.name,
         color,
         responsibilities: data.responsibilities,
         hourly_rate_minor: data.hourlyRate !== undefined ? gilToMinorUnits(data.hourlyRate) : undefined,
+        discord_role_id: data.discordRoleId,
       })
       return NextResponse.json(toRoleShape(position))
     } catch (err) {

@@ -12,7 +12,9 @@ async function parseIds(context: Ctx) {
   const { templateId, optionId } = await context.params
   const template = Number(templateId)
   const option = Number(optionId)
-  if (!Number.isInteger(template) || !Number.isInteger(option)) return null
+  // Positive, not merely integers: 0 and negatives are integers and xvm-api ids start at 1.
+  if (!Number.isInteger(template) || template <= 0) return null
+  if (!Number.isInteger(option) || option <= 0) return null
   return { template, option }
 }
 

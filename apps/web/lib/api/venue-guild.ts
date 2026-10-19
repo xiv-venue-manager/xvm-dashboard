@@ -3,7 +3,15 @@ import { requireMyVenue } from "@/lib/api/venue-access"
 import { getValidXvmApiToken, xvmApiErrorResponse } from "@/lib/api/xvm-api-store"
 import { getVenue } from "@/lib/api/xvm-api"
 import { getCached, setCache, cacheKeys, cacheTTL } from "@/lib/redis-cache"
-import { getGuildChannels, getChannelInfo, isThreadChannelType, type DiscordChannelOption } from "@/lib/discord-rest"
+import {
+  getGuildChannels,
+  getGuildRoles,
+  getChannelInfo,
+  isThreadChannelType,
+  unsafeRoleReason,
+  type DiscordChannelOption,
+  type DiscordRoleOption,
+} from "@/lib/discord-rest"
 
 export type VenueGuild = { ok: true; guildId: string } | { ok: false; response: NextResponse }
 
@@ -125,4 +133,57 @@ export async function requireChannelInGuild(userId: string, venueId: string, cha
       { status: 400 }
     ),
   }
+}
+
+export type RoleCheck = { ok: true } | { ok: false; response: NextResponse }
+
+/**
+ * Whether a role id is one this venue's Discord server can hand out automatically.
+ *
+ * A position's role is granted to everyone holding the position, so an id that is another
+ * server's, or that carries Administrator, is refused here whatever the picker showed. `current`
+ * is the role the row already holds: it passes the safety check so re-saving an unrelated field
+ * on a row that holds an unsafe role is not refused, but it still has to be in the server.
+ *
+ * Fails closed like requireChannelInGuild, and re-asks Discord before saying a role is missing, as
+ * the cached list is five minutes old.
+ */
+export async function requireRoleInGuild(
+  userId: string,
+  venueId: string,
+  roleId: string,
+  current: string | null = null
+): Promise<RoleCheck> {
+  const guild = await requireVenueGuild(userId, venueId)
+  if (!guild.ok) return guild
+
+  const key = cacheKeys.discordRoles(guild.guildId)
+  let role = (await getCached<DiscordRoleOption[]>(key))?.find((r) => r.id === roleId)
+  if (!role) {
+    const live = await getGuildRoles(guild.guildId)
+    if (!live.ok) return { ok: false, response: discordFailureResponse(live.status) }
+    await setCache(key, live.data, cacheTTL.discordGuild)
+    role = live.data.find((r) => r.id === roleId)
+  }
+
+  if (!role) {
+    return {
+      ok: false,
+      response: NextResponse.json(
+        { error: "role_not_in_guild", message: "That role isn't in this venue's Discord server." },
+        { status: 400 }
+      ),
+    }
+  }
+  const unsafe = roleId === current ? null : unsafeRoleReason(role, guild.guildId)
+  if (unsafe) {
+    return {
+      ok: false,
+      response: NextResponse.json(
+        { error: "role_unsafe", message: `That role can't be given out automatically: ${unsafe}.` },
+        { status: 400 }
+      ),
+    }
+  }
+  return { ok: true }
 }

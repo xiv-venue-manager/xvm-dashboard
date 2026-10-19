@@ -1,7 +1,7 @@
 import { getServerSession } from "next-auth"
 import { authOptions } from "@/lib/auth"
 import { redirect, notFound } from "next/navigation"
-import { prisma } from "@/lib/prisma"
+import { resolveMyVenue } from "@/lib/api/venue-access"
 import { VenueLayout } from "@/components/venue-layout"
 import { ReactionRolePanelsBoard } from "@/components/reaction-role-panels-board"
 import { getValidXvmApiToken, invalidateXvmApiCredential, isXvmAuthFailure } from "@/lib/api/xvm-api-store"
@@ -13,25 +13,17 @@ export default async function ReactionRolesPage({ params }: { params: Promise<{ 
 
   const { slug } = await params
 
-  const venue = await prisma.venue.findUnique({
-    where: { slug },
-    include: {
-      memberships: { where: { userId: session.user.id } },
-    },
-  })
-
-  if (!venue || venue.memberships.length === 0) notFound()
-
-  const userRole = venue.memberships[0].role
+  const venue = await resolveMyVenue(session.user.id, slug)
+  if (!venue) notFound()
+  const userRole = venue.role
 
   let panels: PanelRow[] = []
   let templates: TemplateRow[] = []
-  const notConnected = !venue.xvmApiVenueId
   const token = await getValidXvmApiToken(session.user.id)
-  if (token && venue.xvmApiVenueId) {
+  if (token) {
     try {
       ;[panels, templates] = await Promise.all([
-        listPanels(token, venue.xvmApiVenueId),
+        listPanels(token, venue.id),
         listReactionRoleTemplates(token),
       ])
     } catch (err) {
@@ -60,7 +52,6 @@ export default async function ReactionRolesPage({ params }: { params: Promise<{ 
           canManage={["OWNER", "MANAGER"].includes(userRole)}
           panels={panels}
           templates={templates}
-          notConnected={notConnected}
         />
       </div>
     </VenueLayout>

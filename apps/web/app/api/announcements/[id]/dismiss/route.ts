@@ -1,29 +1,26 @@
-import { NextRequest, NextResponse } from "next/server"
+import { NextResponse } from "next/server"
 import { getServerSession } from "next-auth"
 import { authOptions } from "@/lib/auth"
-import { prisma } from "@/lib/prisma"
 import { withRateLimit } from "@/lib/middleware/with-rate-limit"
+import { getValidXvmApiToken, xvmApiErrorResponse } from "@/lib/api/xvm-api-store"
+import { dismissAnnouncement } from "@/lib/api/xvm-api"
 
 export const POST = withRateLimit<{ params: Promise<{ id: string }> }>(
   async (request, context) => {
+    const session = await getServerSession(authOptions)
+    if (!session?.user?.id) return NextResponse.json({ error: "Unauthorized" }, { status: 401 })
+
+    const token = await getValidXvmApiToken(session.user.id)
+    if (!token) return NextResponse.json({ error: "xvm-api link not established yet" }, { status: 503 })
+
+    const { id } = await context!.params
+    if (!/^\d+$/.test(id)) return NextResponse.json({ error: "Not found" }, { status: 404 })
+
     try {
-      const session = await getServerSession(authOptions)
-      if (!session?.user?.id) {
-        return NextResponse.json({ error: "Unauthorized" }, { status: 401 })
-      }
-
-      const { id } = await context!.params
-
-      await prisma.announcementDismissal.upsert({
-        where: { userId_announcementId: { userId: session.user.id, announcementId: id } },
-        create: { userId: session.user.id, announcementId: id },
-        update: {},
-      })
-
+      await dismissAnnouncement(token, Number(id))
       return NextResponse.json({ success: true })
-    } catch (error) {
-      console.error("Error dismissing announcement:", error)
-      return NextResponse.json({ error: "Internal server error" }, { status: 500 })
+    } catch (err) {
+      return xvmApiErrorResponse(err, session.user.id, "[announcements] dismiss error")
     }
   },
   { requests: 30, window: "1 m" }

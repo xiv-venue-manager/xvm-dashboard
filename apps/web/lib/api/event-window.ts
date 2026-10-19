@@ -66,7 +66,6 @@ export async function findLiveEventId(
     new Date(now.getTime() + 24 * 60 * 60 * 1000),
     { now }
   )
-  // A running occurrence nobody has materialized has no id to attach a sale to, and only a manager opening the live page materializes one
   // Events sort by start, so pop() takes the latest-starting ACTIVE event on purpose when two overlap
   const live = events.filter((e) => e.status === "ACTIVE" && e.id !== null).pop()
   return live ? Number(live.id) : null

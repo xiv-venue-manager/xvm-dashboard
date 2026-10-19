@@ -2,7 +2,7 @@
 
 import { useState, useMemo } from "react"
 import Link from "next/link"
-import { MapPin, ArrowRight, Heart, Radio, Moon, Building2, Users } from "lucide-react"
+import { MapPin, ArrowRight, Heart, Radio, Moon, Building2 } from "lucide-react"
 import { VenueFollowButton } from "@/components/venue-follow-button"
 import { formatVenueAddress } from "@/lib/venue-location"
 
@@ -30,17 +30,12 @@ type Tab = "open" | "tonight" | "all"
 export function DiscoverClient({
   venues,
   isAuthed,
-  totalCount,
 }: {
   venues: DiscoverVenue[]
   isAuthed: boolean
-  totalCount: number
 }) {
   const [tab, setTab] = useState<Tab>("open")
   const [search, setSearch] = useState("")
-
-  const openCount = venues.filter((v) => v.isOpenNow).length
-  const tonightCount = venues.filter((v) => v.isTonightOpen).length
 
   const filtered = venues.filter((v) => {
     if (tab === "open" && !v.isOpenNow) return false

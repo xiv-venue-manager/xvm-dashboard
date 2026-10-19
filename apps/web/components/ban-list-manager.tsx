@@ -16,16 +16,12 @@ export type BannedPatron = {
   bannedBy: { id: string; name: string | null } | null
 }
 
-const NOT_CONNECTED_MESSAGE = "Ask the venue owner to connect this venue to xvm-api first."
-
 export function BanListManager({
   venueId,
   patrons,
-  notConnected,
 }: {
   venueId: string
   patrons: BannedPatron[]
-  notConnected?: boolean
 }) {
   const router = useRouter()
   const [localPatrons, setLocalPatrons] = useState(patrons)
@@ -87,14 +83,6 @@ export function BanListManager({
         return next
       })
     }
-  }
-
-  if (notConnected) {
-    return (
-      <Alert>
-        <AlertDescription>{NOT_CONNECTED_MESSAGE}</AlertDescription>
-      </Alert>
-    )
   }
 
   const inputClass =

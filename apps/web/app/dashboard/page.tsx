@@ -3,10 +3,22 @@ import { authOptions } from "@/lib/auth"
 import { redirect } from "next/navigation"
 import Link from "next/link"
 import { Button } from "@/components/ui/button"
-import { prisma } from "@/lib/prisma"
+import { myVenues } from "@/lib/api/venue-access"
 import { Building2, Users, ChevronRight, Plus } from "lucide-react"
 import { AnnouncementBanner } from "@/components/announcement-banner"
+import { xvmPersonReader } from "@/lib/api/xvm-page-read"
+import {
+  getVenue,
+  listMemberships,
+  listMyAnnouncements,
+  listMyCharacters,
+  type AnnouncementRow,
+  type MyCharacterRow,
+} from "@/lib/api/xvm-api"
+import { toAnnouncementShape } from "@/lib/api/announcement-shape"
 import { CharacterLinkNudge } from "@/components/character-link-nudge"
+
+type VenueCard = { description: string | null; staffCount: number | null }
 
 const roleColors: Record<string, string> = {
   OWNER: "bg-emerald-500/15 text-emerald-400 border-emerald-500/30",
@@ -21,37 +33,23 @@ export default async function DashboardPage() {
     redirect("/auth/signin")
   }
 
-  const now = new Date()
-  const announcements = await prisma.announcement.findMany({
-    where: {
-      OR: [{ expiresAt: null }, { expiresAt: { gt: now } }],
-      dismissals: { none: { userId: session.user.id } },
-    },
-    select: { id: true, title: true, message: true, link: true, linkLabel: true },
-    orderBy: { createdAt: "desc" },
-  })
+  const readPerson = await xvmPersonReader(session.user.id)
+  const announcements = (await readPerson("dashboard announcements", [] as AnnouncementRow[], (t) => listMyAnnouncements(t))).map(
+    toAnnouncementShape
+  )
 
-  const hasLinkedCharacter =
-    (await prisma.userCharacter.count({
-      where: { userId: session.user.id },
-    })) > 0
+  const hasLinkedCharacter = (await readPerson("dashboard characters", [] as MyCharacterRow[], (t) => listMyCharacters(t))).length > 0
 
-  const venues = await prisma.venue.findMany({
-    where: {
-      memberships: {
-        some: { userId: session.user.id },
-      },
-    },
-    include: {
-      memberships: {
-        where: { userId: session.user.id },
-      },
-      _count: {
-        select: { events: true, memberships: true },
-      },
-    },
-    orderBy: { name: "asc" },
-  })
+  const mine = (await myVenues(session.user.id).catch(() => [])).sort((a, b) => a.name.localeCompare(b.name))
+  const venues = await Promise.all(
+    mine.map(async (venue) => {
+      const card = await readPerson("dashboard venue card", { description: null, staffCount: null } as VenueCard, async (t) => {
+        const [detail, members] = await Promise.all([getVenue(t, venue.id), listMemberships(t, venue.id)])
+        return { description: detail.description, staffCount: members.filter((m) => m.is_employed).length }
+      })
+      return { ...venue, ...card }
+    })
+  )
 
   return (
     <div className="page-inner">
@@ -87,7 +85,7 @@ export default async function DashboardPage() {
         <>
           <div className="grid grid-cols-1 sm:grid-cols-2 lg:grid-cols-3 gap-4 md:gap-6">
             {venues.map((venue: (typeof venues)[number]) => {
-              const role = venue.memberships[0].role
+              const role = venue.role
               const roleClass = roleColors[role] || roleColors.STAFF
               return (
                 <Link key={venue.id} href={`/dashboard/${venue.slug}`} className="group block">
@@ -112,16 +110,13 @@ export default async function DashboardPage() {
 
                     {/* Stats */}
                     <div className="flex gap-4 mt-auto">
-                      <div className="flex items-center gap-1.5 text-sm">
-                        <Building2 className="h-3.5 w-3.5 text-[var(--xiv-blue)] opacity-70" />
-                        <span className="font-semibold">{venue._count.events}</span>
-                        <span className="text-muted-foreground">Events</span>
-                      </div>
-                      <div className="flex items-center gap-1.5 text-sm">
-                        <Users className="h-3.5 w-3.5 text-[var(--xiv-blue)] opacity-70" />
-                        <span className="font-semibold">{venue._count.memberships}</span>
-                        <span className="text-muted-foreground">Staff</span>
-                      </div>
+                      {venue.staffCount !== null && (
+                        <div className="flex items-center gap-1.5 text-sm">
+                          <Users className="h-3.5 w-3.5 text-[var(--xiv-blue)] opacity-70" />
+                          <span className="font-semibold">{venue.staffCount}</span>
+                          <span className="text-muted-foreground">Staff</span>
+                        </div>
+                      )}
                     </div>
 
                     {/* CTA */}

@@ -258,6 +258,25 @@ export async function getGuildChannels(guildId: string): Promise<DiscordFetchRes
   }
 }
 
+export interface DiscordChannelInfo {
+  guildId: string | null
+  type: number
+}
+
+// PUBLIC_THREAD (11), PRIVATE_THREAD (12) and ANNOUNCEMENT_THREAD (10). GET /guilds/{id}/channels
+// never lists threads, so a thread can only be recognised by asking for the channel itself.
+const THREAD_CHANNEL_TYPES = new Set([10, 11, 12])
+
+export function isThreadChannelType(type: number): boolean {
+  return THREAD_CHANNEL_TYPES.has(type)
+}
+
+export async function getChannelInfo(channelId: string): Promise<DiscordFetchResult<DiscordChannelInfo>> {
+  const result = await discordFetchJson<{ guild_id?: string; type: number }>(`/channels/${channelId}`)
+  if (!result.ok) return result
+  return { ok: true, data: { guildId: result.data.guild_id ?? null, type: result.data.type } }
+}
+
 export async function getGuildEmojis(guildId: string): Promise<DiscordFetchResult<DiscordEmojiOption[]>> {
   const result = await discordFetchJson<{ id: string; name: string; animated: boolean }[]>(
     `/guilds/${guildId}/emojis`,
@@ -373,6 +392,8 @@ export async function getGuildMemberRoles(guildId: string, userId: string): Prom
 export interface GuildPresence {
   /** Whether the bot is actually a member of the guild. */
   botIsMember: boolean
+  /** Null when the bot couldn't be asked, not when the guild is nameless. */
+  name: string | null
   iconUrl: string | null
 }
 
@@ -386,7 +407,9 @@ export interface GuildPresence {
 // ask, not that the bot is gone, and telling an admin to re-invite a bot that's sitting right
 // there would be worse than saying nothing.
 export async function getGuildPresence(guildId: string): Promise<GuildPresence> {
-  const result = await discordFetchJson<{ icon: string | null }>(`/guilds/${guildId}`)
-  if (result.ok) return { botIsMember: true, iconUrl: guildIconUrl(guildId, result.data.icon) }
-  return { botIsMember: result.status !== 404, iconUrl: null }
+  const result = await discordFetchJson<{ name: string; icon: string | null }>(`/guilds/${guildId}`)
+  if (result.ok) {
+    return { botIsMember: true, name: result.data.name, iconUrl: guildIconUrl(guildId, result.data.icon) }
+  }
+  return { botIsMember: result.status !== 404, name: null, iconUrl: null }
 }

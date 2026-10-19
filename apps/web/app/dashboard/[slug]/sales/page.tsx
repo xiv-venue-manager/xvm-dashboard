@@ -87,8 +87,8 @@ export default function SalesPage({ params }: { params: Promise<{ slug: string }
           fetch(
             `/api/venues/${venue.id}/transactions?startDate=${from.toISOString()}&endDate=${to.toISOString()}`
           ),
-          fetch(`/api/venues/${venue.id}/services`),
-          fetch(`/api/venues/${venue.id}/staff`),
+          fetch(`/api/venues/${slug}/services`),
+          fetch(`/api/venues/${slug}/staff`),
         ])
 
         if (!transactionsResponse.ok) {
@@ -271,7 +271,7 @@ export default function SalesPage({ params }: { params: Promise<{ slug: string }
                     <div className="p-5">
                       <TransactionsList
                         transactions={transactions}
-                        venueId={venueId}
+                        venueSlug={slug}
                         onTransactionsChange={setTransactions}
                       />
                     </div>

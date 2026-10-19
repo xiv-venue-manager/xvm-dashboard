@@ -13,6 +13,21 @@ export type PendingInviteShape = {
   canSendByDm: boolean
 }
 
+export function withReissuedLink(
+  invite: PendingInviteShape,
+  reissued: { inviteToken: string; expiresAt: string }
+): PendingInviteShape {
+  return {
+    ...invite,
+    inviteToken: reissued.inviteToken,
+    inviteExpiresAt: new Date(reissued.expiresAt),
+    declinedAt: null,
+    declineReason: null,
+    dmFailedAt: null,
+    dmFailure: null,
+  }
+}
+
 // list_invites returns no token (xvm-api only ever hands one out once, at
 // creation) - the "Invite Link" section in PendingInvites just won't render
 // for these, gracefully, via its existing invite.inviteToken guard.

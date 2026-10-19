@@ -1,4 +1,5 @@
 import { z } from "zod"
+import { FFXIV_DISTRICTS } from "@/lib/venue-location"
 
 // ============================================
 // Common Field Validators
@@ -8,14 +9,27 @@ import { z } from "zod"
 // coerce to number, real IDs exceed Number.MAX_SAFE_INTEGER.
 export const SNOWFLAKE_PATTERN = /^\d+$/
 
+// xvm-api stores Discord ids in a signed 64-bit column, so anything above this crashes there with a 500.
+const MAX_SNOWFLAKE = "9223372036854775807"
+
+function fitsInt64(digits: string): boolean {
+  const trimmed = digits.replace(/^0+/, "")
+  return trimmed.length < MAX_SNOWFLAKE.length || (trimmed.length === MAX_SNOWFLAKE.length && trimmed <= MAX_SNOWFLAKE)
+}
+
 export const validators = {
-  snowflake: z.string().max(20).regex(SNOWFLAKE_PATTERN, "Must be a numeric Discord ID"),
+  snowflake: z
+    .string()
+    .max(20)
+    .regex(SNOWFLAKE_PATTERN, "Must be a numeric Discord ID")
+    .refine(fitsInt64, "Not a valid Discord ID"),
   venueName: z.string().min(1, "Name is required").max(100, "Name too long (max 100 characters)"),
   venueDescription: z.string().max(2000, "Description too long (max 2000 characters)").optional().nullable(),
-  venueDistrict: z.string().max(50).optional().nullable(),
+  venueDistrict: z.enum(FFXIV_DISTRICTS).optional().nullable(),
   venueWard: z.number().int().min(1).max(30).optional().nullable(),
   venuePlot: z.number().int().min(1).max(60).optional().nullable(),
   venueApartment: z.number().int().min(1).max(99).optional().nullable(),
+  venueSubdivision: z.boolean().optional().nullable(),
   eventTitle: z.string().min(1, "Title is required").max(150, "Title too long (max 150 characters)"),
   eventDescription: z.string().max(3000, "Description too long (max 3000 characters)").optional(),
   customerName: z.string().max(100, "Customer name too long (max 100 characters)").optional(),
@@ -33,7 +47,7 @@ export const validators = {
   feedbackDescription: z
     .string()
     .min(10, "Description too short")
-    .max(5000, "Description too long (max 5000 characters)"),
+    .max(4000, "Description too long (max 4000 characters)"),
   webhookUrl: z.string().url("Invalid webhook URL").max(500, "URL too long").optional(),
   url: z.string().url("Invalid URL").max(500, "URL too long").optional().nullable(),
   slug: z

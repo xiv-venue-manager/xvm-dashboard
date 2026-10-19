@@ -1,10 +1,10 @@
 import { NextResponse } from "next/server"
 import { getServerSession } from "next-auth"
 import { authOptions } from "@/lib/auth"
-import { prisma } from "@/lib/prisma"
 import { z } from "zod"
 import { withRateLimit } from "@/lib/middleware/with-rate-limit"
 import { getValidXvmApiToken, xvmApiErrorResponse } from "@/lib/api/xvm-api-store"
+import { requireMyVenue } from "@/lib/api/venue-access"
 import { reclassifyPatronLogs } from "@/lib/api/xvm-api"
 
 const numericId = z.string().regex(/^\d+$/, "Invalid id")
@@ -39,13 +39,8 @@ export const PATCH = withRateLimit<{ params: Promise<{ venueId: string }> }>(
 
     const { venueId } = await context.params
 
-    const venue = await prisma.venue.findUnique({ where: { id: venueId }, select: { xvmApiVenueId: true } })
-    if (!venue?.xvmApiVenueId) {
-      return NextResponse.json(
-        { error: "not_connected", message: "This venue hasn't been connected to xvm-api yet." },
-        { status: 409 }
-      )
-    }
+    const lookup = await requireMyVenue(session.user.id, venueId, "[bulk-reclassify] /me/venues read error")
+    if (!lookup.ok) return lookup.response
 
     let data: z.infer<typeof bulkReclassifySchema>
     try {
@@ -58,7 +53,7 @@ export const PATCH = withRateLimit<{ params: Promise<{ venueId: string }> }>(
     }
 
     try {
-      const result = await reclassifyPatronLogs(token, venue.xvmApiVenueId, {
+      const result = await reclassifyPatronLogs(token, lookup.venue.id, {
         log_ids: data.logIds.map(Number),
         was_working: data.wasWorking,
         working_person_id: data.wasWorking && data.workingUserId ? Number(data.workingUserId) : null,

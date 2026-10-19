@@ -1,7 +1,7 @@
 import { NextRequest, NextResponse } from "next/server"
 import { getServerSession } from "next-auth"
 import { authOptions } from "@/lib/auth"
-import { prisma } from "@/lib/prisma"
+import { requireMyVenue } from "@/lib/api/venue-access"
 import { getValidXvmApiToken, xvmApiErrorResponse } from "@/lib/api/xvm-api-store"
 import { endEventSeries, getEvent } from "@/lib/api/xvm-api"
 
@@ -25,20 +25,15 @@ export async function POST(
     return NextResponse.json({ error: "Event not found" }, { status: 404 })
   }
 
-  const venue = await prisma.venue.findUnique({ where: { id: venueId }, select: { xvmApiVenueId: true } })
-  if (!venue?.xvmApiVenueId) {
-    return NextResponse.json(
-      { error: "not_connected", message: "This venue hasn't been connected to xvm-api yet." },
-      { status: 409 }
-    )
-  }
+  const lookup = await requireMyVenue(session.user.id, venueId, "[events] cancel-series /me/venues read error")
+  if (!lookup.ok) return lookup.response
 
   try {
-    const event = await getEvent(token, venue.xvmApiVenueId, Number(eventId))
+    const event = await getEvent(token, lookup.venue.id, Number(eventId))
     if (event.recurrence_rule_id === null) {
       return NextResponse.json({ cancelled: 0 })
     }
-    const ended = await endEventSeries(token, venue.xvmApiVenueId, event.recurrence_rule_id, {
+    const ended = await endEventSeries(token, lookup.venue.id, event.recurrence_rule_id, {
       cancel_future: true,
       reason: null,
     })

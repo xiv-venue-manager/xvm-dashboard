@@ -2,9 +2,9 @@ import { NextResponse } from "next/server"
 import { getServerSession } from "next-auth"
 import { authOptions } from "@/lib/auth"
 import { z } from "zod"
-import { prisma } from "@/lib/prisma"
 import { withRateLimit } from "@/lib/middleware/with-rate-limit"
 import { getValidXvmApiToken, xvmApiErrorResponse } from "@/lib/api/xvm-api-store"
+import { requireMyVenue } from "@/lib/api/venue-access"
 import { updateFinanceCategory, deleteFinanceCategory } from "@/lib/api/xvm-api"
 
 const updateCategorySchema = z
@@ -14,19 +14,6 @@ const updateCategorySchema = z
     applies_to: z.enum(["revenue", "expense", "payout"]).nullable().optional(),
   })
   .strict()
-
-async function requireXvmVenueId(venueId: string) {
-  const venue = await prisma.venue.findUnique({ where: { id: venueId }, select: { xvmApiVenueId: true } })
-  if (!venue?.xvmApiVenueId) {
-    return {
-      error: NextResponse.json(
-        { error: "not_connected", message: "This venue hasn't been connected to xvm-api yet." },
-        { status: 409 }
-      ),
-    }
-  }
-  return { xvmApiVenueId: venue.xvmApiVenueId }
-}
 
 export const PATCH = withRateLimit<{ params: Promise<{ venueId: string; categoryId: string }> }>(
   async (request, context) => {
@@ -48,8 +35,8 @@ export const PATCH = withRateLimit<{ params: Promise<{ venueId: string; category
       return NextResponse.json({ error: "Invalid category id" }, { status: 400 })
     }
 
-    const gate = await requireXvmVenueId(venueId)
-    if (gate.error) return gate.error
+    const lookup = await requireMyVenue(session.user.id, venueId, "[finance-categories/[categoryId]] /me/venues read error")
+    if (!lookup.ok) return lookup.response
 
     let data: z.infer<typeof updateCategorySchema>
     try {
@@ -62,7 +49,7 @@ export const PATCH = withRateLimit<{ params: Promise<{ venueId: string; category
     }
 
     try {
-      const category = await updateFinanceCategory(token, gate.xvmApiVenueId!, categoryIdNum, data)
+      const category = await updateFinanceCategory(token, lookup.venue.id, categoryIdNum, data)
       return NextResponse.json(category)
     } catch (err) {
       return xvmApiErrorResponse(err, session.user.id, "[finance-categories] PATCH error")
@@ -91,11 +78,11 @@ export const DELETE = withRateLimit<{ params: Promise<{ venueId: string; categor
       return NextResponse.json({ error: "Invalid category id" }, { status: 400 })
     }
 
-    const gate = await requireXvmVenueId(venueId)
-    if (gate.error) return gate.error
+    const lookup = await requireMyVenue(session.user.id, venueId, "[finance-categories/[categoryId]] /me/venues read error")
+    if (!lookup.ok) return lookup.response
 
     try {
-      await deleteFinanceCategory(token, gate.xvmApiVenueId!, categoryIdNum)
+      await deleteFinanceCategory(token, lookup.venue.id, categoryIdNum)
       return new NextResponse(null, { status: 204 })
     } catch (err) {
       return xvmApiErrorResponse(err, session.user.id, "[finance-categories] DELETE error")

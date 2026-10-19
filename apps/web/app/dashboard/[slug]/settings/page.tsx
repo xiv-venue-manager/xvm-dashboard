@@ -12,9 +12,10 @@ import { GalleryManager } from "@/components/gallery-manager"
 import { FinanceCategoriesSettings } from "@/components/finance-categories-settings"
 import { BannerUpload } from "@/components/banner-upload"
 import { LogoUpload } from "@/components/logo-upload"
+import { DiscordGuildConnect } from "@/components/discord-guild-connect"
+import { ChannelPicker } from "@/components/discord-picker"
 import type { VenueImage } from "@/lib/api/xvm-api"
 import { Checkbox } from "@/components/ui/checkbox"
-import { Card, CardContent, CardDescription, CardHeader, CardTitle } from "@/components/ui/card"
 import { Select, SelectContent, SelectItem, SelectTrigger, SelectValue } from "@/components/ui/select"
 import { Alert, AlertDescription } from "@/components/ui/alert"
 import {
@@ -32,7 +33,7 @@ import { PageLoading } from "@/components/ui/loading-spinner"
 import { LocalTime } from "@/components/server-time"
 import type { VenueSettings } from "@xiv-venue-manager/types"
 import type { ListingLinkRow, ListingSummary } from "@/lib/api/xvm-api"
-import { FFXIV_DISTRICTS } from "@/lib/venue-location"
+import { FFXIV_DISTRICTS, addressProblem, isDistrict } from "@/lib/venue-location"
 import { canManageVenue } from "@/lib/roles"
 
 const SETTINGS_LOAD_TIMEOUT_MS = 8000
@@ -66,11 +67,12 @@ export default function SettingsPage({ params }: { params: Promise<{ slug: strin
   // Venue profile DB fields (saved separately)
   const [venueName, setVenueName] = useState("")
   const [venueDescription, setVenueDescription] = useState("")
-  const [venueDistrict, setVenueDistrict] = useState<string>("__none__")
+  const [venueDistrict, setVenueDistrict] = useState<string>("")
   const [venueWard, setVenueWard] = useState<string>("")
   const [venuePlot, setVenuePlot] = useState<string>("")
   const [venueApartment, setVenueApartment] = useState<string>("")
   const [housingType, setHousingType] = useState<"house" | "apartment">("house")
+  const [venueBuilding, setVenueBuilding] = useState<"" | "main" | "subdivision">("")
   const [venueDataCenter, setVenueDataCenter] = useState("")
   const [venueWorld, setVenueWorld] = useState("")
   const [tagInput, setTagInput] = useState("")
@@ -81,9 +83,17 @@ export default function SettingsPage({ params }: { params: Promise<{ slug: strin
   const [error, setError] = useState("")
   const [success, setSuccess] = useState(false)
   const [isDeleting, setIsDeleting] = useState(false)
-  const [isSyncing, setIsSyncing] = useState(false)
-  const [syncResult, setSyncResult] = useState("")
   const [venueId, setVenueId] = useState<string>("")
+
+  const locationProblem = isLoading
+    ? null
+    : addressProblem({
+        district: venueDistrict,
+        ward: venueWard ? parseInt(venueWard, 10) : null,
+        plot: housingType === "house" && venuePlot ? parseInt(venuePlot, 10) : null,
+        apartment: housingType === "apartment" && venueApartment ? parseInt(venueApartment, 10) : null,
+        subdivision: housingType === "apartment" && venueBuilding ? venueBuilding === "subdivision" : null,
+      })
   const [userRole, setUserRole] = useState<string>("")
   const [galleryImages, setGalleryImages] = useState<VenueImage[]>([])
   const [bannerUrl, setBannerUrl] = useState<string | null>(null)
@@ -151,7 +161,7 @@ export default function SettingsPage({ params }: { params: Promise<{ slug: strin
         setVenueId(venue.id)
         setVenueDataCenter(venue.dataCenter ?? "")
         setVenueWorld(venue.world ?? "")
-        fetch(`/api/venues/${venue.id}/gallery`)
+        fetch(`/api/venues/${slug}/gallery`)
           .then((res) => (res.ok ? res.json() : []))
           .then((images: VenueImage[]) => setGalleryImages(images))
           .catch(() => setGalleryImages([]))
@@ -169,11 +179,12 @@ export default function SettingsPage({ params }: { params: Promise<{ slug: strin
           setXvmUnavailable(!!settingsData.visibilityDegraded)
           setVenueName(settingsData.name ?? "")
           setVenueDescription(settingsData.description ?? "")
-          setVenueDistrict(settingsData.district ?? "__none__")
+          setVenueDistrict(isDistrict(settingsData.district) ? settingsData.district : "")
           setVenueWard(settingsData.ward != null ? String(settingsData.ward) : "")
           setVenuePlot(settingsData.plot != null ? String(settingsData.plot) : "")
           setVenueApartment(settingsData.apartment != null ? String(settingsData.apartment) : "")
           setHousingType(settingsData.apartment != null ? "apartment" : "house")
+          setVenueBuilding(settingsData.subdivision === true ? "subdivision" : settingsData.subdivision === false ? "main" : "")
           setBannerUrl(settingsData.bannerUrl ?? null)
           setLogoUrl(settingsData.logoUrl ?? null)
           setSettings({
@@ -206,10 +217,10 @@ export default function SettingsPage({ params }: { params: Promise<{ slug: strin
           setShiftBotTemplates(settingsData.shiftBot?.templates ?? [])
         }
 
-        const potLoad = loadPotSettings(venue.id).catch(() => {})
+        const potLoad = loadPotSettings(slug).catch(() => {})
 
         if (venue.xvmApiVenueId) {
-          fetch(`/api/venues/${venue.id}/ffxivvenues`)
+          fetch(`/api/venues/${slug}/ffxivvenues`)
             .then((r) => (r.ok ? r.json() : null))
             .then((data: ListingLinkRow | null) => setFfxivLink(data && !data.unlinked_at ? data : null))
             .catch(() => setFfxivLink(null))
@@ -254,6 +265,7 @@ export default function SettingsPage({ params }: { params: Promise<{ slug: strin
     venueWard,
     venuePlot,
     venueApartment,
+    venueBuilding,
     housingType,
     shiftBotEnabled,
     shiftBotChannelId,
@@ -279,18 +291,20 @@ export default function SettingsPage({ params }: { params: Promise<{ slug: strin
 
     try {
       if (!venueId) throw new Error("Venue not loaded")
+      if (locationProblem) throw new Error(`Venue location: ${locationProblem}`)
 
       // Save venue profile DB fields (name, description) via PATCH
-      const profileRes = await fetch(`/api/venues/${venueId}`, {
+      const profileRes = await fetch(`/api/venues/${slug}`, {
         method: "PATCH",
         headers: { "Content-Type": "application/json" },
         body: JSON.stringify({
           name: venueName.trim() || undefined,
           description: venueDescription || null,
-          district: venueDistrict && venueDistrict !== "__none__" ? venueDistrict : null,
+          district: venueDistrict || null,
           ward: venueWard ? parseInt(venueWard, 10) : null,
           plot: housingType === "house" && venuePlot ? parseInt(venuePlot, 10) : null,
           apartment: housingType === "apartment" && venueApartment ? parseInt(venueApartment, 10) : null,
+          subdivision: housingType === "apartment" && venueBuilding ? venueBuilding === "subdivision" : null,
         }),
       })
       if (!profileRes.ok) {
@@ -319,7 +333,7 @@ export default function SettingsPage({ params }: { params: Promise<{ slug: strin
       }
 
       // Save pot payroll settings (separate relational table, own route)
-      const potSettingsRes = await fetch(`/api/venues/${venueId}/pot-settings`, {
+      const potSettingsRes = await fetch(`/api/venues/${slug}/pot-settings`, {
         method: "PUT",
         headers: { "Content-Type": "application/json" },
         body: JSON.stringify({
@@ -404,7 +418,7 @@ export default function SettingsPage({ params }: { params: Promise<{ slug: strin
     setFfxivLoading(true)
     setFfxivError(null)
     try {
-      const res = await fetch(`/api/venues/${venueId}/ffxivvenues`, {
+      const res = await fetch(`/api/venues/${slug}/ffxivvenues`, {
         method: "POST",
         headers: { "Content-Type": "application/json" },
         body: JSON.stringify({ ffxivvenuesId: ffxivSelected }),
@@ -422,7 +436,7 @@ export default function SettingsPage({ params }: { params: Promise<{ slug: strin
     setFfxivSyncing(true)
     setFfxivError(null)
     try {
-      const res = await fetch(`/api/venues/${venueId}/ffxivvenues/sync`, { method: "POST" })
+      const res = await fetch(`/api/venues/${slug}/ffxivvenues/sync`, { method: "POST" })
       const body = await res.json().catch(() => null)
       if (res.status === 404 || res.status === 409) setFfxivLink(null)
       if (!res.ok) throw new Error(body?.error ?? "Sync failed")
@@ -442,7 +456,7 @@ export default function SettingsPage({ params }: { params: Promise<{ slug: strin
     setFfxivUnlinking(true)
     setFfxivError(null)
     try {
-      const res = await fetch(`/api/venues/${venueId}/ffxivvenues`, { method: "DELETE" })
+      const res = await fetch(`/api/venues/${slug}/ffxivvenues`, { method: "DELETE" })
       if (!res.ok && res.status !== 204 && res.status !== 404) {
         const body = await res.json().catch(() => null)
         throw new Error(body?.error ?? "Failed to unlink")
@@ -476,7 +490,7 @@ export default function SettingsPage({ params }: { params: Promise<{ slug: strin
       const result = await res.json()
       setXvmApiVenueId(result.id)
       setXvmApiVenueLinkedAt(new Date().toISOString())
-      loadPotSettings(venueId).catch(() => {})
+      loadPotSettings(slug).catch(() => {})
     } catch (e) {
       setXvmConnectError(e instanceof Error ? e.message : "Failed to connect")
     } finally {
@@ -667,7 +681,7 @@ export default function SettingsPage({ params }: { params: Promise<{ slug: strin
                   </p>
                   {venueId && (
                     <LogoUpload
-                      venueId={venueId}
+                      venueSlug={slug}
                       initialUrl={logoUrl}
                       galleryImages={galleryImages.map((img) => img.image_url)}
                       onUpdate={setLogoUrl}
@@ -677,7 +691,7 @@ export default function SettingsPage({ params }: { params: Promise<{ slug: strin
                 <div className="border-t border-[var(--blue-015)]" />
                 <div className="space-y-1.5">
                   <Label>Banner image</Label>
-                  {venueId && <BannerUpload venueId={venueId} initialUrl={bannerUrl} onUpdate={setBannerUrl} />}
+                  {venueId && <BannerUpload venueSlug={slug} initialUrl={bannerUrl} onUpdate={setBannerUrl} />}
                 </div>
                 <div className="space-y-1.5">
                   <Label htmlFor="venue-desc">Description</Label>
@@ -716,7 +730,7 @@ export default function SettingsPage({ params }: { params: Promise<{ slug: strin
                 <p className="text-xs text-[var(--fg-faint)] mb-4">
                   Upload photos of your venue. They appear on your public profile. Max 9 images, 10 MB each.
                 </p>
-                {venueId && <GalleryManager venueId={venueId} initialImages={galleryImages} />}
+                {venueId && <GalleryManager venueSlug={slug} initialImages={galleryImages} />}
               </div>
             </section>
 
@@ -810,7 +824,6 @@ export default function SettingsPage({ params }: { params: Promise<{ slug: strin
                         <SelectValue placeholder="Select…" />
                       </SelectTrigger>
                       <SelectContent>
-                        <SelectItem value="__none__">— None —</SelectItem>
                         {FFXIV_DISTRICTS.map((d) => (
                           <SelectItem key={d} value={d}>
                             {d}
@@ -865,6 +878,32 @@ export default function SettingsPage({ params }: { params: Promise<{ slug: strin
                     </div>
                   )}
                 </div>
+                {housingType === "apartment" && (
+                  <div className="space-y-1.5">
+                    <Label>Building</Label>
+                    <div className="flex gap-2">
+                      <Button
+                        type="button"
+                        variant={venueBuilding === "main" ? "default" : "outline"}
+                        size="sm"
+                        disabled={isSaving}
+                        onClick={() => setVenueBuilding("main")}
+                      >
+                        Main
+                      </Button>
+                      <Button
+                        type="button"
+                        variant={venueBuilding === "subdivision" ? "default" : "outline"}
+                        size="sm"
+                        disabled={isSaving}
+                        onClick={() => setVenueBuilding("subdivision")}
+                      >
+                        Subdivision
+                      </Button>
+                    </div>
+                  </div>
+                )}
+                {locationProblem && <p className="text-[0.78rem] text-[var(--destructive)]">{locationProblem}</p>}
                 <div className="grid grid-cols-1 sm:grid-cols-2 gap-4">
                   <p className="col-span-full text-[0.72rem] text-[var(--fg-faint)] mb-2">
                     Legacy free-text hours — use the schedule section above instead.
@@ -967,10 +1006,10 @@ export default function SettingsPage({ params }: { params: Promise<{ slug: strin
                   <div className="idesc">In-game sales, clock-in and patron capture</div>
                 </div>
                 <Link
-                  href={`/dashboard/${slug}/settings/api-keys`}
+                  href="/dashboard/api-keys"
                   className="text-xs font-semibold text-[var(--xiv-blue)] hover:underline shrink-0"
                 >
-                  Manage API Keys →
+                  Link the plugin →
                 </Link>
               </div>
 
@@ -1155,39 +1194,7 @@ export default function SettingsPage({ params }: { params: Promise<{ slug: strin
                       min={1}
                       className="flex-1 bg-background border-[var(--blue-015)] focus:border-[var(--blue-035)] text-sm h-9"
                     />
-                    {settings.partakeTeamId && (
-                      <Button
-                        type="button"
-                        variant="outline-blue"
-                        size="sm"
-                        disabled={isSyncing}
-                        onClick={async () => {
-                          setIsSyncing(true)
-                          setSyncResult("")
-                          try {
-                            const res = await fetch(`/api/venues/${venueId}/sync-partake`, { method: "POST" })
-                            if (!res.ok) {
-                              const d = await res.json()
-                              throw new Error(d.error || "Sync failed")
-                            }
-                            const d = await res.json()
-                            setSyncResult(`Synced: ${d.results.created} new, ${d.results.updated} updated`)
-                            setTimeout(() => setSyncResult(""), 5000)
-                          } catch (err: unknown) {
-                            setSyncResult(err instanceof Error ? err.message : "Sync failed")
-                          } finally {
-                            setIsSyncing(false)
-                          }
-                        }}
-                      >
-                        {isSyncing ? "Syncing…" : "Sync now"}
-                      </Button>
-                    )}
                   </div>
-                  {syncResult && <p className="text-xs text-emerald-400">{syncResult}</p>}
-                  {settings.partakeTeamId && (
-                    <p className="text-xs text-[var(--fg-faint)]">Syncs automatically every hour.</p>
-                  )}
                 </div>
               </div>
 
@@ -1351,6 +1358,29 @@ export default function SettingsPage({ params }: { params: Promise<{ slug: strin
               </div>
             </section>
 
+            {/* ── Discord server ── */}
+            <section className="panel">
+              <div className="ph">
+                <span className="pt">
+                  <svg xmlns="http://www.w3.org/2000/svg" viewBox="0 0 24 24" fill="none" stroke="currentColor" strokeWidth="2">
+                    <path d="M20.84 4.61a5.5 5.5 0 0 0-7.78 0L12 5.67l-1.06-1.06a5.5 5.5 0 0 0-7.78 7.78l1.06 1.06L12 21.23l7.78-7.78 1.06-1.06a5.5 5.5 0 0 0 0-7.78z" />
+                  </svg>
+                  Discord server
+                </span>
+              </div>
+              <div className="introw" style={{ flexWrap: "wrap", gap: 14 }}>
+                <div className="iinfo">
+                  <div className="iname">Connected server</div>
+                  <div className="idesc">Which Discord server this venue belongs to</div>
+                </div>
+                {userRole === "OWNER" ? (
+                  <DiscordGuildConnect venueSlug={slug} />
+                ) : (
+                  <p className="text-xs text-[var(--fg-faint)]">Only the venue owner can change this.</p>
+                )}
+              </div>
+            </section>
+
             {/* ── Discord Shift Bot ── */}
             <section className="panel">
               <div className="ph">
@@ -1402,13 +1432,17 @@ export default function SettingsPage({ params }: { params: Promise<{ slug: strin
                   <div className="w-full pl-[54px] space-y-4">
                     <div>
                       <label className="block text-sm font-medium mb-1">Discord Channel ID</label>
-                      <input
-                        type="text"
-                        value={shiftBotChannelId}
-                        onChange={(e) => setShiftBotChannelId(e.target.value)}
-                        placeholder="Right-click channel → Copy ID"
-                        className="flex-1 w-full rounded-[var(--radius-sm)] border border-[var(--blue-015)] bg-background px-3 py-1.5 text-sm focus:border-[var(--blue-035)] focus:outline-none"
-                      />
+                      {venueId ? (
+                        <ChannelPicker venueId={slug} value={shiftBotChannelId} onChange={setShiftBotChannelId} className="flex-1 min-w-44" />
+                      ) : (
+                        <input
+                          type="text"
+                          value={shiftBotChannelId}
+                          onChange={(e) => setShiftBotChannelId(e.target.value)}
+                          placeholder="Right-click channel → Copy ID"
+                          className="flex-1 w-full rounded-[var(--radius-sm)] border border-[var(--blue-015)] bg-background px-3 py-1.5 text-sm focus:border-[var(--blue-035)] focus:outline-none"
+                        />
+                      )}
                       <p className="text-xs text-[var(--fg-faint)] mt-1">
                         Enable Developer Mode in Discord settings to copy channel IDs.{" "}
                         <a
@@ -1622,7 +1656,7 @@ export default function SettingsPage({ params }: { params: Promise<{ slug: strin
                     <div className="idesc">Group transactions for reporting — optional, sales work without one</div>
                   </div>
                   <div className="w-full">
-                    <FinanceCategoriesSettings key={xvmApiVenueId ?? "disconnected"} venueId={venueId} />
+                    <FinanceCategoriesSettings key={xvmApiVenueId ?? "disconnected"} venueSlug={slug} />
                   </div>
                 </div>
               )}

@@ -1,7 +1,7 @@
 import { getServerSession } from "next-auth"
 import { authOptions } from "@/lib/auth"
 import { redirect, notFound } from "next/navigation"
-import { prisma } from "@/lib/prisma"
+import { resolveMyVenue } from "@/lib/api/venue-access"
 import { VenueLayout } from "@/components/venue-layout"
 import { TimelineFeed } from "@/components/timeline-feed"
 
@@ -18,18 +18,10 @@ export default async function TimelinePage({
   const { slug } = await params
   const { type } = await searchParams
 
-  const venue = await prisma.venue.findUnique({
-    where: { slug },
-    include: {
-      memberships: {
-        where: { userId: session.user.id },
-      },
-    },
-  })
+  const venue = await resolveMyVenue(session.user.id, slug)
+  if (!venue) notFound()
+  const userRole = venue.role
 
-  if (!venue || venue.memberships.length === 0) notFound()
-
-  const userRole = venue.memberships[0].role
   const initialFilter = type === "sales" || type === "patrons" ? type : "all"
 
   return (

@@ -7,9 +7,6 @@ import { checkLimit, getIp, buildRateLimitResponse } from "@/lib/rate-limit"
  * Wraps a handler and checks the requesting IP against a per-route budget.
  * Backed by the shared Redis limiter when available, in-memory fallback
  * otherwise (see lib/rate-limit.ts).
- *
- * Plugin routes do NOT use this - they key off the API key via
- * lib/api/plugin-rate-limit.ts so shared-NAT users aren't collapsed.
  */
 export function withRateLimit<T = unknown>(
   handler: (req: NextRequest, context?: T) => Promise<NextResponse>,

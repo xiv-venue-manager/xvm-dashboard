@@ -2,9 +2,9 @@ import { NextResponse } from "next/server"
 import { getServerSession } from "next-auth"
 import { authOptions } from "@/lib/auth"
 import { z } from "zod"
-import { prisma } from "@/lib/prisma"
 import { withRateLimit } from "@/lib/middleware/with-rate-limit"
 import { getValidXvmApiToken, xvmApiErrorResponse } from "@/lib/api/xvm-api-store"
+import { requireMyVenue } from "@/lib/api/venue-access"
 import { listFinanceCategories, createFinanceCategory } from "@/lib/api/xvm-api"
 
 const createCategorySchema = z
@@ -14,19 +14,6 @@ const createCategorySchema = z
     applies_to: z.enum(["revenue", "expense", "payout"]).nullable().optional(),
   })
   .strict()
-
-async function requireXvmVenueId(venueId: string) {
-  const venue = await prisma.venue.findUnique({ where: { id: venueId }, select: { xvmApiVenueId: true } })
-  if (!venue?.xvmApiVenueId) {
-    return {
-      error: NextResponse.json(
-        { error: "not_connected", message: "This venue hasn't been connected to xvm-api yet." },
-        { status: 409 }
-      ),
-    }
-  }
-  return { xvmApiVenueId: venue.xvmApiVenueId }
-}
 
 export const GET = withRateLimit<{ params: Promise<{ venueId: string }> }>(
   async (request, context) => {
@@ -44,11 +31,11 @@ export const GET = withRateLimit<{ params: Promise<{ venueId: string }> }>(
 
     const { venueId } = await context.params
 
-    const gate = await requireXvmVenueId(venueId)
-    if (gate.error) return gate.error
+    const lookup = await requireMyVenue(session.user.id, venueId, "[finance-categories] /me/venues read error")
+    if (!lookup.ok) return lookup.response
 
     try {
-      const categories = await listFinanceCategories(token, gate.xvmApiVenueId!)
+      const categories = await listFinanceCategories(token, lookup.venue.id)
       return NextResponse.json(categories)
     } catch (err) {
       return xvmApiErrorResponse(err, session.user.id, "[finance-categories] GET error")
@@ -73,8 +60,8 @@ export const POST = withRateLimit<{ params: Promise<{ venueId: string }> }>(
 
     const { venueId } = await context.params
 
-    const gate = await requireXvmVenueId(venueId)
-    if (gate.error) return gate.error
+    const lookup = await requireMyVenue(session.user.id, venueId, "[finance-categories] /me/venues read error")
+    if (!lookup.ok) return lookup.response
 
     let data: z.infer<typeof createCategorySchema>
     try {
@@ -87,7 +74,7 @@ export const POST = withRateLimit<{ params: Promise<{ venueId: string }> }>(
     }
 
     try {
-      const category = await createFinanceCategory(token, gate.xvmApiVenueId!, data)
+      const category = await createFinanceCategory(token, lookup.venue.id, data)
       return NextResponse.json(category, { status: 201 })
     } catch (err) {
       return xvmApiErrorResponse(err, session.user.id, "[finance-categories] POST error")

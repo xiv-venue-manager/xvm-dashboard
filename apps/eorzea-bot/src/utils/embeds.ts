@@ -66,29 +66,6 @@ export function newVenueEmbed(venue: VenueInfo) {
     .setTimestamp()
 }
 
-export function weeklySummaryEmbed(stats: {
-  newVenues: number
-  eventsHosted: number
-  patronVisits: number
-  newStaff: number
-  weekStart: Date
-}) {
-  const weekLabel = stats.weekStart.toLocaleDateString("en-GB", { day: "numeric", month: "long", timeZone: "UTC" })
-  const lines = [
-    `🏛️ **${stats.newVenues}** new venue${stats.newVenues !== 1 ? "s" : ""} joined`,
-    `🟢 **${stats.eventsHosted}** event${stats.eventsHosted !== 1 ? "s" : ""} hosted`,
-    `👥 **${stats.patronVisits}** patron visit${stats.patronVisits !== 1 ? "s" : ""} logged`,
-    `✨ **${stats.newStaff}** new staff member${stats.newStaff !== 1 ? "s" : ""} joined`,
-  ]
-  return new EmbedBuilder()
-    .setColor(XIV_BLUE)
-    .setTitle("📋 Weekly Summary")
-    .setDescription(`Here's what happened in the realm this week (w/c ${weekLabel}):\n\n${lines.join("\n")}`)
-    .setURL(`${SITE}/discover`)
-    .setFooter({ text: "XIV Venue Manager" })
-    .setTimestamp()
-}
-
 export function venueGraduationEmbed(venue: VenueInfo, milestone: number) {
   return new EmbedBuilder()
     .setColor(XIV_BLUE)

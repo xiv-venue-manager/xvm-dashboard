@@ -1,7 +1,7 @@
 import { NextResponse } from "next/server"
 import { getServerSession } from "next-auth"
 import { authOptions } from "@/lib/auth"
-import { prisma } from "@/lib/prisma"
+import { requireMyVenue } from "@/lib/api/venue-access"
 import { z } from "zod"
 import { withRateLimit } from "@/lib/middleware/with-rate-limit"
 import { validators } from "@/lib/validation"
@@ -56,25 +56,14 @@ async function authorize(context: RouteContext | undefined) {
     return { error: NextResponse.json({ error: "Event not found" }, { status: 404 }) }
   }
 
-  const venue = await prisma.venue.findUnique({
-    where: { id: venueId },
-    select: { xvmApiVenueId: true, settings: true },
-  })
-  if (!venue?.xvmApiVenueId) {
-    return {
-      error: NextResponse.json(
-        { error: "not_connected", message: "This venue hasn't been connected to xvm-api yet." },
-        { status: 409 }
-      ),
-    }
-  }
+  const lookup = await requireMyVenue(session.user.id, venueId, "[events] /me/venues read error")
+  if (!lookup.ok) return { error: lookup.response }
 
   return {
     userId: session.user.id,
     token,
-    venueId,
-    venue,
-    xvmApiVenueId: venue.xvmApiVenueId,
+    venue: lookup.venue,
+    xvmApiVenueId: lookup.venue.id,
     eventId: Number(eventId),
   }
 }
@@ -84,20 +73,13 @@ export const GET = withRateLimit<RouteContext>(
     const auth = await authorize(context)
     if (auth.error) return auth.error
 
-    const membership = await prisma.membership.findFirst({
-      where: { userId: auth.userId, venueId: auth.venueId, status: "active" },
-    })
-    if (!membership) {
-      return NextResponse.json({ error: "Access denied" }, { status: 403 })
-    }
-
     try {
       const event = await getEvent(auth.token, auth.xvmApiVenueId, auth.eventId)
       const shape = toDashboardEventShape(event, {
         creatorName: await creatorNameOf(auth.token, auth.xvmApiVenueId, event),
       })
       const shownStatus = shape.status === "DRAFT" ? "DRAFT" : "PUBLISHED"
-      if (await eventHiddenFromStaff(auth.userId, membership.role, auth.venue, shownStatus)) {
+      if (await eventHiddenFromStaff(auth.userId, auth.venue.role, auth.xvmApiVenueId, shownStatus)) {
         return NextResponse.json({ error: "Event not found" }, { status: 404 })
       }
       return NextResponse.json(shape)

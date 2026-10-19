@@ -17,7 +17,16 @@ export async function GET(request: Request) {
     )
   }
 
-  const s = await getPublicStats()
+  let s
+  try {
+    s = await getPublicStats()
+  } catch (error) {
+    console.error("Homepage stats error:", error)
+    return NextResponse.json(
+      { error: "Stats unavailable" },
+      { status: 500, headers: { "Access-Control-Allow-Origin": "*" } }
+    )
+  }
 
   const response = NextResponse.json({
     totalVenues: s.venuesTotal,

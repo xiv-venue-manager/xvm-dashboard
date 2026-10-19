@@ -1,26 +1,10 @@
 import { NextResponse } from "next/server"
 import { getServerSession } from "next-auth"
 import { authOptions } from "@/lib/auth"
-import { prisma } from "@/lib/prisma"
 import { withRateLimit } from "@/lib/middleware/with-rate-limit"
 import { getValidXvmApiToken, getValidXvmApiPersonId, xvmApiErrorResponse } from "@/lib/api/xvm-api-store"
+import { requireMyVenue } from "@/lib/api/venue-access"
 import { rehireMembership, listMemberships } from "@/lib/api/xvm-api"
-
-async function requireXvmVenueId(venueId: string) {
-  const venue = await prisma.venue.findFirst({
-    where: { OR: [{ id: venueId }, { slug: venueId }] },
-    select: { xvmApiVenueId: true },
-  })
-  if (!venue?.xvmApiVenueId) {
-    return {
-      error: NextResponse.json(
-        { error: "not_connected", message: "This venue hasn't been connected to xvm-api yet." },
-        { status: 409 }
-      ),
-    }
-  }
-  return { xvmApiVenueId: venue.xvmApiVenueId }
-}
 
 export const POST = withRateLimit<{ params: Promise<{ venueId: string; membershipId: string }> }>(
   async (request, context) => {
@@ -44,12 +28,12 @@ export const POST = withRateLimit<{ params: Promise<{ venueId: string; membershi
       return NextResponse.json({ error: "Staff member not found" }, { status: 404 })
     }
 
-    const gate = await requireXvmVenueId(venueId)
-    if (gate.error) return gate.error
+    const lookup = await requireMyVenue(session.user.id, venueId, "[staff/rehire] /me/venues read error")
+    if (!lookup.ok) return lookup.response
 
     try {
       const callerPersonId = await getValidXvmApiPersonId(session.user.id)
-      const memberships = await listMemberships(token, gate.xvmApiVenueId!)
+      const memberships = await listMemberships(token, lookup.venue.id)
 
       const targetMembership = memberships.find((m) => m.id === id)
       if (!targetMembership) {
@@ -69,7 +53,7 @@ export const POST = withRateLimit<{ params: Promise<{ venueId: string; membershi
         return NextResponse.json({ error: "Managers can only rehire former staff" }, { status: 403 })
       }
 
-      const rehired = await rehireMembership(token, gate.xvmApiVenueId!, id)
+      const rehired = await rehireMembership(token, lookup.venue.id, id)
       return NextResponse.json({ success: true, membership: rehired })
     } catch (err) {
       return xvmApiErrorResponse(err, session.user.id, "[staff] rehire error")

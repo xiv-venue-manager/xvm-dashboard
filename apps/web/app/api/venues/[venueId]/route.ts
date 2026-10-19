@@ -7,6 +7,8 @@ import { withRateLimit } from "@/lib/middleware/with-rate-limit"
 import { invalidateCache, cacheKeys } from "@/lib/redis-cache"
 import { validators } from "@/lib/validation"
 import { getValidXvmApiToken, xvmApiErrorResponse } from "@/lib/api/xvm-api-store"
+import { requireMyVenue, requireVenueRole } from "@/lib/api/venue-access"
+import { addressProblem } from "@/lib/venue-location"
 import { updateVenue, type VenueUpdate } from "@/lib/api/xvm-api"
 
 const venueUpdateSchema = z.object({
@@ -16,22 +18,10 @@ const venueUpdateSchema = z.object({
   ward: validators.venueWard,
   plot: validators.venuePlot,
   apartment: validators.venueApartment,
+  subdivision: validators.venueSubdivision,
   bannerUrl: validators.url,
   logoUrl: validators.url,
 })
-
-async function requireXvmVenueId(venueId: string) {
-  const venue = await prisma.venue.findUnique({ where: { id: venueId }, select: { xvmApiVenueId: true, slug: true } })
-  if (!venue?.xvmApiVenueId) {
-    return {
-      error: NextResponse.json(
-        { error: "not_connected", message: "This venue hasn't been connected to xvm-api yet." },
-        { status: 409 }
-      ),
-    }
-  }
-  return { xvmApiVenueId: venue.xvmApiVenueId, slug: venue.slug }
-}
 
 export const PATCH = withRateLimit<{ params: Promise<{ venueId: string }> }>(
   async (request, context) => {
@@ -49,8 +39,8 @@ export const PATCH = withRateLimit<{ params: Promise<{ venueId: string }> }>(
     const token = await getValidXvmApiToken(session.user.id)
     if (!token) return NextResponse.json({ error: "xvm-api link not established yet" }, { status: 503 })
 
-    const gate = await requireXvmVenueId(venueId)
-    if (gate.error) return gate.error
+    const lookup = await requireMyVenue(session.user.id, venueId, "[venue] /me/venues read error")
+    if (!lookup.ok) return lookup.response
 
     const body = await request.json()
     let parsed: z.infer<typeof venueUpdateSchema>
@@ -62,7 +52,13 @@ export const PATCH = withRateLimit<{ params: Promise<{ venueId: string }> }>(
       }
       throw error
     }
-    const { name, description, district, ward, plot, apartment, bannerUrl, logoUrl } = parsed
+    const { name, description, district, ward, plot, apartment, subdivision, bannerUrl, logoUrl } = parsed
+
+    const sendsLocation = [district, ward, plot, apartment, subdivision].some((field) => field !== undefined)
+    if (sendsLocation) {
+      const addressError = addressProblem({ district, ward, plot, apartment, subdivision })
+      if (addressError) return NextResponse.json({ error: addressError }, { status: 400 })
+    }
 
     // apartment -> room: Prisma's "apartment" column has always meant the
     // apartment unit number (UI-labelled "Room" already). xvm-api has a
@@ -76,15 +72,16 @@ export const PATCH = withRateLimit<{ params: Promise<{ venueId: string }> }>(
       ...(ward !== undefined && { ward }),
       ...(plot !== undefined && { plot }),
       ...(apartment !== undefined && { room: apartment }),
+      ...(subdivision !== undefined && { subdivision: apartment != null ? subdivision : null }),
       ...(bannerUrl !== undefined && { banner_url: bannerUrl ?? null }),
       ...(logoUrl !== undefined && { logo_url: logoUrl ?? null }),
     }
 
     try {
-      const updated = await updateVenue(token, gate.xvmApiVenueId!, xvmUpdate)
+      const updated = await updateVenue(token, lookup.venue.id, xvmUpdate)
       await Promise.all([
         invalidateCache(cacheKeys.venue(venueId)),
-        invalidateCache(cacheKeys.venueBySlug(gate.slug!)),
+        invalidateCache(cacheKeys.venueBySlug(lookup.venue.slug)),
         invalidateCache(cacheKeys.userVenues(session.user.id)),
       ])
       return NextResponse.json(updated)
@@ -110,25 +107,12 @@ export const DELETE = withRateLimit(
 
       const { venueId } = await context.params
 
-      // Check if venue exists and user is the owner
-      const venue = await prisma.venue.findUnique({
-        where: { id: venueId },
-        include: {
-          memberships: {
-            where: {
-              userId: session.user.id,
-            },
-          },
-        },
-      })
+      const access = await requireVenueRole(session.user.id, venueId, "OWNER", "Only venue owners can delete venues")
+      if (!access.ok) return access.response
 
+      const venue = await prisma.venue.findUnique({ where: { id: venueId } })
       if (!venue) {
         return NextResponse.json({ error: "Venue not found" }, { status: 404 })
-      }
-
-      // Only owners can delete venues
-      if (venue.memberships.length === 0 || venue.memberships[0].role !== "OWNER") {
-        return NextResponse.json({ error: "Only venue owners can delete venues" }, { status: 403 })
       }
 
       // Delete venue (cascade will handle related records)

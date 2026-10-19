@@ -12,6 +12,7 @@ import {
 } from "@/lib/discord-webhook"
 import { notifyVenueOwners } from "@/lib/notify"
 import { resolveDisplayName } from "@/lib/display-name"
+import { invalidateCache, cacheKeys } from "@/lib/redis-cache"
 
 export async function POST(request: Request, { params }: { params: Promise<{ token: string }> }) {
   const session = await getServerSession(authOptions)
@@ -28,6 +29,8 @@ export async function POST(request: Request, { params }: { params: Promise<{ tok
 
   try {
     const membership = await acceptInvite(personToken, token)
+
+    await invalidateCache(cacheKeys.userVenues(session.user.id))
 
     const venue = await prisma.venue.findFirst({
       where: { xvmApiVenueId: membership.venue_id },

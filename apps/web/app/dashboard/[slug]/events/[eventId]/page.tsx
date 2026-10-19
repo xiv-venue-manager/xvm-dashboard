@@ -6,7 +6,7 @@ import { Button } from "@/components/ui/button"
 import { VenueLayout } from "@/components/venue-layout"
 import { Card, CardContent, CardDescription, CardHeader, CardTitle } from "@/components/ui/card"
 import { Badge } from "@/components/ui/badge"
-import { prisma } from "@/lib/prisma"
+import { resolveMyVenue } from "@/lib/api/venue-access"
 import { DeleteEventButton } from "@/components/delete-event-button"
 import { CancelSeriesButton } from "@/components/cancel-series-button"
 import { GeneratePotPayrollButton } from "@/components/generate-pot-payroll-button"
@@ -16,7 +16,7 @@ import { renderPartakeProse } from "@/lib/render-partake-prose"
 import { formatVenueLocationShort } from "@/lib/venue-location"
 import { eventHiddenFromStaff } from "@/lib/event-visibility"
 import { xvmPageReader } from "@/lib/api/xvm-page-read"
-import { getEvent, getPotDistribution, XvmApiError } from "@/lib/api/xvm-api"
+import { getEvent, getPotDistribution, getVenue, XvmApiError } from "@/lib/api/xvm-api"
 import { eventRevenueGil } from "@/lib/api/event-revenue"
 import { creatorNameOf } from "@/lib/api/event-creator"
 import { toDashboardEventShape } from "@/lib/api/event-shape"
@@ -47,27 +47,15 @@ export default async function EventDetailsPage({ params }: { params: Promise<{ s
 
   const { slug, eventId } = await params
 
-  // Get venue
-  const venue = await prisma.venue.findUnique({
-    where: { slug },
-    include: {
-      memberships: {
-        where: {
-          userId: session.user.id,
-        },
-      },
-    },
-  })
-
-  if (!venue || venue.memberships.length === 0) {
-    notFound()
-  }
+  const venue = await resolveMyVenue(session.user.id, slug)
+  if (!venue) notFound()
+  const userRole = venue.role
 
   if (!/^\d+$/.test(eventId)) {
     notFound()
   }
 
-  const readXvm = await xvmPageReader(session.user.id, venue.xvmApiVenueId)
+  const readXvm = await xvmPageReader(session.user.id, venue.id)
   const event = await readXvm("event-detail", null, async (token, xvmApiVenueId) => {
     const row = await getEvent(token, xvmApiVenueId, Number(eventId))
     return toDashboardEventShape(row, { creatorName: await creatorNameOf(token, xvmApiVenueId, row) })
@@ -77,8 +65,7 @@ export default async function EventDetailsPage({ params }: { params: Promise<{ s
     notFound()
   }
 
-  const userRole = venue.memberships[0].role
-  if (await eventHiddenFromStaff(session.user.id, userRole, venue, event.status === "DRAFT" ? "DRAFT" : "PUBLISHED")) {
+  if (await eventHiddenFromStaff(session.user.id, userRole, venue.id, event.status === "DRAFT" ? "DRAFT" : "PUBLISHED")) {
     notFound()
   }
   const canEdit = ["OWNER", "MANAGER"].includes(userRole)
@@ -90,6 +77,10 @@ export default async function EventDetailsPage({ params }: { params: Promise<{ s
       endTime: new Date(event.endTime),
     })
   )
+  const venueLocation = await readXvm("event-detail venue location", null, async (token, xvmApiVenueId) => {
+    const detail = await getVenue(token, xvmApiVenueId)
+    return { district: detail.district, ward: detail.ward, plot: detail.plot, apartment: detail.apartment }
+  })
   const potDistribution =
     event.status === "COMPLETED" && canEdit
       ? await readXvm("event-detail pot", null, async (token, xvmApiVenueId) => {
@@ -294,8 +285,8 @@ export default async function EventDetailsPage({ params }: { params: Promise<{ s
                 <p className="text-sm text-muted-foreground">
                   {venue.world} ({venue.dataCenter})
                 </p>
-                {formatVenueLocationShort(venue) && (
-                  <p className="text-sm text-muted-foreground mt-2">📍 {formatVenueLocationShort(venue)}</p>
+                {venueLocation && formatVenueLocationShort(venueLocation) && (
+                  <p className="text-sm text-muted-foreground mt-2">📍 {formatVenueLocationShort(venueLocation)}</p>
                 )}
               </CardContent>
             </Card>

@@ -27,48 +27,8 @@ export function postNewVenue(venue: {
   postToBot("/webhook/new-venue", venue)
 }
 
-export function postPartakeDigest(events: { title: string; startTime: Date; venue: { name: string; slug: string } }[]) {
-  postToBot(
-    "/webhook/partake-digest",
-    events.map((e) => ({ ...e, startTime: e.startTime.toISOString() }))
-  )
-}
-
-export function postWeeklySummary(stats: {
-  newVenues: number
-  eventsHosted: number
-  patronVisits: number
-  newStaff: number
-  weekStart: Date
-}) {
-  postToBot("/webhook/weekly-summary", { ...stats, weekStart: stats.weekStart.toISOString() })
-}
-
 export function postVenueGraduation(venue: { name: string; slug: string }, milestone: number) {
   postToBot("/webhook/venue-graduation", { venue, milestone })
-}
-
-export function postTonightList(
-  venues: {
-    name: string
-    slug: string
-    dataCenter: string
-    world: string
-    district?: string | null
-    ward?: number | null
-    plot?: number | null
-    scheduledStart: Date
-    scheduledEnd: Date
-  }[]
-) {
-  postToBot(
-    "/webhook/tonight",
-    venues.map((v) => ({
-      ...v,
-      scheduledStart: v.scheduledStart.toISOString(),
-      scheduledEnd: v.scheduledEnd.toISOString(),
-    }))
-  )
 }
 
 export async function postPatronVisitXp(venueId: string, characterName: string, world: string) {
@@ -97,20 +57,6 @@ export async function postShiftXp(userId: string, venueId: string) {
   const row = rows[0]
   if (!row?.discordId) return
   postToBot("/webhook/shift-xp", { discordId: row.discordId, venueName: row.name })
-}
-
-export function postEventsDigestDay(
-  dayOffset: number,
-  dayLabel: string,
-  events: { title: string; startTime: Date; venue: { name: string; slug: string } }[],
-  truncatedCount: number
-) {
-  return postToBot("/webhook/events-digest", {
-    dayOffset,
-    dayLabel,
-    truncatedCount,
-    events: events.map((e) => ({ ...e, startTime: e.startTime.toISOString() })),
-  })
 }
 
 export function postVenueStatus(venue: { id: string; name: string; dataCenter: string }, isOpen: boolean) {

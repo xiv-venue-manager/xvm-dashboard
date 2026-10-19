@@ -1,7 +1,6 @@
 "use client"
 
 import { useEffect, useState } from "react"
-import { useRouter } from "next/navigation"
 import Link from "next/link"
 import { Button } from "@/components/ui/button"
 import { Input } from "@/components/ui/input"
@@ -9,15 +8,7 @@ import { Label } from "@/components/ui/label"
 import { Textarea } from "@/components/ui/textarea"
 import { Select, SelectContent, SelectItem, SelectTrigger, SelectValue } from "@/components/ui/select"
 import { Card, CardContent, CardDescription, CardHeader, CardTitle } from "@/components/ui/card"
-import {
-  Dialog,
-  DialogContent,
-  DialogDescription,
-  DialogFooter,
-  DialogHeader,
-  DialogTitle,
-  DialogTrigger,
-} from "@/components/ui/dialog"
+import { Dialog, DialogContent, DialogDescription, DialogFooter, DialogHeader, DialogTitle } from "@/components/ui/dialog"
 import {
   AlertDialog,
   AlertDialogAction,
@@ -64,7 +55,6 @@ interface Role {
 }
 
 export default function RolesPage({ params }: { params: Promise<{ slug: string }> }) {
-  const router = useRouter()
   const [slug, setSlug] = useState<string>("")
   const [roles, setRoles] = useState<Role[]>([])
   const [userRole, setUserRole] = useState<string | null>(null)
@@ -100,7 +90,7 @@ export default function RolesPage({ params }: { params: Promise<{ slug: string }
         setIsLoading(true)
         setError("")
 
-        // Get venue ID
+        // Get the caller's role
         const venueResponse = await fetch(`/api/venues?slug=${slug}`)
         if (!venueResponse.ok) throw new Error("Failed to fetch venue")
 
@@ -110,7 +100,7 @@ export default function RolesPage({ params }: { params: Promise<{ slug: string }
         setUserRole(venue.memberships?.[0]?.role ?? null)
 
         // Get roles
-        const rolesResponse = await fetch(`/api/venues/${venue.id}/roles`)
+        const rolesResponse = await fetch(`/api/venues/${slug}/roles`)
         if (!rolesResponse.ok) throw new Error("Failed to fetch roles")
 
         const rolesData = await rolesResponse.json()
@@ -135,12 +125,7 @@ export default function RolesPage({ params }: { params: Promise<{ slug: string }
     setFormError("")
 
     try {
-      // Get venue ID
-      const venueResponse = await fetch(`/api/venues?slug=${slug}`)
-      const venues = await venueResponse.json()
-      const venue = venues.find((v: { slug: string }) => v.slug === slug)
-
-      const response = await fetch(`/api/venues/${venue.id}/roles`, {
+      const response = await fetch(`/api/venues/${slug}/roles`, {
         method: "POST",
         headers: { "Content-Type": "application/json" },
         body: JSON.stringify({
@@ -182,12 +167,7 @@ export default function RolesPage({ params }: { params: Promise<{ slug: string }
     setFormError("")
 
     try {
-      // Get venue ID
-      const venueResponse = await fetch(`/api/venues?slug=${slug}`)
-      const venues = await venueResponse.json()
-      const venue = venues.find((v: { slug: string }) => v.slug === slug)
-
-      const response = await fetch(`/api/venues/${venue.id}/roles/${editingRole.id}`, {
+      const response = await fetch(`/api/venues/${slug}/roles/${editingRole.id}`, {
         method: "PUT",
         headers: { "Content-Type": "application/json" },
         body: JSON.stringify({
@@ -222,12 +202,7 @@ export default function RolesPage({ params }: { params: Promise<{ slug: string }
 
   const handleDeleteRole = async (role: Role) => {
     try {
-      // Get venue ID
-      const venueResponse = await fetch(`/api/venues?slug=${slug}`)
-      const venues = await venueResponse.json()
-      const venue = venues.find((v: { slug: string }) => v.slug === slug)
-
-      const response = await fetch(`/api/venues/${venue.id}/roles/${role.id}`, {
+      const response = await fetch(`/api/venues/${slug}/roles/${role.id}`, {
         method: "DELETE",
       })
 

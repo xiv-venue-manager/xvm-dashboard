@@ -2,7 +2,7 @@ import { getServerSession } from "next-auth"
 import { authOptions } from "@/lib/auth"
 import { redirect, notFound } from "next/navigation"
 import Link from "next/link"
-import { prisma } from "@/lib/prisma"
+import { resolveMyVenue } from "@/lib/api/venue-access"
 import { VenueLayout } from "@/components/venue-layout"
 import { CreateShiftDialog } from "@/components/create-shift-dialog"
 import { ShiftsCalendar } from "@/components/shifts-calendar"
@@ -41,14 +41,6 @@ function fmtWeekLabel(d: Date): string {
   return d.toLocaleString("en-GB", { timeZone: "UTC", weekday: "short", day: "numeric", month: "short" })
 }
 
-const statusChip: Record<string, string> = {
-  SCHEDULED: "bg-[rgba(0,180,255,0.10)] text-[var(--xiv-blue)] border-[rgba(0,180,255,0.28)]",
-  ACTIVE: "bg-emerald-500/10 text-emerald-400 border-emerald-500/20",
-  COMPLETED: "bg-zinc-500/10 text-zinc-400 border-zinc-500/20",
-  MISSED: "bg-amber-500/10 text-amber-400 border-amber-500/20",
-  CANCELLED: "bg-zinc-500/10 text-zinc-400 border-zinc-500/15 line-through",
-}
-
 export default async function ShiftsPage({
   params,
   searchParams,
@@ -62,28 +54,10 @@ export default async function ShiftsPage({
   const { slug } = await params
   const { w, view = "week" } = await searchParams
 
-  const venue = await prisma.venue.findUnique({
-    where: { slug },
-    include: {
-      memberships: { where: { userId: session.user.id } },
-    },
-  })
+  const venue = await resolveMyVenue(session.user.id, slug)
+  if (!venue) notFound()
 
-  if (!venue || venue.memberships.length === 0) notFound()
-  if (!venue.xvmApiVenueId) {
-    return (
-      <VenueLayout venueSlug={venue.slug} venueName={venue.name} userRole={venue.memberships[0].role}>
-        <div className="page-inner">
-          <h1 className="page-h1">Shifts</h1>
-          <p className="text-muted-foreground mt-4">
-            This venue hasn&apos;t been connected to xvm-api yet - shifts aren&apos;t available until it is.
-          </p>
-        </div>
-      </VenueLayout>
-    )
-  }
-
-  const xvmApiVenueId = venue.xvmApiVenueId
+  const xvmApiVenueId = venue.id
   const token = await getValidXvmApiToken(session.user.id)
   if (!token) {
     redirect("/auth/signin")
@@ -228,7 +202,6 @@ export default async function ShiftsPage({
             currentMembershipId={currentMembershipId}
             canManage={canManage}
             venueSlug={slug}
-            venueId={venue.id}
             staffForDialog={staffForDialog}
             roles={venueRoles}
             staffNames={staffNames}
@@ -295,7 +268,6 @@ export default async function ShiftsPage({
               isCurrentWeek={isCurrentWeek}
               fmtWeekLabelST={fmtWeekLabel(weekStart)}
               slug={slug}
-              venueId={venue.id}
               currentMembershipId={currentMembershipId}
               canManage={canManage}
               staffForDialog={staffForDialog}

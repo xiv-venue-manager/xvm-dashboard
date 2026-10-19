@@ -4,13 +4,9 @@ import { redirect, notFound } from "next/navigation"
 import Link from "next/link"
 import { Button } from "@/components/ui/button"
 import { formatGilCompact } from "@/lib/format"
-import { Card, CardContent, CardDescription, CardHeader, CardTitle } from "@/components/ui/card"
-import { StatReadout } from "@/components/ui/stat-readout"
-import { Badge } from "@/components/ui/badge"
-import { Avatar, AvatarFallback, AvatarImage } from "@/components/ui/avatar"
 import { prisma } from "@/lib/prisma"
-import { format } from "date-fns"
-import { Users, UserPlus, Shield, AlertTriangle } from "lucide-react"
+import { roleInVenue } from "@/lib/api/venue-access"
+import { Users, Shield } from "lucide-react"
 import { FormerStaff } from "@/components/former-staff"
 import { PendingInvites } from "@/components/pending-invites"
 import { StaffTable, type StaffMember } from "@/components/staff-table"
@@ -32,7 +28,6 @@ import { xvmPageReader } from "@/lib/api/xvm-page-read"
 import { minorUnitsToGil } from "@/lib/api/position-convert"
 import { toPendingInviteShape, type PendingInviteShape } from "@/lib/pending-invites"
 
-import { RoleBadge } from "@/components/role-badge"
 import { StaffVisibilitySettings } from "@/components/staff-visibility-settings"
 
 // Mirrors staff/route.ts's toStaffShape (duplicated per this codebase's
@@ -70,22 +65,11 @@ export default async function StaffPage({ params }: { params: Promise<{ slug: st
   const { slug } = await params
 
   // Get venue
-  const venue = await prisma.venue.findUnique({
-    where: { slug },
-    include: {
-      memberships: {
-        where: {
-          userId: session.user.id,
-        },
-      },
-    },
-  })
+  const venue = await prisma.venue.findUnique({ where: { slug } })
 
-  if (!venue || venue.memberships.length === 0) {
-    notFound()
-  }
+  const userRole = venue ? await roleInVenue(session.user.id, venue) : null
+  if (!venue || !userRole) notFound()
 
-  const userRole = venue.memberships[0].role
 
   // xvm-api splits active memberships and pending invites into two separate
   // tables/endpoints, unlike Prisma's unified Membership row with a

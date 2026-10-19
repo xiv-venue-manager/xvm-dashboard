@@ -1,24 +1,11 @@
 import { NextResponse } from "next/server"
 import { getServerSession } from "next-auth"
 import { authOptions } from "@/lib/auth"
-import { prisma } from "@/lib/prisma"
 import { withRateLimit } from "@/lib/middleware/with-rate-limit"
 import { getValidXvmApiToken, xvmApiErrorResponse } from "@/lib/api/xvm-api-store"
+import { requireMyVenue } from "@/lib/api/venue-access"
 import { listRaffleEntries } from "@/lib/api/xvm-api"
 import { resolveEntryNames } from "@/lib/api/resolve-entry-names"
-
-async function requireXvmVenueId(venueId: string) {
-  const venue = await prisma.venue.findUnique({ where: { id: venueId }, select: { xvmApiVenueId: true } })
-  if (!venue?.xvmApiVenueId) {
-    return {
-      error: NextResponse.json(
-        { error: "not_connected", message: "This venue hasn't been connected to xvm-api yet." },
-        { status: 409 }
-      ),
-    }
-  }
-  return { xvmApiVenueId: venue.xvmApiVenueId }
-}
 
 function parseRaffleId(raffleId: string) {
   const id = Number(raffleId)
@@ -47,12 +34,12 @@ export const GET = withRateLimit<{ params: Promise<{ venueId: string; raffleId: 
       return NextResponse.json({ error: "Invalid raffle id" }, { status: 400 })
     }
 
-    const gate = await requireXvmVenueId(venueId)
-    if (gate.error) return gate.error
+    const lookup = await requireMyVenue(session.user.id, venueId, "[contests] /me/venues read error")
+    if (!lookup.ok) return lookup.response
 
     try {
-      const entries = await listRaffleEntries(token, gate.xvmApiVenueId!, id)
-      const resolved = await resolveEntryNames(entries)
+      const entries = await listRaffleEntries(token, lookup.venue.id, id)
+      const resolved = await resolveEntryNames(token, lookup.venue.id, entries)
       return NextResponse.json(resolved)
     } catch (err) {
       return xvmApiErrorResponse(err, session.user.id, "[contests/raffles/:id/entries] GET error")

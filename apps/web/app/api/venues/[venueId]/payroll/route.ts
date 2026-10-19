@@ -2,9 +2,9 @@ import { NextRequest, NextResponse } from "next/server"
 import { getServerSession } from "next-auth"
 import { authOptions } from "@/lib/auth"
 import { z } from "zod"
-import { prisma } from "@/lib/prisma"
 import { withRateLimit } from "@/lib/middleware/with-rate-limit"
 import { getValidXvmApiToken, xvmApiErrorResponse } from "@/lib/api/xvm-api-store"
+import { requireMyVenue } from "@/lib/api/venue-access"
 import { listPayrollChunked, createPayrollEntry, type PayrollEntryRow } from "@/lib/api/xvm-api"
 import { gilToMinorUnits, minorUnitsToGil, hoursToMinutes, minutesToHours } from "@/lib/api/position-convert"
 
@@ -51,22 +51,6 @@ function toDashboardEntry(row: PayrollEntryRow) {
   }
 }
 
-async function requireXvmVenueId(venueId: string) {
-  const venue = await prisma.venue.findFirst({
-    where: { OR: [{ id: venueId }, { slug: venueId }] },
-    select: { xvmApiVenueId: true },
-  })
-  if (!venue?.xvmApiVenueId) {
-    return {
-      error: NextResponse.json(
-        { error: "not_connected", message: "This venue hasn't been connected to xvm-api yet." },
-        { status: 409 }
-      ),
-    }
-  }
-  return { xvmApiVenueId: venue.xvmApiVenueId }
-}
-
 export const GET = withRateLimit<{ params: Promise<{ venueId: string }> }>(
   async (request: NextRequest, context) => {
     if (!context?.params) return NextResponse.json({ error: "Invalid request" }, { status: 400 })
@@ -78,8 +62,8 @@ export const GET = withRateLimit<{ params: Promise<{ venueId: string }> }>(
     if (!token) return NextResponse.json({ error: "xvm-api link not established yet" }, { status: 503 })
 
     const { venueId } = await context.params
-    const gate = await requireXvmVenueId(venueId)
-    if (gate.error) return gate.error
+    const lookup = await requireMyVenue(session.user.id, venueId, "[payroll] /me/venues read error")
+    if (!lookup.ok) return lookup.response
 
     const searchParams = request.nextUrl.searchParams
     const isPaidFilter = searchParams.get("isPaid")
@@ -92,7 +76,7 @@ export const GET = withRateLimit<{ params: Promise<{ venueId: string }> }>(
     toDate.setUTCHours(23, 59, 59, 999)
 
     try {
-      const rows = await listPayrollChunked(token, gate.xvmApiVenueId!, {
+      const rows = await listPayrollChunked(token, lookup.venue.id, {
         from: new Date(from).toISOString(),
         to: toDate.toISOString(),
         isPaid: isPaidFilter !== null ? isPaidFilter === "true" : undefined,
@@ -117,8 +101,8 @@ export const POST = withRateLimit<{ params: Promise<{ venueId: string }> }>(
     if (!token) return NextResponse.json({ error: "xvm-api link not established yet" }, { status: 503 })
 
     const { venueId } = await context.params
-    const gate = await requireXvmVenueId(venueId)
-    if (gate.error) return gate.error
+    const lookup = await requireMyVenue(session.user.id, venueId, "[payroll] /me/venues read error")
+    if (!lookup.ok) return lookup.response
 
     let data: z.infer<typeof createPayrollSchema>
     try {
@@ -131,7 +115,7 @@ export const POST = withRateLimit<{ params: Promise<{ venueId: string }> }>(
     }
 
     try {
-      const row = await createPayrollEntry(token, gate.xvmApiVenueId!, {
+      const row = await createPayrollEntry(token, lookup.venue.id, {
         membership_id: data.membershipId,
         payment_type: toPaymentTypeApi(data.paymentType),
         base_rate_minor: gilToMinorUnits(data.baseRate)!,

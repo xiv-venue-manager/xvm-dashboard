@@ -42,11 +42,6 @@ interface EventTemplate {
   eventType: string
   defaultStartTime: string
   defaultEndTime: string
-  createdBy: {
-    id: string
-    name: string | null
-    displayName: string | null
-  } | null
 }
 
 const eventTypeLabels: Record<string, string> = {
@@ -65,7 +60,6 @@ export default function EventTemplatesPage() {
   const slug = params?.slug as string
 
   const [templates, setTemplates] = useState<EventTemplate[]>([])
-  const [venueId, setVenueId] = useState<string>("")
   const [userRole, setUserRole] = useState<string | null>(null)
   const [loading, setLoading] = useState(true)
   const [isCreateDialogOpen, setIsCreateDialogOpen] = useState(false)
@@ -94,10 +88,9 @@ export default function EventTemplatesPage() {
         (v: { slug: string; memberships: { role: string }[] }) => v.slug === slug
       )
       if (!venue) throw new Error("Venue not found")
-      setVenueId(venue.id)
       setUserRole(venue.memberships?.[0]?.role ?? null)
 
-      const response = await fetch(`/api/venues/${venue.id}/event-templates`)
+      const response = await fetch(`/api/venues/${slug}/event-templates`)
       if (response.ok) {
         const data = await response.json()
         setTemplates(data)
@@ -128,7 +121,7 @@ export default function EventTemplatesPage() {
     setError("")
 
     try {
-      const response = await fetch(`/api/venues/${venueId}/event-templates`, {
+      const response = await fetch(`/api/venues/${slug}/event-templates`, {
         method: "POST",
         headers: { "Content-Type": "application/json" },
         body: JSON.stringify(formData),
@@ -156,7 +149,7 @@ export default function EventTemplatesPage() {
     setError("")
 
     try {
-      const response = await fetch(`/api/venues/${venueId}/event-templates/${editingTemplate.id}`, {
+      const response = await fetch(`/api/venues/${slug}/event-templates/${editingTemplate.id}`, {
         method: "PATCH",
         headers: { "Content-Type": "application/json" },
         body: JSON.stringify(formData),
@@ -181,7 +174,7 @@ export default function EventTemplatesPage() {
     if (!deletingTemplate) return
 
     try {
-      const response = await fetch(`/api/venues/${venueId}/event-templates/${deletingTemplate.id}`, {
+      const response = await fetch(`/api/venues/${slug}/event-templates/${deletingTemplate.id}`, {
         method: "DELETE",
       })
 
@@ -299,11 +292,6 @@ export default function EventTemplatesPage() {
                     </div>
                     {template.description && (
                       <p className="text-sm text-muted-foreground line-clamp-2">{template.description}</p>
-                    )}
-                    {template.createdBy && (
-                      <p className="text-xs text-muted-foreground mt-2">
-                        Created by {template.createdBy.displayName || template.createdBy.name}
-                      </p>
                     )}
                   </div>
                 </CardContent>

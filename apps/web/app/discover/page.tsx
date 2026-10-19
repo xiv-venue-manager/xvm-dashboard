@@ -105,7 +105,7 @@ export default async function DiscoverPage() {
 
   return (
     <ExploreLayout>
-      <DiscoverClient venues={cards} isAuthed={!!session?.user} totalCount={venues.length} />
+      <DiscoverClient venues={cards} isAuthed={!!session?.user} />
     </ExploreLayout>
   )
 }

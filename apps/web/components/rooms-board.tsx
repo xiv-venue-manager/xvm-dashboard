@@ -42,30 +42,32 @@ function statusBadge(status: string): { label: string; className: string } {
   }
 }
 
-// owner_membership_id / reserved_person_id are opaque ids with no name
-// resolution endpoint yet - fall back to a numeric label instead of
-// pretending we can look up a display name.
-function reserverLabel(room: Room): string {
+export type RoomPeopleNames = { byPersonId: Record<number, string>; byMembershipId: Record<number, string> }
+
+// Names come from the venue roster, which a viewer may not be allowed to read; an id with no name falls back to a numeric label.
+function reserverLabel(room: Room, names: RoomPeopleNames): string {
   const res = room.current_reservation
   if (res?.is_current) {
     if (res.reserved_character_name) {
       return res.reserved_world ? `${res.reserved_character_name} @ ${res.reserved_world}` : res.reserved_character_name
     }
-    if (res.reserved_person_id != null) return `Member #${res.reserved_person_id}`
+    if (res.reserved_person_id != null) return names.byPersonId[res.reserved_person_id] ?? `Member #${res.reserved_person_id}`
   }
-  if (room.owner_membership_id != null) return `Member #${room.owner_membership_id}`
+  if (room.owner_membership_id != null) return names.byMembershipId[room.owner_membership_id] ?? `Member #${room.owner_membership_id}`
   return "—"
 }
 
 export function RoomsBoard({
-  venueId,
+  venueSlug,
   canManage,
   rooms,
+  names,
   notConnected,
 }: {
-  venueId: string
+  venueSlug: string
   canManage: boolean
   rooms: RoomItem[]
+  names: RoomPeopleNames
   notConnected?: boolean
 }) {
   const [localRooms, setLocalRooms] = useState(rooms)
@@ -75,6 +77,7 @@ export function RoomsBoard({
   const [renamingId, setRenamingId] = useState<number | null>(null)
   const [renameInput, setRenameInput] = useState("")
   const [newRoomName, setNewRoomName] = useState("")
+  const [newRoomNumber, setNewRoomNumber] = useState("")
   const [adding, setAdding] = useState(false)
   const [editingRoomNumberId, setEditingRoomNumberId] = useState<number | null>(null)
   const [roomNumberInput, setRoomNumberInput] = useState("")
@@ -83,7 +86,7 @@ export function RoomsBoard({
   const [deleteTarget, setDeleteTarget] = useState<RoomItem | null>(null)
 
   useEffect(() => {
-    const es = new EventSource("/api/stream/" + venueId)
+    const es = new EventSource("/api/stream/" + venueSlug)
     es.onmessage = (e) => {
       try {
         const msg = JSON.parse(e.data)
@@ -97,7 +100,7 @@ export function RoomsBoard({
       } catch {}
     }
     return () => es.close()
-  }, [venueId])
+  }, [venueSlug])
 
   useEffect(() => {
     if (error || success) {
@@ -113,7 +116,7 @@ export function RoomsBoard({
     if (pendingIds.has(room.id)) return
     setPendingIds((prev) => new Set(prev).add(room.id))
     try {
-      const res = await fetch(`/api/venues/${venueId}/rooms/${room.id}/status`, {
+      const res = await fetch(`/api/venues/${venueSlug}/rooms/${room.id}/status`, {
         method: "PATCH",
         headers: { "Content-Type": "application/json" },
         body: JSON.stringify({ action: "reserve" }),
@@ -139,7 +142,7 @@ export function RoomsBoard({
     if (pendingIds.has(room.id)) return
     setPendingIds((prev) => new Set(prev).add(room.id))
     try {
-      const res = await fetch(`/api/venues/${venueId}/rooms/${room.id}/status`, {
+      const res = await fetch(`/api/venues/${venueSlug}/rooms/${room.id}/status`, {
         method: "PATCH",
         headers: { "Content-Type": "application/json" },
         body: JSON.stringify({ action: "release" }),
@@ -171,7 +174,7 @@ export function RoomsBoard({
     const prevNotes = room.notes
     setLocalRooms((prev) => prev.map((r) => (r.id === room.id ? { ...r, notes: trimmed || null } : r)))
     try {
-      const res = await fetch(`/api/venues/${venueId}/rooms/${room.id}`, {
+      const res = await fetch(`/api/venues/${venueSlug}/rooms/${room.id}`, {
         method: "PATCH",
         headers: { "Content-Type": "application/json" },
         body: JSON.stringify({ notes: trimmed || null }),
@@ -198,13 +201,19 @@ export function RoomsBoard({
   async function addRoom() {
     const name = newRoomName.trim()
     if (!name || adding) return
+    const rawNumber = newRoomNumber.trim()
+    const roomNumber = rawNumber === "" ? undefined : parseInt(rawNumber, 10)
+    if (roomNumber !== undefined && (isNaN(roomNumber) || roomNumber < 1 || roomNumber > 999)) {
+      setError("Room number must be 1–999")
+      return
+    }
     setAdding(true)
     setError(null)
     try {
-      const res = await fetch(`/api/venues/${venueId}/rooms`, {
+      const res = await fetch(`/api/venues/${venueSlug}/rooms`, {
         method: "POST",
         headers: { "Content-Type": "application/json" },
-        body: JSON.stringify({ name }),
+        body: JSON.stringify({ name, roomNumber }),
       })
       if (!res.ok) {
         setError(await describeError(res, "Failed to add room"))
@@ -213,6 +222,7 @@ export function RoomsBoard({
       const created: Room = await res.json()
       setLocalRooms((prev) => [...prev, created])
       setNewRoomName("")
+      setNewRoomNumber("")
       setSuccess("Room added")
     } catch {
       setError("Network error adding room")
@@ -230,7 +240,7 @@ export function RoomsBoard({
     const prevName = room.name
     setLocalRooms((prev) => prev.map((r) => (r.id === room.id ? { ...r, name } : r)))
     try {
-      const res = await fetch(`/api/venues/${venueId}/rooms/${room.id}`, {
+      const res = await fetch(`/api/venues/${venueSlug}/rooms/${room.id}`, {
         method: "PATCH",
         headers: { "Content-Type": "application/json" },
         body: JSON.stringify({ name }),
@@ -258,8 +268,8 @@ export function RoomsBoard({
     const raw = roomNumberInput.trim()
     setRoomNumberInput("")
     const roomNumber = raw === "" ? null : parseInt(raw, 10)
-    if (raw !== "" && (isNaN(roomNumber!) || roomNumber! < 0 || roomNumber! > 999)) {
-      setError("Room number must be 0–999")
+    if (raw !== "" && (isNaN(roomNumber!) || roomNumber! < 1 || roomNumber! > 999)) {
+      setError("Room number must be 1–999")
       return
     }
     if (roomNumber === room.room_number) return
@@ -267,7 +277,7 @@ export function RoomsBoard({
     const prevNumber = room.room_number
     setLocalRooms((prev) => prev.map((r) => (r.id === room.id ? { ...r, room_number: roomNumber } : r)))
     try {
-      const res = await fetch(`/api/venues/${venueId}/rooms/${room.id}`, {
+      const res = await fetch(`/api/venues/${venueSlug}/rooms/${room.id}`, {
         method: "PATCH",
         headers: { "Content-Type": "application/json" },
         body: JSON.stringify({ roomNumber }),
@@ -295,7 +305,7 @@ export function RoomsBoard({
     setPendingIds((prev) => new Set(prev).add(room.id))
     setLocalRooms((prev) => prev.map((r) => (r.id === room.id ? { ...r, locked: nextLocked } : r)))
     try {
-      const res = await fetch(`/api/venues/${venueId}/rooms/${room.id}`, {
+      const res = await fetch(`/api/venues/${venueSlug}/rooms/${room.id}`, {
         method: "PATCH",
         headers: { "Content-Type": "application/json" },
         body: JSON.stringify({ locked: nextLocked }),
@@ -323,7 +333,7 @@ export function RoomsBoard({
     setPendingIds((prev) => new Set(prev).add(room.id))
     setLocalRooms((prev) => prev.map((r) => (r.id === room.id ? { ...r, disabled: nextDisabled } : r)))
     try {
-      const res = await fetch(`/api/venues/${venueId}/rooms/${room.id}`, {
+      const res = await fetch(`/api/venues/${venueSlug}/rooms/${room.id}`, {
         method: "PATCH",
         headers: { "Content-Type": "application/json" },
         body: JSON.stringify({ disabled: nextDisabled }),
@@ -352,7 +362,7 @@ export function RoomsBoard({
     const prevList = localRooms
     setLocalRooms((prev) => prev.filter((r) => r.id !== room.id))
     try {
-      const res = await fetch(`/api/venues/${venueId}/rooms/${room.id}`, { method: "DELETE" })
+      const res = await fetch(`/api/venues/${venueSlug}/rooms/${room.id}`, { method: "DELETE" })
       if (!res.ok) {
         setLocalRooms(prevList)
         setError(await describeError(res, "Failed to delete room"))
@@ -436,7 +446,7 @@ export function RoomsBoard({
                     <>
                       {room.name ?? "Unnamed room"}
                       {room.room_number != null && (
-                        <span className="t-muted" style={{ marginLeft: 6, fontSize: "0.75rem" }}>
+                        <span className="t-muted sm:hidden" style={{ marginLeft: 6, fontSize: "0.75rem" }}>
                           #{room.room_number}
                         </span>
                       )}
@@ -493,7 +503,7 @@ export function RoomsBoard({
                 </td>
                 <td>
                   {(() => {
-                    const label = reserverLabel(room)
+                    const label = reserverLabel(room, names)
                     return <span className={label === "—" ? "t-muted" : ""}>{label}</span>
                   })()}
                 </td>
@@ -620,6 +630,17 @@ export function RoomsBoard({
             onChange={(e) => setNewRoomName(e.target.value)}
             placeholder="New room name…"
             className="max-w-[240px]"
+            onKeyDown={(e) => e.key === "Enter" && addRoom()}
+          />
+          <Input
+            type="number"
+            inputMode="numeric"
+            min={1}
+            max={999}
+            value={newRoomNumber}
+            onChange={(e) => setNewRoomNumber(e.target.value)}
+            placeholder="Room #"
+            className="max-w-[100px]"
             onKeyDown={(e) => e.key === "Enter" && addRoom()}
           />
           <Button type="button" size="sm" disabled={!newRoomName.trim() || adding} onClick={addRoom}>

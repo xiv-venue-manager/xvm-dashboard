@@ -14,7 +14,7 @@ const FRAME_TOP = (CONTAINER_H - FRAME_SIZE) / 2 // 10
 const OUTPUT_SIZE = 256
 
 interface LogoUploadProps {
-  venueId: string
+  venueSlug: string
   initialUrl: string | null
   galleryImages: string[]
   onUpdate: (url: string | null) => void
@@ -36,7 +36,7 @@ function clamp(val: number, min: number, max: number) {
   return Math.max(min, Math.min(max, val))
 }
 
-export function LogoUpload({ venueId, initialUrl, galleryImages, onUpdate }: LogoUploadProps) {
+export function LogoUpload({ venueSlug, initialUrl, galleryImages, onUpdate }: LogoUploadProps) {
   const [savedUrl, setSavedUrl] = useState<string | null>(initialUrl)
   const [tab, setTab] = useState<Tab>("upload")
   const [stage, setStage] = useState<Stage>("idle")
@@ -185,7 +185,7 @@ export function LogoUpload({ venueId, initialUrl, galleryImages, onUpdate }: Log
 
       await apiFetch(uploadUrl, { method: "PUT", body: blob, headers: { "Content-Type": "image/jpeg" } })
 
-      await apiFetch(`/api/venues/${venueId}`, {
+      await apiFetch(`/api/venues/${venueSlug}`, {
         method: "PATCH",
         headers: { "Content-Type": "application/json" },
         body: JSON.stringify({ logoUrl: storedUrl }),
@@ -206,7 +206,7 @@ export function LogoUpload({ venueId, initialUrl, galleryImages, onUpdate }: Log
     if (removing) return
     setRemoving(true)
     try {
-      await apiFetch(`/api/venues/${venueId}`, {
+      await apiFetch(`/api/venues/${venueSlug}`, {
         method: "PATCH",
         headers: { "Content-Type": "application/json" },
         body: JSON.stringify({ logoUrl: null }),

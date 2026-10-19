@@ -1,96 +1,6 @@
 import { describe, it, expect, vi, beforeEach } from "vitest"
 
-import {
-  listEvents,
-  getEvent,
-  createEvent,
-  createEventSeries,
-  listPatronLogs,
-  reclassifyPatronLogs,
-  materializeEvent,
-  endEventSeries,
-  updateEvent,
-  publishEvent,
-  cancelEvent,
-  deleteEvent,
-  type EventRow,
-  XvmApiError,
-  getFfxivLink,
-  linkFfxivListing,
-  listMyFfxivListings,
-  syncFfxivListing,
-  unlinkFfxivListing,
-  type ListingLinkRow,
-  deleteRoom,
-  listTasks,
-  createTask,
-  updateTask,
-  assignTask,
-  startTask,
-  completeTask,
-  cancelTask,
-  getPublicHoursBatch,
-  getPublicHoursForVenues,
-  PUBLIC_HOURS_BATCH_MAX,
-  listGiveaways,
-  createGiveaway,
-  updateGiveaway,
-  deleteGiveaway,
-  listGiveawayEntries,
-  rollGiveaway,
-  listRaffles,
-  createRaffle,
-  updateRaffle,
-  deleteRaffle,
-  listRaffleEntries,
-  creditTickets,
-  refundTickets,
-  rollRaffle,
-  listServiceCategories,
-  createServiceCategory,
-  updateServiceCategory,
-  deleteServiceCategory,
-  listServices,
-  getService,
-  createService,
-  updateService,
-  deleteService,
-  grantServicePosition,
-  revokeServicePosition,
-  linkServiceInventory,
-  unlinkServiceInventory,
-  setStock,
-  createStockMovement,
-  listStockMovements,
-  listFinanceTransactions,
-  createFinanceTransaction,
-  updateFinanceTransaction,
-  voidFinanceTransaction,
-  listPanels,
-  createPanel,
-  getPanel,
-  updatePanel,
-  deletePanel,
-  addPanelOption,
-  updatePanelOption,
-  deletePanelOption,
-  applyPanelTemplate,
-  postPanel,
-  listPanelPosts,
-  listReactionRoleTemplates,
-  getFinanceSummary,
-  listShiftsOnNow,
-  type TaskRow,
-  type PublicHours,
-  type GiveawayRow,
-  type RaffleRow,
-  type ServiceCategoryRow,
-  type ServiceRow,
-  type StockMovementRow,
-  type FinanceTransactionRow,
-  type PanelRow,
-  type TemplateRow,
-} from "./xvm-api"
+import { listEvents, getEvent, createEvent, createEventSeries, logPatronVisit, listPatronLogs, getPatronLogSummary, listMyAnnouncements, dismissAnnouncement, listAnnouncements, createAnnouncement, deleteAnnouncement, listShouts, createShout, deleteShout, listMyCharacters, listMyVenues, linkMyCharacter, unlinkMyCharacter, submitFeedback, listMyFeedback, listAdminFeedback, triageFeedback, getVenueFollowers, reissueInvite, reclassifyPatronLogs, getPatronPresence, materializeEvent, endEventSeries, updateEvent, publishEvent, cancelEvent, deleteEvent, type EventRow, XvmApiError, getFfxivLink, linkFfxivListing, listMyFfxivListings, syncFfxivListing, unlinkFfxivListing, type ListingLinkRow, deleteRoom, listTasks, createTask, updateTask, assignTask, startTask, completeTask, cancelTask, getPublicHoursBatch, getPublicHoursForVenues, getInvitePreview, getPublicPlatformStats, PUBLIC_HOURS_BATCH_MAX, listGiveaways, createGiveaway, updateGiveaway, deleteGiveaway, listGiveawayEntries, rollGiveaway, listRaffles, createRaffle, updateRaffle, deleteRaffle, listRaffleEntries, creditTickets, refundTickets, rollRaffle, listServiceCategories, createServiceCategory, updateServiceCategory, deleteServiceCategory, listServices, getService, createService, updateService, deleteService, grantServicePosition, revokeServicePosition, linkServiceInventory, unlinkServiceInventory, setStock, createStockMovement, listStockMovements, listFinanceTransactions, createFinanceTransaction, updateFinanceTransaction, voidFinanceTransaction, listPanels, createPanel, getPanel, updatePanel, deletePanel, addPanelOption, updatePanelOption, deletePanelOption, applyPanelTemplate, postPanel, listPanelPosts, listReactionRoleTemplates, getFinanceSummary, listShiftsOnNow, type TaskRow, type PublicHours, type GiveawayRow, type RaffleRow, type ServiceCategoryRow, type ServiceRow, type StockMovementRow, type FinanceTransactionRow, type PanelRow } from "./xvm-api"
 
 function mockFetchOnce({ ok, status, body }: { ok: boolean; status: number; body: unknown }) {
   ;(fetch as ReturnType<typeof vi.fn>).mockResolvedValueOnce({
@@ -189,6 +99,36 @@ describe("Tasks API", () => {
     const [url, options] = (fetch as ReturnType<typeof vi.fn>).mock.calls[0]
     expect(url).toContain("/tasks/1/cancel")
     expect(JSON.parse(options.body)).toEqual({ reason: "No longer needed" })
+  })
+})
+
+describe("Public stats and invite preview", () => {
+  it("getInvitePreview GETs the public invite path, unauthenticated", async () => {
+    mockFetchOnce({
+      ok: true,
+      status: 200,
+      body: { venue: { name: "Gilded Cage", slug: "gilded-cage" }, tier: "staff", invited_name: "Jane", invited_by_name: null, expires_at: "2026-11-01T00:00:00Z" },
+    })
+    const result = await getInvitePreview("tok/en")
+    expect(result.venue.slug).toBe("gilded-cage")
+    const [url, init] = (fetch as ReturnType<typeof vi.fn>).mock.calls[0]
+    expect(url).toMatch(/\/public\/invites\/tok%2Fen$/)
+    expect(init.headers.Authorization).toBeUndefined()
+  })
+
+  it("getPublicPlatformStats GETs /public/stats, unauthenticated", async () => {
+    const grid = Array.from({ length: 7 }, () => new Array(24).fill(0))
+    mockFetchOnce({
+      ok: true,
+      status: 200,
+      body: { venues_total: 2, events_total: 4, events_last_7d: 1, events_partake_linked: 1, events_by_weekday_hour_last_90d: grid, generated_at: "2026-10-02T00:00:00Z" },
+    })
+    const result = await getPublicPlatformStats()
+    expect(result.events_total).toBe(4)
+    expect(result.events_by_weekday_hour_last_90d).toHaveLength(7)
+    const [url, init] = (fetch as ReturnType<typeof vi.fn>).mock.calls[0]
+    expect(url).toMatch(/\/public\/stats$/)
+    expect(init.headers.Authorization).toBeUndefined()
   })
 })
 
@@ -1086,6 +1026,27 @@ describe("FFXIV Venues link API", () => {
 describe("Patron logs API", () => {
   const lastCall = () => (fetch as ReturnType<typeof vi.fn>).mock.calls[0]
 
+  it("logPatronVisit POSTs the crossing and returns the API's event tag", async () => {
+    const logged = { id: 5, deduped: false, action: "enter", was_working: false, event_id: 12 }
+    mockFetchOnce({ ok: true, status: 201, body: logged })
+    const result = await logPatronVisit("token", "venue-1", {
+      character_name: "Test Char",
+      world: "Cactuar",
+      action: "enter",
+      ts: "2026-10-03T19:05:00Z",
+    })
+    expect(result).toEqual(logged)
+    const [url, init] = lastCall()
+    expect(url).toMatch(/\/venues\/venue-1\/patrons\/visits$/)
+    expect(init.method).toBe("POST")
+    expect(JSON.parse(init.body)).toEqual({
+      character_name: "Test Char",
+      world: "Cactuar",
+      action: "enter",
+      ts: "2026-10-03T19:05:00Z",
+    })
+  })
+
   it("listPatronLogs sends only the filters it is given", async () => {
     mockFetchOnce({ ok: true, status: 200, body: [] })
     await listPatronLogs("token", "venue-1", { from: "2026-10-01T00:00:00Z", to: "2026-10-02T00:00:00Z", limit: 50 })
@@ -1102,6 +1063,175 @@ describe("Patron logs API", () => {
     mockFetchOnce({ ok: true, status: 200, body: [] })
     await listPatronLogs("token", "venue-1", { eventId: 12 })
     expect(new URL(lastCall()[0]).searchParams.get("event_id")).toBe("12")
+  })
+
+  it("listPatronLogs sends the paging cursor", async () => {
+    mockFetchOnce({ ok: true, status: 200, body: [] })
+    await listPatronLogs("token", "venue-1", { eventId: 12, classification: "patron", before: 340, limit: 200 })
+    expect(Object.fromEntries(new URL(lastCall()[0]).searchParams)).toEqual({
+      event_id: "12",
+      classification: "patron",
+      before: "340",
+      limit: "200",
+    })
+  })
+
+  it("getPatronLogSummary reads one event's door summary", async () => {
+    const summary = { event_id: 12, attendance: 40, entries: 55, exits: 30, peak_occupancy: 28 }
+    mockFetchOnce({ ok: true, status: 200, body: summary })
+    await expect(getPatronLogSummary("token", "venue-1", 12)).resolves.toEqual(summary)
+    const url = new URL(lastCall()[0])
+    expect(url.pathname).toMatch(/\/venues\/venue-1\/patrons\/logs\/summary$/)
+    expect(url.searchParams.get("event_id")).toBe("12")
+  })
+
+  it("listMyAnnouncements reads the caller's live banner", async () => {
+    mockFetchOnce({ ok: true, status: 200, body: [] })
+    await expect(listMyAnnouncements("token")).resolves.toEqual([])
+    expect(new URL(lastCall()[0]).pathname).toMatch(/\/me\/announcements$/)
+  })
+
+  it("dismissAnnouncement posts to the dismiss path", async () => {
+    mockFetchOnce({ ok: true, status: 204, body: null })
+    await dismissAnnouncement("token", 5)
+    const [url, init] = lastCall()
+    expect(new URL(url).pathname).toMatch(/\/me\/announcements\/5\/dismiss$/)
+    expect(init.method).toBe("POST")
+  })
+
+  it("listAnnouncements reads the admin list", async () => {
+    mockFetchOnce({ ok: true, status: 200, body: [] })
+    await listAnnouncements("token")
+    expect(new URL(lastCall()[0]).pathname).toMatch(/\/admin\/announcements$/)
+  })
+
+  it("createAnnouncement posts the announcement", async () => {
+    mockFetchOnce({ ok: true, status: 201, body: { id: 1 } })
+    await createAnnouncement("token", { title: "T", message: "M", link: null, link_label: null, expires_at: null })
+    const [url, init] = lastCall()
+    expect(new URL(url).pathname).toMatch(/\/admin\/announcements$/)
+    expect(init.method).toBe("POST")
+    expect(JSON.parse(init.body)).toEqual({ title: "T", message: "M", link: null, link_label: null, expires_at: null })
+  })
+
+  it("deleteAnnouncement deletes by numeric id", async () => {
+    mockFetchOnce({ ok: true, status: 204, body: null })
+    await deleteAnnouncement("token", 7)
+    const [url, init] = lastCall()
+    expect(new URL(url).pathname).toMatch(/\/admin\/announcements\/7$/)
+    expect(init.method).toBe("DELETE")
+  })
+
+  it("listShouts reads the caller's saved shouts", async () => {
+    mockFetchOnce({ ok: true, status: 200, body: [] })
+    await expect(listShouts("token")).resolves.toEqual([])
+    expect(new URL(lastCall()[0]).pathname).toMatch(/\/me\/shouts$/)
+  })
+
+  it("createShout posts the shout and leaves unset catalog ids out", async () => {
+    mockFetchOnce({ ok: true, status: 201, body: { id: 1 } })
+    await createShout("token", { label: "Open", fields: { a: 1 }, template_id: "open-now" })
+    const [url, init] = lastCall()
+    expect(new URL(url).pathname).toMatch(/\/me\/shouts$/)
+    expect(init.method).toBe("POST")
+    expect(JSON.parse(init.body)).toEqual({ label: "Open", fields: { a: 1 }, template_id: "open-now" })
+  })
+
+  it("deleteShout deletes by numeric id", async () => {
+    mockFetchOnce({ ok: true, status: 204, body: null })
+    await deleteShout("token", 9)
+    const [url, init] = lastCall()
+    expect(new URL(url).pathname).toMatch(/\/me\/shouts\/9$/)
+    expect(init.method).toBe("DELETE")
+  })
+
+  it("listMyCharacters reads the caller's linked characters", async () => {
+    mockFetchOnce({ ok: true, status: 200, body: [] })
+    await expect(listMyCharacters("token")).resolves.toEqual([])
+    expect(new URL(lastCall()[0]).pathname).toMatch(/\/me\/characters$/)
+  })
+
+  it("listMyVenues reads the venues the caller currently works at", async () => {
+    mockFetchOnce({ ok: true, status: 200, body: [] })
+    await expect(listMyVenues("token")).resolves.toEqual([])
+    expect(new URL(lastCall()[0]).pathname).toMatch(/\/me\/venues$/)
+  })
+
+  it("linkMyCharacter posts the name and world", async () => {
+    mockFetchOnce({ ok: true, status: 201, body: { id: 1 } })
+    await linkMyCharacter("token", { character_name: "Test Char", world: "Lich" })
+    const [url, init] = lastCall()
+    expect(new URL(url).pathname).toMatch(/\/me\/characters$/)
+    expect(init.method).toBe("POST")
+    expect(JSON.parse(init.body)).toEqual({ character_name: "Test Char", world: "Lich" })
+  })
+
+  it("submitFeedback posts the report to the caller's feedback", async () => {
+    mockFetchOnce({ ok: true, status: 201, body: { id: 1 } })
+    await submitFeedback("token", { category: "bug_report", subject: "Broken", description: "It does nothing." })
+    const [url, init] = lastCall()
+    expect(new URL(url).pathname).toMatch(/\/me\/feedback$/)
+    expect(init.method).toBe("POST")
+    expect(JSON.parse(init.body)).toEqual({ category: "bug_report", subject: "Broken", description: "It does nothing." })
+  })
+
+  it("listMyFeedback asks for the largest page", async () => {
+    mockFetchOnce({ ok: true, status: 200, body: [] })
+    await expect(listMyFeedback("token")).resolves.toEqual([])
+    const url = new URL(lastCall()[0])
+    expect(url.pathname).toMatch(/\/me\/feedback$/)
+    expect(url.searchParams.get("limit")).toBe("200")
+  })
+
+  it("listAdminFeedback sends the filters it was given and the largest page", async () => {
+    mockFetchOnce({ ok: true, status: 200, body: [] })
+    await listAdminFeedback("token", { status: "in_progress", category: "bug_report" })
+    const url = new URL(lastCall()[0])
+    expect(url.pathname).toMatch(/\/admin\/feedback$/)
+    expect(url.searchParams.get("status")).toBe("in_progress")
+    expect(url.searchParams.get("category")).toBe("bug_report")
+    expect(url.searchParams.get("limit")).toBe("200")
+  })
+
+  it("listAdminFeedback leaves filters out when none are given", async () => {
+    mockFetchOnce({ ok: true, status: 200, body: [] })
+    await listAdminFeedback("token")
+    const url = new URL(lastCall()[0])
+    expect(url.searchParams.has("status")).toBe(false)
+    expect(url.searchParams.has("category")).toBe(false)
+  })
+
+  it("triageFeedback patches the report by numeric id", async () => {
+    mockFetchOnce({ ok: true, status: 200, body: { id: 9 } })
+    await triageFeedback("token", 9, { status: "planned", admin_notes: "Scheduled" })
+    const [url, init] = lastCall()
+    expect(new URL(url).pathname).toMatch(/\/admin\/feedback\/9$/)
+    expect(init.method).toBe("PATCH")
+    expect(JSON.parse(init.body)).toEqual({ status: "planned", admin_notes: "Scheduled" })
+  })
+
+  it("unlinkMyCharacter deletes by numeric id", async () => {
+    mockFetchOnce({ ok: true, status: 204, body: null })
+    await unlinkMyCharacter("token", 9)
+    const [url, init] = lastCall()
+    expect(new URL(url).pathname).toMatch(/\/me\/characters\/9$/)
+    expect(init.method).toBe("DELETE")
+  })
+
+  it("reissueInvite posts to the invite's reissue path and returns the new token", async () => {
+    mockFetchOnce({ ok: true, status: 200, body: { id: 9, token: "fresh" } })
+    await expect(reissueInvite("token", "venue-1", 9)).resolves.toMatchObject({ id: 9, token: "fresh" })
+    const [url, init] = lastCall()
+    expect(new URL(url).pathname).toMatch(/\/venues\/venue-1\/invites\/9\/reissue$/)
+    expect(init.method).toBe("POST")
+  })
+
+  it("getVenueFollowers reads the count with a small page by default", async () => {
+    mockFetchOnce({ ok: true, status: 200, body: { count: 4, followers: [] } })
+    await expect(getVenueFollowers("token", "venue-1")).resolves.toEqual({ count: 4, followers: [] })
+    const url = new URL(lastCall()[0])
+    expect(url.pathname).toMatch(/\/venues\/venue-1\/followers$/)
+    expect(url.searchParams.get("limit")).toBe("1")
   })
 
   it("listPatronLogs sends the character filter", async () => {
@@ -1125,5 +1255,12 @@ describe("Patron logs API", () => {
     expect(url).toMatch(/\/venues\/venue-1\/patrons\/logs\/reclassify$/)
     expect(init.method).toBe("PATCH")
     expect(JSON.parse(init.body)).toEqual({ log_ids: [1, 2], was_working: true, working_person_id: 9, reason: "on shift" })
+  })
+
+  it("getPatronPresence GETs who is inside", async () => {
+    const presence = { count: 1, present: [{ character_name: "A", world: "B", was_working: false, since: "2026-10-03T19:05:00Z" }] }
+    mockFetchOnce({ ok: true, status: 200, body: presence })
+    expect(await getPatronPresence("token", "venue-1")).toEqual(presence)
+    expect(lastCall()[0]).toMatch(/\/venues\/venue-1\/patrons\/present$/)
   })
 })

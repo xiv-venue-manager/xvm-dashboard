@@ -10,7 +10,7 @@ const m = vi.hoisted(() => ({
 
 vi.mock("next-auth", () => ({ getServerSession: m.session }))
 vi.mock("@/lib/auth", () => ({ authOptions: {} }))
-vi.mock("@/lib/prisma", () => ({ prisma: { venue: { findUnique: m.venue } } }))
+vi.mock("@/lib/api/venue-access", () => ({ requireMyVenue: m.venue }))
 vi.mock("@/lib/api/xvm-api-store", async () => {
   const actual = await vi.importActual<typeof import("@/lib/api/xvm-api-store")>("@/lib/api/xvm-api-store")
   return { ...actual, getValidXvmApiToken: m.token, invalidateXvmApiCredential: vi.fn() }
@@ -32,7 +32,7 @@ beforeEach(() => {
   vi.spyOn(console, "error").mockImplementation(() => {})
   m.session.mockResolvedValue({ user: { id: "user-1" } })
   m.token.mockResolvedValue("tok")
-  m.venue.mockResolvedValue({ xvmApiVenueId: "xv-1" })
+  m.venue.mockResolvedValue({ ok: true, venue: { id: "xv-1", role: "MANAGER" } })
 })
 
 describe("POST cancel-series", () => {

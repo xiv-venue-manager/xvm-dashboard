@@ -16,7 +16,6 @@ interface ShiftsCalendarProps {
   currentMembershipId: number
   canManage: boolean
   venueSlug: string
-  venueId: string
   staffForDialog: ShiftStaffOption[]
   roles: ShiftRoleOption[]
   staffNames: StaffNameLookup
@@ -46,7 +45,6 @@ export function ShiftsCalendar({
   currentMembershipId,
   canManage,
   venueSlug,
-  venueId,
   staffForDialog,
   roles,
   staffNames,
@@ -176,7 +174,6 @@ export function ShiftsCalendar({
         canManage={canManage}
         currentMembershipId={currentMembershipId}
         venueSlug={venueSlug}
-        venueId={venueId}
         staffForDialog={staffForDialog}
         roles={roles}
         staffNames={staffNames}

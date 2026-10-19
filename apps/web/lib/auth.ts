@@ -4,6 +4,7 @@ import DiscordProvider from "next-auth/providers/discord"
 import { prisma } from "@/lib/prisma"
 import { exchangeToken } from "@/lib/api/xvm-api"
 import { upsertXvmApiCredential, getValidXvmApiToken } from "@/lib/api/xvm-api-store"
+import { SESSION_COOKIE_NAME } from "@/lib/session-cookie"
 
 export const authOptions: NextAuthOptions = {
   // eslint-disable-next-line @typescript-eslint/no-explicit-any
@@ -12,6 +13,9 @@ export const authOptions: NextAuthOptions = {
     DiscordProvider({
       clientId: process.env.DISCORD_CLIENT_ID!,
       clientSecret: process.env.DISCORD_CLIENT_SECRET!,
+      issuer: "https://discord.com",
+      // guilds is what lets an owner prove they administer the server they're linking.
+      authorization: { params: { scope: "identify email guilds" } },
     }),
   ],
   callbacks: {
@@ -45,10 +49,15 @@ export const authOptions: NextAuthOptions = {
         token.name = user.name
         token.picture = user.image
       }
-      // Persist the OAuth access_token to the token right after signin
       if (account) {
-        token.accessToken = account.access_token
         token.provider = account.provider
+        if (account.provider === "discord" && account.access_token) {
+          token.discord = {
+            accessToken: account.access_token,
+            expiresAt: account.expires_at ?? null,
+            scope: account.scope ?? null,
+          }
+        }
       }
       // Mint an xvm-api person token on first sign-in. This is additive, not a
       // hard dependency for login, so xvm-api being down must never fail the
@@ -119,7 +128,7 @@ export const authOptions: NextAuthOptions = {
     process.env.NODE_ENV === "production"
       ? {
           sessionToken: {
-            name: `__Secure-next-auth.session-token`,
+            name: SESSION_COOKIE_NAME,
             options: {
               httpOnly: true,
               sameSite: "lax" as const,
@@ -140,7 +149,7 @@ export const authOptions: NextAuthOptions = {
     async signIn(message) {
       console.log("NextAuth signIn event:", message.user?.id)
     },
-    async signOut(message) {
+    async signOut() {
       console.log("NextAuth signOut event")
     },
     async createUser(message) {
@@ -148,8 +157,14 @@ export const authOptions: NextAuthOptions = {
     },
     async linkAccount(message) {
       console.log("NextAuth linkAccount event:", message.account?.provider)
+      if (message.account.provider === "discord") {
+        await prisma.user.update({
+          where: { id: message.user.id },
+          data: { discordId: message.account.providerAccountId },
+        })
+      }
     },
-    async session(message) {
+    async session() {
       // Don't log session events in production to reduce noise
       if (process.env.NODE_ENV === "development") {
         console.log("NextAuth session event")

@@ -2,9 +2,9 @@ import { NextResponse } from "next/server"
 import { getServerSession } from "next-auth"
 import { authOptions } from "@/lib/auth"
 import { z } from "zod"
-import { prisma } from "@/lib/prisma"
 import { withRateLimit } from "@/lib/middleware/with-rate-limit"
 import { getValidXvmApiToken, xvmApiErrorResponse } from "@/lib/api/xvm-api-store"
+import { requireMyVenue } from "@/lib/api/venue-access"
 import { getPanel, updatePanel, deletePanel } from "@/lib/api/xvm-api"
 
 const updatePanelSchema = z.object({
@@ -13,19 +13,6 @@ const updatePanelSchema = z.object({
   color: z.number().int().min(0).max(0xffffff).nullable().optional(),
   messageType: z.enum(["normal", "unique", "verify"]).optional(),
 })
-
-async function requireXvmVenueId(venueId: string) {
-  const venue = await prisma.venue.findUnique({ where: { id: venueId }, select: { xvmApiVenueId: true } })
-  if (!venue?.xvmApiVenueId) {
-    return {
-      error: NextResponse.json(
-        { error: "not_connected", message: "This venue hasn't been connected to xvm-api yet." },
-        { status: 409 }
-      ),
-    }
-  }
-  return { xvmApiVenueId: venue.xvmApiVenueId }
-}
 
 function parsePanelId(panelId: string) {
   const id = Number(panelId)
@@ -54,11 +41,11 @@ export const GET = withRateLimit<{ params: Promise<{ venueId: string; panelId: s
       return NextResponse.json({ error: "Invalid panel id" }, { status: 400 })
     }
 
-    const gate = await requireXvmVenueId(venueId)
-    if (gate.error) return gate.error
+    const lookup = await requireMyVenue(session.user.id, venueId, "[reaction-role-panels] /me/venues read error")
+    if (!lookup.ok) return lookup.response
 
     try {
-      const panel = await getPanel(token, gate.xvmApiVenueId!, id)
+      const panel = await getPanel(token, lookup.venue.id, id)
       return NextResponse.json(panel)
     } catch (err) {
       return xvmApiErrorResponse(err, session.user.id, "[reaction-role-panels/:id] GET error")
@@ -89,8 +76,8 @@ export const PATCH = withRateLimit<{ params: Promise<{ venueId: string; panelId:
       return NextResponse.json({ error: "Invalid panel id" }, { status: 400 })
     }
 
-    const gate = await requireXvmVenueId(venueId)
-    if (gate.error) return gate.error
+    const lookup = await requireMyVenue(session.user.id, venueId, "[reaction-role-panels] /me/venues read error")
+    if (!lookup.ok) return lookup.response
 
     let data: z.infer<typeof updatePanelSchema>
     try {
@@ -103,7 +90,7 @@ export const PATCH = withRateLimit<{ params: Promise<{ venueId: string; panelId:
     }
 
     try {
-      const panel = await updatePanel(token, gate.xvmApiVenueId!, id, {
+      const panel = await updatePanel(token, lookup.venue.id, id, {
         ...(data.title !== undefined && { title: data.title }),
         ...(data.description !== undefined && { description: data.description }),
         ...(data.color !== undefined && { color: data.color }),
@@ -139,11 +126,11 @@ export const DELETE = withRateLimit<{ params: Promise<{ venueId: string; panelId
       return NextResponse.json({ error: "Invalid panel id" }, { status: 400 })
     }
 
-    const gate = await requireXvmVenueId(venueId)
-    if (gate.error) return gate.error
+    const lookup = await requireMyVenue(session.user.id, venueId, "[reaction-role-panels] /me/venues read error")
+    if (!lookup.ok) return lookup.response
 
     try {
-      await deletePanel(token, gate.xvmApiVenueId!, id)
+      await deletePanel(token, lookup.venue.id, id)
       return NextResponse.json({ success: true })
     } catch (err) {
       return xvmApiErrorResponse(err, session.user.id, "[reaction-role-panels/:id] DELETE error")

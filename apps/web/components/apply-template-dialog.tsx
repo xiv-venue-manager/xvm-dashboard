@@ -11,7 +11,7 @@ import {
   DialogTitle,
   DialogTrigger,
 } from "@/components/ui/dialog"
-import { Input } from "@/components/ui/input"
+import { ChannelPicker } from "@/components/discord-picker"
 import { Label } from "@/components/ui/label"
 import { Select, SelectContent, SelectItem, SelectTrigger, SelectValue } from "@/components/ui/select"
 import { toast } from "sonner"
@@ -124,12 +124,12 @@ export function ApplyTemplateDialog({ venueId, templates, onApplied }: ApplyTemp
             </Select>
           </div>
           <div className="space-y-2">
-            <Label htmlFor="template-channel">Channel ID</Label>
-            <Input
+            <Label htmlFor="template-channel">Channel</Label>
+            <ChannelPicker
               id="template-channel"
-              placeholder="Channel ID"
+              venueId={venueId}
               value={channelId}
-              onChange={(e) => setChannelId(e.target.value)}
+              onChange={setChannelId}
               disabled={submitting}
             />
           </div>

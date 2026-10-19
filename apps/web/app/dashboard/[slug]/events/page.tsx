@@ -3,14 +3,12 @@ import { authOptions } from "@/lib/auth"
 import { redirect, notFound } from "next/navigation"
 import Link from "next/link"
 import { Button } from "@/components/ui/button"
-import { Card, CardContent, CardDescription, CardHeader, CardTitle } from "@/components/ui/card"
 import { Badge } from "@/components/ui/badge"
-import { prisma } from "@/lib/prisma"
+import { resolveMyVenue } from "@/lib/api/venue-access"
 import { EventsCalendar } from "@/components/events-calendar"
 import { VenueLayout } from "@/components/venue-layout"
 import { LocalTime } from "@/components/server-time"
 import { format } from "date-fns"
-import { SyncPartakeButton } from "@/components/sync-partake-button"
 import { EndEventButton } from "@/components/end-event-button"
 import { canManageVenue } from "@/lib/roles"
 import { eventVisibilityFor } from "@/lib/event-visibility"
@@ -53,24 +51,12 @@ export default async function EventsPage({
   const { slug } = await params
   const { status, view = "list" } = await searchParams
 
-  // Get venue
-  const venue = await prisma.venue.findUnique({
-    where: { slug },
-    include: {
-      memberships: {
-        where: {
-          userId: session.user.id,
-        },
-      },
-    },
-  })
-
-  if (!venue || venue.memberships.length === 0) {
-    notFound()
-  }
+  const venue = await resolveMyVenue(session.user.id, slug)
+  if (!venue) notFound()
+  const userRole = venue.role
 
   const now = new Date()
-  const readXvm = await xvmPageReader(session.user.id, venue.xvmApiVenueId)
+  const readXvm = await xvmPageReader(session.user.id, venue.id)
   let events: DashboardEvent[] = await readXvm("events-list", [] as DashboardEvent[], async (token, xvmApiVenueId) => {
     const items = await listEvents(token, xvmApiVenueId, {
       from: new Date(now.getTime() - EVENT_LIST_WINDOW_MS / 2).toISOString(),
@@ -84,10 +70,7 @@ export default async function EventsPage({
     events = events.filter((event) => event.status === status)
   }
 
-  if (
-    venue.memberships[0].role === "STAFF" &&
-    (await eventVisibilityFor(session.user.id, venue)) === "published"
-  ) {
+  if (userRole === "STAFF" && (await eventVisibilityFor(session.user.id, venue.id)) === "published") {
     events = events.filter((event) => event.status !== "DRAFT")
   }
 
@@ -95,7 +78,6 @@ export default async function EventsPage({
   const pastEvents = events.filter((e) => new Date(e.startTime) < now && e.status !== "DRAFT")
   const draftEvents = events.filter((e) => e.status === "DRAFT")
 
-  const userRole = venue.memberships[0].role
 
   return (
     <VenueLayout venueSlug={venue.slug} venueName={venue.name} userRole={userRole}>
@@ -113,7 +95,6 @@ export default async function EventsPage({
             <h1 className="page-h1">Events</h1>
           </div>
           <div className="flex items-center gap-2 self-start flex-wrap">
-            {venue.partakeTeamId && <SyncPartakeButton venueId={venue.id} />}
             {canManageVenue(userRole) && (
               <Button asChild size="sm">
                 <Link href={`/dashboard/${slug}/events/new`}>

@@ -2,10 +2,14 @@ import { NextRequest, NextResponse } from "next/server"
 import { getServerSession } from "next-auth"
 import { z } from "zod"
 import { authOptions } from "@/lib/auth"
-import { prisma } from "@/lib/prisma"
 import { withRateLimit } from "@/lib/middleware/with-rate-limit"
 import { sendDiscordWebhook, formatFeedbackSubmittedEmbed } from "@/lib/discord-webhook"
 import { validators } from "@/lib/validation"
+import { getValidXvmApiToken, xvmApiErrorResponse } from "@/lib/api/xvm-api-store"
+import { listMyFeedback, submitFeedback } from "@/lib/api/xvm-api"
+import { toFeedbackShape, toXvmFeedbackValue } from "@/lib/api/feedback-shape"
+
+const MAX_USER_AGENT_LENGTH = 300
 
 const feedbackSchema = z.object({
   category: validators.feedbackCategory,
@@ -37,6 +41,11 @@ export const POST = withRateLimit(
         return addCors(NextResponse.json({ error: "Unauthorized" }, { status: 401 }))
       }
 
+      const token = await getValidXvmApiToken(session.user.id)
+      if (!token) {
+        return addCors(NextResponse.json({ error: "xvm-api link not established yet" }, { status: 503 }))
+      }
+
       const body = await request.json()
       let parsed: z.infer<typeof feedbackSchema>
       try {
@@ -49,30 +58,22 @@ export const POST = withRateLimit(
       }
       const { category, subject, description, url } = parsed
 
-      // Get user agent for context
-      const userAgent = request.headers.get("user-agent") || undefined
+      const userAgent = request.headers.get("user-agent")?.slice(0, MAX_USER_AGENT_LENGTH)
 
-      // Create feedback entry
-      const feedback = await prisma.feedback.create({
-        data: {
-          userId: session.user.id,
-          category,
-          subject,
-          description,
-          url,
-          userAgent,
-        },
-        include: {
-          user: {
-            select: {
-              id: true,
-              name: true,
-              displayName: true,
-              email: true,
-            },
-          },
-        },
-      })
+      let feedback
+      try {
+        feedback = toFeedbackShape(
+          await submitFeedback(token, {
+            category: toXvmFeedbackValue(category),
+            subject,
+            description,
+            url,
+            user_agent: userAgent,
+          })
+        )
+      } catch (err) {
+        return addCors(await xvmApiErrorResponse(err, session.user.id, "[feedback] submit error"))
+      }
 
       // Fire-and-forget Discord notification to admin channel.
       // Failures here must not break the user response.
@@ -83,7 +84,7 @@ export const POST = withRateLimit(
           subject: feedback.subject,
           description: feedback.description,
           url: feedback.url,
-          user: feedback.user,
+          user: { name: session.user.name, email: session.user.email },
         })
         void sendDiscordWebhook(adminWebhookUrl, { embeds: [embed] }).catch((err) => {
           console.error("[feedback] Discord notify failed:", err)
@@ -101,44 +102,19 @@ export const POST = withRateLimit(
 
 // GET /api/feedback - List current user's own feedback only
 export const GET = withRateLimit(
-  async (request: NextRequest) => {
+  async () => {
+    const session = await getServerSession(authOptions)
+    if (!session?.user?.id) {
+      return NextResponse.json({ error: "Unauthorized" }, { status: 401 })
+    }
+
+    const token = await getValidXvmApiToken(session.user.id)
+    if (!token) return NextResponse.json({ error: "xvm-api link not established yet" }, { status: 503 })
+
     try {
-      const session = await getServerSession(authOptions)
-      if (!session?.user?.id) {
-        return NextResponse.json({ error: "Unauthorized" }, { status: 401 })
-      }
-
-      // Always scope to the authenticated user - no userId param accepted.
-      // Admin access uses /api/admin/feedback instead.
-      const feedback = await prisma.feedback.findMany({
-        where: {
-          userId: session.user.id,
-        },
-        include: {
-          user: {
-            select: {
-              id: true,
-              name: true,
-              displayName: true,
-            },
-          },
-          reviewer: {
-            select: {
-              id: true,
-              name: true,
-              displayName: true,
-            },
-          },
-        },
-        orderBy: {
-          createdAt: "desc",
-        },
-      })
-
-      return NextResponse.json(feedback)
-    } catch (error) {
-      console.error("Error fetching feedback:", error)
-      return NextResponse.json({ error: "Internal server error" }, { status: 500 })
+      return NextResponse.json((await listMyFeedback(token)).map(toFeedbackShape))
+    } catch (err) {
+      return xvmApiErrorResponse(err, session.user.id, "[feedback] list error")
     }
   },
   { requests: 30, window: "1 m" }

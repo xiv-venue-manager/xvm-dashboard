@@ -28,7 +28,6 @@ import {
 } from "@/components/ui/alert-dialog"
 import { Select, SelectContent, SelectItem, SelectTrigger, SelectValue } from "@/components/ui/select"
 import { Alert, AlertDescription } from "@/components/ui/alert"
-import { Avatar, AvatarFallback, AvatarImage } from "@/components/ui/avatar"
 import { format } from "date-fns"
 import { PageLoading } from "@/components/ui/loading-spinner"
 import { canManageVenue } from "@/lib/roles"
@@ -145,7 +144,7 @@ export default function TasksPage({ params }: { params: Promise<{ slug: string }
         }
 
         // Get roles
-        const rolesResponse = await fetch(`/api/venues/${venue.id}/roles`)
+        const rolesResponse = await fetch(`/api/venues/${slug}/roles`)
         if (rolesResponse.ok) {
           const rolesData = await rolesResponse.json()
           setRoles(rolesData)

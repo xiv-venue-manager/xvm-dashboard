@@ -1,7 +1,10 @@
-import { NextRequest, NextResponse } from "next/server"
+import { NextResponse } from "next/server"
 import { getServerSession } from "next-auth"
 import { authOptions } from "@/lib/auth"
 import { prisma } from "@/lib/prisma"
+import { requireVenueRole } from "@/lib/api/venue-access"
+import { requireChannelInGuild } from "@/lib/api/venue-guild"
+import { validators } from "@/lib/validation"
 import { Prisma } from "@/generated/prisma/client"
 import { z } from "zod"
 import { withRateLimit } from "@/lib/middleware/with-rate-limit"
@@ -61,7 +64,10 @@ const updateSettingsSchema = z.object({
   shiftBot: z
     .object({
       enabled: z.boolean(),
-      channelId: z.string().max(20),
+      // A snowflake, not any short string: requireChannelInGuild puts this in a Discord API
+      // path, and ".." segments resolve there. Empty stays allowed because clearing the field
+      // sends it, and a cleared channel is deliberately not checked.
+      channelId: validators.snowflake.or(z.literal("")),
       daysBeforeEvent: z.number().int().min(1).max(14).optional(),
       templates: z
         .array(
@@ -97,17 +103,8 @@ export const GET = withRateLimit<{ params: Promise<{ venueId: string }> }>(
       const { venueId } = await params
 
       // Check if user has access to this venue
-      const membership = await prisma.membership.findFirst({
-        where: {
-          userId: session.user.id,
-          venueId,
-          status: "active",
-        },
-      })
-
-      if (!membership) {
-        return NextResponse.json({ error: "You don't have access to this venue" }, { status: 403 })
-      }
+      const access = await requireVenueRole(session.user.id, venueId, "STAFF", "You don't have access to this venue")
+      if (!access.ok) return access.response
 
       // Get venue settings
       const venue = await prisma.venue.findUnique({
@@ -158,6 +155,7 @@ export const GET = withRateLimit<{ params: Promise<{ venueId: string }> }>(
             responseBody.ward = detail.ward
             responseBody.plot = detail.plot
             responseBody.apartment = detail.room
+            responseBody.subdivision = detail.subdivision
             degraded = false
           } catch (err) {
             if (isXvmAuthFailure(err)) {
@@ -180,6 +178,7 @@ export const GET = withRateLimit<{ params: Promise<{ venueId: string }> }>(
           delete responseBody.ward
           delete responseBody.plot
           delete responseBody.apartment
+          delete responseBody.subdivision
           responseBody.visibilityDegraded = true
         }
       }
@@ -209,17 +208,8 @@ export const PUT = withRateLimit<{ params: Promise<{ venueId: string }> }>(
       const { venueId } = await params
 
       // Check if user has permission to update settings
-      const membership = await prisma.membership.findFirst({
-        where: {
-          userId: session.user.id,
-          venueId,
-          status: "active",
-        },
-      })
-
-      if (!membership) {
-        return NextResponse.json({ error: "Not a member of this venue" }, { status: 403 })
-      }
+      const access = await requireVenueRole(session.user.id, venueId, "STAFF", "Not a member of this venue")
+      if (!access.ok) return access.response
 
       const body = await request.json()
       const validatedData = updateSettingsSchema.parse(body)
@@ -227,8 +217,8 @@ export const PUT = withRateLimit<{ params: Promise<{ venueId: string }> }>(
       // Only OWNER can update most settings; MANAGER can update roomManagerRoleIds and the
       // operational staff-visibility fields. Revenue visibility stays owner-only - it's a
       // financial-disclosure policy call, not day-to-day staff coordination like the other three.
-      const isOwner = membership.role === "OWNER"
-      const isManager = membership.role === "MANAGER"
+      const isOwner = access.role === "OWNER"
+      const isManager = access.role === "MANAGER"
       const managerAllowedKeys = new Set(["roomManagerRoleIds", "taskVisibility", "salesVisibility", "eventVisibility"])
       const onlyManagerAllowedFields = Object.keys(validatedData).every((k) => managerAllowedKeys.has(k))
 
@@ -244,6 +234,20 @@ export const PUT = withRateLimit<{ params: Promise<{ venueId: string }> }>(
 
       if (!venue) {
         return NextResponse.json({ error: "Venue not found" }, { status: 404 })
+      }
+
+      // The whole shiftBot object arrives on every save, so only a channel that changed is checked:
+      // re-checking an unchanged one would block unrelated saves on a venue whose server is not linked.
+      const newChannelId = validatedData.shiftBot?.channelId
+      if (newChannelId && newChannelId !== parseVenueSettings(venue.settings).shiftBot?.channelId) {
+        if (!venue.xvmApiVenueId) {
+          return NextResponse.json(
+            { error: "not_connected", message: "This venue hasn't been connected to xvm-api yet." },
+            { status: 409 }
+          )
+        }
+        const channel = await requireChannelInGuild(session.user.id, venue.xvmApiVenueId, newChannelId)
+        if (!channel.ok) return channel.response
       }
 
       // Extract top-level venue columns and xvm-api-owned visibility fields from validated data

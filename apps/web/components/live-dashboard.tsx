@@ -1,10 +1,8 @@
 "use client"
 
 import { useState, useEffect } from "react"
-import Link from "next/link"
 import { LocalTime } from "@/components/server-time"
-import { Card, CardContent } from "@/components/ui/card"
-import { Badge } from "@/components/ui/badge"
+import { Card } from "@/components/ui/card"
 import { Button } from "@/components/ui/button"
 import {
   AlertDialog,
@@ -58,7 +56,8 @@ interface StaffRosterItem {
 }
 
 interface LiveDashboardProps {
-  venueId: string
+  venueSlug: string
+  xvmApiVenueId: string
   event: LiveEvent
   isUpcoming: boolean
   initialPatronCount: number
@@ -76,7 +75,8 @@ interface LiveDashboardProps {
 }
 
 export function LiveDashboard({
-  venueId,
+  venueSlug,
+  xvmApiVenueId,
   event,
   isUpcoming,
   initialPatronCount,
@@ -106,7 +106,7 @@ export function LiveDashboard({
   async function handleEndEvent() {
     setEnding(true)
     try {
-      const res = await fetch(`/api/venues/${venueId}/events/${event.id}`, {
+      const res = await fetch(`/api/venues/${xvmApiVenueId}/events/${event.id}`, {
         method: "PATCH",
         headers: { "Content-Type": "application/json" },
         body: JSON.stringify({ endTime: new Date().toISOString() }),
@@ -139,7 +139,7 @@ export function LiveDashboard({
   // Load historical activity
   useEffect(() => {
     if (isUpcoming || !event.id) return
-    fetch(`/api/venues/${venueId}/timeline?eventId=${event.id}&limit=50`)
+    fetch(`/api/venues/${xvmApiVenueId}/timeline?eventId=${event.id}&limit=50`)
       .then((r) => r.json())
       .then((data) => {
         if (!Array.isArray(data.items)) return
@@ -174,11 +174,11 @@ export function LiveDashboard({
         )
       })
       .catch(() => {})
-  }, [venueId, event.id, isUpcoming])
+  }, [xvmApiVenueId, event.id, isUpcoming])
 
   // SSE
   useEffect(() => {
-    const es = new EventSource("/api/stream/" + venueId)
+    const es = new EventSource("/api/stream/" + venueSlug)
     es.onmessage = (e) => {
       try {
         const data = JSON.parse(e.data)
@@ -272,7 +272,7 @@ export function LiveDashboard({
     }
     es.onerror = () => setConnected(false)
     return () => es.close()
-  }, [venueId, showRevenue, revenueUnavailable, scopeSalesToOwn, currentUserId])
+  }, [venueSlug, showRevenue, revenueUnavailable, scopeSalesToOwn, currentUserId])
 
   const fiClass = (type: ActivityItem["type"]) => {
     if (type === "patron_enter")

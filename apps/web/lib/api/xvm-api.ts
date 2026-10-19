@@ -177,6 +177,7 @@ export interface VenueRow {
   slug: string
   data_center: string
   world: string
+  timezone: string
 }
 
 export interface VenueImageRow {
@@ -333,6 +334,22 @@ export async function getMe(personToken: string): Promise<Me> {
   return xvmFetch<Me>("/me", {}, personToken)
 }
 
+export async function updateMyDisplayName(personToken: string, displayName: string): Promise<MePerson> {
+  if (!process.env.XVM_API_BASE_URL) throw new Error("XVM_API_BASE_URL is not set")
+  return xvmFetch<MePerson>("/me", { method: "PATCH", body: JSON.stringify({ display_name: displayName }) }, personToken)
+}
+
+export interface MyVenueRow {
+  venue: VenueRow
+  tier: string
+  effective_tier: string
+}
+
+export async function listMyVenues(personToken: string): Promise<MyVenueRow[]> {
+  if (!process.env.XVM_API_BASE_URL) throw new Error("XVM_API_BASE_URL is not set")
+  return xvmFetch<MyVenueRow[]>("/me/venues", {}, personToken)
+}
+
 export async function listMyCredentials(personToken: string): Promise<Credential[]> {
   if (!process.env.XVM_API_BASE_URL) throw new Error("XVM_API_BASE_URL is not set")
   return xvmFetch<Credential[]>("/me/credentials", {}, personToken)
@@ -341,6 +358,22 @@ export async function listMyCredentials(personToken: string): Promise<Credential
 export async function revokeCredential(personToken: string, credentialId: number): Promise<Credential> {
   if (!process.env.XVM_API_BASE_URL) throw new Error("XVM_API_BASE_URL is not set")
   return xvmFetch<Credential>(`/me/credentials/${credentialId}/revoke`, { method: "POST" }, personToken)
+}
+
+export interface PairingCodeIssued {
+  code: string
+  client: "plugin"
+  venue_id: string | null
+  expires_at: string
+}
+
+export async function createPairingCode(personToken: string): Promise<PairingCodeIssued> {
+  if (!process.env.XVM_API_BASE_URL) throw new Error("XVM_API_BASE_URL is not set")
+  return xvmFetch<PairingCodeIssued>(
+    "/pairing/codes",
+    { method: "POST", body: JSON.stringify({ client: "plugin", venue_id: null }) },
+    personToken
+  )
 }
 
 // ── Rooms API ──────────────────────────────────────────────────
@@ -916,6 +949,32 @@ export async function getPublicHours(venueId: string, days?: number): Promise<Pu
   return xvmFetch<PublicHours>(`/public/venues/${venueId}/hours${params}`, { next: { revalidate: 60 } })
 }
 
+export interface PublicPlatformStats {
+  venues_total: number
+  venues_active_last_30d: number
+  venues_created_last_7d: number
+  venues_by_data_center: Record<string, number>
+  venues_by_type: Record<string, number>
+  first_venue_at: string | null
+  events_total: number
+  events_last_7d: number
+  events_partake_linked: number
+  events_by_weekday_hour_last_90d: number[][]
+  plugin_installs: number
+  patron_entries_total: number
+  shifts_total: number
+  shifts_created_last_7d: number
+  tasks_completed: number
+  transactions_by_kind: Record<string, { count: number; amount_sum: number }>
+  last_activity_at: string | null
+  generated_at: string
+}
+
+export async function getPublicPlatformStats(): Promise<PublicPlatformStats> {
+  if (!process.env.XVM_API_BASE_URL) throw new Error("XVM_API_BASE_URL is not set")
+  return xvmFetch<PublicPlatformStats>("/public/stats")
+}
+
 export interface PublicVenue {
   id: string
   slug: string
@@ -1258,6 +1317,11 @@ export async function rescindInvite(personToken: string, venueId: string, invite
   return xvmFetch<void>(`/venues/${venueId}/invites/${inviteId}`, { method: "DELETE" }, personToken)
 }
 
+export async function reissueInvite(personToken: string, venueId: string, inviteId: number): Promise<InviteIssued> {
+  if (!process.env.XVM_API_BASE_URL) throw new Error("XVM_API_BASE_URL is not set")
+  return xvmFetch<InviteIssued>(`/venues/${venueId}/invites/${inviteId}/reissue`, { method: "POST" }, personToken)
+}
+
 export interface InvitePreview {
   venue: { name: string; slug: string }
   tier: string
@@ -1270,7 +1334,7 @@ export interface InvitePreview {
 // preview lookup for the pre-signin invite screen.
 export async function getInvitePreview(token: string): Promise<InvitePreview> {
   if (!process.env.XVM_API_BASE_URL) throw new Error("XVM_API_BASE_URL is not set")
-  return xvmFetch<InvitePreview>(`/invites/${token}`)
+  return xvmFetch<InvitePreview>(`/public/invites/${encodeURIComponent(token)}`)
 }
 
 // Not venue-scoped - the invitee isn't a member yet, so this takes a bare
@@ -1951,6 +2015,21 @@ export async function unbanPatron(personToken: string, venueId: string, patronId
 
 export type PatronAction = "enter" | "leave" | "present"
 
+export interface VisitLogData {
+  character_name: string
+  world: string
+  action: PatronAction
+  ts: string
+}
+
+export interface VisitLogged {
+  id: number
+  deduped: boolean
+  action: PatronAction
+  was_working: boolean
+  event_id: number | null
+}
+
 export interface PatronLogRow {
   id: number
   character_name: string | null
@@ -1968,6 +2047,20 @@ export interface PatronLogRow {
   reclassify_reason: string | null
 }
 
+export interface PatronPresence {
+  count: number
+  present: { character_name: string; world: string; was_working: boolean; since: string }[]
+}
+
+export async function logPatronVisit(personToken: string, venueId: string, data: VisitLogData): Promise<VisitLogged> {
+  if (!process.env.XVM_API_BASE_URL) throw new Error("XVM_API_BASE_URL is not set")
+  return xvmFetch<VisitLogged>(
+    `/venues/${venueId}/patrons/visits`,
+    { method: "POST", body: JSON.stringify(data) },
+    personToken
+  )
+}
+
 export async function listPatronLogs(
   personToken: string,
   venueId: string,
@@ -1977,6 +2070,7 @@ export async function listPatronLogs(
     eventId?: number
     character?: string
     classification?: "staff" | "patron"
+    before?: number
     limit?: number
   }
 ): Promise<PatronLogRow[]> {
@@ -1987,8 +2081,36 @@ export async function listPatronLogs(
   if (opts.eventId !== undefined) params.set("event_id", String(opts.eventId))
   if (opts.character !== undefined) params.set("character", opts.character)
   if (opts.classification !== undefined) params.set("classification", opts.classification)
+  if (opts.before !== undefined) params.set("before", String(opts.before))
   if (opts.limit !== undefined) params.set("limit", String(opts.limit))
   return xvmFetch<PatronLogRow[]>(`/venues/${venueId}/patrons/logs?${params}`, {}, personToken)
+}
+
+export interface PatronLogSummary {
+  event_id: number
+  attendance: number
+  entries: number
+  exits: number
+  peak_occupancy: number
+}
+
+export async function getPatronLogSummary(
+  personToken: string,
+  venueId: string,
+  eventId: number
+): Promise<PatronLogSummary> {
+  if (!process.env.XVM_API_BASE_URL) throw new Error("XVM_API_BASE_URL is not set")
+  return xvmFetch<PatronLogSummary>(`/venues/${venueId}/patrons/logs/summary?event_id=${eventId}`, {}, personToken)
+}
+
+export interface VenueFollowers {
+  count: number
+  followers: { person_id: number; display_name: string; followed_at: string }[]
+}
+
+export async function getVenueFollowers(personToken: string, venueId: string, limit = 1): Promise<VenueFollowers> {
+  if (!process.env.XVM_API_BASE_URL) throw new Error("XVM_API_BASE_URL is not set")
+  return xvmFetch<VenueFollowers>(`/venues/${venueId}/followers?limit=${limit}`, {}, personToken)
 }
 
 export interface ReclassifyData {
@@ -2009,6 +2131,11 @@ export async function reclassifyPatronLogs(
     { method: "PATCH", body: JSON.stringify(data) },
     personToken
   )
+}
+
+export async function getPatronPresence(personToken: string, venueId: string): Promise<PatronPresence> {
+  if (!process.env.XVM_API_BASE_URL) throw new Error("XVM_API_BASE_URL is not set")
+  return xvmFetch<PatronPresence>(`/venues/${venueId}/patrons/present`, {}, personToken)
 }
 
 export interface BannedRow {
@@ -2142,9 +2269,29 @@ export async function listGiveawayEntries(personToken: string, venueId: string, 
   return xvmFetch<EntryRow[]>(`/venues/${venueId}/giveaways/${giveawayId}/entries`, {}, personToken)
 }
 
-export async function rollGiveaway(personToken: string, venueId: string, giveawayId: number): Promise<GiveawayRoll> {
+export async function rollGiveaway(
+  personToken: string,
+  venueId: string,
+  giveawayId: number,
+  options: { reroll?: boolean } = {}
+): Promise<GiveawayRoll> {
   if (!process.env.XVM_API_BASE_URL) throw new Error("XVM_API_BASE_URL is not set")
-  return xvmFetch<GiveawayRoll>(`/venues/${venueId}/giveaways/${giveawayId}/roll`, { method: "POST" }, personToken)
+  const query = options.reroll ? "?reroll=true" : ""
+  return xvmFetch<GiveawayRoll>(`/venues/${venueId}/giveaways/${giveawayId}/roll${query}`, { method: "POST" }, personToken)
+}
+
+export async function postGiveaway(
+  personToken: string,
+  venueId: string,
+  giveawayId: number,
+  data: { channel_id: string }
+): Promise<void> {
+  if (!process.env.XVM_API_BASE_URL) throw new Error("XVM_API_BASE_URL is not set")
+  return xvmFetch<void>(
+    `/venues/${venueId}/giveaways/${giveawayId}/posts`,
+    { method: "POST", body: JSON.stringify(data) },
+    personToken
+  )
 }
 
 export interface RaffleRow {
@@ -2261,9 +2408,115 @@ export async function refundTickets(
   )
 }
 
-export async function rollRaffle(personToken: string, venueId: string, raffleId: number): Promise<RaffleRoll> {
+export async function rollRaffle(
+  personToken: string,
+  venueId: string,
+  raffleId: number,
+  options: { reroll?: boolean } = {}
+): Promise<RaffleRoll> {
   if (!process.env.XVM_API_BASE_URL) throw new Error("XVM_API_BASE_URL is not set")
-  return xvmFetch<RaffleRoll>(`/venues/${venueId}/raffles/${raffleId}/roll`, { method: "POST" }, personToken)
+  const query = options.reroll ? "?reroll=true" : ""
+  return xvmFetch<RaffleRoll>(`/venues/${venueId}/raffles/${raffleId}/roll${query}`, { method: "POST" }, personToken)
+}
+
+export async function postRaffle(
+  personToken: string,
+  venueId: string,
+  raffleId: number,
+  data: { channel_id: string }
+): Promise<void> {
+  if (!process.env.XVM_API_BASE_URL) throw new Error("XVM_API_BASE_URL is not set")
+  return xvmFetch<void>(
+    `/venues/${venueId}/raffles/${raffleId}/posts`,
+    { method: "POST", body: JSON.stringify(data) },
+    personToken
+  )
+}
+
+// ── Auto-reactor ───────────────────────────────────────────────
+
+export interface AutoReactorRuleRow {
+  id: number
+  channel_id: string | null
+  keyword: string | null
+  role_id: string | null
+  emoji: string
+  created_at: string
+}
+
+export interface AutoReactorRuleCreate {
+  channel_id?: string | null
+  keyword?: string | null
+  role_id?: string | null
+  emoji: string
+}
+
+export interface AutoReactorRuleUpdate {
+  channel_id?: string | null
+  keyword?: string | null
+  role_id?: string | null
+  emoji?: string
+}
+
+export interface ModuleRow {
+  module: string
+  enabled: boolean
+}
+
+export async function listAutoReactorRules(personToken: string, venueId: string): Promise<AutoReactorRuleRow[]> {
+  if (!process.env.XVM_API_BASE_URL) throw new Error("XVM_API_BASE_URL is not set")
+  return xvmFetch<AutoReactorRuleRow[]>(`/venues/${venueId}/auto-reactor-rules`, {}, personToken)
+}
+
+export async function createAutoReactorRule(
+  personToken: string,
+  venueId: string,
+  data: AutoReactorRuleCreate
+): Promise<AutoReactorRuleRow> {
+  if (!process.env.XVM_API_BASE_URL) throw new Error("XVM_API_BASE_URL is not set")
+  return xvmFetch<AutoReactorRuleRow>(
+    `/venues/${venueId}/auto-reactor-rules`,
+    { method: "POST", body: JSON.stringify(data) },
+    personToken
+  )
+}
+
+export async function updateAutoReactorRule(
+  personToken: string,
+  venueId: string,
+  ruleId: number,
+  data: AutoReactorRuleUpdate
+): Promise<AutoReactorRuleRow> {
+  if (!process.env.XVM_API_BASE_URL) throw new Error("XVM_API_BASE_URL is not set")
+  return xvmFetch<AutoReactorRuleRow>(
+    `/venues/${venueId}/auto-reactor-rules/${ruleId}`,
+    { method: "PATCH", body: JSON.stringify(data) },
+    personToken
+  )
+}
+
+export async function deleteAutoReactorRule(personToken: string, venueId: string, ruleId: number): Promise<void> {
+  if (!process.env.XVM_API_BASE_URL) throw new Error("XVM_API_BASE_URL is not set")
+  return xvmFetch<void>(`/venues/${venueId}/auto-reactor-rules/${ruleId}`, { method: "DELETE" }, personToken)
+}
+
+export async function listModules(personToken: string, venueId: string): Promise<ModuleRow[]> {
+  if (!process.env.XVM_API_BASE_URL) throw new Error("XVM_API_BASE_URL is not set")
+  return xvmFetch<ModuleRow[]>(`/venues/${venueId}/modules`, {}, personToken)
+}
+
+export async function setModule(
+  personToken: string,
+  venueId: string,
+  module: string,
+  enabled: boolean
+): Promise<ModuleRow> {
+  if (!process.env.XVM_API_BASE_URL) throw new Error("XVM_API_BASE_URL is not set")
+  return xvmFetch<ModuleRow>(
+    `/venues/${venueId}/modules/${module}`,
+    { method: "PUT", body: JSON.stringify({ enabled }) },
+    personToken
+  )
 }
 
 // ── Payroll API ────────────────────────────────────────────────
@@ -2919,3 +3172,207 @@ export async function listStockMovements(
   )
 }
 
+
+// ── Announcements ──────────────────────────────────────────────
+
+export interface AnnouncementRow {
+  id: number
+  title: string
+  message: string
+  link: string | null
+  link_label: string | null
+  starts_at: string
+  expires_at: string | null
+  created_by_person_id: number | null
+  created_at: string
+}
+
+export interface AnnouncementData {
+  title: string
+  message: string
+  link?: string | null
+  link_label?: string | null
+  expires_at?: string | null
+}
+
+export async function listMyAnnouncements(personToken: string): Promise<AnnouncementRow[]> {
+  if (!process.env.XVM_API_BASE_URL) throw new Error("XVM_API_BASE_URL is not set")
+  return xvmFetch<AnnouncementRow[]>("/me/announcements", {}, personToken)
+}
+
+export async function dismissAnnouncement(personToken: string, announcementId: number): Promise<void> {
+  if (!process.env.XVM_API_BASE_URL) throw new Error("XVM_API_BASE_URL is not set")
+  return xvmFetch<void>(`/me/announcements/${announcementId}/dismiss`, { method: "POST" }, personToken)
+}
+
+export async function listAnnouncements(personToken: string): Promise<AnnouncementRow[]> {
+  if (!process.env.XVM_API_BASE_URL) throw new Error("XVM_API_BASE_URL is not set")
+  return xvmFetch<AnnouncementRow[]>("/admin/announcements", {}, personToken)
+}
+
+export async function createAnnouncement(personToken: string, data: AnnouncementData): Promise<AnnouncementRow> {
+  if (!process.env.XVM_API_BASE_URL) throw new Error("XVM_API_BASE_URL is not set")
+  return xvmFetch<AnnouncementRow>("/admin/announcements", { method: "POST", body: JSON.stringify(data) }, personToken)
+}
+
+export async function deleteAnnouncement(personToken: string, announcementId: number): Promise<void> {
+  if (!process.env.XVM_API_BASE_URL) throw new Error("XVM_API_BASE_URL is not set")
+  return xvmFetch<void>(`/admin/announcements/${announcementId}`, { method: "DELETE" }, personToken)
+}
+
+// ── Shouts ─────────────────────────────────────────────────────
+
+export interface ShoutRow {
+  id: number
+  label: string
+  fields: Record<string, unknown>
+  template_id: string
+  separator_id: string
+  decor_id: string
+  created_at: string
+}
+
+export interface ShoutData {
+  label: string
+  fields: Record<string, unknown>
+  template_id: string
+  separator_id?: string
+  decor_id?: string
+}
+
+export async function listShouts(personToken: string): Promise<ShoutRow[]> {
+  if (!process.env.XVM_API_BASE_URL) throw new Error("XVM_API_BASE_URL is not set")
+  return xvmFetch<ShoutRow[]>("/me/shouts", {}, personToken)
+}
+
+export async function createShout(personToken: string, data: ShoutData): Promise<ShoutRow> {
+  if (!process.env.XVM_API_BASE_URL) throw new Error("XVM_API_BASE_URL is not set")
+  return xvmFetch<ShoutRow>("/me/shouts", { method: "POST", body: JSON.stringify(data) }, personToken)
+}
+
+export async function deleteShout(personToken: string, shoutId: number): Promise<void> {
+  if (!process.env.XVM_API_BASE_URL) throw new Error("XVM_API_BASE_URL is not set")
+  return xvmFetch<void>(`/me/shouts/${shoutId}`, { method: "DELETE" }, personToken)
+}
+
+// ── Feedback ───────────────────────────────────────────────────
+
+const FEEDBACK_PAGE_LIMIT = 200
+
+export interface FeedbackRow {
+  id: number
+  person_id: number
+  category: string
+  status: string
+  subject: string
+  description: string
+  url: string | null
+  user_agent: string | null
+  screenshot_url: string | null
+  admin_notes: string | null
+  reviewed_by_person_id: number | null
+  reviewed_at: string | null
+  created_at: string
+  updated_at: string
+}
+
+export interface AdminFeedbackRow extends FeedbackRow {
+  person_display_name: string | null
+  reviewed_by_display_name: string | null
+  issue_url?: string | null
+}
+
+export interface FeedbackData {
+  category: string
+  subject: string
+  description: string
+  url?: string | null
+  user_agent?: string | null
+}
+
+export interface FeedbackTriageData {
+  status?: string
+  admin_notes?: string
+}
+
+export async function submitFeedback(personToken: string, data: FeedbackData): Promise<FeedbackRow> {
+  if (!process.env.XVM_API_BASE_URL) throw new Error("XVM_API_BASE_URL is not set")
+  return xvmFetch<FeedbackRow>("/me/feedback", { method: "POST", body: JSON.stringify(data) }, personToken)
+}
+
+export async function listMyFeedback(personToken: string): Promise<FeedbackRow[]> {
+  if (!process.env.XVM_API_BASE_URL) throw new Error("XVM_API_BASE_URL is not set")
+  return xvmFetch<FeedbackRow[]>(`/me/feedback?limit=${FEEDBACK_PAGE_LIMIT}`, {}, personToken)
+}
+
+export async function listAdminFeedback(
+  personToken: string,
+  filters: { status?: string; category?: string } = {}
+): Promise<AdminFeedbackRow[]> {
+  if (!process.env.XVM_API_BASE_URL) throw new Error("XVM_API_BASE_URL is not set")
+  const params = new URLSearchParams({ limit: String(FEEDBACK_PAGE_LIMIT) })
+  if (filters.status) params.set("status", filters.status)
+  if (filters.category) params.set("category", filters.category)
+  return xvmFetch<AdminFeedbackRow[]>(`/admin/feedback?${params}`, {}, personToken)
+}
+
+export async function triageFeedback(
+  personToken: string,
+  feedbackId: number,
+  data: FeedbackTriageData
+): Promise<AdminFeedbackRow> {
+  if (!process.env.XVM_API_BASE_URL) throw new Error("XVM_API_BASE_URL is not set")
+  return xvmFetch<AdminFeedbackRow>(
+    `/admin/feedback/${feedbackId}`,
+    { method: "PATCH", body: JSON.stringify(data) },
+    personToken
+  )
+}
+
+// ── My characters ──────────────────────────────────────────────
+
+export interface MyCharacterRow {
+  id: number
+  character_name: string
+  world: string
+  is_primary: boolean
+}
+
+export async function listMyCharacters(personToken: string): Promise<MyCharacterRow[]> {
+  if (!process.env.XVM_API_BASE_URL) throw new Error("XVM_API_BASE_URL is not set")
+  return xvmFetch<MyCharacterRow[]>("/me/characters", {}, personToken)
+}
+
+export async function linkMyCharacter(personToken: string, data: { character_name: string; world: string }): Promise<MyCharacterRow> {
+  if (!process.env.XVM_API_BASE_URL) throw new Error("XVM_API_BASE_URL is not set")
+  return xvmFetch<MyCharacterRow>("/me/characters", { method: "POST", body: JSON.stringify(data) }, personToken)
+}
+
+export async function unlinkMyCharacter(personToken: string, characterId: number): Promise<void> {
+  if (!process.env.XVM_API_BASE_URL) throw new Error("XVM_API_BASE_URL is not set")
+  return xvmFetch<void>(`/me/characters/${characterId}`, { method: "DELETE" }, personToken)
+}
+
+// ── Venue external links ───────────────────────────────────────
+
+export async function unlinkVenueExternal(
+  personToken: string,
+  venueId: string,
+  linkId: number
+): Promise<void> {
+  if (!process.env.XVM_API_BASE_URL) throw new Error("XVM_API_BASE_URL is not set")
+  await xvmFetch<void>(`/venues/${venueId}/links/${linkId}`, { method: "DELETE" }, personToken)
+}
+
+export async function linkVenueExternal(
+  personToken: string,
+  venueId: string,
+  data: { provider: string; external_id: string }
+): Promise<VenueLinkRow> {
+  if (!process.env.XVM_API_BASE_URL) throw new Error("XVM_API_BASE_URL is not set")
+  return xvmFetch<VenueLinkRow>(
+    `/venues/${venueId}/links`,
+    { method: "POST", body: JSON.stringify(data) },
+    personToken
+  )
+}

@@ -1,7 +1,7 @@
 import { ReactNode } from "react"
 import { getServerSession } from "next-auth"
 import { authOptions } from "@/lib/auth"
-import { prisma } from "@/lib/prisma"
+import { myVenues } from "@/lib/api/venue-access"
 import { cookies } from "next/headers"
 import { VenueSidebar } from "./venue-sidebar"
 
@@ -18,24 +18,16 @@ export async function ExploreLayout({ children }: { children: ReactNode }) {
     const cookieStore = await cookies()
     const activeSlug = cookieStore.get("xiv-active-venue")?.value
 
-    const allMemberships = await prisma.membership.findMany({
-      where: { userId: session.user.id },
-      orderBy: { createdAt: "asc" },
-      select: {
-        role: true,
-        venue: { select: { id: true, name: true, slug: true, dataCenter: true, world: true } },
-      },
-    })
-    venues = allMemberships.map((m) => m.venue)
+    const mine = await myVenues(session.user.id).catch(() => [])
+    venues = mine.map(({ id, name, slug, dataCenter, world }) => ({ id, name, slug, dataCenter, world }))
 
-    // Prefer cookie (last visited dashboard venue), fall back to oldest
-    const preferred = activeSlug ? allMemberships.find((m) => m.venue.slug === activeSlug) : null
-    const membership = preferred ?? allMemberships[0]
+    // Prefer cookie (last visited dashboard venue), fall back to the first venue
+    const current = (activeSlug ? mine.find((v) => v.slug === activeSlug) : null) ?? mine[0]
 
-    if (membership) {
-      venueSlug = membership.venue.slug
-      venueName = membership.venue.name
-      userRole = membership.role
+    if (current) {
+      venueSlug = current.slug
+      venueName = current.name
+      userRole = current.role
     }
   }
 

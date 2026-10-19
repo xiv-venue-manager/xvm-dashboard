@@ -2,7 +2,7 @@ import { getServerSession } from "next-auth"
 import { authOptions } from "@/lib/auth"
 import { redirect, notFound } from "next/navigation"
 import Link from "next/link"
-import { prisma } from "@/lib/prisma"
+import { resolveMyVenue } from "@/lib/api/venue-access"
 import { VenueLayout } from "@/components/venue-layout"
 import { PatronLogsManager } from "@/components/patron-logs-manager"
 import { PatronProfilesTable, type PatronProfile } from "@/components/patron-profiles-table"
@@ -44,20 +44,14 @@ export default async function PatronLogsPage({
   const { slug } = await params
   const sp = await searchParams
 
-  const venue = await prisma.venue.findUnique({
-    where: { slug },
-    include: {
-      memberships: { where: { userId: session.user.id } },
-    },
-  })
+  const venue = await resolveMyVenue(session.user.id, slug)
+  if (!venue) notFound()
+  const userRole = venue.role
 
-  if (!venue || venue.memberships.length === 0) notFound()
-
-  const userRole = venue.memberships[0].role
   if (!["OWNER", "MANAGER"].includes(userRole)) notFound()
 
   const activeTab = sp.tab === "log" ? "log" : "profiles"
-  const readXvm = await xvmPageReader(session.user.id, venue.xvmApiVenueId)
+  const readXvm = await xvmPageReader(session.user.id, venue.id)
 
   const patrons = await readXvm("patron logs patrons", [] as PatronSummary[], (t, v) => listPatrons(t, v))
 

@@ -3,6 +3,7 @@
 import { useEffect, useState } from "react"
 import { useSession } from "next-auth/react"
 import { useRouter } from "next/navigation"
+import Link from "next/link"
 import { Button } from "@/components/ui/button"
 import { Input } from "@/components/ui/input"
 import { Textarea } from "@/components/ui/textarea"
@@ -21,6 +22,7 @@ import {
 } from "@/components/ui/alert-dialog"
 import { Megaphone, Trash2, Plus, X } from "lucide-react"
 import { format } from "date-fns"
+import { adminLoadErrorMessage } from "@/lib/admin-load-error"
 
 interface Announcement {
   id: string
@@ -30,14 +32,12 @@ interface Announcement {
   linkLabel: string | null
   expiresAt: string | null
   createdAt: string
-  author: { name: string | null }
-  _count: { dismissals: number }
 }
 
 const empty = { title: "", message: "", link: "", linkLabel: "", expiresAt: "" }
 
 export default function AdminAnnouncementsPage() {
-  const { data: session, status } = useSession()
+  const { status } = useSession()
   const router = useRouter()
   const [announcements, setAnnouncements] = useState<Announcement[]>([])
   const [loading, setLoading] = useState(true)
@@ -45,6 +45,7 @@ export default function AdminAnnouncementsPage() {
   const [submitting, setSubmitting] = useState(false)
   const [showForm, setShowForm] = useState(false)
   const [error, setError] = useState<string | null>(null)
+  const [loadError, setLoadError] = useState<string | null>(null)
 
   useEffect(() => {
     if (status === "unauthenticated") router.push("/auth/signin")
@@ -53,11 +54,13 @@ export default function AdminAnnouncementsPage() {
   useEffect(() => {
     if (status !== "authenticated") return
     fetch("/api/admin/announcements")
-      .then((r) => (r.ok ? r.json() : Promise.reject()))
-      .then(setAnnouncements)
-      .catch(() => router.push("/dashboard"))
+      .then(async (r) => {
+        if (!r.ok) return setLoadError(adminLoadErrorMessage(r.status))
+        setAnnouncements(await r.json())
+      })
+      .catch(() => setLoadError("Couldn't reach the server."))
       .finally(() => setLoading(false))
-  }, [status, router])
+  }, [status])
 
   async function submit(e: React.FormEvent) {
     e.preventDefault()
@@ -81,10 +84,7 @@ export default function AdminAnnouncementsPage() {
         return
       }
       const created = await res.json()
-      setAnnouncements((prev) => [
-        { ...created, author: { name: session?.user?.name ?? null }, _count: { dismissals: 0 } },
-        ...prev,
-      ])
+      setAnnouncements((prev) => [created, ...prev])
       setForm(empty)
       setShowForm(false)
     } finally {
@@ -98,6 +98,19 @@ export default function AdminAnnouncementsPage() {
   }
 
   if (loading) return <PageLoading />
+
+  if (loadError) {
+    return (
+      <div className="page-inner max-w-3xl">
+        <div className="xiv-card rounded-xl p-8 text-center space-y-4">
+          <p className="text-sm text-muted-foreground">{loadError}</p>
+          <Button asChild variant="outline">
+            <Link href="/dashboard">Back to the dashboard</Link>
+          </Button>
+        </div>
+      </div>
+    )
+  }
 
   return (
     <div className="page-inner max-w-3xl">
@@ -214,7 +227,7 @@ export default function AdminAnnouncementsPage() {
                   </a>
                 )}
                 <p className="text-xs text-[var(--fg-faint)] mt-2">
-                  {format(new Date(a.createdAt), "d MMM yyyy")} · {a._count.dismissals} dismissed
+                  {format(new Date(a.createdAt), "d MMM yyyy")}
                   {a.expiresAt && ` · expires ${format(new Date(a.expiresAt), "d MMM yyyy")}`}
                 </p>
               </div>

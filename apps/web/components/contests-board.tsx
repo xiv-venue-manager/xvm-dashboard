@@ -1,10 +1,9 @@
 "use client"
 
-import { useState } from "react"
+import { useEffect, useRef, useState } from "react"
 import { Button } from "@/components/ui/button"
 import { Badge } from "@/components/ui/badge"
 import { Card, CardContent, CardHeader } from "@/components/ui/card"
-import { Alert, AlertDescription } from "@/components/ui/alert"
 import {
   AlertDialog,
   AlertDialogAction,
@@ -17,8 +16,14 @@ import {
 } from "@/components/ui/alert-dialog"
 import { ContestFormDialog } from "@/components/contest-form-dialog"
 import { ContestEntriesDrawer } from "@/components/contest-entries-drawer"
+import { ChannelPicker } from "@/components/discord-picker"
+import { useResolvedMembers } from "@/components/discord-members"
 import { toast } from "sonner"
 import { apiFetch, ApiError } from "@/lib/api-fetch"
+import { memberLabel } from "@/lib/discord-member-state"
+import { formatServerTime, SERVER_TIME_LABEL } from "@/lib/server-time"
+import { SNOWFLAKE_PATTERN } from "@/lib/validation"
+import type { ResolvedEntry } from "@/lib/api/resolve-entry-names"
 import type { GiveawayRow, RaffleRow, GiveawayRoll, RaffleRoll } from "@/lib/api/xvm-api"
 
 type Contest = ({ kind: "giveaway" } & GiveawayRow) | ({ kind: "raffle" } & RaffleRow)
@@ -28,19 +33,39 @@ export interface ContestsBoardProps {
   canManage: boolean
   giveaways: GiveawayRow[]
   raffles: RaffleRow[]
-  notConnected?: boolean
 }
 
-const NOT_CONNECTED_MESSAGE = "Ask the venue owner to connect this venue to xvm-api first."
+type ContestTab = "all" | "giveaway" | "raffle"
 
-function winnerNames(winners: { discord_user_id: string }[]): string {
-  return winners.map((w) => `${w.discord_user_id.slice(0, 4)}...${w.discord_user_id.slice(-4)}`).join(", ")
+const CONTEST_TABS: { key: ContestTab; label: string }[] = [
+  { key: "all", label: "All" },
+  { key: "giveaway", label: "Giveaways" },
+  { key: "raffle", label: "Raffles" },
+]
+
+interface Winner {
+  discord_user_id: string
+  display_name?: string | null
 }
 
-function rollPath(venueId: string, kind: "giveaway" | "raffle", id: number): string {
-  return kind === "giveaway"
-    ? `/api/venues/${venueId}/contests/giveaways/${id}/roll`
-    : `/api/venues/${venueId}/contests/raffles/${id}/roll`
+const WINNER_LOOKUPS = 12
+const CLOCK_TICK_MS = 30_000
+
+function contestPath(venueId: string, kind: "giveaway" | "raffle", id: number, action: string): string {
+  return `/api/venues/${venueId}/contests/${kind === "giveaway" ? "giveaways" : "raffles"}/${id}/${action}`
+}
+
+function winnersOf(entries: ResolvedEntry[]): Winner[] {
+  return entries
+    .filter((e) => e.won_at !== null)
+    .sort((a, b) => (a.winner_rank ?? 0) - (b.winner_rank ?? 0))
+    .map((e) => ({ discord_user_id: e.discord_user_id, display_name: e.display_name }))
+}
+
+function endState(c: Contest, now: number | null): { label: string; ended: boolean } | null {
+  if (c.kind !== "giveaway" || c.rolled_at !== null || !c.end_at) return null
+  if (now !== null && new Date(c.end_at).getTime() <= now) return { label: "Ended, drawing shortly", ended: true }
+  return { label: `Ends ${formatServerTime(new Date(c.end_at), "datetime")} ${SERVER_TIME_LABEL}`, ended: false }
 }
 
 async function fetchContests(venueId: string): Promise<Contest[]> {
@@ -54,15 +79,22 @@ async function fetchContests(venueId: string): Promise<Contest[]> {
   ]
 }
 
-export function ContestsBoard({ venueId, canManage, giveaways, raffles, notConnected }: ContestsBoardProps) {
+export function ContestsBoard({ venueId, canManage, giveaways, raffles }: ContestsBoardProps) {
   const [contests, setContests] = useState<Contest[]>([
     ...giveaways.map((g) => ({ kind: "giveaway" as const, ...g })),
     ...raffles.map((r) => ({ kind: "raffle" as const, ...r })),
   ])
   const [rollTarget, setRollTarget] = useState<Contest | null>(null)
+  const [rerollTarget, setRerollTarget] = useState<Contest | null>(null)
   const [rolling, setRolling] = useState(false)
   const [openEntries, setOpenEntries] = useState<Contest | null>(null)
-  const [rolledWinners, setRolledWinners] = useState<Record<string, string>>({})
+  const [winnersByContest, setWinnersByContest] = useState<Record<string, Winner[]>>({})
+  const [postTarget, setPostTarget] = useState<Contest | null>(null)
+  const [postChannelId, setPostChannelId] = useState("")
+  const [posting, setPosting] = useState(false)
+  const [now, setNow] = useState<number | null>(null)
+  const [activeTab, setActiveTab] = useState<ContestTab>("all")
+  const winnersRequested = useRef<Set<string>>(new Set())
 
   function contestKey(c: Contest): string {
     return `${c.kind}:${c.id}`
@@ -72,44 +104,102 @@ export function ContestsBoard({ venueId, canManage, giveaways, raffles, notConne
     setContests((prev) => [{ kind, ...contest } as Contest, ...prev])
   }
 
-  async function confirmRoll() {
-    if (!rollTarget) return
+  useEffect(() => {
+    const tick = () => setNow(Date.now())
+    const first = setTimeout(tick, 0)
+    const every = setInterval(tick, CLOCK_TICK_MS)
+    return () => {
+      clearTimeout(first)
+      clearInterval(every)
+    }
+  }, [])
+
+  useEffect(() => {
+    const wanted = contests
+      .filter((c) => c.rolled_at !== null)
+      .sort((a, b) => new Date(b.rolled_at as string).getTime() - new Date(a.rolled_at as string).getTime())
+      .slice(0, WINNER_LOOKUPS)
+      .filter((c) => !winnersRequested.current.has(contestKey(c)))
+    for (const c of wanted) winnersRequested.current.add(contestKey(c))
+    for (const c of wanted) {
+      apiFetch<ResolvedEntry[]>(contestPath(venueId, c.kind, c.id, "entries"))
+        .then((entries) => setWinnersByContest((prev) => ({ ...prev, [contestKey(c)]: winnersOf(entries) })))
+        .catch(() => winnersRequested.current.delete(contestKey(c)))
+    }
+  }, [venueId, contests])
+
+  const winnerIds = Object.values(winnersByContest).flatMap((winners) => winners.map((w) => w.discord_user_id))
+  const members = useResolvedMembers(venueId, winnerIds)
+
+  function winnerLabel(w: Winner): string {
+    return w.display_name || memberLabel(w.discord_user_id, members[w.discord_user_id])
+  }
+
+  async function runRoll(target: Contest, reroll: boolean) {
     setRolling(true)
     try {
-      const result = await apiFetch<GiveawayRoll | RaffleRoll>(rollPath(venueId, rollTarget.kind, rollTarget.id), {
-        method: "POST",
-      })
-      const names = winnerNames(result.winners)
-      setRolledWinners((prev) => ({ ...prev, [contestKey(rollTarget)]: names }))
-      setContests((prev) =>
-        prev.map((c) => (contestKey(c) === contestKey(rollTarget) ? { ...c, rolled_at: new Date().toISOString() } : c))
+      const result = await apiFetch<GiveawayRoll | RaffleRoll>(
+        `${contestPath(venueId, target.kind, target.id, "roll")}${reroll ? "?reroll=true" : ""}`,
+        { method: "POST" }
       )
-      toast.success(`Winner${result.winners.length > 1 ? "s" : ""} rolled: ${names}`)
-      setRollTarget(null)
+      const key = contestKey(target)
+      winnersRequested.current.add(key)
+      setWinnersByContest((prev) => ({
+        ...prev,
+        [key]: result.winners.map((w) => ({ discord_user_id: w.discord_user_id })),
+      }))
+      setContests((prev) => prev.map((c) => (contestKey(c) === key ? { ...c, rolled_at: new Date().toISOString() } : c)))
+      toast.success(
+        `Winner${result.winners.length > 1 ? "s" : ""} ${reroll ? "re-rolled" : "rolled"}. The post updates shortly.`
+      )
     } catch (e) {
       if (e instanceof ApiError && e.status === 409) {
         toast.error(e.message || "This draw was already rolled by someone else.")
+        winnersRequested.current.delete(contestKey(target))
         fetchContests(venueId)
           .then(setContests)
           .catch(() => {
             /* keep stale data over crashing; card will just look pre-roll until next load */
           })
       } else {
-        toast.error(e instanceof ApiError ? e.message : "Failed to roll winner.")
+        toast.error(e instanceof ApiError ? e.message : `Failed to ${reroll ? "re-roll" : "roll"} winner.`)
       }
     } finally {
       setRolling(false)
       setRollTarget(null)
+      setRerollTarget(null)
     }
   }
 
-  if (notConnected) {
-    return (
-      <Alert>
-        <AlertDescription>{NOT_CONNECTED_MESSAGE}</AlertDescription>
-      </Alert>
-    )
+  async function confirmPost() {
+    if (!postTarget) return
+    if (!SNOWFLAKE_PATTERN.test(postChannelId)) {
+      toast.error("Choose a channel.")
+      return
+    }
+    setPosting(true)
+    try {
+      await apiFetch(contestPath(venueId, postTarget.kind, postTarget.id, "posts"), {
+        method: "POST",
+        headers: { "Content-Type": "application/json" },
+        body: JSON.stringify({ channelId: postChannelId }),
+      })
+      toast.success("Posting now. It should appear in the channel shortly.")
+      setPostTarget(null)
+      setPostChannelId("")
+    } catch (e) {
+      toast.error(e instanceof ApiError ? e.message : "Failed to post contest.")
+    } finally {
+      setPosting(false)
+    }
   }
+
+  const counts: Record<ContestTab, number> = {
+    all: contests.length,
+    giveaway: contests.filter((c) => c.kind === "giveaway").length,
+    raffle: contests.filter((c) => c.kind === "raffle").length,
+  }
+  const visibleContests = activeTab === "all" ? contests : contests.filter((c) => c.kind === activeTab)
 
   return (
     <div>
@@ -119,11 +209,27 @@ export function ContestsBoard({ venueId, canManage, giveaways, raffles, notConne
         </div>
       )}
 
-      {contests.length === 0 ? (
-        <p className="text-sm text-muted-foreground">No contests yet.</p>
+      <div className="tabs mb-4">
+        {CONTEST_TABS.map(({ key, label }) => (
+          <button
+            key={key}
+            type="button"
+            onClick={() => setActiveTab(key)}
+            className={`tab${activeTab === key ? " active" : ""}`}
+          >
+            {label}
+            <span style={{ fontSize: "0.68rem", opacity: activeTab === key ? 0.7 : 0.5 }}>{counts[key]}</span>
+          </button>
+        ))}
+      </div>
+
+      {visibleContests.length === 0 ? (
+        <p className="text-sm text-muted-foreground">
+          {activeTab === "all" ? "No contests yet." : `No ${activeTab === "giveaway" ? "giveaways" : "raffles"} yet.`}
+        </p>
       ) : (
         <div className="grid grid-cols-1 sm:grid-cols-2 lg:grid-cols-3 gap-4">
-          {contests.map((c) => {
+          {visibleContests.map((c) => {
             const isRolled = c.rolled_at !== null
             const entryCount = c.entry_count
             return (
@@ -143,20 +249,40 @@ export function ContestsBoard({ venueId, canManage, giveaways, raffles, notConne
                     {" · "}
                     {entryCount} entries
                   </p>
-                  {isRolled && rolledWinners[contestKey(c)] && (
-                    <p className="text-sm mt-2 text-[var(--xiv-blue)]">Winner: {rolledWinners[contestKey(c)]}</p>
+                  {endState(c, now) && (
+                    <p className="text-sm mt-1 text-muted-foreground">{endState(c, now)?.label}</p>
                   )}
-                  {canManage && !isRolled && (
-                    <Button
-                      size="sm"
-                      className="w-full mt-3"
-                      onClick={(e) => {
-                        e.stopPropagation()
-                        setRollTarget(c)
-                      }}
-                    >
-                      Roll
-                    </Button>
+                  {isRolled && (winnersByContest[contestKey(c)]?.length ?? 0) > 0 && (
+                    <p className="text-sm mt-2 text-[var(--xiv-blue)]">
+                      {winnersByContest[contestKey(c)].length > 1 ? "Winners" : "Winner"}:{" "}
+                      {winnersByContest[contestKey(c)].map(winnerLabel).join(", ")}
+                    </p>
+                  )}
+                  {canManage && (
+                    <div className="flex gap-2 mt-3">
+                      <Button
+                        size="sm"
+                        variant="outline-blue"
+                        className="flex-1"
+                        onClick={(e) => {
+                          e.stopPropagation()
+                          setPostTarget(c)
+                        }}
+                      >
+                        Post
+                      </Button>
+                      <Button
+                        size="sm"
+                        className="flex-1"
+                        onClick={(e) => {
+                          e.stopPropagation()
+                          if (isRolled) setRerollTarget(c)
+                          else setRollTarget(c)
+                        }}
+                      >
+                        {isRolled ? "Re-roll" : "Roll"}
+                      </Button>
+                    </div>
                   )}
                 </CardContent>
               </Card>
@@ -176,8 +302,55 @@ export function ContestsBoard({ venueId, canManage, giveaways, raffles, notConne
           </AlertDialogHeader>
           <AlertDialogFooter>
             <AlertDialogCancel disabled={rolling}>Cancel</AlertDialogCancel>
-            <AlertDialogAction onClick={confirmRoll} disabled={rolling}>
+            <AlertDialogAction onClick={() => rollTarget && runRoll(rollTarget, false)} disabled={rolling}>
               {rolling ? "Rolling..." : "Roll"}
+            </AlertDialogAction>
+          </AlertDialogFooter>
+        </AlertDialogContent>
+      </AlertDialog>
+
+      <AlertDialog open={!!rerollTarget} onOpenChange={(open) => !open && setRerollTarget(null)}>
+        <AlertDialogContent>
+          <AlertDialogHeader>
+            <AlertDialogTitle>Re-roll &quot;{rerollTarget?.name ?? `#${rerollTarget?.id}`}&quot;?</AlertDialogTitle>
+            <AlertDialogDescription>
+              This draws afresh and replaces the current winners. The post is redrawn, the old announcement comes
+              down, and a new one pings the new winners{rerollTarget?.auto_notify ? ", who are also DMed" : ""}.
+            </AlertDialogDescription>
+          </AlertDialogHeader>
+          <AlertDialogFooter>
+            <AlertDialogCancel disabled={rolling}>Cancel</AlertDialogCancel>
+            <AlertDialogAction onClick={() => rerollTarget && runRoll(rerollTarget, true)} disabled={rolling}>
+              {rolling ? "Re-rolling..." : "Re-roll"}
+            </AlertDialogAction>
+          </AlertDialogFooter>
+        </AlertDialogContent>
+      </AlertDialog>
+
+      <AlertDialog
+        open={!!postTarget}
+        onOpenChange={(open) => {
+          if (!open) {
+            setPostTarget(null)
+            setPostChannelId("")
+          }
+        }}
+      >
+        <AlertDialogContent>
+          <AlertDialogHeader>
+            <AlertDialogTitle>Post &quot;{postTarget?.name ?? `#${postTarget?.id}`}&quot; to a channel</AlertDialogTitle>
+            <AlertDialogDescription>
+              {postTarget?.kind === "raffle"
+                ? "A raffle's post is a read-only tracker of the pot. It keeps itself up to date as tickets are credited and when it rolls."
+                : "A giveaway's post carries the Enter button members join with. It keeps itself up to date as entries come in and when it rolls."}{" "}
+              Posting to a channel that already has a copy redraws it instead of adding another.
+            </AlertDialogDescription>
+          </AlertDialogHeader>
+          <ChannelPicker venueId={venueId} value={postChannelId} onChange={setPostChannelId} disabled={posting} />
+          <AlertDialogFooter>
+            <AlertDialogCancel disabled={posting}>Cancel</AlertDialogCancel>
+            <AlertDialogAction onClick={confirmPost} disabled={posting || !postChannelId}>
+              {posting ? "Posting..." : "Post"}
             </AlertDialogAction>
           </AlertDialogFooter>
         </AlertDialogContent>

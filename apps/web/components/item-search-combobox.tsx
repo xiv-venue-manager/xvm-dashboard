@@ -10,12 +10,12 @@ interface ItemSearchResult {
 }
 
 interface ItemSearchComboboxProps {
-  venueId: string
+  venueSlug: string
   value: { itemId: number; name: string; iconId: number | null } | null
   onChange: (item: { itemId: number; name: string; iconId: number | null } | null) => void
 }
 
-export function ItemSearchCombobox({ venueId, value, onChange }: ItemSearchComboboxProps) {
+export function ItemSearchCombobox({ venueSlug, value, onChange }: ItemSearchComboboxProps) {
   const [query, setQuery] = useState(value?.name ?? "")
   const [results, setResults] = useState<ItemSearchResult[]>([])
   const [isOpen, setIsOpen] = useState(false)
@@ -27,7 +27,7 @@ export function ItemSearchCombobox({ venueId, value, onChange }: ItemSearchCombo
     if (debounceRef.current) clearTimeout(debounceRef.current)
     if (query.trim().length < 2) return
     debounceRef.current = setTimeout(async () => {
-      const res = await fetch(`/api/venues/${venueId}/inventory/item-search?query=${encodeURIComponent(query)}`)
+      const res = await fetch(`/api/venues/${venueSlug}/inventory/item-search?query=${encodeURIComponent(query)}`)
       if (res.ok) {
         const data = await res.json()
         setResults(data.items)
@@ -37,7 +37,7 @@ export function ItemSearchCombobox({ venueId, value, onChange }: ItemSearchCombo
     return () => {
       if (debounceRef.current) clearTimeout(debounceRef.current)
     }
-  }, [query, venueId])
+  }, [query, venueSlug])
 
   return (
     <div className="relative">

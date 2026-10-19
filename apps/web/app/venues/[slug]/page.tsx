@@ -127,7 +127,7 @@ export default async function VenueProfilePage({ params }: { params: Promise<{ s
   const liveEvent = venue.events.find((e) => e.status === "ACTIVE")
   const upcomingEvents = venue.events.filter((e) => e.status === "PUBLISHED")
   const isOpen = !!liveEvent || (xvmHours?.open_now.open ?? false)
-  const tzLabel = displayLocation ? getServerTimeLabel(displayLocation.dataCenter) : null
+  const tzLabel = displayLocation ? getServerTimeLabel() : null
   const todayUTCDay = new Date().getUTCDay()
   const DAY_NAMES = ["Sunday", "Monday", "Tuesday", "Wednesday", "Thursday", "Friday", "Saturday"]
   const address = displayLocation ? formatVenueAddress(displayLocation) : null

@@ -2,8 +2,8 @@ import { NextResponse } from "next/server"
 import { getServerSession } from "next-auth"
 import { authOptions } from "@/lib/auth"
 import { z } from "zod"
-import { prisma } from "@/lib/prisma"
 import { withRateLimit } from "@/lib/middleware/with-rate-limit"
+import { requireMyVenue } from "@/lib/api/venue-access"
 import { getValidXvmApiToken, xvmApiErrorResponse } from "@/lib/api/xvm-api-store"
 import { listPositions, createPosition, type PositionRow } from "@/lib/api/xvm-api"
 import { hexColorToInt, intColorToHex, gilToMinorUnits, minorUnitsToGil } from "@/lib/api/position-convert"
@@ -32,19 +32,6 @@ function toRoleShape(position: PositionRow) {
   }
 }
 
-async function requireXvmVenueId(venueId: string) {
-  const venue = await prisma.venue.findUnique({ where: { id: venueId }, select: { xvmApiVenueId: true } })
-  if (!venue?.xvmApiVenueId) {
-    return {
-      error: NextResponse.json(
-        { error: "not_connected", message: "This venue hasn't been connected to xvm-api yet." },
-        { status: 409 }
-      ),
-    }
-  }
-  return { xvmApiVenueId: venue.xvmApiVenueId }
-}
-
 export const GET = withRateLimit<{ params: Promise<{ venueId: string }> }>(
   async (request, context) => {
     if (!context?.params) {
@@ -63,11 +50,11 @@ export const GET = withRateLimit<{ params: Promise<{ venueId: string }> }>(
 
     const { venueId } = await context.params
 
-    const gate = await requireXvmVenueId(venueId)
-    if (gate.error) return gate.error
+    const lookup = await requireMyVenue(session.user.id, venueId, "[roles] /me/venues read error")
+    if (!lookup.ok) return lookup.response
 
     try {
-      const positions = await listPositions(token, gate.xvmApiVenueId!)
+      const positions = await listPositions(token, lookup.venue.id)
       return NextResponse.json(positions.map(toRoleShape))
     } catch (err) {
       return xvmApiErrorResponse(err, session.user.id, "[roles] GET error")
@@ -94,8 +81,8 @@ export const POST = withRateLimit<{ params: Promise<{ venueId: string }> }>(
 
     const { venueId } = await context.params
 
-    const gate = await requireXvmVenueId(venueId)
-    if (gate.error) return gate.error
+    const lookup = await requireMyVenue(session.user.id, venueId, "[roles] /me/venues read error")
+    if (!lookup.ok) return lookup.response
 
     let data: z.infer<typeof createRoleSchema>
     try {
@@ -115,7 +102,7 @@ export const POST = withRateLimit<{ params: Promise<{ venueId: string }> }>(
     }
 
     try {
-      const position = await createPosition(token, gate.xvmApiVenueId!, {
+      const position = await createPosition(token, lookup.venue.id, {
         name: data.name,
         color,
         responsibilities: data.responsibilities ?? null,

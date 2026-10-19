@@ -1,7 +1,6 @@
 "use client"
 
 import { useVenues } from "./venue-context"
-import { usePathname } from "next/navigation"
 
 export function VenueEyebrow({ slug }: { slug: string }) {
   const { venues } = useVenues()

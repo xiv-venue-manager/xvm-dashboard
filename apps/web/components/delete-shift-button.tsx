@@ -46,7 +46,7 @@ export function DeleteShiftButton({
         return
       }
       router.refresh()
-    } catch (err) {
+    } catch {
       alert("Network error cancelling series.")
     } finally {
       setDeleting(false)
@@ -65,7 +65,7 @@ export function DeleteShiftButton({
         return
       }
       router.refresh()
-    } catch (err) {
+    } catch {
       alert("Network error deleting shift.")
     } finally {
       setDeleting(false)

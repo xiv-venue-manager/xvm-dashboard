@@ -5,7 +5,6 @@ import { awardXp } from "./xpWebhook.js"
 import prisma from "../utils/prisma.js"
 import {
   newVenueEmbed,
-  weeklySummaryEmbed,
   venueGraduationEmbed,
   partakeDigestEmbed,
   eventLiveEmbed,
@@ -109,22 +108,6 @@ export function startWebhookServer(client: Client) {
       scheduledEnd: new Date(v.scheduledEnd),
     }))
     await postEmbed(client, TONIGHT_CHANNEL, tonightListEmbed(parsed))
-    res.json({ ok: true })
-  })
-
-  app.post("/webhook/weekly-summary", async (req, res) => {
-    const { newVenues, eventsHosted, patronVisits, newStaff, weekStart } = req.body
-    await postEmbed(
-      client,
-      FEED_CHANNEL,
-      weeklySummaryEmbed({
-        newVenues,
-        eventsHosted,
-        patronVisits,
-        newStaff,
-        weekStart: new Date(weekStart),
-      })
-    )
     res.json({ ok: true })
   })
 

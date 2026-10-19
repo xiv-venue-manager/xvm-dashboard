@@ -1,6 +1,6 @@
 "use client"
 
-import { useState } from "react"
+import { useRef, useState } from "react"
 import { Button } from "@/components/ui/button"
 import {
   Dialog,
@@ -12,12 +12,13 @@ import {
   DialogTrigger,
 } from "@/components/ui/dialog"
 import { Input } from "@/components/ui/input"
+import { RolePicker } from "@/components/discord-picker"
 import { Label } from "@/components/ui/label"
 import { Textarea } from "@/components/ui/textarea"
 import { Select, SelectContent, SelectItem, SelectTrigger, SelectValue } from "@/components/ui/select"
 import { toast } from "sonner"
 import { apiFetch, ApiError } from "@/lib/api-fetch"
-import { SNOWFLAKE_PATTERN } from "@/lib/validation"
+import { addInOrder, draftProblem, type DraftOption } from "@/lib/reaction-role-option-draft"
 import type { PanelRow, ReactionRoleOptionRow } from "@/lib/api/xvm-api"
 
 interface ReactionRolePanelFormDialogProps {
@@ -28,10 +29,9 @@ interface ReactionRolePanelFormDialogProps {
   onUpdated: (panel: PanelRow) => void
 }
 
-interface DraftOption {
-  roleId: string
-  label: string
-  emoji: string
+interface PendingOption extends DraftOption {
+  key: number
+  error?: string
 }
 
 export function ReactionRolePanelFormDialog({
@@ -52,6 +52,8 @@ export function ReactionRolePanelFormDialog({
   const [draft, setDraft] = useState<DraftOption>({ roleId: "", label: "", emoji: "" })
   const [savedPanelId, setSavedPanelId] = useState<number | null>(panel?.id ?? null)
   const [optionBusy, setOptionBusy] = useState(false)
+  const [pending, setPending] = useState<PendingOption[]>([])
+  const nextKey = useRef(0)
 
   function reset() {
     setTitle(panel?.title ?? "")
@@ -61,6 +63,19 @@ export function ReactionRolePanelFormDialog({
     setOptions(panel?.options ?? [])
     setSavedPanelId(panel?.id ?? null)
     setDraft({ roleId: "", label: "", emoji: "" })
+    setPending([])
+  }
+
+  function postOption(panelId: number, option: DraftOption) {
+    return apiFetch<ReactionRoleOptionRow>(`/api/venues/${venueId}/reaction-role-panels/${panelId}/options`, {
+      method: "POST",
+      headers: { "Content-Type": "application/json" },
+      body: JSON.stringify({
+        roleId: option.roleId,
+        label: option.label.trim() || null,
+        emoji: option.emoji.trim() || null,
+      }),
+    })
   }
 
   async function handleSubmit() {
@@ -96,7 +111,20 @@ export function ReactionRolePanelFormDialog({
         })
         setSavedPanelId(created.id)
         onCreated(created)
-        toast.success("Panel created — add options below, then close when done.")
+        if (pending.length === 0) {
+          toast.success("Panel created. Add options below, then close when done.")
+          return
+        }
+        const result = await addInOrder(pending, (option) => postOption(created.id, option))
+        setOptions(result.created)
+        setPending(result.failed.map(({ item, error }) => ({ ...item, error })))
+        onUpdated({ ...created, options: result.created })
+        if (result.failed.length === 0) {
+          toast.success("Panel created.")
+          setOpen(false)
+        } else {
+          toast.error(`Panel created, but ${result.failed.length} of ${pending.length} options were not added.`)
+        }
       }
     } catch (e) {
       toast.error(e instanceof ApiError ? e.message : "Failed to save panel.")
@@ -106,39 +134,41 @@ export function ReactionRolePanelFormDialog({
   }
 
   async function handleAddOption() {
-    if (!savedPanelId) {
-      toast.error("Save the panel first before adding options.")
-      return
-    }
     if (optionBusy) return
-    if (!SNOWFLAKE_PATTERN.test(draft.roleId)) {
-      toast.error("Role ID must be numeric.")
+    const problem = draftProblem(draft, [...options.map((o) => o.role_id), ...pending.map((o) => o.roleId)])
+    if (problem) {
+      toast.error(problem)
       return
     }
-    if (!draft.label.trim() && !draft.emoji.trim()) {
-      toast.error("An option needs a label or an emoji.")
+    if (!savedPanelId) {
+      setPending((prev) => [...prev, { ...draft, key: nextKey.current++ }])
+      setDraft({ roleId: "", label: "", emoji: "" })
       return
     }
 
     setOptionBusy(true)
     try {
-      const option = await apiFetch<ReactionRoleOptionRow>(
-        `/api/venues/${venueId}/reaction-role-panels/${savedPanelId}/options`,
-        {
-          method: "POST",
-          headers: { "Content-Type": "application/json" },
-          body: JSON.stringify({
-            roleId: draft.roleId,
-            label: draft.label.trim() || null,
-            emoji: draft.emoji.trim() || null,
-          }),
-        }
-      )
+      const option = await postOption(savedPanelId, draft)
       setOptions((prev) => [...prev, option])
       setDraft({ roleId: "", label: "", emoji: "" })
       toast.success("Option added.")
     } catch (e) {
       toast.error(e instanceof ApiError ? e.message : "Failed to add option.")
+    } finally {
+      setOptionBusy(false)
+    }
+  }
+
+  async function handleRetryPending(item: PendingOption) {
+    if (!savedPanelId || optionBusy) return
+    setOptionBusy(true)
+    try {
+      const option = await postOption(savedPanelId, item)
+      setOptions((prev) => [...prev, option])
+      setPending((prev) => prev.filter((p) => p.key !== item.key))
+    } catch (e) {
+      const error = e instanceof Error ? e.message : "Failed to add option."
+      setPending((prev) => prev.map((p) => (p.key === item.key ? { ...p, error } : p)))
     } finally {
       setOptionBusy(false)
     }
@@ -222,7 +252,9 @@ export function ReactionRolePanelFormDialog({
 
           <div className="space-y-2 border-t pt-4">
             <Label>Options</Label>
-            {options.length === 0 && <p className="text-sm text-muted-foreground">No options yet.</p>}
+            {options.length === 0 && pending.length === 0 && (
+              <p className="text-sm text-muted-foreground">No options yet.</p>
+            )}
             {options.map((opt) => (
               <div key={opt.id} className="flex items-center gap-2 text-sm">
                 <span>{opt.emoji ?? "•"}</span>
@@ -233,34 +265,56 @@ export function ReactionRolePanelFormDialog({
                 </Button>
               </div>
             ))}
+            {pending.map((item) => (
+              <div key={item.key} className="text-sm">
+                <div className="flex items-center gap-2">
+                  <span>{item.emoji.trim() || "•"}</span>
+                  <span className="flex-1">{item.label.trim() || "(no label)"}</span>
+                  <span className="text-muted-foreground text-xs">role {item.roleId}</span>
+                  {savedPanelId && (
+                    <Button size="sm" variant="ghost" onClick={() => handleRetryPending(item)} disabled={optionBusy}>
+                      Retry
+                    </Button>
+                  )}
+                  <Button
+                    size="sm"
+                    variant="ghost"
+                    onClick={() => setPending((prev) => prev.filter((p) => p.key !== item.key))}
+                    disabled={optionBusy}
+                  >
+                    Remove
+                  </Button>
+                </div>
+                {item.error && <p className="text-xs text-destructive">Not added: {item.error}</p>}
+              </div>
+            ))}
             <div className="flex gap-2">
-              <Input
-                placeholder="Role ID"
+              <RolePicker
+                venueId={venueId}
                 value={draft.roleId}
-                onChange={(e) => setDraft({ ...draft, roleId: e.target.value })}
-                disabled={!savedPanelId || optionBusy}
-                maxLength={20}
+                onChange={(roleId) => setDraft({ ...draft, roleId })}
+                disabled={submitting || optionBusy}
               />
               <Input
                 placeholder="Label"
                 value={draft.label}
                 onChange={(e) => setDraft({ ...draft, label: e.target.value })}
-                disabled={!savedPanelId || optionBusy}
+                disabled={submitting || optionBusy}
                 maxLength={80}
               />
               <Input
                 placeholder="Emoji"
                 value={draft.emoji}
                 onChange={(e) => setDraft({ ...draft, emoji: e.target.value })}
-                disabled={!savedPanelId || optionBusy}
+                disabled={submitting || optionBusy}
                 maxLength={64}
               />
-              <Button type="button" variant="outline" onClick={handleAddOption} disabled={!savedPanelId || optionBusy}>
+              <Button type="button" variant="outline" onClick={handleAddOption} disabled={submitting || optionBusy}>
                 Add
               </Button>
             </div>
             {!savedPanelId && (
-              <p className="text-xs text-muted-foreground">Save the panel first to add options.</p>
+              <p className="text-xs text-muted-foreground">Options are added when you create the panel.</p>
             )}
           </div>
         </div>

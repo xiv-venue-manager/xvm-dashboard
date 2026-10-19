@@ -1,23 +1,10 @@
 import { NextResponse } from "next/server"
 import { getServerSession } from "next-auth"
 import { authOptions } from "@/lib/auth"
-import { prisma } from "@/lib/prisma"
 import { withRateLimit } from "@/lib/middleware/with-rate-limit"
 import { getValidXvmApiToken, xvmApiErrorResponse } from "@/lib/api/xvm-api-store"
+import { requireMyVenue } from "@/lib/api/venue-access"
 import { setPanelThumbnail } from "@/lib/api/xvm-api"
-
-async function requireXvmVenueId(venueId: string) {
-  const venue = await prisma.venue.findUnique({ where: { id: venueId }, select: { xvmApiVenueId: true } })
-  if (!venue?.xvmApiVenueId) {
-    return {
-      error: NextResponse.json(
-        { error: "not_connected", message: "This venue hasn't been connected to xvm-api yet." },
-        { status: 409 }
-      ),
-    }
-  }
-  return { xvmApiVenueId: venue.xvmApiVenueId }
-}
 
 function parsePanelId(panelId: string) {
   const id = Number(panelId)
@@ -46,8 +33,8 @@ export const PUT = withRateLimit<{ params: Promise<{ venueId: string; panelId: s
       return NextResponse.json({ error: "Invalid panel id" }, { status: 400 })
     }
 
-    const gate = await requireXvmVenueId(venueId)
-    if (gate.error) return gate.error
+    const lookup = await requireMyVenue(session.user.id, venueId, "[reaction-role-panels] /me/venues read error")
+    if (!lookup.ok) return lookup.response
 
     const form = await request.formData()
     const file = form.get("file")
@@ -56,7 +43,7 @@ export const PUT = withRateLimit<{ params: Promise<{ venueId: string; panelId: s
     }
 
     try {
-      const panel = await setPanelThumbnail(token, gate.xvmApiVenueId!, id, file)
+      const panel = await setPanelThumbnail(token, lookup.venue.id, id, file)
       return NextResponse.json(panel)
     } catch (err) {
       return xvmApiErrorResponse(err, session.user.id, "[reaction-role-panels/:id/thumbnail] PUT error")

@@ -2,9 +2,9 @@ import { NextResponse } from "next/server"
 import { getServerSession } from "next-auth"
 import { authOptions } from "@/lib/auth"
 import { z } from "zod"
-import { prisma } from "@/lib/prisma"
 import { withRateLimit } from "@/lib/middleware/with-rate-limit"
 import { getValidXvmApiToken, xvmApiErrorResponse } from "@/lib/api/xvm-api-store"
+import { requireMyVenue } from "@/lib/api/venue-access"
 import { updatePanelOption, deletePanelOption } from "@/lib/api/xvm-api"
 
 const updateOptionSchema = z
@@ -15,19 +15,6 @@ const updateOptionSchema = z
   .refine((data) => !(data.label === null && data.emoji === null), {
     message: "A button needs a label or an emoji — can't clear both at once.",
   })
-
-async function requireXvmVenueId(venueId: string) {
-  const venue = await prisma.venue.findUnique({ where: { id: venueId }, select: { xvmApiVenueId: true } })
-  if (!venue?.xvmApiVenueId) {
-    return {
-      error: NextResponse.json(
-        { error: "not_connected", message: "This venue hasn't been connected to xvm-api yet." },
-        { status: 409 }
-      ),
-    }
-  }
-  return { xvmApiVenueId: venue.xvmApiVenueId }
-}
 
 function parseId(value: string) {
   const id = Number(value)
@@ -57,8 +44,8 @@ export const PATCH = withRateLimit<{ params: Promise<{ venueId: string; panelId:
       return NextResponse.json({ error: "Invalid id" }, { status: 400 })
     }
 
-    const gate = await requireXvmVenueId(venueId)
-    if (gate.error) return gate.error
+    const lookup = await requireMyVenue(session.user.id, venueId, "[reaction-role-panels] /me/venues read error")
+    if (!lookup.ok) return lookup.response
 
     let data: z.infer<typeof updateOptionSchema>
     try {
@@ -71,7 +58,7 @@ export const PATCH = withRateLimit<{ params: Promise<{ venueId: string; panelId:
     }
 
     try {
-      const option = await updatePanelOption(token, gate.xvmApiVenueId!, pId, oId, {
+      const option = await updatePanelOption(token, lookup.venue.id, pId, oId, {
         ...(data.label !== undefined && { label: data.label }),
         ...(data.emoji !== undefined && { emoji: data.emoji }),
       })
@@ -106,11 +93,11 @@ export const DELETE = withRateLimit<{ params: Promise<{ venueId: string; panelId
       return NextResponse.json({ error: "Invalid id" }, { status: 400 })
     }
 
-    const gate = await requireXvmVenueId(venueId)
-    if (gate.error) return gate.error
+    const lookup = await requireMyVenue(session.user.id, venueId, "[reaction-role-panels] /me/venues read error")
+    if (!lookup.ok) return lookup.response
 
     try {
-      await deletePanelOption(token, gate.xvmApiVenueId!, pId, oId)
+      await deletePanelOption(token, lookup.venue.id, pId, oId)
       return NextResponse.json({ success: true })
     } catch (err) {
       return xvmApiErrorResponse(err, session.user.id, "[reaction-role-panels/:id/options/:id] DELETE error")

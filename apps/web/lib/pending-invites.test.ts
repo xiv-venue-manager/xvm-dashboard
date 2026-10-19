@@ -1,6 +1,6 @@
 import { describe, it, expect } from "vitest"
 import type { InviteRow } from "@/lib/api/xvm-api"
-import { toPendingInviteShape } from "./pending-invites"
+import { toPendingInviteShape, withReissuedLink } from "./pending-invites"
 
 const row = (over: Partial<InviteRow> = {}, discordId: string | null = "123456789012345678"): InviteRow => ({
   id: 5,
@@ -47,5 +47,33 @@ describe("toPendingInviteShape", () => {
 
   it("cannot be sent by DM when the invitee has no Discord account", () => {
     expect(toPendingInviteShape(row({}, null)).canSendByDm).toBe(false)
+  })
+})
+
+describe("withReissuedLink", () => {
+  const reissued = { inviteToken: "fresh-token", expiresAt: "2026-10-14T00:00:00Z" }
+
+  it("shows the new link with its renewed expiry", () => {
+    const shape = withReissuedLink(toPendingInviteShape(row()), reissued)
+    expect(shape.inviteToken).toBe("fresh-token")
+    expect(shape.inviteExpiresAt?.toISOString()).toBe("2026-10-14T00:00:00.000Z")
+  })
+
+  it("clears a decline and a failed delivery, as xvm-api does", () => {
+    const stale = toPendingInviteShape(
+      row({
+        declined_at: "2026-09-24T10:00:00Z",
+        decline_reason: "busy this week",
+        dm_failed_at: "2026-09-24T11:00:00Z",
+        dm_failure: "Their DMs are closed to me.",
+      })
+    )
+    const shape = withReissuedLink(stale, reissued)
+    expect(shape).toMatchObject({ declinedAt: null, declineReason: null, dmFailedAt: null, dmFailure: null })
+  })
+
+  it("keeps who the invite is for", () => {
+    const shape = withReissuedLink(toPendingInviteShape(row({}, null)), reissued)
+    expect(shape).toMatchObject({ id: 5, role: "STAFF", invitedName: "Heir", canSendByDm: false })
   })
 })

@@ -1,7 +1,8 @@
 import { NextRequest, NextResponse } from "next/server"
 import { getServerSession } from "next-auth"
 import { authOptions } from "@/lib/auth"
-import { prisma } from "@/lib/prisma"
+import { getValidXvmApiToken, xvmApiErrorResponse } from "@/lib/api/xvm-api-store"
+import { deleteShout } from "@/lib/api/xvm-api"
 
 const SHOUT_ORIGIN = "https://shout.xivvenuemanager.com"
 
@@ -22,11 +23,15 @@ export async function DELETE(_req: NextRequest, { params }: { params: Promise<{ 
   const session = await getServerSession(authOptions)
   if (!session?.user?.id) return cors(NextResponse.json({ error: "Unauthorized" }, { status: 401 }))
 
-  const shout = await prisma.shoutTemplate.findUnique({ where: { id } })
-  if (!shout || shout.userId !== session.user.id) {
-    return cors(NextResponse.json({ error: "Not found." }, { status: 404 }))
-  }
+  const token = await getValidXvmApiToken(session.user.id)
+  if (!token) return cors(NextResponse.json({ error: "xvm-api link not established yet" }, { status: 503 }))
 
-  await prisma.shoutTemplate.delete({ where: { id } })
-  return cors(NextResponse.json({ ok: true }))
+  if (!/^\d+$/.test(id)) return cors(NextResponse.json({ error: "Not found." }, { status: 404 }))
+
+  try {
+    await deleteShout(token, Number(id))
+    return cors(NextResponse.json({ ok: true }))
+  } catch (err) {
+    return cors(await xvmApiErrorResponse(err, session.user.id, "[shouts] delete error"))
+  }
 }

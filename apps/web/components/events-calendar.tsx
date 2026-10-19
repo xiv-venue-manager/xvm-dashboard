@@ -13,7 +13,6 @@ import {
 } from "date-fns"
 import { Button } from "@/components/ui/button"
 import { Card, CardContent } from "@/components/ui/card"
-import { Badge } from "@/components/ui/badge"
 import Link from "next/link"
 import { ChevronLeft, ChevronRight } from "lucide-react"
 

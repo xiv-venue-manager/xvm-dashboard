@@ -54,6 +54,8 @@ interface EmojiPickerProps {
   maxLength?: number
   disabled?: boolean
   className?: string
+  /** Names the field where no visible label does, e.g. one row among many. */
+  ariaLabel?: string
 }
 
 /**
@@ -69,6 +71,7 @@ export function EmojiPicker({
   maxLength,
   disabled,
   className,
+  ariaLabel,
 }: EmojiPickerProps) {
   const [open, setOpen] = useState(false)
   const [query, setQuery] = useState("")
@@ -133,6 +136,7 @@ export function EmojiPicker({
     <div ref={wrapperRef} className={cn("relative flex items-center gap-1.5", className)}>
       <div className="relative">
         <Input
+          aria-label={ariaLabel}
           value={value}
           onChange={(e) => onChange(e.target.value)}
           placeholder="🎉"
@@ -153,6 +157,7 @@ export function EmojiPicker({
         type="button"
         size="sm"
         variant="outline"
+        aria-expanded={open}
         disabled={disabled}
         onClick={() => (open ? setOpen(false) : handleOpen())}
       >

@@ -19,6 +19,7 @@ import {
   AlertDialogTrigger,
 } from "@/components/ui/alert-dialog"
 import { Select, SelectContent, SelectItem, SelectTrigger, SelectValue } from "@/components/ui/select"
+import { EmojiPicker } from "@/components/emoji-picker"
 import { Layers, Plus, Trash2 } from "lucide-react"
 import {
   MAX_TEMPLATE_DESCRIPTION,
@@ -419,12 +420,12 @@ function TemplateCard({
               onChange={(e) => onOptionDraftChange({ ...optionDraft, color: e.target.value })}
               className="h-9 w-10 flex-none cursor-pointer rounded border border-[var(--blue-015)] bg-transparent"
             />
-            <Input
-              placeholder="Emoji"
+            <EmojiPicker
+              source="application"
               value={optionDraft.emoji}
               maxLength={MAX_TEMPLATE_EMOJI}
-              onChange={(e) => onOptionDraftChange({ ...optionDraft, emoji: e.target.value })}
-              className="w-24"
+              disabled={busy}
+              onChange={(emoji) => onOptionDraftChange({ ...optionDraft, emoji })}
             />
             <Input
               placeholder="Role name"
@@ -505,12 +506,13 @@ function OptionRow({
         onChange={(e) => setField("color", e.target.value)}
         className="h-9 w-10 flex-none cursor-pointer rounded border border-[var(--blue-015)] bg-transparent"
       />
-      <Input
-        aria-label={`Emoji for ${option.name}`}
+      <EmojiPicker
+        source="application"
+        ariaLabel={`Emoji for ${option.name}`}
         value={valueOf("emoji")}
         maxLength={MAX_TEMPLATE_EMOJI}
-        onChange={(e) => setField("emoji", e.target.value)}
-        className="w-24"
+        disabled={busy}
+        onChange={(emoji) => setField("emoji", emoji)}
       />
       <Input
         aria-label={`Name for ${option.name}`}

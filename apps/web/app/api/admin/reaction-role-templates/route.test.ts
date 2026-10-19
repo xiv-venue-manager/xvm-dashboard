@@ -60,6 +60,14 @@ describe("GET admin/reaction-role-templates", () => {
     expect(mockList).not.toHaveBeenCalled()
   })
 
+  // xvm-api answers 403 too when the credential lacks the platform_admin scope, and the two
+  // want opposite advice - "you are not an admin" against "reconnect your link". The page tells
+  // them apart by this code, so renaming it silently sends admins to fix the wrong thing.
+  it("names itself as the refuser, so the page does not blame the scope", async () => {
+    mockUser.mockResolvedValue({ isAdmin: false })
+    expect((await (await get()).json()).error).toBe("not_admin")
+  })
+
   it("refuses a user with no xvm-api link before calling xvm-api", async () => {
     mockToken.mockResolvedValue(null)
     expect((await get()).status).toBe(503)

@@ -62,7 +62,9 @@ export default function AdminReactionRoleTemplatesPage() {
   const { status } = useSession()
   const [templates, setTemplates] = useState<TemplateRow[]>([])
   const [loading, setLoading] = useState(true)
-  const [forbidden, setForbidden] = useState(false)
+  // Which 403 it was. "not_admin" is this dashboard refusing; "scope" is xvm-api refusing a
+  // credential without platform_admin, and carries xvm-api's own wording.
+  const [forbidden, setForbidden] = useState<{ kind: "not_admin" | "scope"; message: string } | null>(null)
   const [error, setError] = useState<string | null>(null)
   const [busy, setBusy] = useState(false)
   const [draft, setDraft] = useState(emptyTemplate)
@@ -74,13 +76,18 @@ export default function AdminReactionRoleTemplatesPage() {
     try {
       const res = await fetch(BASE)
       if (res.status === 403) {
-        setForbidden(true)
+        const body = await res.json().catch(() => ({}))
+        setForbidden(
+          body?.error === "not_admin"
+            ? { kind: "not_admin", message: body.message ?? "This page is for platform admins." }
+            : { kind: "scope", message: body?.error ?? "xvm-api refused the request." }
+        )
         setError(null)
         return
       }
       if (!res.ok) throw new Error(`Couldn't load templates (${res.status})`)
       setTemplates(await res.json())
-      setForbidden(false)
+      setForbidden(null)
       setError(null)
     } catch (err) {
       setError(err instanceof Error ? err.message : "Couldn't load templates")
@@ -136,8 +143,15 @@ export default function AdminReactionRoleTemplatesPage() {
       <div className="page-inner">
         <Alert>
           <AlertDescription>
-            This page is for platform admins. If you are one, your xvm-api link may not carry the
-            platform_admin scope yet — reconnect it from Settings, or ask for the scope to be granted.
+            {forbidden.kind === "not_admin" ? (
+              <>This page is for platform admins. Ask for an admin account if you need one.</>
+            ) : (
+              <>
+                You are a platform admin, but your xvm-api link doesn&apos;t carry the platform_admin scope —
+                reconnect it from Settings, or ask for the scope to be granted. xvm-api said:{" "}
+                {forbidden.message}
+              </>
+            )}
           </AlertDescription>
         </Alert>
       </div>

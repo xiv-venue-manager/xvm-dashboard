@@ -24,7 +24,7 @@ export const GET = withRateLimit(
     }
 
     if (!(await isAdminUser(session.user.id))) {
-      return NextResponse.json({ error: "Forbidden" }, { status: 403 })
+      return NextResponse.json({ error: "not_admin", message: "This page is for platform admins." }, { status: 403 })
     }
 
     const key = cacheKeys.discordAppEmojis()

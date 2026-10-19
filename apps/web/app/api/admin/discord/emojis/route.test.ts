@@ -64,9 +64,11 @@ describe("GET admin/discord/emojis", () => {
     expect(mockFetch).not.toHaveBeenCalled()
   })
 
-  it("refuses a non-admin before calling Discord", async () => {
+  it("refuses a non-admin before calling Discord, naming itself as the refuser", async () => {
     mockUser.mockResolvedValue({ isAdmin: false })
-    expect((await get()).status).toBe(403)
+    const res = await get()
+    expect(res.status).toBe(403)
+    expect((await res.json()).error).toBe("not_admin")
     expect(mockFetch).not.toHaveBeenCalled()
   })
 

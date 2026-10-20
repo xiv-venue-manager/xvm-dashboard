@@ -77,7 +77,6 @@ interface Service {
 
 export default function ServicesPage({ params }: { params: Promise<{ slug: string }> }) {
   const [slug, setSlug] = useState<string>("")
-  const [venueId, setVenueId] = useState<string>("")
   const [userRole, setUserRole] = useState<string | null>(null)
   const [inventoryEnabled, setInventoryEnabled] = useState(false)
   const [services, setServices] = useState<Service[]>([])
@@ -129,7 +128,6 @@ export default function ServicesPage({ params }: { params: Promise<{ slug: strin
         const venues = await venueResponse.json()
         const venue = venues.find((v: { slug: string; memberships: { role: string }[] }) => v.slug === slug)
         if (!venue) throw new Error("Venue not found")
-        setVenueId(venue.id)
         setUserRole(venue.memberships?.[0]?.role ?? null)
 
         // Get services, roles, categories, and inventory settings

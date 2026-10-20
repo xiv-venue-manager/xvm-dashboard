@@ -108,6 +108,20 @@ describe("seats", () => {
     const r = run([seat({ id: "a" }), shift({ id: "o", roleId: "r1", eventId: "e1", status: "OPEN" })])
     expect(r.event_shifts.map((e) => e.capacity)).toEqual([2])
     expect(r.shifts.map((x) => x.key)).toEqual(["a"])
+    expect(r.folded_open_slots).toBe(1)
+  })
+
+  it("counts a cancelled open slot as folded too", () => {
+    const r = run([seat({ id: "a" }), shift({ id: "o", roleId: "r1", eventId: "e1", status: "CANCELLED" })])
+    expect(r.folded_open_slots).toBe(1)
+    expect(r.event_shifts[0].capacity).toBe(1)
+  })
+
+  it("warns when a slot's capacity is over xvm-api's limit", () => {
+    const open = Array.from({ length: 100 }, (_, i) => shift({ id: `o${i}`, roleId: "r1", eventId: "e1", status: "OPEN" }))
+    const r = run(open)
+    expect(r.event_shifts[0].capacity).toBe(100)
+    expect(r.warnings.map((w) => w.message)).toEqual([expect.stringContaining("over xvm-api's limit of 99")])
   })
 
   it("keeps an event shift with only open slots, with no seats", () => {
@@ -282,6 +296,21 @@ describe("states", () => {
       },
     ])
     expect(r.warnings[0].message).toContain("ended at its scheduled end")
+  })
+
+  it("does not close a shift clocked in at or after its scheduled end, which would end before it began", () => {
+    const r = run([seat({ status: "ACTIVE", actualStart: "2026-01-05T22:30:00.000Z" })])
+    expect(r.shifts[0].actual_end).toBeNull()
+    expect(r.warnings[0].message).toContain("at or after its scheduled end")
+    expect(r.audits).toEqual([])
+  })
+
+  it("warns when one person is still clocked in on more than one shift", () => {
+    const live = { status: "ACTIVE", scheduledStart: "2026-10-09T19:00:00.000Z", scheduledEnd: "2026-10-09T22:00:00.000Z", actualStart: "2026-10-09T19:05:00.000Z" } as const
+    const r = run([seat({ id: "a", ...live }), seat({ id: "b", eventId: null, ...live })])
+    expect(r.warnings.filter((w) => w.key === "m1")).toEqual([
+      { key: "m1", message: expect.stringContaining("one open clock per person") },
+    ])
   })
 
   it("leaves a clocked-in shift that has not finished open, and says it needs a manual call", () => {

@@ -97,11 +97,13 @@ export interface ShiftsResult {
   event_shifts: EventShiftRow[]
   shifts: ShiftRow[]
   audits: AuditRow[]
+  folded_open_slots: number
   skipped: { key: string; reason: string }[]
   warnings: { key: string; message: string }[]
 }
 
 const MAX_NOTE = 200
+const MAX_EVENT_SHIFT_CAPACITY = 99
 const TWIN = "Converted: the same person held another seat on this shift."
 const ACTIONS: Record<string, AuditRow["action"]> = {
   CLAIM: "claim",
@@ -133,7 +135,7 @@ interface Slot {
 }
 
 export function mapShifts(source: ShiftsExport, ctx: ShiftContext): ShiftsResult {
-  const result: ShiftsResult = { event_positions: [], event_shifts: [], shifts: [], audits: [], skipped: [], warnings: [] }
+  const result: ShiftsResult = { event_positions: [], event_shifts: [], shifts: [], audits: [], folded_open_slots: 0, skipped: [], warnings: [] }
   const skip = (key: string, reason: string) => result.skipped.push({ key, reason })
   const warn = (key: string, message: string) => result.warnings.push({ key, message })
 
@@ -212,6 +214,7 @@ export function mapShifts(source: ShiftsExport, ctx: ShiftContext): ShiftsResult
     const ordered = [...slot.rows].sort((a, b) => Number(!worked(a)) - Number(!worked(b)) || a.id.localeCompare(b.id))
     for (const row of ordered) {
       if (row.membershipId === null) {
+        result.folded_open_slots++
         if (live(row)) open++
         continue
       }
@@ -232,13 +235,15 @@ export function mapShifts(source: ShiftsExport, ctx: ShiftContext): ShiftsResult
     }
 
     const allCancelled = slot.rows.every((r) => !live(r))
+    const capacity = Math.max(seated + open, 1)
+    if (capacity > MAX_EVENT_SHIFT_CAPACITY) warn(sharedKey, `capacity ${capacity} is over xvm-api's limit of ${MAX_EVENT_SHIFT_CAPACITY}, split this slot by hand`)
     result.event_shifts.push({
       key: sharedKey,
       venue_key: slot.venueId,
       event_position_key: eventPositionKey,
       starts_at: slot.start,
       ends_at: slot.end,
-      capacity: Math.max(seated + open, 1),
+      capacity,
       cancelled_at: allCancelled ? slot.rows.map((r) => r.updatedAt).sort().at(-1) ?? null : null,
       cancel_reason: null,
     })
@@ -269,7 +274,9 @@ export function mapShifts(source: ShiftsExport, ctx: ShiftContext): ShiftsResult
 
     let actualEnd = s.actualEnd
     if (s.actualStart !== null && s.actualEnd === null) {
-      if (new Date(s.scheduledEnd).getTime() <= ctx.now.getTime()) {
+      if (new Date(s.scheduledEnd).getTime() <= new Date(s.actualStart).getTime()) {
+        warn(s.id, "still clocked in and clocked in at or after its scheduled end, needs a manual call")
+      } else if (new Date(s.scheduledEnd).getTime() <= ctx.now.getTime()) {
         actualEnd = s.scheduledEnd
         closeAtScheduledEnd.push(s)
         warn(s.id, "still clocked in, ended at its scheduled end")
@@ -300,6 +307,14 @@ export function mapShifts(source: ShiftsExport, ctx: ShiftContext): ShiftsResult
       created_at: s.createdAt,
       updated_at: s.updatedAt,
     })
+  }
+
+  const stillClockedIn = new Map<string, string[]>()
+  for (const s of result.shifts) {
+    if (s.actual_start !== null && s.actual_end === null) stillClockedIn.set(s.membership_key, [...(stillClockedIn.get(s.membership_key) ?? []), s.key])
+  }
+  for (const [membership, keys] of stillClockedIn) {
+    if (keys.length > 1) warn(membership, `${keys.length} shifts are still clocked in (${keys.join(", ")}), xvm-api allows one open clock per person`)
   }
 
   const kept = new Set(result.shifts.map((s) => s.key))

@@ -108,8 +108,6 @@ Two layers run on every authenticated request: the IP throttle catches credentia
 
 | Layer                    | Implementation                                                                                                       | File                                  |
 | ------------------------ | -------------------------------------------------------------------------------------------------------------------- | ------------------------------------- |
-| **Plugin auth**          | `vm_<nanoid>` keys, SHA-256 hashed at rest                                                                           | `lib/api/plugin-auth.ts`              |
-| **Plugin rate limit**    | Per-IP (60/min) + per-key (120/min read, 60/min write)                                                               | `lib/api/plugin-rate-limit.ts`        |
 | **Browser auth**         | NextAuth + Discord OAuth, JWT sessions                                                                               | `lib/auth.ts`                         |
 | **OAuth flow throttle**  | 10/min/IP on `signin`/`callback`, exempt polled paths                                                                | `app/api/auth/[...nextauth]/route.ts` |
 | **Web route rate limit** | Per-IP, per-route budgets                                                                                            | `lib/middleware/with-rate-limit.ts`   |

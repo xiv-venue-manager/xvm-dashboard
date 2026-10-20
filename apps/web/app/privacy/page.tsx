@@ -47,10 +47,6 @@ export default function PrivacyPage() {
                 excluded.
               </li>
               <li>
-                <strong>Plugin API calls:</strong> Timestamps of when the Dalamud plugin last synced with the server
-                (used to show &quot;Plugin synced&quot; status).
-              </li>
-              <li>
                 <strong>Error reports:</strong> Application errors are sent to a self-hosted GlitchTip instance. These
                 include stack traces but not personal data.
               </li>

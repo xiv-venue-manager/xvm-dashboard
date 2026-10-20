@@ -2,7 +2,7 @@ import { NextResponse } from "next/server"
 import { getServerSession } from "next-auth"
 import { authOptions } from "@/lib/auth"
 import { prisma } from "@/lib/prisma"
-import { requireVenueRole } from "@/lib/api/venue-access"
+import { requireMyVenueRole } from "@/lib/api/venue-access"
 import { requireChannelInGuild } from "@/lib/api/venue-guild"
 import { validators } from "@/lib/validation"
 import { Prisma } from "@/generated/prisma/client"
@@ -36,8 +36,6 @@ const updateSettingsSchema = z.object({
   discordWebhooks: discordWebhooksSchema.optional(),
   // Keep for backward compatibility
   discordWebhookUrl: z.string().url().optional().or(z.literal("")),
-  // Partake integration
-  partakeTeamId: z.number().int().positive().nullable().optional(),
   // Venue type
   venueType: z
     .enum([
@@ -103,19 +101,24 @@ export const GET = withRateLimit<{ params: Promise<{ venueId: string }> }>(
       const { venueId } = await params
 
       // Check if user has access to this venue
-      const access = await requireVenueRole(session.user.id, venueId, "STAFF", "You don't have access to this venue")
+      const access = await requireMyVenueRole(
+        session.user.id,
+        venueId,
+        "STAFF",
+        "You don't have access to this venue",
+        "[settings] /me/venues read error"
+      )
       if (!access.ok) return access.response
+      const xvmVenueId = access.venue.id
 
       // Get venue settings
       const venue = await prisma.venue.findUnique({
-        where: { id: venueId },
+        where: { xvmApiVenueId: xvmVenueId },
         select: {
           settings: true,
           discordWebhookUrl: true,
-          partakeTeamId: true,
           venueType: true,
           froggeToken: true,
-          xvmApiVenueId: true,
         },
       })
 
@@ -126,7 +129,6 @@ export const GET = withRateLimit<{ params: Promise<{ venueId: string }> }>(
       const responseBody: Record<string, unknown> = {
         ...parseVenueSettings(venue.settings),
         discordWebhookUrl: venue.discordWebhookUrl,
-        partakeTeamId: venue.partakeTeamId,
         venueType: venue.venueType,
         froggeToken: venue.froggeToken,
       }
@@ -136,51 +138,49 @@ export const GET = withRateLimit<{ params: Promise<{ venueId: string }> }>(
       // unconnected ones. On any failure to reach xvm-api, omit these keys entirely
       // (rather than silently serving the stale Prisma copy as current) and flag it,
       // so a page applying this response doesn't snap its controls back to wrong values.
-      if (venue.xvmApiVenueId) {
-        const token = await getValidXvmApiToken(session.user.id)
-        let degraded = true
-        if (token) {
-          try {
-            const detail = await getVenue(token, venue.xvmApiVenueId)
-            responseBody.taskVisibility = detail.task_visibility
-            responseBody.salesVisibility = detail.sales_visibility
-            responseBody.revenueVisibility = detail.revenue_visibility
-            responseBody.eventVisibility = detail.event_visibility
-            responseBody.venueType = detail.venue_type
-            responseBody.name = detail.name
-            responseBody.description = detail.description
-            responseBody.bannerUrl = detail.banner_url
-            responseBody.logoUrl = detail.logo_url
-            responseBody.district = detail.district
-            responseBody.ward = detail.ward
-            responseBody.plot = detail.plot
-            responseBody.apartment = detail.room
-            responseBody.subdivision = detail.subdivision
-            degraded = false
-          } catch (err) {
-            if (isXvmAuthFailure(err)) {
-              await invalidateXvmApiCredential(session.user.id)
-            }
-            console.error("[settings] getVenue error:", err)
+      const token = await getValidXvmApiToken(session.user.id)
+      let degraded = true
+      if (token) {
+        try {
+          const detail = await getVenue(token, xvmVenueId)
+          responseBody.taskVisibility = detail.task_visibility
+          responseBody.salesVisibility = detail.sales_visibility
+          responseBody.revenueVisibility = detail.revenue_visibility
+          responseBody.eventVisibility = detail.event_visibility
+          responseBody.venueType = detail.venue_type
+          responseBody.name = detail.name
+          responseBody.description = detail.description
+          responseBody.bannerUrl = detail.banner_url
+          responseBody.logoUrl = detail.logo_url
+          responseBody.district = detail.district
+          responseBody.ward = detail.ward
+          responseBody.plot = detail.plot
+          responseBody.apartment = detail.room
+          responseBody.subdivision = detail.subdivision
+          degraded = false
+        } catch (err) {
+          if (isXvmAuthFailure(err)) {
+            await invalidateXvmApiCredential(session.user.id)
           }
+          console.error("[settings] getVenue error:", err)
         }
-        if (degraded) {
-          delete responseBody.taskVisibility
-          delete responseBody.salesVisibility
-          delete responseBody.revenueVisibility
-          delete responseBody.eventVisibility
-          delete responseBody.venueType
-          delete responseBody.name
-          delete responseBody.description
-          delete responseBody.bannerUrl
-          delete responseBody.logoUrl
-          delete responseBody.district
-          delete responseBody.ward
-          delete responseBody.plot
-          delete responseBody.apartment
-          delete responseBody.subdivision
-          responseBody.visibilityDegraded = true
-        }
+      }
+      if (degraded) {
+        delete responseBody.taskVisibility
+        delete responseBody.salesVisibility
+        delete responseBody.revenueVisibility
+        delete responseBody.eventVisibility
+        delete responseBody.venueType
+        delete responseBody.name
+        delete responseBody.description
+        delete responseBody.bannerUrl
+        delete responseBody.logoUrl
+        delete responseBody.district
+        delete responseBody.ward
+        delete responseBody.plot
+        delete responseBody.apartment
+        delete responseBody.subdivision
+        responseBody.visibilityDegraded = true
       }
 
       return NextResponse.json(responseBody)
@@ -208,8 +208,15 @@ export const PUT = withRateLimit<{ params: Promise<{ venueId: string }> }>(
       const { venueId } = await params
 
       // Check if user has permission to update settings
-      const access = await requireVenueRole(session.user.id, venueId, "STAFF", "Not a member of this venue")
+      const access = await requireMyVenueRole(
+        session.user.id,
+        venueId,
+        "STAFF",
+        "Not a member of this venue",
+        "[settings] /me/venues read error"
+      )
       if (!access.ok) return access.response
+      const xvmVenueId = access.venue.id
 
       const body = await request.json()
       const validatedData = updateSettingsSchema.parse(body)
@@ -217,8 +224,8 @@ export const PUT = withRateLimit<{ params: Promise<{ venueId: string }> }>(
       // Only OWNER can update most settings; MANAGER can update roomManagerRoleIds and the
       // operational staff-visibility fields. Revenue visibility stays owner-only - it's a
       // financial-disclosure policy call, not day-to-day staff coordination like the other three.
-      const isOwner = access.role === "OWNER"
-      const isManager = access.role === "MANAGER"
+      const isOwner = access.venue.role === "OWNER"
+      const isManager = access.venue.role === "MANAGER"
       const managerAllowedKeys = new Set(["roomManagerRoleIds", "taskVisibility", "salesVisibility", "eventVisibility"])
       const onlyManagerAllowedFields = Object.keys(validatedData).every((k) => managerAllowedKeys.has(k))
 
@@ -228,8 +235,8 @@ export const PUT = withRateLimit<{ params: Promise<{ venueId: string }> }>(
 
       // Get current settings
       const venue = await prisma.venue.findUnique({
-        where: { id: venueId },
-        select: { settings: true, xvmApiVenueId: true, venueType: true },
+        where: { xvmApiVenueId: xvmVenueId },
+        select: { id: true, settings: true, venueType: true },
       })
 
       if (!venue) {
@@ -240,20 +247,13 @@ export const PUT = withRateLimit<{ params: Promise<{ venueId: string }> }>(
       // re-checking an unchanged one would block unrelated saves on a venue whose server is not linked.
       const newChannelId = validatedData.shiftBot?.channelId
       if (newChannelId && newChannelId !== parseVenueSettings(venue.settings).shiftBot?.channelId) {
-        if (!venue.xvmApiVenueId) {
-          return NextResponse.json(
-            { error: "not_connected", message: "This venue hasn't been connected to xvm-api yet." },
-            { status: 409 }
-          )
-        }
-        const channel = await requireChannelInGuild(session.user.id, venue.xvmApiVenueId, newChannelId)
+        const channel = await requireChannelInGuild(session.user.id, xvmVenueId, newChannelId)
         if (!channel.ok) return channel.response
       }
 
       // Extract top-level venue columns and xvm-api-owned visibility fields from validated data
       const {
         discordWebhookUrl,
-        partakeTeamId,
         venueType,
         taskVisibility,
         salesVisibility,
@@ -273,18 +273,12 @@ export const PUT = withRateLimit<{ params: Promise<{ venueId: string }> }>(
 
       let xvmVenueDetail = null
       if (Object.keys(xvmUpdate).length > 0) {
-        if (!venue.xvmApiVenueId) {
-          return NextResponse.json(
-            { error: "not_connected", message: "Connect this venue to xvm-api before changing these settings." },
-            { status: 409 }
-          )
-        }
         const token = await getValidXvmApiToken(session.user.id)
         if (!token) {
           return NextResponse.json({ error: "xvm-api link not established yet" }, { status: 503 })
         }
         try {
-          xvmVenueDetail = await updateVenue(token, venue.xvmApiVenueId, xvmUpdate)
+          xvmVenueDetail = await updateVenue(token, xvmVenueId, xvmUpdate)
         } catch (err) {
           return xvmApiErrorResponse(err, session.user.id, "[settings] updateVenue error")
         }
@@ -297,29 +291,24 @@ export const PUT = withRateLimit<{ params: Promise<{ venueId: string }> }>(
         ...settingsData,
       }
 
-      // Update venue settings, webhook URL, and Partake team ID
+      // Update venue settings and webhook URL
       const updatedVenue = await prisma.venue.update({
-        where: { id: venueId },
+        where: { id: venue.id },
         data: {
           settings: newSettings as unknown as Prisma.InputJsonValue,
           ...(discordWebhookUrl !== undefined && {
             discordWebhookUrl: discordWebhookUrl || null,
           }),
-          ...(partakeTeamId !== undefined && {
-            partakeTeamId: partakeTeamId,
-          }),
         },
         select: {
           settings: true,
           discordWebhookUrl: true,
-          partakeTeamId: true,
         },
       })
 
       const putResponseBody: Record<string, unknown> = {
         ...parseVenueSettings(updatedVenue.settings),
         discordWebhookUrl: updatedVenue.discordWebhookUrl,
-        partakeTeamId: updatedVenue.partakeTeamId,
         venueType: venue.venueType,
       }
 
@@ -333,7 +322,7 @@ export const PUT = withRateLimit<{ params: Promise<{ venueId: string }> }>(
         putResponseBody.revenueVisibility = xvmVenueDetail.revenue_visibility
         putResponseBody.eventVisibility = xvmVenueDetail.event_visibility
         putResponseBody.venueType = xvmVenueDetail.venue_type
-      } else if (venue.xvmApiVenueId) {
+      } else {
         delete putResponseBody.taskVisibility
         delete putResponseBody.salesVisibility
         delete putResponseBody.revenueVisibility

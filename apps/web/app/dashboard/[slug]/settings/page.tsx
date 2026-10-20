@@ -132,6 +132,7 @@ export default function SettingsPage({ params }: { params: Promise<{ slug: strin
   >([])
   const [isDirty, setIsDirty] = useState(false)
   const settingsReadyRef = useRef(false)
+  const partakeLoadedRef = useRef(false)
 
   // Unwrap params
   useEffect(() => {
@@ -144,6 +145,7 @@ export default function SettingsPage({ params }: { params: Promise<{ slug: strin
 
     const fetchSettings = async () => {
       settingsReadyRef.current = false
+      partakeLoadedRef.current = false
       setIsDirty(false)
       try {
         setIsLoading(true)
@@ -172,7 +174,7 @@ export default function SettingsPage({ params }: { params: Promise<{ slug: strin
         }
 
         // Get settings
-        const settingsResponse = await fetch(`/api/venues/${venue.id}/settings`)
+        const settingsResponse = await fetch(`/api/venues/${slug}/settings`)
         if (!settingsResponse.ok) setXvmUnavailable(true)
         if (settingsResponse.ok) {
           const settingsData = await settingsResponse.json()
@@ -206,7 +208,7 @@ export default function SettingsPage({ params }: { params: Promise<{ slug: strin
               events: "",
               revenue: "",
             },
-            partakeTeamId: settingsData.partakeTeamId ?? null,
+            partakeTeamId: null,
             venueType: settingsData.venueType ?? null,
           })
           setFroggeConnected(!!settingsData.froggeToken)
@@ -216,6 +218,15 @@ export default function SettingsPage({ params }: { params: Promise<{ slug: strin
           setShiftBotThumbnailUrl(settingsData.shiftBot?.thumbnailUrl ?? "")
           setShiftBotTemplates(settingsData.shiftBot?.templates ?? [])
         }
+
+        fetch(`/api/venues/${slug}/partake-link`)
+          .then((r) => (r.ok ? r.json() : null))
+          .then((link: { teamId: number | null } | null) => {
+            if (!link) return
+            partakeLoadedRef.current = true
+            setSettings((prev) => ({ ...prev, partakeTeamId: link.teamId }))
+          })
+          .catch(() => {})
 
         const potLoad = loadPotSettings(slug).catch(() => {})
 
@@ -313,7 +324,7 @@ export default function SettingsPage({ params }: { params: Promise<{ slug: strin
       }
 
       // Save settings JSON (tagline, tags, hours, permissions, webhooks etc.)
-      const settingsRes = await fetch(`/api/venues/${venueId}/settings`, {
+      const settingsRes = await fetch(`/api/venues/${slug}/settings`, {
         method: "PUT",
         headers: { "Content-Type": "application/json" },
         body: JSON.stringify({
@@ -330,6 +341,18 @@ export default function SettingsPage({ params }: { params: Promise<{ slug: strin
       if (!settingsRes.ok) {
         const d = await settingsRes.json()
         throw new Error(d.error || "Failed to save settings")
+      }
+
+      if (userRole === "OWNER" && partakeLoadedRef.current) {
+        const partakeRes = await fetch(`/api/venues/${slug}/partake-link`, {
+          method: "PUT",
+          headers: { "Content-Type": "application/json" },
+          body: JSON.stringify({ teamId: settings.partakeTeamId ?? null }),
+        })
+        if (!partakeRes.ok) {
+          const d = await partakeRes.json().catch(() => ({}))
+          throw new Error(d.error || "Failed to save Partake team")
+        }
       }
 
       // Save pot payroll settings (separate relational table, own route)

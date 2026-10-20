@@ -10,6 +10,8 @@ export function EmojiGlyph({ value, className }: { value: string | null; classNa
   const custom = parseCustomEmojiMarkup(value)
   const url = custom ? customEmojiCdnUrl(custom) : twemojiCdnUrl(value)
   if (!url) return <span className={className}>{value}</span>
+  // The image is the only content here, so it needs real alt text: the character itself, which a
+  // screen reader announces by its Unicode name.
   // eslint-disable-next-line @next/next/no-img-element
-  return <img src={url} alt={custom?.name ?? ""} className={className} />
+  return <img src={url} alt={custom?.name ?? value} className={className} />
 }

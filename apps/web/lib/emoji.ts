@@ -61,5 +61,6 @@ export function twemojiCdnUrl(text: string): string | null {
     const fallback = twemoji.convert.toCodePoint(text).replace(/-?fe0f$/i, "")
     icon = fallback || null
   }
-  return icon ? `https://cdn.jsdelivr.net/gh/jdecked/twemoji@latest/assets/72x72/${icon}.png` : null
+  // twemoji.base carries the package's own pinned asset version, so glyphs and library stay in step.
+  return icon ? `${twemoji.base}${twemoji.size}/${icon}${twemoji.ext}` : null
 }

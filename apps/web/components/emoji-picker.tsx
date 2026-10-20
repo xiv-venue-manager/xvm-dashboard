@@ -1,6 +1,6 @@
 "use client"
 
-import { useEffect, useRef, useState } from "react"
+import { useEffect, useId, useRef, useState } from "react"
 import emojiByChar from "unicode-emoji-json/data-by-emoji.json"
 import orderedEmoji from "unicode-emoji-json/data-ordered-emoji.json"
 import { Input } from "@/components/ui/input"
@@ -77,6 +77,8 @@ export function EmojiPicker({
   const [customEmoji, setCustomEmoji] = useState<DiscordEmojiOption[] | null>(null)
   const [fetchFailed, setFetchFailed] = useState(false)
   const wrapperRef = useRef<HTMLDivElement>(null)
+  const fetching = useRef(false)
+  const popupId = useId()
 
   useEffect(() => {
     function handlePointerDown(event: PointerEvent) {
@@ -89,17 +91,22 @@ export function EmojiPicker({
   }, [])
 
   // On first open rather than on mount: a page renders one of these per role row, and a list
-  // nobody has opened should not spend a request.
+  // nobody has opened should not spend a request. A failure leaves `customEmoji` null so the next
+  // open tries again, and `fetching` keeps a second click from firing a second request meanwhile.
   function handleOpen() {
     setOpen(true)
-    if (customEmoji !== null) return
+    if (customEmoji !== null || fetching.current) return
+    fetching.current = true
     const url = source === "application" ? "/api/admin/discord/emojis" : `/api/venues/${venueId}/discord/emojis`
     fetch(url)
       .then((res) => (res.ok ? res.json() : Promise.reject(new Error("fetch failed"))))
-      .then((data: { emojis: DiscordEmojiOption[] }) => setCustomEmoji(data.emojis ?? []))
-      .catch(() => {
-        setCustomEmoji([])
-        setFetchFailed(true)
+      .then((data: { emojis: DiscordEmojiOption[] }) => {
+        setCustomEmoji(data.emojis ?? [])
+        setFetchFailed(false)
+      })
+      .catch(() => setFetchFailed(true))
+      .finally(() => {
+        fetching.current = false
       })
   }
 
@@ -132,11 +139,23 @@ export function EmojiPicker({
   const heading = "mb-1 text-[10px] font-bold uppercase tracking-wide text-muted-foreground"
 
   return (
-    <div ref={wrapperRef} className={cn("relative flex items-center gap-1.5", className)}>
+    // Escape here rather than on the field: once focus is on a swatch the field no longer sees it.
+    <div
+      ref={wrapperRef}
+      onKeyDown={(e) => {
+        if (e.key === "Escape" && open) setOpen(false)
+      }}
+      className={cn("relative flex items-center gap-1.5", className)}
+    >
       <div className="relative">
         <Input
           aria-label={ariaLabel}
+          // aria-expanded only means anything on a widget that can expand, and the popup holds a
+          // search box and buttons rather than a list of options - so combobox + dialog, not listbox.
+          role="combobox"
           aria-expanded={open}
+          aria-haspopup="dialog"
+          aria-controls={open ? popupId : undefined}
           value={value}
           onChange={(e) => onChange(e.target.value)}
           // Click rather than focus: a row tabs colour, emoji, name, save, and opening on focus
@@ -144,15 +163,16 @@ export function EmojiPicker({
           // caret stays here - the search box does not steal it, or a paste would land there.
           onClick={handleOpen}
           // The field is the only way in now, so ArrowDown is the keyboard equivalent of
-          // clicking it. Escape closes, since there is no button left to toggle.
+          // clicking it.
           onKeyDown={(e) => {
             if (e.key === "ArrowDown" && !open) handleOpen()
-            if (e.key === "Escape" && open) setOpen(false)
           }}
           placeholder="🎉"
           maxLength={maxLength}
           disabled={disabled}
-          className={cn("h-9 w-14 text-center text-sm", previewUrl && "text-transparent")}
+          // caret-foreground because text-transparent takes the caret with it: caret-color
+          // defaults to currentColor, so the field would look unfocusable while a preview shows.
+          className={cn("h-9 w-14 text-center text-sm", previewUrl && "text-transparent caret-foreground")}
         />
         {previewUrl && (
           // eslint-disable-next-line @next/next/no-img-element
@@ -164,7 +184,12 @@ export function EmojiPicker({
         )}
       </div>
       {open && (
-        <div className="absolute left-0 top-full z-50 mt-1 w-72 rounded-lg border border-[var(--blue-015)] bg-background p-2.5 shadow-md">
+        <div
+          id={popupId}
+          role="dialog"
+          aria-label="Emoji picker"
+          className="absolute left-0 top-full z-50 mt-1 w-72 rounded-lg border border-[var(--blue-015)] bg-background p-2.5 shadow-md"
+        >
           <Input
             value={query}
             onChange={(e) => setQuery(e.target.value)}
@@ -180,7 +205,7 @@ export function EmojiPicker({
                   {matchedCustom.map((e) => (
                     <button key={e.id} type="button" title={e.name} onClick={() => pick(customEmojiMarkup(e))} className={swatch}>
                       {/* eslint-disable-next-line @next/next/no-img-element */}
-                      <img src={customEmojiCdnUrl(e)} alt={e.name} className="h-6 w-6" />
+                      <img src={customEmojiCdnUrl(e)} alt={e.name} loading="lazy" className="h-6 w-6" />
                     </button>
                   ))}
                 </div>
@@ -201,7 +226,7 @@ export function EmojiPicker({
                         <button key={e.char} type="button" title={e.name} onClick={() => pick(e.char)} className={swatch}>
                           {e.cdnUrl ? (
                             // eslint-disable-next-line @next/next/no-img-element
-                            <img src={e.cdnUrl} alt={e.name} className="h-5 w-5" />
+                            <img src={e.cdnUrl} alt={e.name} loading="lazy" className="h-5 w-5" />
                           ) : (
                             <span className="text-lg">{e.char}</span>
                           )}
@@ -218,7 +243,7 @@ export function EmojiPicker({
                         <button key={e.char} type="button" title={e.name} onClick={() => pick(e.char)} className={swatch}>
                           {e.cdnUrl ? (
                             // eslint-disable-next-line @next/next/no-img-element
-                            <img src={e.cdnUrl} alt={e.name} className="h-5 w-5" />
+                            <img src={e.cdnUrl} alt={e.name} loading="lazy" className="h-5 w-5" />
                           ) : (
                             <span className="text-lg">{e.char}</span>
                           )}

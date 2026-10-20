@@ -79,12 +79,14 @@ export function EmojiPicker({
   const [fetchFailed, setFetchFailed] = useState(false)
   const anchorRef = useRef<HTMLDivElement>(null)
   const fetching = useRef(false)
+  const openedByKeyboard = useRef(false)
   const popupId = useId()
 
   // On first open rather than on mount: a page renders one of these per role row, and a list
   // nobody has opened should not spend a request. A failure leaves `customEmoji` null so the next
   // open tries again, and `fetching` keeps a second click from firing a second request meanwhile.
-  function handleOpen() {
+  function handleOpen(viaKeyboard = false) {
+    openedByKeyboard.current = viaKeyboard
     setOpen(true)
     if (customEmoji !== null || fetching.current) return
     fetching.current = true
@@ -152,11 +154,12 @@ export function EmojiPicker({
               value={value}
               onChange={(e) => onChange(e.target.value)}
               // Click rather than focus: a row tabs colour, emoji, name, save, and opening on focus
-              // would flash the picker open at every pass.
-              onClick={handleOpen}
+              // would flash the picker open at every pass. Wrapped, not passed: handleOpen's first
+              // parameter would otherwise receive the click event, which is truthy.
+              onClick={() => handleOpen()}
               // The field is the only way in, so ArrowDown is the keyboard equivalent of clicking it.
               onKeyDown={(e) => {
-                if (e.key === "ArrowDown" && !open) handleOpen()
+                if (e.key === "ArrowDown" && !open) handleOpen(true)
               }}
               placeholder="🎉"
               maxLength={maxLength}
@@ -181,9 +184,13 @@ export function EmojiPicker({
           aria-label="Emoji picker"
           align="start"
           className="p-2.5"
-          // The caret belongs in the field: a paste straight after opening has to land there, not
-          // in the search box.
-          onOpenAutoFocus={(event) => event.preventDefault()}
+          // Opened by pointer, the caret belongs in the field: a paste straight after opening has
+          // to land there, not in the search box. Opened with ArrowDown there is no caret to
+          // protect, and leaving focus behind would make the popup unreachable - the content is
+          // portaled, so Tab out of the field goes past it and dismisses on focus-outside.
+          onOpenAutoFocus={(event) => {
+            if (!openedByKeyboard.current) event.preventDefault()
+          }}
           // Radix counts a press on the anchor as outside the content, and closing on it would
           // shut the popup on the same click that repositions the caret.
           onPointerDownOutside={(event) => {
@@ -197,7 +204,12 @@ export function EmojiPicker({
             className="h-8 text-sm"
           />
 
-          <div className="mt-2 max-h-64 overflow-y-auto">
+          {/*
+            A modal Dialog's scroll lock blocks wheel events on anything outside its own content,
+            and this is portaled, so react-remove-scroll calls preventDefault and the list never
+            scrolls. Its document listener is bubble-phase, so stopping here is enough.
+          */}
+          <div className="mt-2 max-h-64 overflow-y-auto" onWheel={(e) => e.stopPropagation()}>
             {matchedCustom.length > 0 && (
               <div className="mb-2">
                 <div className={heading}>{source === "application" ? "Bot emoji" : "Server emoji"}</div>

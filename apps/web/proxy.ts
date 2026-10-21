@@ -12,7 +12,10 @@ function buildCsp(nonce: string): string {
     // including one causes browsers to ignore 'unsafe-inline' per spec,
     // blocking every style={{...}} in the app (e.g. /stats progress bars).
     "style-src 'self' 'unsafe-inline'",
-    `img-src 'self' data: blob: https://cdn.discordapp.com https://raw.githubusercontent.com https://cdn.partake.gg https://*.frogge.gg${process.env.MINIO_PUBLIC_URL ? ` ${process.env.MINIO_PUBLIC_URL}` : ""}`,
+    // cdn.jsdelivr.net serves the Twemoji glyphs behind emoji-picker and emoji-glyph. Images
+    // only - a Unicode emoji drawn from the OS font would be Segoe UI Emoji on Windows, which
+    // lags Unicode far enough that newer emoji come out as empty boxes.
+    `img-src 'self' data: blob: https://cdn.discordapp.com https://raw.githubusercontent.com https://cdn.partake.gg https://*.frogge.gg https://cdn.jsdelivr.net${process.env.MINIO_PUBLIC_URL ? ` ${process.env.MINIO_PUBLIC_URL}` : ""}`,
     "font-src 'self' data:",
     `connect-src 'self' https://discord.com https://api.github.com https://qstash.upstash.io https://errors.xivvenuemanager.com${process.env.MINIO_PUBLIC_URL ? ` ${process.env.MINIO_PUBLIC_URL}` : ""}`,
     "frame-ancestors 'none'",

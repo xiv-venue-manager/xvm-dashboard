@@ -5,6 +5,7 @@ const m = vi.hoisted(() => ({
   access: vi.fn(),
   getEvent: vi.fn(),
   listPatronLogs: vi.fn(),
+  listFinanceTransactions: vi.fn(),
 }))
 
 vi.mock("next-auth", () => ({ getServerSession: m.session }))
@@ -19,19 +20,21 @@ vi.mock("@/lib/api/xvm-api", async (importOriginal) => ({
   getEvent: m.getEvent,
   listPatronLogs: m.listPatronLogs,
   listMemberships: vi.fn().mockResolvedValue([]),
-  listFinanceTransactions: vi.fn().mockResolvedValue([]),
+  listFinanceTransactions: m.listFinanceTransactions,
   listShifts: vi.fn().mockResolvedValue([]),
 }))
 
 import { NextResponse } from "next/server"
 import { GET } from "./route"
-import type { PatronLogRow } from "@/lib/api/xvm-api"
+import type { FinanceTransactionRow, PatronLogRow } from "@/lib/api/xvm-api"
 
 const get = (query: string) =>
   GET(new Request(`http://localhost/api/venues/v1/timeline?${query}`) as never, {
     params: Promise.resolve({ venueId: "v1" }),
   })
 const minutesAgo = (n: number) => new Date(Date.now() - n * 60000).toISOString()
+const txn = (id: number, kind: string, ago: number) =>
+  ({ id, kind, amount: 100, created_at: minutesAgo(ago), membership_id: null, service_id: null, customer_name: null, notes: null }) as unknown as FinanceTransactionRow
 const row = (id: number, eventId: number | null, ago: number) =>
   ({ id, event_id: eventId, ts: minutesAgo(ago), action: "enter", count_change: 1, character_name: `C${id}`, world: "W" }) as unknown as PatronLogRow
 
@@ -39,7 +42,34 @@ beforeEach(() => {
   vi.clearAllMocks()
   m.session.mockResolvedValue({ user: { id: "user-1" } })
   m.access.mockResolvedValue({ ok: true, venue: { id: "xv-1", role: "STAFF" } })
+  m.listFinanceTransactions.mockResolvedValue([])
   m.getEvent.mockResolvedValue({ starts_at: minutesAgo(120), ends_at: minutesAgo(-60) })
+})
+
+describe("GET timeline sale items", () => {
+  it("asks xvm-api for one page of sales, not the whole window", async () => {
+    m.listFinanceTransactions.mockResolvedValue([])
+    await get("type=sales&limit=20")
+    expect(m.listFinanceTransactions.mock.calls[0][2]).toMatchObject({ limit: 20 })
+  })
+
+  it("keeps paging past expenses until it has a page of sales, so more can still be loaded", async () => {
+    m.listFinanceTransactions
+      .mockResolvedValueOnce([txn(9, "expense", 1), txn(8, "payout", 2), txn(7, "sale", 3)])
+      .mockResolvedValueOnce([txn(6, "sale", 4), txn(5, "sale", 5), txn(4, "sale", 6)])
+    const body = await (await get("type=sales&limit=3")).json()
+    expect(m.listFinanceTransactions.mock.calls[1][2]).toMatchObject({ limit: 3, beforeId: 7 })
+    expect(body.items.map((i: { id: string }) => i.id)).toEqual(["sale_7", "sale_6", "sale_5"])
+    expect(body.hasMore).toBe(true)
+  })
+
+  it("stops when the list runs out, without reporting more", async () => {
+    m.listFinanceTransactions.mockResolvedValueOnce([txn(3, "expense", 1), txn(2, "sale", 2)])
+    const body = await (await get("type=sales&limit=3")).json()
+    expect(m.listFinanceTransactions).toHaveBeenCalledTimes(1)
+    expect(body.items.map((i: { id: string }) => i.id)).toEqual(["sale_2"])
+    expect(body.hasMore).toBe(false)
+  })
 })
 
 describe("GET timeline patron items", () => {

@@ -79,10 +79,7 @@ describe("formatLocalEntryTime", () => {
     expect(formatLocalEntryTime(entry)).toBe("8 PM – 10:30 PM")
   })
 
-  it("resolves the end time's local weekday separately for a crossesMidnight entry", () => {
-    // Saturday 23:00 -> Sunday 01:00 UTC. In Europe/London (BST, +1) both shift
-    // to Sunday 00:00 -> Sunday 02:00 local, so the end stays same-day.
-    process.env.TZ = "Europe/London"
+  describe("a crossesMidnight entry resolves the end time's local weekday separately", () => {
     const entry: ScheduleEntry = {
       id: "1",
       venueId: "v1",
@@ -97,7 +94,27 @@ describe("formatLocalEntryTime", () => {
       commencing: null,
       label: null,
     }
-    expect(formatLocalEntryTime(entry)).toBe("12 AM – 2 AM")
+
+    function formatAt(now: Date): string {
+      process.env.TZ = "Europe/London"
+      vi.useFakeTimers()
+      vi.setSystemTime(now)
+      try {
+        return formatLocalEntryTime(entry)
+      } finally {
+        vi.useRealTimers()
+      }
+    }
+
+    it("keeps the end on the same local day while Britain is on BST", () => {
+      // Saturday 23:00 -> Sunday 01:00 UTC. In Europe/London (BST, +1) both shift
+      // to Sunday 00:00 -> Sunday 02:00 local, so the end stays same-day.
+      expect(formatAt(new Date(Date.UTC(2026, 9, 14, 12, 0, 0)))).toBe("12 AM – 2 AM")
+    })
+
+    it("is off by the DST delta when the end falls on the clock change (accepted ceiling)", () => {
+      expect(formatAt(new Date(Date.UTC(2026, 9, 22, 12, 0, 0)))).toBe("12 AM – 1 AM")
+    })
   })
 })
 

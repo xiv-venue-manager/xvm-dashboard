@@ -13,7 +13,6 @@ Aetherlink is the Discord half of the XIV Venue Manager platform. It lives in th
 
 ### Venue operations
 
-- **Shift reminders** — a background job polls every 60s and DMs staff ~30 minutes before a scheduled shift starts.
 - **`/roll`** — returns a random venue that's open right now, optionally filtered by data center.
 - **Region boards** — on venue open/close transitions, live-updates a "What's Happening" embed per region (NA/EU/JP/OCE).
 

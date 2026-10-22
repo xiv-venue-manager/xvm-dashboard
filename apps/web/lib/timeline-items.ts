@@ -9,7 +9,7 @@ export type TimelineApiItem = {
   data: Record<string, unknown>
 }
 
-const REVENUE_KINDS: ReadonlySet<string> = new Set(["sale", "tip", "cover_charge", "other_income"])
+export const REVENUE_KINDS: ReadonlySet<string> = new Set(["sale", "tip", "cover_charge", "other_income"])
 
 function memberName(member: MembershipRow | undefined): string {
   const name = resolveDisplayName({ nickname: member?.nickname, displayName: member?.person.display_name })

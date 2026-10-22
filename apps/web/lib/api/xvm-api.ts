@@ -2637,12 +2637,14 @@ export interface FinanceTransactionUpdate {
 export async function listFinanceTransactions(
   personToken: string,
   venueId: string,
-  opts: { from: string; to: string; kind?: FinanceTransactionKind; eventId?: number }
+  opts: { from: string; to: string; kind?: FinanceTransactionKind; eventId?: number; limit?: number; beforeId?: number }
 ): Promise<FinanceTransactionRow[]> {
   if (!process.env.XVM_API_BASE_URL) throw new Error("XVM_API_BASE_URL is not set")
   const params = new URLSearchParams({ from: opts.from, to: opts.to })
   if (opts.kind !== undefined) params.set("kind", opts.kind)
   if (opts.eventId !== undefined) params.set("event_id", String(opts.eventId))
+  if (opts.limit !== undefined) params.set("limit", String(opts.limit))
+  if (opts.beforeId !== undefined) params.set("before_id", String(opts.beforeId))
   return xvmFetch<FinanceTransactionRow[]>(`/venues/${venueId}/finance/transactions?${params}`, {}, personToken)
 }
 

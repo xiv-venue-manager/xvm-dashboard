@@ -14,9 +14,25 @@ import {
   type PatronLogRow,
   type ShiftRow,
 } from "@/lib/api/xvm-api"
-import { patronItems, saleItems, shiftItems, type TimelineApiItem } from "@/lib/timeline-items"
+import { patronItems, REVENUE_KINDS, saleItems, shiftItems, type TimelineApiItem } from "@/lib/timeline-items"
 
 const TIMELINE_WINDOW_MS = 59 * 24 * 60 * 60 * 1000
+
+async function listRevenueRows(
+  token: string,
+  venueId: string,
+  range: { from: string; to: string },
+  limit: number
+): Promise<FinanceTransactionRow[]> {
+  const rows: FinanceTransactionRow[] = []
+  let beforeId: number | undefined
+  for (;;) {
+    const page = await listFinanceTransactions(token, venueId, { ...range, limit, beforeId })
+    rows.push(...page)
+    if (page.length < limit || rows.filter((t) => REVENUE_KINDS.has(t.kind)).length >= limit) return rows
+    beforeId = page[page.length - 1].id
+  }
+}
 
 export async function GET(request: NextRequest, { params }: { params: Promise<{ venueId: string }> }) {
   const session = await getServerSession(authOptions)
@@ -55,7 +71,7 @@ export async function GET(request: NextRequest, { params }: { params: Promise<{ 
     const [roster, transactions, shifts, patronLogs] = await Promise.all([
       readXvm("timeline roster", [] as MembershipRow[], (t, v) => listMemberships(t, v)),
       wantSales
-        ? readXvm("timeline sales", [] as FinanceTransactionRow[], (t, v) => listFinanceTransactions(t, v, range))
+        ? readXvm("timeline sales", [] as FinanceTransactionRow[], (t, v) => listRevenueRows(t, v, range, limit))
         : Promise.resolve([] as FinanceTransactionRow[]),
       wantShifts
         ? readXvm("timeline shifts", [] as ShiftRow[], (t, v) => listShifts(t, v, range))

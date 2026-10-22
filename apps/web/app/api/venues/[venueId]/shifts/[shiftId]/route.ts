@@ -4,25 +4,22 @@ import { authOptions } from "@/lib/auth"
 import { getValidXvmApiToken, xvmApiErrorResponse } from "@/lib/api/xvm-api-store"
 import { requireMyVenue } from "@/lib/api/venue-access"
 import {
-  claimShift,
+  withdrawShift,
   approveShift,
   rejectShift,
   clockInShift,
   clockOutShift,
-  cancelShift,
   type ShiftRow,
 } from "@/lib/api/xvm-api"
 import { z } from "zod"
 
 const SHIFT_STATUS_SHAPE: Record<ShiftRow["status"], string> = {
-  open: "OPEN",
   pending_approval: "CLAIMED",
   scheduled: "SCHEDULED",
   active: "ACTIVE",
   completed: "COMPLETED",
   cancelled: "CANCELLED",
   missed: "MISSED",
-  unfilled: "UNFILLED",
 }
 
 function toShiftShape(shift: ShiftRow) {
@@ -39,13 +36,13 @@ function toShiftShape(shift: ShiftRow) {
 }
 
 const patchSchema = z.object({
-  action: z.enum(["clock-in", "clock-out", "claim", "approve", "reject"]),
+  action: z.enum(["clock-in", "clock-out", "withdraw", "approve", "reject"]),
 })
 
 /**
  * PATCH /api/venues/[venueId]/shifts/[shiftId]
- * Claim/approve/reject/clock a shift. Tier requirements are enforced by xvm-api itself
- * (claim/clock-in/clock-out need a member; approve/reject need manager tier) - this route
+ * Withdraw/approve/reject/clock a seat. Tier requirements are enforced by xvm-api itself
+ * (withdraw/clock-in/clock-out need a member; approve/reject need manager tier) - this route
  * just forwards the action and the resulting 403 if any.
  */
 export async function PATCH(
@@ -79,8 +76,8 @@ export async function PATCH(
   try {
     let shift: ShiftRow
     switch (parsed.data.action) {
-      case "claim":
-        shift = await claimShift(token, lookup.venue.id, shiftId)
+      case "withdraw":
+        shift = await withdrawShift(token, lookup.venue.id, shiftId)
         break
       case "approve":
         shift = await approveShift(token, lookup.venue.id, shiftId)
@@ -103,8 +100,8 @@ export async function PATCH(
 
 /**
  * DELETE /api/venues/[venueId]/shifts/[shiftId]
- * xvm-api has no hard delete for shifts, only an audited cancel (same delete->cancel
- * mapping already used for Tasks) - this voids the slot rather than removing the row.
+ * xvm-api has no hard delete for seats, only an audited reject (same delete->cancel
+ * mapping already used for Tasks) - this takes the person off the shift rather than removing the row.
  * Manager tier, enforced by xvm-api.
  */
 export async function DELETE(
@@ -131,7 +128,7 @@ export async function DELETE(
   if (!lookup.ok) return lookup.response
 
   try {
-    const shift = await cancelShift(token, lookup.venue.id, shiftId, null)
+    const shift = await rejectShift(token, lookup.venue.id, shiftId, null)
     return NextResponse.json({ success: true, shift: toShiftShape(shift) })
   } catch (err) {
     return xvmApiErrorResponse(err, session.user.id, "[shifts] DELETE error")

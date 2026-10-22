@@ -4,12 +4,11 @@ const m = vi.hoisted(() => ({
   session: vi.fn(),
   token: vi.fn(),
   requireVenue: vi.fn(),
-  claim: vi.fn(),
+  withdraw: vi.fn(),
   approve: vi.fn(),
   reject: vi.fn(),
   clockIn: vi.fn(),
   clockOut: vi.fn(),
-  cancel: vi.fn(),
 }))
 
 vi.mock("next-auth", () => ({ getServerSession: m.session }))
@@ -20,12 +19,11 @@ vi.mock("@/lib/api/xvm-api-store", () => ({
   xvmApiErrorResponse: () => new Response(null, { status: 500 }),
 }))
 vi.mock("@/lib/api/xvm-api", () => ({
-  claimShift: m.claim,
+  withdrawShift: m.withdraw,
   approveShift: m.approve,
   rejectShift: m.reject,
   clockInShift: m.clockIn,
   clockOutShift: m.clockOut,
-  cancelShift: m.cancel,
 }))
 
 import { PATCH, DELETE } from "./route"
@@ -54,12 +52,12 @@ beforeEach(() => {
   m.session.mockResolvedValue({ user: { id: "u1" } })
   m.token.mockResolvedValue("tok")
   m.requireVenue.mockResolvedValue({ ok: true, venue: { id: "ven_1" } })
-  for (const fn of [m.claim, m.approve, m.reject, m.clockIn, m.clockOut, m.cancel]) fn.mockResolvedValue(row)
+  for (const fn of [m.withdraw, m.approve, m.reject, m.clockIn, m.clockOut]) fn.mockResolvedValue(row)
 })
 
 describe("shift actions", () => {
   it.each([
-    ["claim", () => m.claim],
+    ["withdraw", () => m.withdraw],
     ["approve", () => m.approve],
     ["reject", () => m.reject],
     ["clock-in", () => m.clockIn],
@@ -71,18 +69,18 @@ describe("shift actions", () => {
     expect(fn()).toHaveBeenCalledWith("tok", "ven_1", 5)
   })
 
-  it("cancels a shift on delete", async () => {
+  it("takes the person off the shift on delete", async () => {
     const res = await del()
     expect(res.status).toBe(200)
-    expect(m.cancel).toHaveBeenCalledWith("tok", "ven_1", 5, null)
+    expect(m.reject).toHaveBeenCalledWith("tok", "ven_1", 5, null)
   })
 
   it("answers 404 for a venue the caller cannot see, on every action and on delete", async () => {
     m.requireVenue.mockResolvedValue({ ok: false, response: new Response(null, { status: 404 }) })
-    expect((await patch({ action: "claim" })).status).toBe(404)
+    expect((await patch({ action: "withdraw" })).status).toBe(404)
     expect((await del()).status).toBe(404)
-    expect(m.claim).not.toHaveBeenCalled()
-    expect(m.cancel).not.toHaveBeenCalled()
+    expect(m.withdraw).not.toHaveBeenCalled()
+    expect(m.reject).not.toHaveBeenCalled()
   })
 
   it("rejects an unknown action", async () => {
@@ -90,7 +88,7 @@ describe("shift actions", () => {
   })
 
   it("rejects a non-numeric shift id before resolving the venue", async () => {
-    expect((await patch({ action: "claim" }, "abc")).status).toBe(404)
+    expect((await patch({ action: "withdraw" }, "abc")).status).toBe(404)
     expect((await del("abc")).status).toBe(404)
     expect(m.requireVenue).not.toHaveBeenCalled()
   })

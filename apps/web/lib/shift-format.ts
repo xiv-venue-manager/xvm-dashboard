@@ -44,14 +44,12 @@ export type ShiftUiStatus =
   | "UNFILLED"
 
 export const SHIFT_STATUS_SHAPE: Record<ShiftApiStatus, ShiftUiStatus> = {
-  open: "OPEN",
   pending_approval: "CLAIMED",
   scheduled: "SCHEDULED",
   active: "ACTIVE",
   completed: "COMPLETED",
   cancelled: "CANCELLED",
   missed: "MISSED",
-  unfilled: "UNFILLED",
 }
 
 export const statusBadgeClass: Record<string, string> = {

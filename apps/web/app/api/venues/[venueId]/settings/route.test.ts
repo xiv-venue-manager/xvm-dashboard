@@ -14,7 +14,7 @@ vi.mock("@/lib/auth", () => ({ authOptions: {} }))
 vi.mock("@/lib/middleware/with-rate-limit", () => ({ withRateLimit: (handler: unknown) => handler }))
 vi.mock("@/lib/prisma", () => ({ prisma: { venue: { findUnique: m.venueFind, update: m.venueUpdate } } }))
 vi.mock("@/generated/prisma/client", () => ({ Prisma: {} }))
-vi.mock("@/lib/api/venue-access", () => ({ requireVenueRole: m.role }))
+vi.mock("@/lib/api/venue-access", () => ({ requireMyVenueRole: m.role }))
 vi.mock("@/lib/api/venue-guild", () => ({ requireChannelInGuild: m.channel }))
 vi.mock("@/lib/api/xvm-api-store", () => ({
   getValidXvmApiToken: vi.fn(),
@@ -36,41 +36,40 @@ beforeEach(() => {
   vi.clearAllMocks()
   vi.spyOn(console, "error").mockImplementation(() => {})
   m.session.mockResolvedValue({ user: { id: "user-1" } })
-  m.role.mockResolvedValue({ ok: true, role: "OWNER" })
+  m.role.mockResolvedValue({ ok: true, venue: { id: "xv-1", role: "OWNER" } })
   m.venueFind.mockResolvedValue({
+    id: "vn_1",
     settings: { shiftBot: shiftBot(OLD_CHANNEL) },
-    xvmApiVenueId: null,
     venueType: null,
   })
-  m.venueUpdate.mockResolvedValue({ settings: {}, discordWebhookUrl: null, partakeTeamId: null })
+  m.venueUpdate.mockResolvedValue({ settings: {}, discordWebhookUrl: null })
   m.channel.mockResolvedValue({ ok: true })
 })
 
-const connected = () =>
-  m.venueFind.mockResolvedValue({
-    settings: { shiftBot: shiftBot(OLD_CHANNEL) },
-    xvmApiVenueId: "xv-1",
-    venueType: null,
-  })
-
 describe("PUT /api/venues/[venueId]/settings, shift bot channel", () => {
   it("checks a channel that changed against the venue's xvm-api id, and saves it when it is in the venue's server", async () => {
-    connected()
     const res = await put({ shiftBot: shiftBot(CHANNEL) })
     expect(res.status).toBe(200)
     expect(m.channel).toHaveBeenCalledWith("user-1", "xv-1", CHANNEL)
     expect(m.venueUpdate).toHaveBeenCalledTimes(1)
   })
 
-  it("is 409 not_connected for a changed channel on a venue with no xvm-api venue, and saves nothing", async () => {
+  it("is 404 when the xvm-api venue has no dashboard settings row, and saves nothing", async () => {
+    m.venueFind.mockResolvedValue(null)
     const res = await put({ shiftBot: shiftBot(CHANNEL) })
-    expect(res.status).toBe(409)
+    expect(res.status).toBe(404)
     expect(m.channel).not.toHaveBeenCalled()
     expect(m.venueUpdate).not.toHaveBeenCalled()
   })
 
+  it("looks the settings row up by the xvm-api venue id", async () => {
+    await put({ tagline: "Open nightly" })
+    expect(m.role).toHaveBeenCalledWith("user-1", "vn_1", "STAFF", expect.any(String), expect.any(String))
+    expect(m.venueFind).toHaveBeenCalledWith(expect.objectContaining({ where: { xvmApiVenueId: "xv-1" } }))
+    expect(m.venueUpdate).toHaveBeenCalledWith(expect.objectContaining({ where: { id: "vn_1" } }))
+  })
+
   it("refuses a changed channel that is outside the venue's server, and saves nothing", async () => {
-    connected()
     m.channel.mockResolvedValue({
       ok: false,
       response: NextResponse.json({ error: "channel_not_in_guild" }, { status: 400 }),

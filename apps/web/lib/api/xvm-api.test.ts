@@ -594,6 +594,18 @@ describe("Finance Transactions API", () => {
     expect(url).not.toContain("kind")
   })
 
+  it("listFinanceTransactions sends limit and before_id only when passed", async () => {
+    mockFetchOnce({ ok: true, status: 200, body: [] })
+    await listFinanceTransactions("token", "venue-1", { from: "2026-01-01", to: "2026-01-31", limit: 50, beforeId: 7 })
+    mockFetchOnce({ ok: true, status: 200, body: [] })
+    await listFinanceTransactions("token", "venue-1", { from: "2026-01-01", to: "2026-01-31" })
+    const calls = (fetch as ReturnType<typeof vi.fn>).mock.calls
+    expect(calls[0][0]).toContain("limit=50")
+    expect(calls[0][0]).toContain("before_id=7")
+    expect(calls[1][0]).not.toContain("limit")
+    expect(calls[1][0]).not.toContain("before_id")
+  })
+
   it("createFinanceTransaction POSTs a sale transaction", async () => {
     mockFetchOnce({ ok: true, status: 201, body: sampleTransaction })
     const result = await createFinanceTransaction("token", "venue-1", {

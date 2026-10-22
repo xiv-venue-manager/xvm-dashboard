@@ -44,8 +44,13 @@ describe("customEmojiMarkup and customEmojiCdnUrl", () => {
 })
 
 describe("twemojiCdnUrl", () => {
-  it("resolves a single-codepoint emoji", () => {
-    expect(twemojiCdnUrl("🎉")).toBe("https://cdn.jsdelivr.net/gh/jdecked/twemoji@latest/assets/72x72/1f389.png")
+  it("resolves a single-codepoint emoji to a version-pinned asset", () => {
+    // Any semver tag, never @latest: a floating tag serves assets the installed library was never
+    // checked against. The version comes from the package, so asserting the exact one would break
+    // on every bump.
+    expect(twemojiCdnUrl("🎉")).toMatch(
+      /^https:\/\/cdn\.jsdelivr\.net\/gh\/jdecked\/twemoji@\d+\.\d+\.\d+\/assets\/72x72\/1f389\.png$/
+    )
   })
 
   it("resolves shapes the raw codepoint conversion gets wrong on its own", () => {

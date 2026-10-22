@@ -79,25 +79,48 @@ describe("formatLocalEntryTime", () => {
     expect(formatLocalEntryTime(entry)).toBe("8 PM – 10:30 PM")
   })
 
+  // Saturday 23:00 -> Sunday 01:00 UTC.
+  const crossesMidnight: ScheduleEntry = {
+    id: "1",
+    venueId: "v1",
+    day: 6,
+    startHour: 23,
+    startMin: 0,
+    endHour: 1,
+    endMin: 0,
+    crossesMidnight: true,
+    interval: "WEEKLY",
+    weekOfMonth: null,
+    commencing: null,
+    label: null,
+  }
+
   it("resolves the end time's local weekday separately for a crossesMidnight entry", () => {
-    // Saturday 23:00 -> Sunday 01:00 UTC. In Europe/London (BST, +1) both shift
-    // to Sunday 00:00 -> Sunday 02:00 local, so the end stays same-day.
+    // In Europe/London (BST, +1) both ends shift to Sunday 00:00 -> Sunday 02:00 local, so the
+    // end stays same-day. The clock is pinned because the two ends only share an offset while
+    // their nearest occurrences are clear of a DST change - see the test below.
     process.env.TZ = "Europe/London"
-    const entry: ScheduleEntry = {
-      id: "1",
-      venueId: "v1",
-      day: 6,
-      startHour: 23,
-      startMin: 0,
-      endHour: 1,
-      endMin: 0,
-      crossesMidnight: true,
-      interval: "WEEKLY",
-      weekOfMonth: null,
-      commencing: null,
-      label: null,
+    vi.useFakeTimers()
+    vi.setSystemTime(new Date(Date.UTC(2026, 5, 10, 12, 0, 0)))
+    try {
+      expect(formatLocalEntryTime(crossesMidnight)).toBe("12 AM – 2 AM")
+    } finally {
+      vi.useRealTimers()
     }
-    expect(formatLocalEntryTime(entry)).toBe("12 AM – 2 AM")
+  })
+
+  it("lets the two ends take different offsets when their occurrences straddle a DST change", () => {
+    // The ceiling documented on utcWeeklyToLocal: each weekday anchors independently, so from
+    // UTC Thursday the start lands on Sat 24 Oct (BST) while the end lands on Sun 25 Oct 01:00
+    // UTC - the instant BST ends. Pinned so the ceiling cannot move unnoticed.
+    process.env.TZ = "Europe/London"
+    vi.useFakeTimers()
+    vi.setSystemTime(new Date(Date.UTC(2026, 9, 22, 12, 0, 0)))
+    try {
+      expect(formatLocalEntryTime(crossesMidnight)).toBe("12 AM – 1 AM")
+    } finally {
+      vi.useRealTimers()
+    }
   })
 })
 

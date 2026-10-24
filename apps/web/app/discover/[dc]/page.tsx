@@ -1,12 +1,12 @@
 import type { Metadata } from "next"
 import { notFound } from "next/navigation"
 import Link from "next/link"
-import { prisma } from "@/lib/prisma"
 import { SiteFooter } from "@/components/site-footer"
 import { Button } from "@/components/ui/button"
 import { MapPin, ArrowRight, ChevronLeft } from "lucide-react"
 import { formatVenueLocationShort } from "@/lib/venue-location"
-import { getPublicVenuesForIds, type PublicVenue } from "@/lib/api/xvm-api"
+import { tonightEvents } from "@/lib/api/public-events"
+import { getPublicEventsForIds, listPublicDirectory } from "@/lib/api/xvm-api"
 
 export const dynamic = "force-dynamic"
 
@@ -46,48 +46,32 @@ export default async function DataCentrePage({ params }: { params: Promise<{ dc:
   if (!dataCentre) notFound()
 
   const now = new Date()
-  const tonightTo = new Date(now.getTime() + 8 * 60 * 60 * 1000)
-  const tonightFrom = new Date(now.getTime() - 30 * 60 * 1000)
 
-  const venues = await prisma.venue.findMany({
-    where: { isActive: true, dataCenter: dataCentre.name },
-    include: {
-      events: {
-        where: {
-          OR: [{ status: "ACTIVE" }, { startTime: { gte: tonightFrom, lte: tonightTo } }],
-        },
-        orderBy: { startTime: "asc" },
-        select: { id: true, title: true, startTime: true, status: true },
-        take: 1,
-      },
-    },
-    orderBy: { createdAt: "desc" },
-  })
-
-  const xvmVenueIds = venues.map((v) => v.xvmApiVenueId).filter((id): id is string => id !== null)
-  const profileByVenue: Record<string, PublicVenue> =
-    xvmVenueIds.length > 0 ? await getPublicVenuesForIds(xvmVenueIds) : {}
+  const venues = await listPublicDirectory({ dataCenter: dataCentre.name })
+  const eventsByVenue = await getPublicEventsForIds(venues.map((v) => v.id))
 
   const enriched = venues.map((v) => {
-    const xvmProfile = v.xvmApiVenueId ? profileByVenue[v.xvmApiVenueId] : undefined
+    const { live, upcoming } = tonightEvents(eventsByVenue[v.id], now)
     return {
-      ...v,
-      name: xvmProfile?.name ?? v.slug,
-      description: xvmProfile?.description ?? null,
-      district: xvmProfile?.district ?? null,
-      ward: xvmProfile?.ward ?? null,
-      plot: xvmProfile?.plot ?? null,
-      apartment: xvmProfile?.room ?? null,
-      followCount: xvmProfile?.follower_count ?? 0,
+      id: v.id,
+      slug: v.slug,
+      name: v.name,
+      world: v.world,
+      description: v.description,
+      district: v.district,
+      ward: v.ward,
+      plot: v.plot,
+      apartment: v.room,
+      followCount: v.follower_count,
+      isOpen: live !== null,
+      hasTonight: live !== null || upcoming !== null,
     }
   })
 
   // Sort: open now first, tonight second, rest alphabetical
   const sorted = [...enriched].sort((a, b) => {
-    const aOpen = a.events.some((e) => e.status === "ACTIVE")
-    const bOpen = b.events.some((e) => e.status === "ACTIVE")
-    if (aOpen !== bOpen) return aOpen ? -1 : 1
-    if (a.events.length !== b.events.length) return b.events.length - a.events.length
+    if (a.isOpen !== b.isOpen) return a.isOpen ? -1 : 1
+    if (a.hasTonight !== b.hasTonight) return a.hasTonight ? -1 : 1
     return a.name.localeCompare(b.name)
   })
 
@@ -134,8 +118,7 @@ export default async function DataCentrePage({ params }: { params: Promise<{ dc:
 
             <div className="grid gap-[18px] sm:grid-cols-2">
               {sorted.map((venue) => {
-                const isOpen = venue.events.some((e) => e.status === "ACTIVE")
-                const hasTonight = venue.events.length > 0
+                const { isOpen, hasTonight } = venue
 
                 return (
                   <Link key={venue.id} href={`/venues/${venue.slug}`} className="block group">

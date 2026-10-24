@@ -3,14 +3,12 @@ import { describe, it, expect, vi, beforeEach } from "vitest"
 const m = vi.hoisted(() => ({
   session: vi.fn(),
   token: vi.fn(),
-  venueFind: vi.fn(),
   follow: vi.fn(),
   unfollow: vi.fn(),
 }))
 
 vi.mock("next-auth", () => ({ getServerSession: m.session }))
 vi.mock("@/lib/auth", () => ({ authOptions: {} }))
-vi.mock("@/lib/prisma", () => ({ prisma: { venue: { findFirst: m.venueFind } } }))
 vi.mock("@/lib/api/xvm-api-store", async () => {
   const actual = await vi.importActual<typeof import("@/lib/api/xvm-api-store")>("@/lib/api/xvm-api-store")
   return { ...actual, getValidXvmApiToken: m.token, invalidateXvmApiCredential: vi.fn() }
@@ -33,7 +31,6 @@ beforeEach(() => {
   vi.spyOn(console, "error").mockImplementation(() => {})
   m.session.mockResolvedValue({ user: { id: "u1" } })
   m.token.mockResolvedValue("tok")
-  m.venueFind.mockResolvedValue({ xvmApiVenueId: "ven_1" })
   m.follow.mockResolvedValue({})
   m.unfollow.mockResolvedValue(undefined)
 })
@@ -49,28 +46,9 @@ describe.each([
     expect(m.unfollow).not.toHaveBeenCalled()
   })
 
-  it("is 404 for a venue that does not exist or is inactive", async () => {
-    m.venueFind.mockResolvedValue(null)
-    expect((await call()).status).toBe(404)
-  })
-
-  it("is 409 not_connected for a venue with no xvm-api id", async () => {
-    m.venueFind.mockResolvedValue({ xvmApiVenueId: null })
-    const res = await call()
-    expect(res.status).toBe(409)
-    expect((await res.json()).error).toBe("not_connected")
-  })
-
   it("is 503 when there is no xvm-api link", async () => {
     m.token.mockResolvedValue(null)
     expect((await call()).status).toBe(503)
-  })
-
-  it("finds the venue by its id or its slug", async () => {
-    await call()
-    expect(m.venueFind).toHaveBeenCalledWith(
-      expect.objectContaining({ where: { OR: [{ id: "cm123" }, { slug: "cm123" }], isActive: true } })
-    )
   })
 
   it("forwards an upstream refusal", async () => {
@@ -86,15 +64,15 @@ describe.each([
 })
 
 describe("what each verb sends to xvm-api", () => {
-  it("POST follows the venue by its xvm-api id with the person's token", async () => {
+  it("POST follows the venue by the id in the path with the person's token", async () => {
     await post()
-    expect(m.follow).toHaveBeenCalledWith("tok", "ven_1")
+    expect(m.follow).toHaveBeenCalledWith("tok", "cm123")
     expect(m.unfollow).not.toHaveBeenCalled()
   })
 
-  it("DELETE unfollows the venue by its xvm-api id with the person's token", async () => {
+  it("DELETE unfollows the venue by the id in the path with the person's token", async () => {
     await del()
-    expect(m.unfollow).toHaveBeenCalledWith("tok", "ven_1")
+    expect(m.unfollow).toHaveBeenCalledWith("tok", "cm123")
     expect(m.follow).not.toHaveBeenCalled()
   })
 })

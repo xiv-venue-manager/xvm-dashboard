@@ -47,6 +47,10 @@ export default function PrivacyPage() {
                 excluded.
               </li>
               <li>
+                <strong>Plugin credentials:</strong> When you link the Dalamud plugin, our API service records when that
+                plugin credential was last used.
+              </li>
+              <li>
                 <strong>Error reports:</strong> Application errors are sent to a self-hosted GlitchTip instance. These
                 include stack traces but not personal data.
               </li>

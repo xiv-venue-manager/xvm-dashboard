@@ -3,9 +3,7 @@
 
 import { Dialog, DialogContent, DialogDescription, DialogHeader, DialogTitle } from "@/components/ui/dialog"
 import { Badge } from "@/components/ui/badge"
-import { Button } from "@/components/ui/button"
 import { Avatar, AvatarFallback, AvatarImage } from "@/components/ui/avatar"
-import { CreateShiftDialog } from "@/components/create-shift-dialog"
 import { ClockShiftButton } from "@/components/clock-shift-button"
 import { DeleteShiftButton } from "@/components/delete-shift-button"
 import { OpenShiftChip } from "@/components/open-shift-chip"
@@ -20,7 +18,6 @@ import {
 } from "@/lib/shift-format"
 import { browserTimeZone } from "@/lib/local-day"
 import { useMounted } from "@/lib/use-mounted"
-import type { ShiftStaffOption, ShiftRoleOption } from "@/lib/api/xvm-api"
 
 interface ShiftDayDialogProps {
   date: Date | null
@@ -29,8 +26,6 @@ interface ShiftDayDialogProps {
   canManage: boolean
   currentMembershipId: number
   venueSlug: string
-  staffForDialog: ShiftStaffOption[]
-  roles: ShiftRoleOption[]
   staffNames: StaffNameLookup
 }
 
@@ -41,8 +36,6 @@ export function ShiftDayDialog({
   canManage,
   currentMembershipId,
   venueSlug,
-  staffForDialog,
-  roles,
   staffNames,
 }: ShiftDayDialogProps) {
   const mounted = useMounted()
@@ -178,16 +171,6 @@ export function ShiftDayDialog({
             )
           })}
         </div>
-
-        {canManage && date && (
-          <CreateShiftDialog
-            venueSlug={venueSlug}
-            staff={staffForDialog}
-            roles={roles}
-            trigger={<Button className="w-full">Add shift</Button>}
-            prefill={{ mode: "assign", date: dayKeyFor(date, timeZone) }}
-          />
-        )}
       </DialogContent>
     </Dialog>
   )

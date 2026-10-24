@@ -52,7 +52,6 @@ export default async function DataCentrePage({ params }: { params: Promise<{ dc:
   const venues = await prisma.venue.findMany({
     where: { isActive: true, dataCenter: dataCentre.name },
     include: {
-      _count: { select: { follows: true } },
       events: {
         where: {
           OR: [{ status: "ACTIVE" }, { startTime: { gte: tonightFrom, lte: tonightTo } }],
@@ -79,6 +78,7 @@ export default async function DataCentrePage({ params }: { params: Promise<{ dc:
       ward: xvmProfile?.ward ?? null,
       plot: xvmProfile?.plot ?? null,
       apartment: xvmProfile?.room ?? null,
+      followCount: xvmProfile?.follower_count ?? 0,
     }
   })
 
@@ -176,7 +176,7 @@ export default async function DataCentrePage({ params }: { params: Promise<{ dc:
 
                       <div className="flex items-center justify-between pt-1">
                         <span className="text-xs text-muted-foreground">
-                          {venue._count.follows} follower{venue._count.follows !== 1 ? "s" : ""}
+                          {venue.followCount} follower{venue.followCount !== 1 ? "s" : ""}
                         </span>
                         <span className="text-xs text-[var(--xiv-blue)] group-hover:underline inline-flex items-center gap-1">
                           View venue <ArrowRight className="w-3 h-3" />

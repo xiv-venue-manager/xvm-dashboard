@@ -2,52 +2,46 @@ import { NextResponse } from "next/server"
 import { getServerSession } from "next-auth"
 import { authOptions } from "@/lib/auth"
 import { prisma } from "@/lib/prisma"
-import { notifyVenueOwners } from "@/lib/notify"
+import { followVenue, unfollowVenue } from "@/lib/api/xvm-api"
+import { getValidXvmApiToken, xvmApiErrorResponse } from "@/lib/api/xvm-api-store"
 
-async function getVenue(venueId: string) {
+async function getXvmApiVenueId(venueId: string) {
   return prisma.venue.findFirst({
     where: { OR: [{ id: venueId }, { slug: venueId }], isActive: true },
-    select: { id: true, name: true, slug: true },
+    select: { xvmApiVenueId: true },
   })
+}
+
+async function setFollowing(params: Promise<{ venueId: string }>, following: boolean) {
+  const session = await getServerSession(authOptions)
+  if (!session?.user?.id) return NextResponse.json({ error: "Unauthorized" }, { status: 401 })
+
+  const { venueId } = await params
+  const venue = await getXvmApiVenueId(venueId)
+  if (!venue) return NextResponse.json({ error: "Not found" }, { status: 404 })
+  if (!venue.xvmApiVenueId) {
+    return NextResponse.json(
+      { error: "not_connected", message: "This venue hasn't been connected to xvm-api yet." },
+      { status: 409 }
+    )
+  }
+
+  const token = await getValidXvmApiToken(session.user.id)
+  if (!token) return NextResponse.json({ error: "xvm-api link not established yet" }, { status: 503 })
+
+  try {
+    if (following) await followVenue(token, venue.xvmApiVenueId)
+    else await unfollowVenue(token, venue.xvmApiVenueId)
+    return NextResponse.json({ following })
+  } catch (err) {
+    return xvmApiErrorResponse(err, session.user.id, `[venue follow ${following ? "POST" : "DELETE"}] xvm-api error`)
+  }
 }
 
 export async function POST(_req: Request, { params }: { params: Promise<{ venueId: string }> }) {
-  const session = await getServerSession(authOptions)
-  if (!session?.user?.id) return NextResponse.json({ error: "Unauthorized" }, { status: 401 })
-
-  const { venueId } = await params
-  const venue = await getVenue(venueId)
-  if (!venue) return NextResponse.json({ error: "Not found" }, { status: 404 })
-
-  await prisma.venueFollow.upsert({
-    where: { userId_venueId: { userId: session.user.id, venueId: venue.id } },
-    create: { userId: session.user.id, venueId: venue.id },
-    update: {},
-  })
-
-  // Notify owners — fire and forget
-  const followerName = session.user.name ?? "Someone"
-  notifyVenueOwners(venue.id, {
-    type: "NEW_FOLLOWER",
-    title: "New follower",
-    body: `${followerName} started following ${venue.name}.`,
-    link: `/dashboard/${venue.slug}/analytics`,
-  }).catch(() => {})
-
-  return NextResponse.json({ following: true })
+  return setFollowing(params, true)
 }
 
 export async function DELETE(_req: Request, { params }: { params: Promise<{ venueId: string }> }) {
-  const session = await getServerSession(authOptions)
-  if (!session?.user?.id) return NextResponse.json({ error: "Unauthorized" }, { status: 401 })
-
-  const { venueId } = await params
-  const venue = await getVenue(venueId)
-  if (!venue) return NextResponse.json({ error: "Not found" }, { status: 404 })
-
-  await prisma.venueFollow.deleteMany({
-    where: { userId: session.user.id, venueId: venue.id },
-  })
-
-  return NextResponse.json({ following: false })
+  return setFollowing(params, false)
 }

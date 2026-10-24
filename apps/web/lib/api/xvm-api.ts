@@ -992,6 +992,7 @@ export interface PublicVenue {
   room: number | null
   subdivision: boolean | null
   timezone: string
+  follower_count: number
   images: VenueImageRow[]
 }
 
@@ -2064,6 +2065,32 @@ export interface VenueFollowers {
 export async function getVenueFollowers(personToken: string, venueId: string, limit = 1): Promise<VenueFollowers> {
   if (!process.env.XVM_API_BASE_URL) throw new Error("XVM_API_BASE_URL is not set")
   return xvmFetch<VenueFollowers>(`/venues/${venueId}/followers?limit=${limit}`, {}, personToken)
+}
+
+export interface FollowRow {
+  venue_id: string
+  slug: string
+  name: string
+  logo_url: string | null
+  visible_to_operators: boolean
+  created_at: string
+}
+
+// Newest first, 200 at most, deactivated venues already dropped.
+export async function listMyFollows(personToken: string, limit = 200): Promise<FollowRow[]> {
+  if (!process.env.XVM_API_BASE_URL) throw new Error("XVM_API_BASE_URL is not set")
+  return xvmFetch<FollowRow[]>(`/me/follows?limit=${limit}`, {}, personToken)
+}
+
+// An empty body leaves visible_to_operators as it was; the first follow is what rings the owners' bell.
+export async function followVenue(personToken: string, venueId: string): Promise<FollowRow> {
+  if (!process.env.XVM_API_BASE_URL) throw new Error("XVM_API_BASE_URL is not set")
+  return xvmFetch<FollowRow>(`/me/follows/${venueId}`, { method: "PUT", body: JSON.stringify({}) }, personToken)
+}
+
+export async function unfollowVenue(personToken: string, venueId: string): Promise<void> {
+  if (!process.env.XVM_API_BASE_URL) throw new Error("XVM_API_BASE_URL is not set")
+  return xvmFetch<void>(`/me/follows/${venueId}`, { method: "DELETE" }, personToken)
 }
 
 export interface ReclassifyData {

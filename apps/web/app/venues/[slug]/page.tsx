@@ -42,7 +42,15 @@ import { CopyAddressButton, CopyAddressInline } from "@/components/copy-address-
 import { SiteFooter } from "@/components/site-footer"
 import { VenueScheduleDisplay } from "@/components/venue-schedule-display"
 import { xvmHoursToScheduleEntries } from "@/lib/schedule-utils"
-import { getPublicHours, getPublicVenue, type PublicHours, type PublicVenue } from "@/lib/api/xvm-api"
+import {
+  getPublicHours,
+  getPublicVenue,
+  listMyFollows,
+  type FollowRow,
+  type PublicHours,
+  type PublicVenue,
+} from "@/lib/api/xvm-api"
+import { xvmPersonReader } from "@/lib/api/xvm-page-read"
 
 export default async function VenueProfilePage({ params }: { params: Promise<{ slug: string }> }) {
   const session = await getServerSession(authOptions)
@@ -55,7 +63,7 @@ export default async function VenueProfilePage({ params }: { params: Promise<{ s
   const venue = await prisma.venue.findUnique({
     where: { slug, isActive: true },
     include: {
-      _count: { select: { follows: true, events: true, memberships: true } },
+      _count: { select: { events: true, memberships: true } },
       events: {
         where: {
           status: { in: ["ACTIVE", "PUBLISHED"] },
@@ -114,15 +122,21 @@ export default async function VenueProfilePage({ params }: { params: Promise<{ s
       }
     : null
 
+  const followedByViewer = async () => {
+    if (!session?.user?.id || !venue.xvmApiVenueId) return false
+    const follows = await (await xvmPersonReader(session.user.id))("venue follow state", [] as FollowRow[], (token) =>
+      listMyFollows(token)
+    )
+    return follows.some((f) => f.venue_id === venue.xvmApiVenueId)
+  }
   const [owner, isFollowing] = await Promise.all([
     prisma.user.findUnique({
       where: { id: venue.ownerId },
       select: { name: true, image: true, createdAt: true },
     }),
-    session?.user?.id
-      ? prisma.venueFollow.findFirst({ where: { userId: session.user.id, venueId: venue.id } }).then(Boolean)
-      : Promise.resolve(false),
+    followedByViewer(),
   ])
+  const followerCount = publicVenue?.follower_count ?? 0
 
   const liveEvent = venue.events.find((e) => e.status === "ACTIVE")
   const upcomingEvents = venue.events.filter((e) => e.status === "PUBLISHED")
@@ -292,7 +306,7 @@ export default async function VenueProfilePage({ params }: { params: Promise<{ s
             <div className="hero-actions flex items-center gap-3 flex-shrink-0">
               <div className="text-right">
                 {session ? (
-                  <VenueFollowButton venueId={venue.id} isFollowing={isFollowing} followCount={venue._count.follows} />
+                  <VenueFollowButton venueId={venue.id} isFollowing={isFollowing} followCount={followerCount} />
                 ) : (
                   <>
                     <Link
@@ -302,7 +316,7 @@ export default async function VenueProfilePage({ params }: { params: Promise<{ s
                       <Heart className="w-4 h-4" /> Follow
                     </Link>
                     <div className="text-[0.8rem] text-muted-foreground mt-2 text-right">
-                      <strong className="text-foreground">{venue._count.follows.toLocaleString()}</strong> following
+                      <strong className="text-foreground">{followerCount.toLocaleString()}</strong> following
                     </div>
                   </>
                 )}

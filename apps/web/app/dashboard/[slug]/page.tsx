@@ -12,6 +12,7 @@ import { xvmPageReader, xvmPersonReader } from "@/lib/api/xvm-page-read"
 import {
   getFinanceSummary,
   getPatronLogSummary,
+  getVenueFollowers,
   listMyAnnouncements,
   listMyCharacters,
   listShifts,
@@ -58,7 +59,7 @@ export default async function VenueDashboardPage({ params }: { params: Promise<{
   const weekAgo = subDays(now, 7)
   const twoWeeksAgo = subDays(now, 14)
 
-  const venue = await prisma.venue.findUnique({ where: { slug }, include: { _count: { select: { follows: true } } } })
+  const venue = await prisma.venue.findUnique({ where: { slug } })
 
   const userRole = venue ? await roleInVenue(session.user.id, venue) : null
   if (!venue || !userRole) notFound()
@@ -88,11 +89,11 @@ export default async function VenueDashboardPage({ params }: { params: Promise<{
     patronsPrev: 0,
     avgAttendance: 0,
     upcomingCount: 0,
-    newFollowers: venue._count.follows,
+    newFollowers: 0,
   }
 
   if (canManage) {
-    const [revThis, revPrev, patronWeeks, upcomingCount] = await Promise.all([
+    const [revThis, revPrev, patronWeeks, upcomingCount, followerCount] = await Promise.all([
       revenueBetween("overview revenue this week", weekAgo, now),
       revenueBetween("overview revenue prev week", twoWeeksAgo, weekAgo),
       readXvm("overview patron weeks", { thisWeek: 0, prev: 0 }, async (t, v) => {
@@ -110,6 +111,7 @@ export default async function VenueDashboardPage({ params }: { params: Promise<{
         return weeks
       }),
       Promise.resolve(windowEvents.filter((e) => e.startTime >= now && isOpenOrUpcoming(e)).length),
+      readXvm("overview followers", 0, async (t, v) => (await getVenueFollowers(t, v)).count),
     ])
     kpis = {
       revenueThisWeek: revThis,
@@ -118,7 +120,7 @@ export default async function VenueDashboardPage({ params }: { params: Promise<{
       patronsPrev: patronWeeks.prev,
       avgAttendance: 0,
       upcomingCount: upcomingCount,
-      newFollowers: venue._count.follows,
+      newFollowers: followerCount,
     }
   }
 

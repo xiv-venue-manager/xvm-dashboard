@@ -1,11 +1,11 @@
 import { describe, it, expect, vi, beforeEach } from "vitest"
 
-const m = vi.hoisted(() => ({ act: vi.fn() }))
+const m = vi.hoisted(() => ({ act: vi.fn(), denied: false }))
 
 vi.mock("@/lib/api/venue-action", async (importOriginal) => ({
   ...(await importOriginal<typeof import("@/lib/api/venue-action")>()),
   withVenueAction: async (_venue: string, _label: string, run: (t: string, v: string) => Promise<Response>) =>
-    run("tok", "ven_1"),
+    m.denied ? new Response(null, { status: 401 }) : run("tok", "ven_1"),
 }))
 vi.mock("@/lib/api/xvm-api", () => ({ cancelEventShift: m.act }))
 
@@ -18,6 +18,7 @@ const call = (body: unknown = { reason: "Rained out" }, eventShiftId?: string) =
 
 beforeEach(() => {
   vi.resetAllMocks()
+  m.denied = false
   m.act.mockResolvedValue(undefined)
 })
 
@@ -35,6 +36,12 @@ describe("cancel an event shift", () => {
 
   it("rejects a reason over 200 characters", async () => {
     expect((await call({ reason: "x".repeat(201) })).status).toBe(400)
+    expect(m.act).not.toHaveBeenCalled()
+  })
+
+  it("answers 401 before it judges the body", async () => {
+    m.denied = true
+    expect((await call({ reason: "x".repeat(201) })).status).toBe(401)
     expect(m.act).not.toHaveBeenCalled()
   })
 })

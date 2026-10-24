@@ -13,10 +13,9 @@ export async function POST(
   const eventShiftId = parseId(shiftParam)
   if (eventShiftId === null) return NextResponse.json({ error: "Shift not found" }, { status: 404 })
 
-  const parsed = bodySchema.safeParse(await request.json().catch(() => null))
-  if (!parsed.success) return NextResponse.json({ error: "Choose a staff member" }, { status: 400 })
-
   return withVenueAction(venueId, "event-shifts assign", async (token, xvmApiVenueId) => {
+    const parsed = bodySchema.safeParse(await request.json().catch(() => null))
+    if (!parsed.success) return NextResponse.json({ error: "Choose a staff member" }, { status: 400 })
     await assignEventShift(token, xvmApiVenueId, eventShiftId, parsed.data.membershipId)
     return NextResponse.json({ success: true }, { status: 201 })
   })

@@ -13,10 +13,9 @@ export async function POST(
   const eventShiftId = parseId(shiftParam)
   if (eventShiftId === null) return NextResponse.json({ error: "Shift not found" }, { status: 404 })
 
-  const parsed = bodySchema.safeParse(await request.json().catch(() => ({})))
-  if (!parsed.success) return NextResponse.json({ error: "Reason too long (max 200 characters)" }, { status: 400 })
-
   return withVenueAction(venueId, "event-shifts cancel", async (token, xvmApiVenueId) => {
+    const parsed = bodySchema.safeParse(await request.json().catch(() => ({})))
+    if (!parsed.success) return NextResponse.json({ error: "Reason too long (max 200 characters)" }, { status: 400 })
     await cancelEventShift(token, xvmApiVenueId, eventShiftId, parsed.data.reason || null)
     return NextResponse.json({ success: true })
   })

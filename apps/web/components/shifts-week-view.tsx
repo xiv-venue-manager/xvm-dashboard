@@ -51,7 +51,6 @@ const statusBadge: Record<string, string> = {
   ACTIVE: "bg-emerald-500/10 text-emerald-500 border-emerald-500/20",
   COMPLETED: "bg-zinc-500/10 text-zinc-400 border-zinc-500/20",
   MISSED: "bg-amber-500/10 text-amber-500 border-amber-500/20",
-  UNFILLED: "bg-amber-500/10 text-amber-500 border-amber-500/20",
   CANCELLED: "bg-red-500/10 text-red-400 border-red-500/20",
 }
 
@@ -170,16 +169,15 @@ export function ShiftsWeekView(props: ShiftsWeekViewProps) {
 
   const shownWeekShifts = props.weekShifts.filter((s) => weekDayKeys.includes(dayKeyOf(s.scheduledStart)))
   const activeWeekShifts = shownWeekShifts.filter((s) => s.status !== "CANCELLED")
-  const openSlots = shownWeekShifts.filter((s) => s.status === "OPEN" || s.status === "CLAIMED").length
+  const seatsOf = (s: ShiftRow) => (s.status === "OPEN" ? (s.seatsLeft ?? 1) : 1)
+  const activeSeats = activeWeekShifts.reduce((total, s) => total + seatsOf(s), 0)
+  const openSlots = shownWeekShifts.reduce(
+    (total, s) => total + (s.status === "OPEN" || s.status === "CLAIMED" ? seatsOf(s) : 0),
+    0
+  )
   const missedCount = shownWeekShifts.filter((s) => s.status === "MISSED").length
-  const coverPct =
-    activeWeekShifts.length === 0
-      ? 100
-      : Math.round(((activeWeekShifts.length - openSlots) / activeWeekShifts.length) * 100)
-  const reliabilityPct =
-    activeWeekShifts.length === 0
-      ? 100
-      : Math.round(((activeWeekShifts.length - missedCount) / activeWeekShifts.length) * 100)
+  const coverPct = activeSeats === 0 ? 100 : Math.round(((activeSeats - openSlots) / activeSeats) * 100)
+  const reliabilityPct = activeSeats === 0 ? 100 : Math.round(((activeSeats - missedCount) / activeSeats) * 100)
 
   const actionShifts = shownWeekShifts.filter((s) => s.status === "SCHEDULED" || s.status === "ACTIVE")
   // Same pre/post-mount split as todayKey above: pre-mount, derive "tomorrow"
@@ -216,7 +214,7 @@ export function ShiftsWeekView(props: ShiftsWeekViewProps) {
         {[
           {
             k: "Shifts this week",
-            v: activeWeekShifts.length,
+            v: activeSeats,
             sub: mounted ? "your local time" : props.fmtWeekLabelST,
             icon: "M12 2a10 10 0 1 1 0 20A10 10 0 0 1 12 2zm0 2v8l4 2",
           },
@@ -354,15 +352,17 @@ export function ShiftsWeekView(props: ShiftsWeekViewProps) {
                   <div key={`open-${key}`} className={`sg-cell${key === todayKey ? " today-col" : ""}`}>
                     {dayShifts.map((shift) => (
                       <div key={shift.id} className="flex items-center gap-1">
-                        <OpenShiftChip
-                          shiftId={shift.id}
-                          venueSlug={props.slug}
-                          timeLabel={`${hourLabelOf(shift.scheduledStart)}–${hourLabelOf(shift.scheduledEnd)}${shift.roleName ? ` · ${shift.roleName}` : ""}`}
-                        />
-                        {props.canManage &&
-                          duplicateShiftDialog(shift, { mode: "open", roleId: shift.roleId ?? undefined })}
-                        {props.canManage && (
-                          <DeleteShiftButton venueSlug={props.slug} shiftId={shift.id} hasPayroll={false} />
+                        {shift.heldByMe ? (
+                          <span className="shift-chip op">
+                            {hourLabelOf(shift.scheduledStart)}–{hourLabelOf(shift.scheduledEnd)}
+                            {shift.roleName ? ` · ${shift.roleName}` : ""}
+                          </span>
+                        ) : (
+                          <OpenShiftChip
+                            eventShiftId={shift.eventShiftId ?? 0}
+                            venueSlug={props.slug}
+                            timeLabel={`${hourLabelOf(shift.scheduledStart)}–${hourLabelOf(shift.scheduledEnd)}${shift.roleName ? ` · ${shift.roleName}` : ""}`}
+                          />
                         )}
                       </div>
                     ))}

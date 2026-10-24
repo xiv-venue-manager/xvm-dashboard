@@ -10,15 +10,18 @@ import { ShiftsWeekView } from "@/components/shifts-week-view"
 import { getValidXvmApiToken } from "@/lib/api/xvm-api-store"
 import {
   listEvents,
+  listShiftBoard,
+  listShiftBoardChunked,
   listShifts,
   listShiftsChunked,
   listShiftStaffAndRoles,
   listMemberships,
   listPositions,
   getMe,
+  type ShiftRow as ApiShiftRow,
 } from "@/lib/api/xvm-api"
 import { toShiftEventOptions, type ShiftEventOption } from "@/lib/shift-event-options"
-import { toShiftRow, type ShiftRow, type StaffNameLookup } from "@/lib/shift-format"
+import { toOpenSlot, toShiftRow, type ShiftRow, type StaffNameLookup } from "@/lib/shift-format"
 
 // Week start = Monday in UTC (FFXIV server time = UTC)
 function getWeekMonday(base: Date): Date {
@@ -104,7 +107,7 @@ export default async function ShiftsPage({
   const nextWeekParam = utcDayKey(addUTCDays(weekStart, 7))
 
   // Fetch shifts for this week + count of active shifts (may have started before this week)
-  const [weekShiftsRaw, nowShifts] = await Promise.all([
+  const [weekShiftsRaw, nowShifts, openBoard] = await Promise.all([
     listShifts(token, xvmApiVenueId, {
       from: fetchWindowStart.toISOString(),
       to: fetchWindowEnd.toISOString(),
@@ -114,25 +117,40 @@ export default async function ShiftsPage({
       from: new Date(now.getTime() - 24 * 60 * 60 * 1000).toISOString(),
       to: new Date(now.getTime() + 24 * 60 * 60 * 1000).toISOString(),
     }),
+    listShiftBoard(token, xvmApiVenueId, {
+      from: fetchWindowStart.toISOString(),
+      to: fetchWindowEnd.toISOString(),
+      openOnly: true,
+    }),
   ])
-  const weekShifts: ShiftRow[] = weekShiftsRaw.map((s) =>
-    toShiftRow(s, s.position_id ? (roleNameById.get(s.position_id) ?? null) : null)
-  )
+  const seatsHeldBy = (rows: ApiShiftRow[]) =>
+    new Set(rows.filter((s) => s.membership_id === currentMembershipId && s.cancelled_at === null).map((s) => s.event_shift_id))
+  const heldInWeek = seatsHeldBy(weekShiftsRaw)
+  const weekShifts: ShiftRow[] = [
+    ...weekShiftsRaw.map((s) => toShiftRow(s, s.position_id ? (roleNameById.get(s.position_id) ?? null) : null)),
+    ...openBoard.map((b) => toOpenSlot(b, heldInWeek.has(b.id))),
+  ]
   const activeCount = nowShifts.filter((s) => s.status === "active").length
 
   // Calendar view only: 6-month rolling window (3 back, 3 forward), independent
   // of the week grid's ?w= offset. Only fetched when actually viewing the
   // calendar tab, to avoid pulling months of shift history on every page load.
-  const calendarShifts: ShiftRow[] =
-    view === "calendar"
-      ? (
-          await listShiftsChunked(token, xvmApiVenueId, {
-            from: new Date(Date.UTC(now.getUTCFullYear(), now.getUTCMonth() - 3, 1)).toISOString(),
-            to: new Date(Date.UTC(now.getUTCFullYear(), now.getUTCMonth() + 4, 1)).toISOString(),
-            includeCancelled: true,
-          })
-        ).map((s) => toShiftRow(s, s.position_id ? (roleNameById.get(s.position_id) ?? null) : null))
-      : []
+  const calendarWindow = {
+    from: new Date(Date.UTC(now.getUTCFullYear(), now.getUTCMonth() - 3, 1)).toISOString(),
+    to: new Date(Date.UTC(now.getUTCFullYear(), now.getUTCMonth() + 4, 1)).toISOString(),
+  }
+  let calendarShifts: ShiftRow[] = []
+  if (view === "calendar") {
+    const [calendarRaw, calendarBoard] = await Promise.all([
+      listShiftsChunked(token, xvmApiVenueId, { ...calendarWindow, includeCancelled: true }),
+      listShiftBoardChunked(token, xvmApiVenueId, { ...calendarWindow, openOnly: true }),
+    ])
+    const heldInCalendar = seatsHeldBy(calendarRaw)
+    calendarShifts = [
+      ...calendarRaw.map((s) => toShiftRow(s, s.position_id ? (roleNameById.get(s.position_id) ?? null) : null)),
+      ...calendarBoard.map((b) => toOpenSlot(b, heldInCalendar.has(b.id))),
+    ]
+  }
 
   const { staff: staffForDialog, roles: venueRoles } = await listShiftStaffAndRoles(token, xvmApiVenueId)
 

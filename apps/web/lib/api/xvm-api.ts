@@ -1474,26 +1474,69 @@ export async function listShiftsOnNow(personToken: string, venueId: string): Pro
 // rolling window) chunk through this instead of listShifts directly.
 export const LIST_SHIFTS_MAX_WINDOW_DAYS = 60
 
+function windowChunks(from: string, to: string): { from: string; to: string }[] {
+  const end = new Date(to)
+  const chunks: { from: string; to: string }[] = []
+  let chunkStart = new Date(from)
+  while (chunkStart < end) {
+    const chunkEnd = new Date(
+      Math.min(chunkStart.getTime() + (LIST_SHIFTS_MAX_WINDOW_DAYS - 1) * 24 * 60 * 60 * 1000, end.getTime())
+    )
+    chunks.push({ from: chunkStart.toISOString(), to: chunkEnd.toISOString() })
+    chunkStart = chunkEnd
+  }
+  return chunks
+}
+
 export async function listShiftsChunked(
   personToken: string,
   venueId: string,
   opts: { from: string; to: string; mine?: boolean; includeCancelled?: boolean }
 ): Promise<ShiftRow[]> {
-  const from = new Date(opts.from)
-  const to = new Date(opts.to)
-  const chunks: { from: string; to: string }[] = []
-  let chunkStart = from
-  while (chunkStart < to) {
-    const chunkEnd = new Date(
-      Math.min(chunkStart.getTime() + (LIST_SHIFTS_MAX_WINDOW_DAYS - 1) * 24 * 60 * 60 * 1000, to.getTime())
-    )
-    chunks.push({ from: chunkStart.toISOString(), to: chunkEnd.toISOString() })
-    chunkStart = chunkEnd
-  }
   const results = await Promise.all(
-    chunks.map((c) => listShifts(personToken, venueId, { ...opts, from: c.from, to: c.to }))
+    windowChunks(opts.from, opts.to).map((c) => listShifts(personToken, venueId, { ...opts, from: c.from, to: c.to }))
   )
   const byId = new Map<number, ShiftRow>()
+  for (const shift of results.flat()) byId.set(shift.id, shift)
+  return [...byId.values()]
+}
+
+export interface BoardShift {
+  id: number
+  event_position_id: number
+  starts_at: string
+  ends_at: string
+  capacity: number
+  cancelled_at: string | null
+  cancel_reason: string | null
+  taken: number
+  pending: number
+  event_id: number
+  event_title: string
+  position_id: number
+  position_name: string
+}
+
+export async function listShiftBoard(
+  personToken: string,
+  venueId: string,
+  opts: { from: string; to: string; openOnly?: boolean }
+): Promise<BoardShift[]> {
+  if (!process.env.XVM_API_BASE_URL) throw new Error("XVM_API_BASE_URL is not set")
+  const params = new URLSearchParams({ from: opts.from, to: opts.to })
+  if (opts.openOnly) params.set("open_only", "true")
+  return xvmFetch<BoardShift[]>(`/venues/${venueId}/event-shifts?${params}`, {}, personToken)
+}
+
+export async function listShiftBoardChunked(
+  personToken: string,
+  venueId: string,
+  opts: { from: string; to: string; openOnly?: boolean }
+): Promise<BoardShift[]> {
+  const results = await Promise.all(
+    windowChunks(opts.from, opts.to).map((c) => listShiftBoard(personToken, venueId, { ...opts, from: c.from, to: c.to }))
+  )
+  const byId = new Map<number, BoardShift>()
   for (const shift of results.flat()) byId.set(shift.id, shift)
   return [...byId.values()]
 }

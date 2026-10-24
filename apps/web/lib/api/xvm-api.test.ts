@@ -1,6 +1,6 @@
 import { describe, it, expect, vi, beforeEach } from "vitest"
 
-import { listEvents, getEvent, createEvent, createEventSeries, logPatronVisit, listPatronLogs, getPatronLogSummary, listMyAnnouncements, dismissAnnouncement, listAnnouncements, createAnnouncement, deleteAnnouncement, listShouts, createShout, deleteShout, listMyCharacters, listMyVenues, linkMyCharacter, unlinkMyCharacter, submitFeedback, listMyFeedback, listAdminFeedback, triageFeedback, getVenueFollowers, reissueInvite, reclassifyPatronLogs, getPatronPresence, materializeEvent, endEventSeries, updateEvent, publishEvent, cancelEvent, deleteEvent, type EventRow, XvmApiError, getFfxivLink, linkFfxivListing, listMyFfxivListings, syncFfxivListing, unlinkFfxivListing, type ListingLinkRow, deleteRoom, listTasks, createTask, updateTask, assignTask, startTask, completeTask, cancelTask, getPublicHoursBatch, getPublicHoursForVenues, getInvitePreview, getPublicPlatformStats, PUBLIC_HOURS_BATCH_MAX, listGiveaways, createGiveaway, updateGiveaway, deleteGiveaway, listGiveawayEntries, rollGiveaway, listRaffles, createRaffle, updateRaffle, deleteRaffle, listRaffleEntries, creditTickets, refundTickets, rollRaffle, listServiceCategories, createServiceCategory, updateServiceCategory, deleteServiceCategory, listServices, getService, createService, updateService, deleteService, grantServicePosition, revokeServicePosition, linkServiceInventory, unlinkServiceInventory, setStock, createStockMovement, listStockMovements, listFinanceTransactions, createFinanceTransaction, updateFinanceTransaction, voidFinanceTransaction, listPanels, createPanel, getPanel, updatePanel, deletePanel, addPanelOption, updatePanelOption, deletePanelOption, applyPanelTemplate, postPanel, listPanelPosts, listReactionRoleTemplates, getFinanceSummary, listShiftsOnNow, type TaskRow, type PublicHours, type GiveawayRow, type RaffleRow, type ServiceCategoryRow, type ServiceRow, type StockMovementRow, type FinanceTransactionRow, type PanelRow } from "./xvm-api"
+import { listEvents, getEvent, createEvent, createEventSeries, logPatronVisit, listPatronLogs, getPatronLogSummary, listMyAnnouncements, dismissAnnouncement, listAnnouncements, createAnnouncement, deleteAnnouncement, listShouts, createShout, deleteShout, listMyCharacters, listMyVenues, linkMyCharacter, unlinkMyCharacter, submitFeedback, listMyFeedback, listAdminFeedback, triageFeedback, getVenueFollowers, listMyFollows, followVenue, unfollowVenue, reissueInvite, reclassifyPatronLogs, getPatronPresence, materializeEvent, endEventSeries, updateEvent, publishEvent, cancelEvent, deleteEvent, type EventRow, XvmApiError, getFfxivLink, linkFfxivListing, listMyFfxivListings, syncFfxivListing, unlinkFfxivListing, type ListingLinkRow, deleteRoom, listTasks, createTask, updateTask, assignTask, startTask, completeTask, cancelTask, getPublicHoursBatch, getPublicHoursForVenues, getInvitePreview, getPublicPlatformStats, PUBLIC_HOURS_BATCH_MAX, listGiveaways, createGiveaway, updateGiveaway, deleteGiveaway, listGiveawayEntries, rollGiveaway, listRaffles, createRaffle, updateRaffle, deleteRaffle, listRaffleEntries, creditTickets, refundTickets, rollRaffle, listServiceCategories, createServiceCategory, updateServiceCategory, deleteServiceCategory, listServices, getService, createService, updateService, deleteService, grantServicePosition, revokeServicePosition, linkServiceInventory, unlinkServiceInventory, setStock, createStockMovement, listStockMovements, listFinanceTransactions, createFinanceTransaction, updateFinanceTransaction, voidFinanceTransaction, listPanels, createPanel, getPanel, updatePanel, deletePanel, addPanelOption, updatePanelOption, deletePanelOption, applyPanelTemplate, postPanel, listPanelPosts, listReactionRoleTemplates, getFinanceSummary, listShiftsOnNow, type TaskRow, type PublicHours, type GiveawayRow, type RaffleRow, type ServiceCategoryRow, type ServiceRow, type StockMovementRow, type FinanceTransactionRow, type PanelRow } from "./xvm-api"
 
 function mockFetchOnce({ ok, status, body }: { ok: boolean; status: number; body: unknown }) {
   ;(fetch as ReturnType<typeof vi.fn>).mockResolvedValueOnce({
@@ -1244,6 +1244,31 @@ describe("Patron logs API", () => {
     const url = new URL(lastCall()[0])
     expect(url.pathname).toMatch(/\/venues\/venue-1\/followers$/)
     expect(url.searchParams.get("limit")).toBe("1")
+  })
+
+  it("listMyFollows reads the caller's follows with the largest page by default", async () => {
+    mockFetchOnce({ ok: true, status: 200, body: [] })
+    await expect(listMyFollows("token")).resolves.toEqual([])
+    const url = new URL(lastCall()[0])
+    expect(url.pathname).toMatch(/\/me\/follows$/)
+    expect(url.searchParams.get("limit")).toBe("200")
+  })
+
+  it("followVenue puts an empty body so an existing visibility choice is kept", async () => {
+    mockFetchOnce({ ok: true, status: 201, body: { venue_id: "venue-1" } })
+    await expect(followVenue("token", "venue-1")).resolves.toMatchObject({ venue_id: "venue-1" })
+    const [url, init] = lastCall()
+    expect(new URL(url).pathname).toMatch(/\/me\/follows\/venue-1$/)
+    expect(init.method).toBe("PUT")
+    expect(JSON.parse(init.body)).toEqual({})
+  })
+
+  it("unfollowVenue deletes by venue id", async () => {
+    mockFetchOnce({ ok: true, status: 204, body: null })
+    await unfollowVenue("token", "venue-1")
+    const [url, init] = lastCall()
+    expect(new URL(url).pathname).toMatch(/\/me\/follows\/venue-1$/)
+    expect(init.method).toBe("DELETE")
   })
 
   it("listPatronLogs sends the character filter", async () => {

@@ -4,7 +4,15 @@ import { authOptions } from "@/lib/auth"
 import { prisma } from "@/lib/prisma"
 import { DiscoverClient, type DiscoverVenue } from "@/components/discover-client"
 import { ExploreLayout } from "@/components/explore-layout"
-import { getPublicHoursBatch, getPublicVenuesForIds, type PublicHours, type PublicVenue } from "@/lib/api/xvm-api"
+import {
+  getPublicHoursBatch,
+  getPublicVenuesForIds,
+  listMyFollows,
+  type FollowRow,
+  type PublicHours,
+  type PublicVenue,
+} from "@/lib/api/xvm-api"
+import { xvmPersonReader } from "@/lib/api/xvm-page-read"
 
 export const metadata: Metadata = {
   title: "Discover Venues",
@@ -30,7 +38,6 @@ export default async function DiscoverPage() {
   const venues = await prisma.venue.findMany({
     where: { isActive: true },
     include: {
-      _count: { select: { follows: true } },
       events: {
         where: {
           OR: [{ status: "ACTIVE" }, { startTime: { gte: from, lte: to } }],
@@ -44,14 +51,10 @@ export default async function DiscoverPage() {
     take: 50,
   })
 
-  const followedIds = session?.user?.id
-    ? (
-        await prisma.venueFollow.findMany({
-          where: { userId: session.user.id },
-          select: { venueId: true },
-        })
-      ).map((f) => f.venueId)
+  const follows: FollowRow[] = session?.user?.id
+    ? await (await xvmPersonReader(session.user.id))("discover follows", [], (token) => listMyFollows(token))
     : []
+  const followedXvmIds = new Set(follows.map((f) => f.venue_id))
 
   // xvm-api is the source of truth for a connected venue's hours - one batched
   // read for the whole page (take: 50 above stays within the batch cap) rather
@@ -85,8 +88,8 @@ export default async function DiscoverPage() {
       plot: xvmProfile?.plot ?? null,
       apartment: xvmProfile?.room ?? null,
       description: xvmProfile?.description ?? null,
-      followCount: v._count.follows,
-      isFollowed: followedIds.includes(v.id),
+      followCount: xvmProfile?.follower_count ?? 0,
+      isFollowed: v.xvmApiVenueId !== null && followedXvmIds.has(v.xvmApiVenueId),
       isOpenNow: activeEvent !== null || (xvmHoursEntry?.open_now.open ?? false),
       isTonightOpen: v.events.length > 0,
       activeEvent: activeEvent ? { title: activeEvent.title } : null,

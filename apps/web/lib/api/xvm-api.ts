@@ -993,6 +993,7 @@ export interface PublicVenue {
   subdivision: boolean | null
   timezone: string
   follower_count: number
+  tags: string[]
   images: VenueImageRow[]
 }
 
@@ -1005,6 +1006,16 @@ export const getPublicVenue = cache(async (venueId: string): Promise<PublicVenue
   // Same shared public rate limiter as getPublicHours - cached for the same reason.
   return xvmFetch<PublicVenue>(`/public/venues/${venueId}`, { next: { revalidate: 60 } })
 })
+
+export const getPublicVenueBySlug = cache(async (slug: string): Promise<PublicVenue> => {
+  if (!process.env.XVM_API_BASE_URL) throw new Error("XVM_API_BASE_URL is not set")
+  return xvmFetch<PublicVenue>(`/public/venues/by-slug/${encodeURIComponent(slug)}`, { next: { revalidate: 60 } })
+})
+
+export async function getPublicEvents(venueId: string): Promise<PublicEvents> {
+  if (!process.env.XVM_API_BASE_URL) throw new Error("XVM_API_BASE_URL is not set")
+  return xvmFetch<PublicEvents>(`/public/venues/${venueId}/events`, { next: { revalidate: 60 } })
+}
 
 export interface PublicHoursBatch {
   venues: Record<string, PublicHours>

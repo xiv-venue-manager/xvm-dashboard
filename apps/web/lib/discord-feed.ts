@@ -59,15 +59,6 @@ export async function postShiftXp(userId: string, venueId: string) {
   postToBot("/webhook/shift-xp", { discordId: row.discordId, venueName: row.name })
 }
 
-export function postVenueStatus(venue: { id: string; name: string; dataCenter: string }, isOpen: boolean) {
-  postToBot("/webhook/venue-status", {
-    venueId: venue.id,
-    venueName: venue.name,
-    dataCenter: venue.dataCenter,
-    isOpen,
-  })
-}
-
 export function postEventLive(event: {
   title: string
   startTime: Date

@@ -113,7 +113,6 @@ Two layers run on every authenticated request: the IP throttle catches credentia
 | **Browser auth**         | NextAuth + Discord OAuth, JWT sessions                                                                               | `lib/auth.ts`                         |
 | **OAuth flow throttle**  | 10/min/IP on `signin`/`callback`, exempt polled paths                                                                | `app/api/auth/[...nextauth]/route.ts` |
 | **Web route rate limit** | Per-IP, per-route budgets                                                                                            | `lib/middleware/with-rate-limit.ts`   |
-| **Cron auth**            | Constant-time Bearer token comparison                                                                                | `lib/cron-auth.ts`                    |
 | **Permission model**     | Membership-based with role + status check                                                                            | `lib/permissions.ts`                  |
 | **CSP**                  | Nonce-based per-request CSP; `script-src 'self' 'nonce-{n}'`; no `unsafe-inline`/`unsafe-eval`                       | `proxy.ts`                            |
 | **Headers**              | `X-Frame-Options: DENY`, `X-Content-Type-Options: nosniff`, `Referrer-Policy: strict-origin-when-cross-origin`, HSTS | `next.config.ts`                      |

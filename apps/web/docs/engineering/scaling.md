@@ -11,7 +11,6 @@ Single self-hosted Linux server. Seven containers via Docker Compose:
 | `venue-manager` | `node:20-alpine` (Next.js standalone build) | App tier                                |
 | `postgres`      | `postgres:16`                               | Persistence                             |
 | `redis`         | `redis:7-alpine`                            | Cache + rate limit                      |
-| `cron-jobs`     | `alpine` + `crond`                          | Scheduled jobs                          |
 | `xiv-stats`     | `node:20-alpine`                            | Homepage stats API                      |
 | `adminer`       | `adminer`                                   | DB admin UI (internal only)             |
 | `static-ehno`   | `nginx:alpine`                              | Static site at ehno.xivvenuemanager.com |

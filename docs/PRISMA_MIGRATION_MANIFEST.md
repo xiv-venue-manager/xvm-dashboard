@@ -88,7 +88,7 @@ xvm-api also has venue fields Prisma lacks (`room`, `subdivision`, and the task,
 
 | Prisma table | Dev code | Status | xvm-api target | Notes |
 |---|---|---|---|---|
-| `events` | r web 11, w web 9, raw web 1 | Live | `Event`, `RecurrenceRule` | Five crons, `lib/partake.ts` and `lib/venue-status.ts` still read it; Partake sync still writes it (#57). The recurrence models differ (Prisma pre-generates occurrences, xvm-api materialises them), so this needs its own mapping. |
+| `events` | r web 11, w web 9, raw web 1 | Live | `Event`, `RecurrenceRule` | Five crons and `lib/partake.ts` still read it; Partake sync still writes it (#57). The recurrence models differ (Prisma pre-generates occurrences, xvm-api materialises them), so this needs its own mapping. |
 | `event_templates` | none | Cut over | `EventTemplate` | Move needed. |
 
 ### Patrons

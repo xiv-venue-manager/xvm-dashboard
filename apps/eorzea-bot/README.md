@@ -13,10 +13,7 @@ Aetherlink is the Discord half of the XIV Venue Manager platform. It lives in th
 
 ### Venue operations
 
-- **`/clockin`** / **`/clockout`** — start and end scheduled shifts through the web app's bot API (`/api/bot/shifts/clock-in|out`). Clocking in pays out 100 Gil.
-- **Shift reminders** — a background job polls every 60s and DMs staff ~30 minutes before a scheduled shift starts.
 - **`/roll`** — returns a random venue that's open right now, optionally filtered by data center.
-- **Region boards** — on venue open/close transitions, live-updates a "What's Happening" embed per region (NA/EU/JP/OCE).
 
 ### Progression
 
@@ -26,7 +23,7 @@ Aetherlink is the Discord half of the XIV Venue Manager platform. It lives in th
 
 ### Gil economy
 
-Earn Gil by reacting to bot-posted embeds (25), submitting `/suggest`s (50), and clocking in (100). Spend it in the `/gil shop`:
+Earn Gil by reacting to bot-posted embeds (25) and submitting `/suggest`s (50). Spend it in the `/gil shop`:
 
 - **XP Boost** (500 Gil) — 2x XP for 1 hour.
 - **Cooldown Skip** (100 Gil) — bypass one chat-XP cooldown.
@@ -65,12 +62,6 @@ Copy `.env.example` to `.env` and fill in the values.
 | `GUILD_ID`                       | Test guild ID for instant guild-scoped commands; empty for global commands             |
 | `DATABASE_URL`                   | PostgreSQL connection string — the same database as the web app                        |
 | `WEBHOOK_PORT`                   | Port the Express webhook server listens on (default `4567`)                            |
-| `API_SECRET`                     | Shared secret sent as `x-bot-secret` when calling the web app's bot API (clock-in/out) |
-| `WEB_APP_URL`                    | Base URL of the web app (e.g. `http://localhost:3000`)                                 |
-| `WHATS_HAPPENING_NA_CHANNEL_ID`  | Channel for the NA "What's Happening" region board                                     |
-| `WHATS_HAPPENING_EU_CHANNEL_ID`  | Channel for the EU "What's Happening" region board                                     |
-| `WHATS_HAPPENING_JP_CHANNEL_ID`  | Channel for the JP "What's Happening" region board                                     |
-| `WHATS_HAPPENING_OCE_CHANNEL_ID` | Channel for the OCE "What's Happening" region board                                    |
 
 > The code also reads additional optional vars not listed in `.env.example` (welcome/event/activity/mod-log/suggestions channel IDs, Grand Company and loyalty role IDs, `WEBHOOK_SECRET`, `WEBHOOK_HOST`). They're read directly from `process.env` at runtime; see `src/` for the exact names.
 
@@ -116,8 +107,7 @@ The bot owns a small set of tables, defined in `prisma/schema.prisma`:
 - `discord_members` — XP, level, Gil, GC, XP-boost/cooldown-skip state, warn count
 - `discord_warn_logs` — moderation warning history
 - `discord_guild_config` — per-guild config (welcome/log/auto-role/rules channels)
-- `discord_tracked_messages` — message IDs for editable, re-postable embeds (digests, region boards)
-- `discord_open_venues` — currently-open venues for the region boards
+- `discord_tracked_messages` — message IDs for editable, re-postable embeds (digests)
 - `discord_gil_reaction_rewards` — dedup markers so a reaction pays out once per message
 
 The bot does **not** own the platform tables (`users`, `venues`, `memberships`, `shifts`, `patron_logs`, …). It reads those via `prisma.$queryRaw` against the same `DATABASE_URL` — so the web app's migrations are authoritative and the bot must share the web app's database.

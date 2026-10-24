@@ -10,11 +10,9 @@ import {
   eventLiveEmbed,
   eventsDigestDayEmbed,
   tonightListEmbed,
-  regionBoardEmbed,
   announcementEmbed,
   type VenueInfo,
 } from "../utils/embeds.js"
-import { regionForDataCenter, REGION_LABELS, regionChannelId, dataCentersForRegion } from "../utils/regions.js"
 
 const LOYALTY_TIERS = [
   { threshold: 150, env: "LOYALTY_GOLD_ROLE" },
@@ -171,58 +169,6 @@ export function startWebhookServer(client: Client) {
       eventsDigestDayEmbed(dayLabel, parsed, truncatedCount)
     )
     res.json({ ok: true })
-  })
-
-  app.post("/webhook/venue-status", async (req, res) => {
-    const { venueId, venueName, dataCenter, isOpen } = req.body as {
-      venueId: string
-      venueName: string
-      dataCenter: string
-      isOpen: boolean
-    }
-
-    const region = regionForDataCenter(dataCenter)
-    if (!region) {
-      console.warn(`[venue-status] Unknown data center "${dataCenter}" for venue ${venueName}, skipping`)
-      res.json({ ok: true, skipped: true })
-      return
-    }
-
-    const existing = await prisma.openVenue.findUnique({ where: { venueId } })
-    const wasOpen = existing !== null
-
-    if (isOpen === wasOpen) {
-      // No transition — a second staff member clocking into an already-open
-      // venue, or a clock-out that isn't the last active shift, shouldn't
-      // trigger a re-render.
-      res.json({ ok: true, changed: false })
-      return
-    }
-
-    if (isOpen) {
-      await prisma.openVenue
-        .upsert({
-          where: { venueId },
-          create: { venueId, venueName, dataCenter },
-          update: { venueName, dataCenter },
-        })
-        .catch(() => null)
-    } else {
-      await prisma.openVenue.delete({ where: { venueId } }).catch(() => null)
-    }
-
-    const openInRegion = await prisma.openVenue.findMany({
-      where: { dataCenter: { in: dataCentersForRegion(region) } },
-    })
-
-    await postOrEditEmbed(
-      client,
-      `region:${region}`,
-      regionChannelId(region),
-      regionBoardEmbed(REGION_LABELS[region], openInRegion)
-    )
-
-    res.json({ ok: true, changed: true })
   })
 
   const port = parseInt(process.env.WEBHOOK_PORT ?? "4567")

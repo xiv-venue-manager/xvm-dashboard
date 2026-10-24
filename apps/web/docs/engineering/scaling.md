@@ -73,13 +73,10 @@ Solo project, fast iteration: `prisma db push` updates the live database schema 
 
 ### 4. Rate limit budgets
 
-Per `lib/rate-limit.ts` and `lib/api/plugin-rate-limit.ts`:
+Per `lib/rate-limit.ts`:
 
 | Layer                            | Budget          | Reasoning                                                                                            |
 | -------------------------------- | --------------- | ---------------------------------------------------------------------------------------------------- |
-| Per-IP, plugin routes (pre-auth) | 60/min          | Real plugin polls ~2/min. 60 covers shared-NAT venues with up to ~20 chars + brute-force protection. |
-| Per-key, plugin reads            | 120/min         | `pluginRead` budget. Real reads peak at ~10/min during active use. 120 is abuse-only territory.      |
-| Per-key, plugin writes           | 60/min          | `pluginWrite`. Patron-visit logging during a packed event peaks at ~30/min. 60 leaves headroom.      |
 | Per-IP, web routes               | 200/min default | Dashboard auto-refresh + multi-panel pages. Generous.                                                |
 | Per-IP, OAuth signin/callback    | 10/min          | Sign-in is sub-1/min per real user. 10 covers CSRF retries.                                          |
 

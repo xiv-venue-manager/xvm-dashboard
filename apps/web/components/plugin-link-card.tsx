@@ -11,7 +11,6 @@ interface LinkedPlugin {
   name: string
   preview: string
   issuedAt: string
-  lastUsedAt: string | null
 }
 
 interface IssuedCode {

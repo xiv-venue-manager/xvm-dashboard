@@ -1000,6 +1000,7 @@ export interface PublicVenue {
   timezone: string
   follower_count: number
   tags: string[]
+  is_adult: boolean
   images: VenueImageRow[]
 }
 

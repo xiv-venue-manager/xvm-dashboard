@@ -5,8 +5,9 @@ import { getValidXvmApiToken, xvmApiErrorResponse } from "@/lib/api/xvm-api-stor
 import { requireMyVenue } from "@/lib/api/venue-access"
 
 export function parseId(raw: string): number | null {
+  if (!/^[1-9]\d*$/.test(raw)) return null
   const id = Number(raw)
-  return Number.isInteger(id) ? id : null
+  return Number.isSafeInteger(id) ? id : null
 }
 
 export async function withVenueAction(

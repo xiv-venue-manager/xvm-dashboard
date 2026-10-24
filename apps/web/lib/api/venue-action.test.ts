@@ -31,6 +31,11 @@ describe("parseId", () => {
     expect(parseId("abc")).toBeNull()
     expect(parseId("1.5")).toBeNull()
   })
+
+  it("refuses zero, negatives, empty and exponent forms", () => {
+    for (const raw of ["0", "-3", "", "1e3", " 7", "007"]) expect(parseId(raw)).toBeNull()
+    expect(parseId("9007199254740993")).toBeNull()
+  })
 })
 
 describe("withVenueAction", () => {

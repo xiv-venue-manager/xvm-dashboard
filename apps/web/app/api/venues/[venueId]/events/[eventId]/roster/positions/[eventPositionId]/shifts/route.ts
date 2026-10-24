@@ -20,12 +20,11 @@ export async function POST(
     return NextResponse.json({ error: "Position not found" }, { status: 404 })
   }
 
-  const parsed = bodySchema.safeParse(await request.json().catch(() => null))
-  if (!parsed.success) {
-    return NextResponse.json({ error: "Validation error", details: parsed.error.issues }, { status: 400 })
-  }
-
   return withVenueAction(venueId, "roster shifts POST", async (token, xvmApiVenueId) => {
+    const parsed = bodySchema.safeParse(await request.json().catch(() => null))
+    if (!parsed.success) {
+      return NextResponse.json({ error: "Validation error", details: parsed.error.issues }, { status: 400 })
+    }
     await addEventShift(token, xvmApiVenueId, eventId, eventPositionId, {
       starts_at: parsed.data.startsAt,
       ends_at: parsed.data.endsAt,

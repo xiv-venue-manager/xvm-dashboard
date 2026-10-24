@@ -2093,6 +2093,54 @@ export async function unfollowVenue(personToken: string, venueId: string): Promi
   return xvmFetch<void>(`/me/follows/${venueId}`, { method: "DELETE" }, personToken)
 }
 
+export type NotificationKind =
+  | "follower.new"
+  | "staff.joined"
+  | "task.assigned"
+  | "task.completed"
+  | "shift.reminder"
+  | "shift.claim_submitted"
+  | "shift.claim_approved"
+  | "shift.claim_rejected"
+  | "venue.opened"
+  | "event.reminder"
+
+// link is null for the kinds xvm-api emits on its own; the dashboard builds links from kind and venue_slug.
+export interface NotificationRow {
+  id: number
+  kind: NotificationKind
+  title: string
+  body: string
+  link: string | null
+  read_at: string | null
+  created_at: string
+  venue_id: string | null
+  venue_slug: string | null
+  target_type: string | null
+  target_id: number | null
+}
+
+export interface NotificationInbox {
+  notifications: NotificationRow[]
+  unread_count: number
+}
+
+// Newest first, 100 at most; unread_count covers the whole inbox, not just this page.
+export async function listMyNotifications(personToken: string, limit = 30): Promise<NotificationInbox> {
+  if (!process.env.XVM_API_BASE_URL) throw new Error("XVM_API_BASE_URL is not set")
+  return xvmFetch<NotificationInbox>(`/me/notifications?limit=${limit}`, {}, personToken)
+}
+
+// Without ids the whole inbox is marked read.
+export async function markNotificationsRead(personToken: string, ids?: number[]): Promise<{ updated: number }> {
+  if (!process.env.XVM_API_BASE_URL) throw new Error("XVM_API_BASE_URL is not set")
+  return xvmFetch<{ updated: number }>(
+    "/me/notifications/read",
+    { method: "PATCH", body: JSON.stringify({ ids: ids ?? null }) },
+    personToken
+  )
+}
+
 export interface ReclassifyData {
   log_ids: number[]
   was_working: boolean

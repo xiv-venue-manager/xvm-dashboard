@@ -16,9 +16,7 @@ const profileSchema = z.object({
     .optional(),
   notifications: z
     .object({
-      newFollower: z.boolean().optional(),
       eventRsvp: z.boolean().optional(),
-      lowStaffCoverage: z.boolean().optional(),
       dailySummary: z.boolean().optional(),
     })
     .optional(),

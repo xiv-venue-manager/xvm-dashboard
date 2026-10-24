@@ -119,7 +119,7 @@ xvm-api also has venue fields Prisma lacks (`room`, `subdivision`, and the task,
 
 | Prisma table | Dev code | Status | xvm-api target | Notes |
 |---|---|---|---|---|
-| `notifications` | r web 2, w web 2 | Live | `Notification` | Blocked on the xvm-api emitters and xvm-api#151. |
+| `notifications` | none | Dead | `Notification` | The bell reads `/me/notifications` and marks read through `PATCH /me/notifications/read`; xvm-api emits the rows. |
 | `pending_notifications` | r web 4, w web 5 | Live | unclear (`BotRequest`?) | Used by the bot clock-in route, the dispatch cron and plugin shift routes. |
 | `webhooks` | none | Dead | `VenueLogRoute` | Webhooks are being retired (decision 2026-09-09). Routing settings that live in `Venue.settings` need a home. |
 

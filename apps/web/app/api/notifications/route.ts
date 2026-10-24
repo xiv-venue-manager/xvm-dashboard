@@ -2,10 +2,12 @@ import { getServerSession } from "next-auth"
 import { z } from "zod"
 import { authOptions } from "@/lib/auth"
 import { NextResponse } from "next/server"
-import { prisma } from "@/lib/prisma"
+import { listMyNotifications, markNotificationsRead } from "@/lib/api/xvm-api"
+import { getValidXvmApiToken, xvmApiErrorResponse } from "@/lib/api/xvm-api-store"
+import { toBellNotification } from "@/lib/api/notification-shape"
 
 const markReadSchema = z.object({
-  ids: z.array(z.string()).optional(),
+  ids: z.array(z.coerce.number().int().positive()).min(1).optional(),
 })
 
 /** GET — fetch latest 30 notifications + unread count */
@@ -13,19 +15,18 @@ export async function GET() {
   const session = await getServerSession(authOptions)
   if (!session?.user?.id) return NextResponse.json({ error: "Unauthorized" }, { status: 401 })
 
-  const [notifications, unreadCount] = await Promise.all([
-    prisma.notification.findMany({
-      where: { userId: session.user.id },
-      orderBy: { createdAt: "desc" },
-      take: 30,
-      select: { id: true, type: true, title: true, body: true, link: true, read: true, createdAt: true },
-    }),
-    prisma.notification.count({
-      where: { userId: session.user.id, read: false },
-    }),
-  ])
+  const token = await getValidXvmApiToken(session.user.id)
+  if (!token) return NextResponse.json({ error: "xvm-api link not established yet" }, { status: 503 })
 
-  return NextResponse.json({ notifications, unreadCount })
+  try {
+    const inbox = await listMyNotifications(token, 30)
+    return NextResponse.json({
+      notifications: inbox.notifications.map(toBellNotification),
+      unreadCount: inbox.unread_count,
+    })
+  } catch (err) {
+    return xvmApiErrorResponse(err, session.user.id, "[notifications GET] xvm-api error")
+  }
 }
 
 /** PATCH — mark all (or specific IDs) as read */
@@ -38,15 +39,14 @@ export async function PATCH(req: Request) {
   if (!parsed.success) {
     return NextResponse.json({ error: "Validation error", details: parsed.error.issues }, { status: 400 })
   }
-  const { ids } = parsed.data
 
-  await prisma.notification.updateMany({
-    where: {
-      userId: session.user.id,
-      ...(ids ? { id: { in: ids } } : {}),
-    },
-    data: { read: true },
-  })
+  const token = await getValidXvmApiToken(session.user.id)
+  if (!token) return NextResponse.json({ error: "xvm-api link not established yet" }, { status: 503 })
 
-  return NextResponse.json({ ok: true })
+  try {
+    await markNotificationsRead(token, parsed.data.ids)
+    return NextResponse.json({ ok: true })
+  } catch (err) {
+    return xvmApiErrorResponse(err, session.user.id, "[notifications PATCH] xvm-api error")
+  }
 }

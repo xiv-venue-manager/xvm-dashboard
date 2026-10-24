@@ -3,7 +3,7 @@ import prisma from "./prisma.js"
 /**
  * Award Gil to a member, creating their discord_members row if it doesn't
  * exist yet (same upsert pattern messageCreate.ts uses for XP — a member
- * can earn Gil via reaction/suggest/clockin before ever sending a chat
+ * can earn Gil via reaction/suggest before ever sending a chat
  * message, so the row may not exist).
  */
 export async function awardGil(discordId: string, guildId: string, amount: number): Promise<void> {

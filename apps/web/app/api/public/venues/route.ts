@@ -3,93 +3,47 @@
 // Kept separate from internal dashboard payloads so external consumers aren't coupled
 // to internal shapes, and so internal-only fields (e.g. staffOnShift) never leak here.
 import { NextRequest, NextResponse } from "next/server"
-import { prisma } from "@/lib/prisma"
-import { parseVenueSettings } from "@/lib/types/venue-settings"
 import { xvmHoursToScheduleEntries } from "@/lib/schedule-utils"
-import { getPublicHoursForVenues, getPublicVenuesForIds, type PublicHours, type PublicVenue } from "@/lib/api/xvm-api"
+import { openingStatus } from "@/lib/api/public-venue-status"
+import { getPublicHoursForVenues, listPublicDirectory, type PublicHours } from "@/lib/api/xvm-api"
 
 export async function GET(req: NextRequest) {
   const dc = req.nextUrl.searchParams.get("dc") ?? undefined
   const now = new Date()
-  const endOfDay = new Date(now)
-  endOfDay.setUTCHours(23, 59, 59, 999)
 
-  const venues = await prisma.venue.findMany({
-    where: {
-      isActive: true,
-      ...(dc ? { dataCenter: { equals: dc, mode: "insensitive" } } : {}),
-    },
-    select: {
-      id: true,
-      slug: true,
-      dataCenter: true,
-      world: true,
-      settings: true,
-      xvmApiVenueId: true,
-      shifts: {
-        where: {
-          OR: [
-            {
-              status: "ACTIVE",
-              scheduledStart: { lte: now },
-              scheduledEnd: { gte: now },
-            },
-            {
-              status: "SCHEDULED",
-              scheduledStart: { gt: now, lte: endOfDay },
-            },
-          ],
-        },
-        select: {
-          status: true,
-          scheduledStart: true,
-          scheduledEnd: true,
-          actualStart: true,
-        },
-      },
-    },
-    orderBy: { name: "asc" },
-  })
+  const venues = await listPublicDirectory({ dataCenter: dc })
 
-  // xvm-api is the source of truth for hours - Prisma's scheduleEntries and
-  // venueSchedule tables are retired from this contract entirely. No `take`
-  // cap on the venue query above, so this can batch well past 50 ids -
+  // The directory has no cap, so this can batch well past 50 ids -
   // getPublicHoursForVenues chunks and merges rather than truncating.
-  const xvmVenueIds = venues.map((v) => v.xvmApiVenueId).filter((id): id is string => id !== null)
   let hoursByVenue: Record<string, PublicHours> = {}
-  let profileByVenue: Record<string, PublicVenue> = {}
-  if (xvmVenueIds.length > 0) {
+  if (venues.length > 0) {
     try {
-      hoursByVenue = await getPublicHoursForVenues(xvmVenueIds, 14)
+      hoursByVenue = await getPublicHoursForVenues(
+        venues.map((v) => v.id),
+        14
+      )
     } catch {
       hoursByVenue = {}
     }
-    profileByVenue = await getPublicVenuesForIds(xvmVenueIds)
   }
 
   const mapped = venues.map((v) => {
-    const activeShift = v.shifts.find((s) => s.status === "ACTIVE")
-    const tonightShift = v.shifts.find((s) => s.status === "SCHEDULED")
-    const settings = parseVenueSettings(v.settings)
-    const xvmHours = v.xvmApiVenueId ? hoursByVenue[v.xvmApiVenueId] : undefined
-    const xvmProfile = v.xvmApiVenueId ? profileByVenue[v.xvmApiVenueId] : undefined
+    const xvmHours = hoursByVenue[v.id]
     const scheduleEntries = xvmHours ? xvmHoursToScheduleEntries(xvmHours.rules) : []
     return {
       id: v.id,
-      name: xvmProfile?.name ?? v.slug,
+      name: v.name,
       slug: v.slug,
-      dataCenter: v.dataCenter,
+      dataCenter: v.data_center,
       world: v.world,
-      district: xvmProfile?.district ?? null,
-      ward: xvmProfile?.ward ?? null,
-      plot: xvmProfile?.plot ?? null,
-      apartment: xvmProfile?.room ?? null,
-      logoUrl: xvmProfile?.logo_url ?? null,
-      bannerUrl: xvmProfile?.banner_url ?? null,
-      isAdult: settings.isAdult ?? false,
-      openSince: activeShift ? (activeShift.actualStart ?? activeShift.scheduledStart) : null,
-      scheduledEnd: activeShift?.scheduledEnd ?? tonightShift?.scheduledEnd ?? null,
-      nextOpen: tonightShift?.scheduledStart ?? null,
+      district: v.district,
+      ward: v.ward,
+      plot: v.plot,
+      apartment: v.room,
+      logoUrl: v.logo_url,
+      bannerUrl: v.banner_url,
+      isAdult: v.is_adult,
+      ...openingStatus(xvmHours?.open_now, now),
       // Recurring opening-hours pattern, all times UTC / FFXIV Server Time.
       schedule: scheduleEntries.map((e) => ({
         day: e.day,
@@ -103,13 +57,12 @@ export async function GET(req: NextRequest) {
         commencing: e.commencing,
         label: e.label,
       })),
-      // Schedule-only by design, unlike the web UI's open-now checks: this contract
-      // is driven by staff shifts (openSince/nextOpen above), not Event records.
-      // xvm-api's own open_now.open is schedule-only too (no Event awareness),
-      // so this stays a clean drop-in rather than a semantic change.
-      // A venue with no xvmApiVenueId (not yet migrated) reports openNow: false,
-      // schedule: [], nextOpenings: [] rather than omitting the fields - external
-      // consumers should read that as "hours not set by owner," not "open never."
+      // Schedule-only by design, unlike the web UI's open-now checks: openSince,
+      // scheduledEnd and nextOpen above come from the same open_now, not from
+      // staff shifts or Event records. A venue with no hours reports
+      // openNow: false, schedule: [], nextOpenings: [] rather than omitting the
+      // fields - external consumers should read that as "hours not set by
+      // owner," not "open never."
       openNow: xvmHours?.open_now.open ?? false,
       // Straight from xvm-api's own occurrence engine (upcoming = occurrences_in
       // the requested window, in-progress ones included, sorted soonest-first) -

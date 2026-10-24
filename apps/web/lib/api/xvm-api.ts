@@ -993,6 +993,7 @@ export interface PublicVenue {
   subdivision: boolean | null
   timezone: string
   follower_count: number
+  is_adult: boolean
   images: VenueImageRow[]
 }
 

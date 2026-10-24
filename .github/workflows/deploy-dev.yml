@@ -23,7 +23,8 @@ concurrency:
 
 jobs:
   deploy:
-    runs-on: self-hosted
+    # The label keeps this on the dev box. The CI runners are self-hosted too and must never take a deploy.
+    runs-on: [self-hosted, deploy-dev]
     timeout-minutes: 25
     env:
       DEPLOY_REF: ${{ inputs.ref || 'dev' }}

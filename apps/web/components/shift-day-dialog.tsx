@@ -14,6 +14,7 @@ import { ClaimedShiftChip } from "@/components/claimed-shift-chip"
 import { Copy } from "lucide-react"
 import {
   dayKeyFor,
+  utcDayKey,
   hourLabelFor,
   statusBadgeClass,
   staffNameOf,
@@ -52,7 +53,7 @@ export function ShiftDayDialog({
 
   const open = date !== null
   const dayShifts = date
-    ? shifts.filter((s) => dayKeyFor(new Date(s.scheduledStart), timeZone) === dayKeyFor(date, timeZone))
+    ? shifts.filter((s) => dayKeyFor(new Date(s.scheduledStart), timeZone) === utcDayKey(date))
     : []
   const visibleShifts = canManage ? dayShifts : dayShifts.filter((s) => s.membershipId === currentMembershipId)
 
@@ -114,7 +115,7 @@ export function ShiftDayDialog({
                         prefill={{
                           mode: "open",
                           roleId: shift.roleId ?? undefined,
-                          date: dayKeyFor(date, timeZone),
+                          date: utcDayKey(date),
                           startTime: mounted
                             ? localTimeInput(shift.scheduledStart, timeZone!)
                             : new Date(shift.scheduledStart).toISOString().slice(11, 16),
@@ -213,7 +214,7 @@ export function ShiftDayDialog({
             staff={staffForDialog}
             roles={roles}
             trigger={<Button className="w-full">Add shift</Button>}
-            prefill={{ mode: "assign", date: dayKeyFor(date, timeZone) }}
+            prefill={{ mode: "assign", date: utcDayKey(date) }}
           />
         )}
       </DialogContent>

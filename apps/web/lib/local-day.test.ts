@@ -43,3 +43,11 @@ describe("localHourLabel", () => {
     }
   })
 })
+
+describe("calendar grid day keys", () => {
+  it("utcDayKey keeps a UTC-midnight grid cell on its own date where localDayKey slips a day", () => {
+    const cell = new Date(Date.UTC(2026, 9, 25))
+    expect(utcDayKey(cell)).toBe("2026-10-25")
+    expect(localDayKey(cell, "America/Los_Angeles")).toBe("2026-10-24")
+  })
+})

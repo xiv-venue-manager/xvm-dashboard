@@ -123,7 +123,7 @@ export function ShiftsWeekView(props: ShiftsWeekViewProps) {
     d.setUTCDate(d.getUTCDate() + i)
     return d
   })
-  const weekDayKeys = weekDays.map((d) => dayKeyOf(d))
+  const weekDayKeys = weekDays.map(utcDayKey)
   // Pre-mount, "today" must come from the server-computed prop, not a fresh
   // `new Date()` read — SSR and the client's first render can see different
   // wall clocks (clock skew, or the render straddling UTC midnight), and

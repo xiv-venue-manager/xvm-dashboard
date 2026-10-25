@@ -45,7 +45,6 @@ xiv-app/
 │   │   ├── plugin/               # Plugin-facing API (12 routes, x-api-key auth)
 │   │   ├── venues/               # Dashboard API (43 routes, session auth)
 │   │   ├── admin/                # Admin-only routes
-│   │   ├── cron/                 # 4 scheduled jobs (cron-auth secret)
 │   │   ├── stream/[venueId]/     # SSE endpoint for live page
 │   │   └── ...
 │   ├── dashboard/                # Browser dashboard pages
@@ -62,7 +61,7 @@ xiv-app/
 │   ├── rate-limit.ts             # Sliding-window limiter (uses lib/redis)
 │   └── redis-cache.ts            # Cache-aside layer (uses lib/redis)
 ├── prisma/schema.prisma          # 19 models
-└── docker-compose.yml            # web + postgres + redis + cron + xiv-stats + adminer + static-ehno
+└── docker-compose.yml            # web + postgres + redis + xiv-stats + adminer + static-ehno
 ```
 
 ## Data model summary
@@ -96,11 +95,6 @@ The plugin and browser have different threat models, so they use different auth.
 - Plugin sends `x-api-key: vm_...` header on every request
 - Server validates: hash incoming, lookup `keyHash + revokedAt: null + active membership`
 - Per-IP rate limit runs _before_ `validateApiKey()` so brute-force probing is throttled at 60/min/IP regardless of header validity (see [security.md](./security.md))
-
-### Cron: timing-safe Bearer
-
-- `Authorization: Bearer <CRON_SECRET>` against a constant-time comparison via `crypto.timingSafeEqual`
-- Prevents timing-based secret extraction; matters because the cron container hits localhost over docker-compose network
 
 ## The plugin contract
 
@@ -182,21 +176,10 @@ TTLs (`cacheTTL` in `lib/redis-cache.ts`):
 
 Invalidation is explicit in mutating routes. `invalidateCache(cacheKeys.userVenues(userId))` runs after venue create/delete, etc.
 
-## Cron jobs
-
-Four scheduled jobs run from a separate `cron-jobs` container:
-
-| Schedule       | Path                    | Purpose                                                                |
-| -------------- | ----------------------- | ---------------------------------------------------------------------- |
-| `*/5 * * * *`  | `update-event-statuses` | Transition events between PUBLISHED → ACTIVE → COMPLETED based on time |
-| `*/15 * * * *` | `event-reminders`       | Send Discord webhook reminders before events                           |
-
-All of them authenticate via `verifyCronAuth(request)` with constant-time comparison.
-
 ## Production deployment
 
 - Single Linux box, `docker compose up -d`
-- 7 containers: `venue-manager` (Next.js standalone), `postgres`, `redis`, `cron-jobs`, `xiv-stats` (homepage stats API), `adminer` (DB admin UI, internal only), `static-ehno` (nginx, ehno.xivvenuemanager.com)
+- 6 containers: `venue-manager` (Next.js standalone), `postgres`, `redis`, `xiv-stats` (homepage stats API), `adminer` (DB admin UI, internal only), `static-ehno` (nginx, ehno.xivvenuemanager.com)
 - Reverse proxy fronts the public URL (`xivvenuemanager.com`) and terminates TLS
 - GitHub Actions runs lint + `npm audit --audit-level=high` on push and weekly cron
 - Deploys are manual: SSH to server, `git pull`, `docker compose build venue-manager && docker compose up -d venue-manager`. Solo project; full continuous deployment isn't worth its failure modes when I'm the only shipper.

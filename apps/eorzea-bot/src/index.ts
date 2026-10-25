@@ -4,7 +4,6 @@ import { BotClient } from "./types/index.js"
 import { loadCommands } from "./handlers/commandHandler.js"
 import { loadEvents } from "./handlers/eventHandler.js"
 import { startWebhookServer } from "./webhook/server.js"
-import { startShiftReminder } from "./jobs/shiftReminder.js"
 
 const client = new Client({
   intents: [
@@ -27,7 +26,6 @@ await loadEvents(client)
 
 client.once("clientReady", (c) => {
   startWebhookServer(c)
-  startShiftReminder(c)
 })
 
 await client.login(process.env.DISCORD_TOKEN)

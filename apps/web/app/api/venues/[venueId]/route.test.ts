@@ -6,23 +6,26 @@ const m = vi.hoisted(() => ({
   token: vi.fn(),
   errorResponse: vi.fn(),
   updateVenue: vi.fn(),
+  deactivateVenue: vi.fn(),
   requireVenue: vi.fn(),
+  requireRole: vi.fn(),
+  updateMany: vi.fn(),
   invalidate: vi.fn(),
 }))
 
 vi.mock("next-auth", () => ({ getServerSession: m.session }))
 vi.mock("@/lib/auth", () => ({ authOptions: {} }))
 vi.mock("@/lib/middleware/with-rate-limit", () => ({ withRateLimit: (handler: unknown) => handler }))
-vi.mock("@/lib/prisma", () => ({ prisma: {} }))
+vi.mock("@/lib/prisma", () => ({ prisma: { venue: { updateMany: m.updateMany } } }))
 vi.mock("@/lib/redis-cache", () => ({
   invalidateCache: m.invalidate,
   cacheKeys: { venue: (id: string) => `venue:${id}`, venueBySlug: (s: string) => `venue:slug:${s}`, userVenues: (id: string) => `user:${id}:venues` },
 }))
 vi.mock("@/lib/api/xvm-api-store", () => ({ getValidXvmApiToken: m.token, xvmApiErrorResponse: m.errorResponse }))
-vi.mock("@/lib/api/venue-access", () => ({ requireVenueRole: vi.fn(), requireMyVenue: m.requireVenue }))
-vi.mock("@/lib/api/xvm-api", () => ({ updateVenue: m.updateVenue }))
+vi.mock("@/lib/api/venue-access", () => ({ requireMyVenueRole: m.requireRole, requireMyVenue: m.requireVenue }))
+vi.mock("@/lib/api/xvm-api", () => ({ updateVenue: m.updateVenue, deactivateVenue: m.deactivateVenue }))
 
-import { PATCH } from "@/app/api/venues/[venueId]/route"
+import { PATCH, DELETE } from "@/app/api/venues/[venueId]/route"
 
 const patch = (body: unknown) =>
   PATCH(
@@ -42,7 +45,46 @@ beforeEach(() => {
   m.token.mockResolvedValue("tok")
   m.requireVenue.mockResolvedValue({ ok: true, venue: { id: "ven_1", slug: "velvet-lotus" } })
   m.updateVenue.mockResolvedValue({ id: "ven_1" })
+  m.requireRole.mockResolvedValue({ ok: true, venue: { id: "ven_1", slug: "velvet-lotus" } })
+  m.deactivateVenue.mockResolvedValue({ id: "ven_1", is_active: false })
+  m.updateMany.mockResolvedValue({ count: 1 })
   m.invalidate.mockResolvedValue(undefined)
+})
+
+const del = () =>
+  DELETE(new NextRequest("http://localhost/api/venues/velvet-lotus", { method: "DELETE" }), {
+    params: Promise.resolve({ venueId: "velvet-lotus" }),
+  })
+
+describe("DELETE /api/venues/[venueId]", () => {
+  it("deactivates the xvm-api venue and hides the bridge row instead of deleting it", async () => {
+    expect((await del()).status).toBe(200)
+    expect(m.requireRole).toHaveBeenCalledWith("u1", "velvet-lotus", "OWNER", expect.any(String), expect.any(String))
+    expect(m.deactivateVenue).toHaveBeenCalledWith("tok", "ven_1")
+    expect(m.updateMany).toHaveBeenCalledWith({ where: { xvmApiVenueId: "ven_1" }, data: { isActive: false } })
+    expect(m.invalidate).toHaveBeenCalledWith("user:u1:venues")
+  })
+
+  it("answers with the role check's refusal and changes nothing", async () => {
+    m.requireRole.mockResolvedValue({ ok: false, response: new Response(null, { status: 403 }) })
+    expect((await del()).status).toBe(403)
+    expect(m.deactivateVenue).not.toHaveBeenCalled()
+    expect(m.updateMany).not.toHaveBeenCalled()
+  })
+
+  it("answers 503 without an xvm-api link and changes nothing", async () => {
+    m.token.mockResolvedValue(null)
+    expect((await del()).status).toBe(503)
+    expect(m.deactivateVenue).not.toHaveBeenCalled()
+    expect(m.updateMany).not.toHaveBeenCalled()
+  })
+
+  it("leaves the bridge row alone when xvm-api refuses", async () => {
+    m.deactivateVenue.mockRejectedValue(new Error("boom"))
+    m.errorResponse.mockResolvedValue(new Response(null, { status: 409 }))
+    expect((await del()).status).toBe(409)
+    expect(m.updateMany).not.toHaveBeenCalled()
+  })
 })
 
 describe("PATCH /api/venues/[venueId] lookup", () => {

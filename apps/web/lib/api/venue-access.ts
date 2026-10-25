@@ -24,7 +24,7 @@ function toRole(tier: string): VenueRole | null {
 const rowsFor = cache(async (userId: string): Promise<MyVenueRow[]> => {
   const token = await getValidXvmApiToken(userId)
   if (!token) throw new VenueAccessUnavailable("No valid xvm-api credential")
-  return listMyVenues(token)
+  return (await listMyVenues(token)).filter((row) => row.venue.is_active)
 })
 
 const tiersFor = cache(async (userId: string): Promise<Map<string, VenueRole>> => {

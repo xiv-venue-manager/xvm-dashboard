@@ -178,6 +178,7 @@ export interface VenueRow {
   data_center: string
   world: string
   timezone: string
+  is_active: boolean
 }
 
 export interface VenueImageRow {
@@ -811,6 +812,11 @@ export async function deleteVenueImage(personToken: string, venueId: string, ima
 export async function createVenue(personToken: string, data: VenueCreate): Promise<VenueRow> {
   if (!process.env.XVM_API_BASE_URL) throw new Error("XVM_API_BASE_URL is not set")
   return xvmFetch<VenueRow>("/venues", { method: "POST", body: JSON.stringify(data) }, personToken)
+}
+
+export async function deactivateVenue(personToken: string, venueId: string): Promise<VenueDetail> {
+  if (!process.env.XVM_API_BASE_URL) throw new Error("XVM_API_BASE_URL is not set")
+  return xvmFetch<VenueDetail>(`/venues/${venueId}/deactivate`, { method: "POST" }, personToken)
 }
 
 export async function getVenue(personToken: string, venueId: string): Promise<VenueDetail> {

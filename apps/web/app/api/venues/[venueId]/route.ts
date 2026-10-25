@@ -7,9 +7,9 @@ import { withRateLimit } from "@/lib/middleware/with-rate-limit"
 import { invalidateCache, cacheKeys } from "@/lib/redis-cache"
 import { validators } from "@/lib/validation"
 import { getValidXvmApiToken, xvmApiErrorResponse } from "@/lib/api/xvm-api-store"
-import { requireMyVenue, requireVenueRole } from "@/lib/api/venue-access"
+import { requireMyVenue, requireMyVenueRole } from "@/lib/api/venue-access"
 import { addressProblem } from "@/lib/venue-location"
-import { updateVenue, type VenueUpdate } from "@/lib/api/xvm-api"
+import { deactivateVenue, updateVenue, type VenueUpdate } from "@/lib/api/xvm-api"
 
 const venueUpdateSchema = z.object({
   name: validators.venueName.optional(),
@@ -107,30 +107,37 @@ export const DELETE = withRateLimit(
 
       const { venueId } = await context.params
 
-      const access = await requireVenueRole(session.user.id, venueId, "OWNER", "Only venue owners can delete venues")
+      const access = await requireMyVenueRole(
+        session.user.id,
+        venueId,
+        "OWNER",
+        "Only venue owners can delete venues",
+        "[venue delete] /me/venues read error"
+      )
       if (!access.ok) return access.response
 
-      const venue = await prisma.venue.findUnique({ where: { id: venueId } })
-      if (!venue) {
-        return NextResponse.json({ error: "Venue not found" }, { status: 404 })
+      const token = await getValidXvmApiToken(session.user.id)
+      if (!token) {
+        return NextResponse.json({ error: "xvm-api link not established yet" }, { status: 503 })
       }
 
-      // Delete venue (cascade will handle related records)
-      await prisma.venue.delete({
-        where: { id: venueId },
-      })
+      try {
+        await deactivateVenue(token, access.venue.id)
+      } catch (err) {
+        return xvmApiErrorResponse(err, session.user.id, "[venue delete] xvm-api deactivate error")
+      }
 
-      // Invalidate all related caches
+      await prisma.venue.updateMany({ where: { xvmApiVenueId: access.venue.id }, data: { isActive: false } })
+
       await Promise.all([
         invalidateCache(cacheKeys.userVenues(session.user.id)),
-        invalidateCache(cacheKeys.venue(venueId)),
-        invalidateCache(cacheKeys.venueBySlug(venue.slug)),
-        invalidateCache(`venue:${venueId}:*`), // All venue-related caches
+        invalidateCache(cacheKeys.venue(access.venue.id)),
+        invalidateCache(cacheKeys.venueBySlug(access.venue.slug)),
       ])
 
-      return NextResponse.json({ message: "Venue deleted successfully" }, { status: 200 })
+      return NextResponse.json({ message: "Venue deactivated" }, { status: 200 })
     } catch (error) {
-      console.error("Error deleting venue:", error)
+      console.error("Error deactivating venue:", error)
       return NextResponse.json({ error: "Internal server error" }, { status: 500 })
     }
   },

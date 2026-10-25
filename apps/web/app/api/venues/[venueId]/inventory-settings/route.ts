@@ -2,7 +2,7 @@ import { NextRequest, NextResponse } from "next/server"
 import { z } from "zod"
 import { withRateLimit } from "@/lib/middleware/with-rate-limit"
 import { withVenueAction } from "@/lib/api/venue-action"
-import { listModules, setModule } from "@/lib/api/xvm-api"
+import { listModules, setModule, XvmApiError } from "@/lib/api/xvm-api"
 
 const updateInventorySettingsSchema = z.object({
   enabled: z.boolean(),
@@ -33,8 +33,15 @@ export const PUT = withRateLimit<{ params: Promise<{ venueId: string }> }>(
         return NextResponse.json({ error: "Validation error", details: parsed.error.issues }, { status: 400 })
       }
 
-      const row = await setModule(token, xvmApiVenueId, "inventory", parsed.data.enabled)
-      return NextResponse.json({ settings: { enabled: row.enabled } })
+      try {
+        const row = await setModule(token, xvmApiVenueId, "inventory", parsed.data.enabled)
+        return NextResponse.json({ settings: { enabled: row.enabled } })
+      } catch (err) {
+        if (err instanceof XvmApiError && err.status === 403) {
+          return NextResponse.json({ error: "Only owners and managers can change inventory settings" }, { status: 403 })
+        }
+        throw err
+      }
     })
   },
   { requests: 10, window: "1 m" }

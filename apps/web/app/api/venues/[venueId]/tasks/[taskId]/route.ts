@@ -6,6 +6,7 @@ import { prisma } from "@/lib/prisma"
 import { withRateLimit } from "@/lib/middleware/with-rate-limit"
 import { getValidXvmApiToken, xvmApiErrorResponse } from "@/lib/api/xvm-api-store"
 import { requireMyVenue } from "@/lib/api/venue-access"
+import { parseId } from "@/lib/api/venue-action"
 import {
   listTasks,
   updateTask,
@@ -108,8 +109,8 @@ export const GET = withRateLimit<{ params: Promise<{ venueId: string; taskId: st
     }
 
     const { venueId, taskId } = await context.params
-    const id = Number(taskId)
-    if (!Number.isInteger(id)) {
+    const id = parseId(taskId)
+    if (id === null) {
       return NextResponse.json({ error: "Task not found" }, { status: 404 })
     }
 
@@ -153,8 +154,8 @@ export const PUT = withRateLimit<{ params: Promise<{ venueId: string; taskId: st
     }
 
     const { venueId, taskId } = await context.params
-    const id = Number(taskId)
-    if (!Number.isInteger(id)) {
+    const id = parseId(taskId)
+    if (id === null) {
       return NextResponse.json({ error: "Task not found" }, { status: 404 })
     }
 
@@ -244,8 +245,8 @@ export const POST = withRateLimit<{ params: Promise<{ venueId: string; taskId: s
     }
 
     const { venueId, taskId } = await context.params
-    const id = Number(taskId)
-    if (!Number.isInteger(id)) {
+    const id = parseId(taskId)
+    if (id === null) {
       return NextResponse.json({ error: "Task not found" }, { status: 404 })
     }
 
@@ -326,8 +327,8 @@ export const DELETE = withRateLimit<{ params: Promise<{ venueId: string; taskId:
     }
 
     const { venueId, taskId } = await context.params
-    const id = Number(taskId)
-    if (!Number.isInteger(id)) {
+    const id = parseId(taskId)
+    if (id === null) {
       return NextResponse.json({ error: "Task not found" }, { status: 404 })
     }
 

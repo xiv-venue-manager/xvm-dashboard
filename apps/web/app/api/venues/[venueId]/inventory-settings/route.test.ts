@@ -9,9 +9,18 @@ const m = vi.hoisted(() => ({
 
 vi.mock("@/lib/middleware/with-rate-limit", () => ({ withRateLimit: (handler: unknown) => handler }))
 vi.mock("@/lib/api/venue-action", () => ({ withVenueAction: m.withVenueAction }))
-vi.mock("@/lib/api/xvm-api", () => ({ listModules: m.listModules, setModule: m.setModule }))
+vi.mock("@/lib/api/xvm-api", () => ({
+  listModules: m.listModules,
+  setModule: m.setModule,
+  XvmApiError: class XvmApiError extends Error {
+    constructor(public status: number, public body: string) {
+      super(`xvm-api ${status}: ${body}`)
+    }
+  },
+}))
 
 import { GET, PUT } from "./route"
+import { XvmApiError } from "@/lib/api/xvm-api"
 
 const context = { params: Promise.resolve({ venueId: "gilded-lily" }) }
 
@@ -51,6 +60,18 @@ describe("inventory-settings PUT", () => {
     const res = await PUT(put({ enabled: true }), context)
     expect(await res.json()).toEqual({ settings: { enabled: true } })
     expect(m.setModule).toHaveBeenCalledWith("tok", "ven_1", "inventory", true)
+  })
+
+  it("keeps the owners-and-managers message when xvm-api refuses staff", async () => {
+    m.setModule.mockRejectedValue(new XvmApiError(403, "Insufficient role for this action."))
+    const res = await PUT(put({ enabled: true }), context)
+    expect(res.status).toBe(403)
+    expect((await res.json()).error).toBe("Only owners and managers can change inventory settings")
+  })
+
+  it("rethrows other xvm-api failures to the venue gate", async () => {
+    m.setModule.mockRejectedValue(new XvmApiError(500, "boom"))
+    await expect(PUT(put({ enabled: true }), context)).rejects.toThrow("xvm-api 500")
   })
 
   it.each([["not json"], [{ enabled: "yes" }], [{}]])("refuses a bad body: %j", async (body) => {

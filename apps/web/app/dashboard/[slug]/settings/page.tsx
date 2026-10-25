@@ -370,7 +370,6 @@ export default function SettingsPage({ params }: { params: Promise<{ slug: strin
         throw new Error(d.error || "Failed to save pot payroll settings")
       }
 
-      // Save bar inventory tracking settings (separate relational table, own route)
       const inventorySettingsRes = await fetch(`/api/venues/${slug}/inventory-settings`, {
         method: "PUT",
         headers: { "Content-Type": "application/json" },

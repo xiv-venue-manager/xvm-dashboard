@@ -5,6 +5,7 @@ import { Button } from "@/components/ui/button"
 import { Badge } from "@/components/ui/badge"
 import { Card, CardContent, CardHeader } from "@/components/ui/card"
 import { ChannelPicker } from "@/components/discord-picker"
+import { EmojiGlyph } from "@/components/emoji-glyph"
 import {
   AlertDialog,
   AlertDialogAction,
@@ -156,7 +157,7 @@ export function ReactionRolePanelsBoard({
                 <ul className="text-sm mt-2 space-y-1">
                   {panel.options.map((opt) => (
                     <li key={opt.id} className="flex items-center gap-2">
-                      <span>{opt.emoji ?? "•"}</span>
+                      {opt.emoji ? <EmojiGlyph value={opt.emoji} className="h-4 w-4" /> : <span>•</span>}
                       <span>{opt.label ?? "(no label)"}</span>
                       <span className="text-muted-foreground text-xs">role {opt.role_id}</span>
                     </li>

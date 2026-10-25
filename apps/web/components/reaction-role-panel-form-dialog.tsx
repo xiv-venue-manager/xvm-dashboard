@@ -13,6 +13,7 @@ import {
 } from "@/components/ui/dialog"
 import { Input } from "@/components/ui/input"
 import { RolePicker } from "@/components/discord-picker"
+import { EmojiGlyph } from "@/components/emoji-glyph"
 import { Label } from "@/components/ui/label"
 import { Textarea } from "@/components/ui/textarea"
 import { Select, SelectContent, SelectItem, SelectTrigger, SelectValue } from "@/components/ui/select"
@@ -257,7 +258,7 @@ export function ReactionRolePanelFormDialog({
             )}
             {options.map((opt) => (
               <div key={opt.id} className="flex items-center gap-2 text-sm">
-                <span>{opt.emoji ?? "•"}</span>
+                {opt.emoji ? <EmojiGlyph value={opt.emoji} className="h-4 w-4" /> : <span>•</span>}
                 <span className="flex-1">{opt.label ?? "(no label)"}</span>
                 <span className="text-muted-foreground text-xs">role {opt.role_id}</span>
                 <Button size="sm" variant="ghost" onClick={() => handleDeleteOption(opt.id)} disabled={optionBusy}>

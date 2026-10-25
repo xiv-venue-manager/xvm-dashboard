@@ -5,6 +5,7 @@ import { z } from "zod"
 import { prisma } from "@/lib/prisma"
 import { withRateLimit } from "@/lib/middleware/with-rate-limit"
 import { getValidXvmApiToken, xvmApiErrorResponse } from "@/lib/api/xvm-api-store"
+import { requireMyVenue } from "@/lib/api/venue-access"
 import {
   listTasks,
   updateTask,
@@ -78,19 +79,6 @@ function toTaskShape(
   }
 }
 
-async function requireXvmVenueId(venueId: string) {
-  const venue = await prisma.venue.findUnique({ where: { id: venueId }, select: { xvmApiVenueId: true } })
-  if (!venue?.xvmApiVenueId) {
-    return {
-      error: NextResponse.json(
-        { error: "not_connected", message: "This venue hasn't been connected to xvm-api yet." },
-        { status: 409 }
-      ),
-    }
-  }
-  return { xvmApiVenueId: venue.xvmApiVenueId }
-}
-
 async function shapeAfterFetch(token: string, xvmApiVenueId: string, task: TaskRow) {
   const [positions, categories, memberships] = await Promise.all([
     listPositions(token, xvmApiVenueId),
@@ -125,8 +113,9 @@ export const GET = withRateLimit<{ params: Promise<{ venueId: string; taskId: st
       return NextResponse.json({ error: "Task not found" }, { status: 404 })
     }
 
-    const gate = await requireXvmVenueId(venueId)
-    if (gate.error) return gate.error
+    const lookup = await requireMyVenue(session.user.id, venueId, "[tasks] /me/venues read error")
+    if (!lookup.ok) return lookup.response
+    const xvmApiVenueId = lookup.venue.id
 
     try {
       // No get-one endpoint is needed here - list+find matches the Roles
@@ -134,12 +123,12 @@ export const GET = withRateLimit<{ params: Promise<{ venueId: string; taskId: st
       // xvm-api's Positions module also lacks a get-one; Tasks does have
       // GET /{task_id} on xvm-api, but reusing list+find keeps this route
       // consistent with the sibling cutover rather than mixing both styles).
-      const tasks = await listTasks(token, gate.xvmApiVenueId!, { includeCompleted: true, includeCancelled: true })
+      const tasks = await listTasks(token, xvmApiVenueId, { includeCompleted: true, includeCancelled: true })
       const task = tasks.find((t) => t.id === id)
       if (!task) {
         return NextResponse.json({ error: "Task not found" }, { status: 404 })
       }
-      return NextResponse.json(await shapeAfterFetch(token, gate.xvmApiVenueId!, task))
+      return NextResponse.json(await shapeAfterFetch(token, xvmApiVenueId, task))
     } catch (err) {
       return xvmApiErrorResponse(err, session.user.id, "[tasks] GET one error")
     }
@@ -169,8 +158,9 @@ export const PUT = withRateLimit<{ params: Promise<{ venueId: string; taskId: st
       return NextResponse.json({ error: "Task not found" }, { status: 404 })
     }
 
-    const gate = await requireXvmVenueId(venueId)
-    if (gate.error) return gate.error
+    const lookup = await requireMyVenue(session.user.id, venueId, "[tasks] /me/venues read error")
+    if (!lookup.ok) return lookup.response
+    const xvmApiVenueId = lookup.venue.id
 
     let data: z.infer<typeof updateTaskSchema>
     try {
@@ -185,13 +175,13 @@ export const PUT = withRateLimit<{ params: Promise<{ venueId: string; taskId: st
     try {
       let categoryId: number | null | undefined
       if (data.category !== undefined) {
-        categoryId = data.category ? await resolveCategoryId(token, gate.xvmApiVenueId!, data.category) : null
+        categoryId = data.category ? await resolveCategoryId(token, xvmApiVenueId, data.category) : null
       }
 
       // xvm-api splits descriptive edits (PATCH) from reassignment (/assign) -
       // sequence both if assignedRoleId was included, since the dashboard
       // still exposes them as one form submission (see Task C6).
-      let task = await updateTask(token, gate.xvmApiVenueId!, id, {
+      let task = await updateTask(token, xvmApiVenueId, id, {
         title: data.title,
         description: data.description,
         priority: data.priority ? priorityToInt(data.priority) : undefined,
@@ -201,7 +191,7 @@ export const PUT = withRateLimit<{ params: Promise<{ venueId: string; taskId: st
 
       if (data.assignedRoleId !== undefined) {
         try {
-          task = await assignTask(token, gate.xvmApiVenueId!, id, {
+          task = await assignTask(token, xvmApiVenueId, id, {
             position_id: data.assignedRoleId,
             membership_id: null,
           })
@@ -213,7 +203,7 @@ export const PUT = withRateLimit<{ params: Promise<{ venueId: string; taskId: st
           if (assignErr instanceof XvmApiError && assignErr.status !== 401) {
             return NextResponse.json(
               {
-                ...(await shapeAfterFetch(token, gate.xvmApiVenueId!, task)),
+                ...(await shapeAfterFetch(token, xvmApiVenueId, task)),
                 partial: true,
                 error: xvmErrorMessage(assignErr),
               },
@@ -224,7 +214,7 @@ export const PUT = withRateLimit<{ params: Promise<{ venueId: string; taskId: st
         }
       }
 
-      return NextResponse.json(await shapeAfterFetch(token, gate.xvmApiVenueId!, task))
+      return NextResponse.json(await shapeAfterFetch(token, xvmApiVenueId, task))
     } catch (err) {
       return xvmApiErrorResponse(err, session.user.id, "[tasks] PUT error")
     }
@@ -259,8 +249,9 @@ export const POST = withRateLimit<{ params: Promise<{ venueId: string; taskId: s
       return NextResponse.json({ error: "Task not found" }, { status: 404 })
     }
 
-    const gate = await requireXvmVenueId(venueId)
-    if (gate.error) return gate.error
+    const lookup = await requireMyVenue(session.user.id, venueId, "[tasks] /me/venues read error")
+    if (!lookup.ok) return lookup.response
+    const xvmApiVenueId = lookup.venue.id
 
     let data: z.infer<typeof transitionSchema>
     try {
@@ -275,14 +266,14 @@ export const POST = withRateLimit<{ params: Promise<{ venueId: string; taskId: s
     try {
       const task =
         data.action === "start"
-          ? await startTask(token, gate.xvmApiVenueId!, id)
+          ? await startTask(token, xvmApiVenueId, id)
           : data.action === "complete"
-            ? await completeTask(token, gate.xvmApiVenueId!, id)
-            : await cancelTask(token, gate.xvmApiVenueId!, id, data.reason ?? null)
+            ? await completeTask(token, xvmApiVenueId, id)
+            : await cancelTask(token, xvmApiVenueId, id, data.reason ?? null)
 
       if (data.action === "complete") {
         const venue = await prisma.venue.findUnique({
-          where: { id: venueId },
+          where: { xvmApiVenueId },
           select: { discordWebhookUrl: true, settings: true },
         })
         if (venue) {
@@ -306,7 +297,7 @@ export const POST = withRateLimit<{ params: Promise<{ venueId: string; taskId: s
         }
       }
 
-      return NextResponse.json(await shapeAfterFetch(token, gate.xvmApiVenueId!, task))
+      return NextResponse.json(await shapeAfterFetch(token, xvmApiVenueId, task))
     } catch (err) {
       return xvmApiErrorResponse(err, session.user.id, "[tasks] transition error")
     }
@@ -340,11 +331,12 @@ export const DELETE = withRateLimit<{ params: Promise<{ venueId: string; taskId:
       return NextResponse.json({ error: "Task not found" }, { status: 404 })
     }
 
-    const gate = await requireXvmVenueId(venueId)
-    if (gate.error) return gate.error
+    const lookup = await requireMyVenue(session.user.id, venueId, "[tasks] /me/venues read error")
+    if (!lookup.ok) return lookup.response
+    const xvmApiVenueId = lookup.venue.id
 
     try {
-      await cancelTask(token, gate.xvmApiVenueId!, id, null)
+      await cancelTask(token, xvmApiVenueId, id, null)
       return NextResponse.json({ success: true })
     } catch (err) {
       return xvmApiErrorResponse(err, session.user.id, "[tasks] DELETE error")

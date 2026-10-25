@@ -237,7 +237,7 @@ export default function SettingsPage({ params }: { params: Promise<{ slug: strin
             .catch(() => setFfxivLink(null))
         }
 
-        const inventoryLoad = fetch(`/api/venues/${venue.id}/inventory-settings`, {
+        const inventoryLoad = fetch(`/api/venues/${slug}/inventory-settings`, {
           signal: AbortSignal.timeout(SETTINGS_LOAD_TIMEOUT_MS),
         })
           .then((r) => (r.ok ? r.json() : null))
@@ -371,7 +371,7 @@ export default function SettingsPage({ params }: { params: Promise<{ slug: strin
       }
 
       // Save bar inventory tracking settings (separate relational table, own route)
-      const inventorySettingsRes = await fetch(`/api/venues/${venueId}/inventory-settings`, {
+      const inventorySettingsRes = await fetch(`/api/venues/${slug}/inventory-settings`, {
         method: "PUT",
         headers: { "Content-Type": "application/json" },
         body: JSON.stringify({

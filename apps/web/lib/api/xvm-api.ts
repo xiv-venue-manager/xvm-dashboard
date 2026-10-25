@@ -1379,38 +1379,12 @@ export async function removePositionMemberFromMembership(
 }
 
 export interface ShiftStaffOption {
-  // A membership id, not a person id - ShiftCreate.membership_id validates
-  // against the venue's memberships, and person/membership ids can collide
-  // (both are separate autoincrement sequences).
+  // A membership id, not a person id - assigning a seat validates against
+  // the venue's memberships, and person/membership ids can collide (both are
+  // separate autoincrement sequences).
   id: number
   name: string
   image: string | null
-}
-
-export interface ShiftRoleOption {
-  id: number
-  name: string
-}
-
-// Bridges the two lists CreateShiftDialog/page.tsx need for its staff/role
-// pickers into the shape those components already expect. Character-name
-// resolution is intentionally not attempted here - MembershipPerson only
-// carries display_name, see shift-format.ts's staffNameOf for the same
-// constraint on the read side.
-export async function listShiftStaffAndRoles(
-  personToken: string,
-  venueId: string
-): Promise<{ staff: ShiftStaffOption[]; roles: ShiftRoleOption[] }> {
-  const [memberships, positions] = await Promise.all([
-    listMemberships(personToken, venueId),
-    listPositions(personToken, venueId),
-  ])
-  return {
-    staff: memberships
-      .filter((m) => m.is_employed)
-      .map((m) => ({ id: m.id, name: m.person.display_name, image: null })),
-    roles: positions.map((p) => ({ id: p.id, name: p.name })),
-  }
 }
 
 // ── Shifts API ─────────────────────────────────────────────────

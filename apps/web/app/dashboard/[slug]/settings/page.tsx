@@ -398,12 +398,7 @@ export default function SettingsPage({ params }: { params: Promise<{ slug: strin
     setError("")
 
     try {
-      // Get venue ID
-      const venueResponse = await fetch(`/api/venues?slug=${slug}`)
-      const venues = await venueResponse.json()
-      const venue = venues.find((v: { slug: string }) => v.slug === slug)
-
-      const response = await fetch(`/api/venues/${venue.id}`, {
+      const response = await fetch(`/api/venues/${slug}`, {
         method: "DELETE",
       })
 

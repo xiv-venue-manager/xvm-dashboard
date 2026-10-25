@@ -28,8 +28,16 @@ import {
 
 const connected = { xvmApiVenueId: "ven_1" }
 const unconnected = { xvmApiVenueId: null }
-const row = (id: string, tier: string, effective = tier) => ({
-  venue: { id, name: `Venue ${id}`, slug: `slug-${id}`, data_center: "Aether", world: "Sargatanas", timezone: "Europe/London" },
+const row = (id: string, tier: string, effective = tier, active = true) => ({
+  venue: {
+    id,
+    name: `Venue ${id}`,
+    slug: `slug-${id}`,
+    data_center: "Aether",
+    world: "Sargatanas",
+    timezone: "Europe/London",
+    is_active: active,
+  },
   tier,
   effective_tier: effective,
 })
@@ -170,6 +178,25 @@ describe("myVenues", () => {
       { id: "ven_1", name: "Venue ven_1", slug: "slug-ven_1", dataCenter: "Aether", world: "Sargatanas", timezone: "Europe/London", role: "MANAGER" },
       { id: "ven_2", name: "Venue ven_2", slug: "slug-ven_2", dataCenter: "Aether", world: "Sargatanas", timezone: "Europe/London", role: "STAFF" },
     ])
+  })
+})
+
+describe("a deactivated venue", () => {
+  beforeEach(() => {
+    m.listMyVenues.mockResolvedValue([row("ven_1", "owner"), row("ven_2", "owner", "owner", false)])
+  })
+
+  it("is left out of the caller's venues", async () => {
+    expect((await myVenues("u1")).map((v) => v.id)).toEqual(["ven_1"])
+  })
+
+  it("cannot be resolved by id or by slug", async () => {
+    expect(await resolveMyVenue("u1", "ven_2")).toBeNull()
+    expect(await resolveMyVenue("u1", "slug-ven_2")).toBeNull()
+  })
+
+  it("gives the caller no role in it", async () => {
+    expect(await roleInVenue("u1", { xvmApiVenueId: "ven_2" })).toBeNull()
   })
 })
 

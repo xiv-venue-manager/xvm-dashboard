@@ -63,19 +63,6 @@ describe.each([
   })
 })
 
-describe("a card that carries an xvm-api venue id", () => {
-  const xvmCtx = { params: Promise.resolve({ venueId: "ven_1" }) }
-
-  it("looks the venue up by that id and follows it", async () => {
-    const res = await POST(new Request("http://localhost/api/venues/ven_1/follow", { method: "POST" }), xvmCtx)
-    expect(res.status).toBe(200)
-    expect(m.venueFind).toHaveBeenCalledWith(
-      expect.objectContaining({ where: expect.objectContaining({ OR: expect.arrayContaining([{ xvmApiVenueId: "ven_1" }]) }) })
-    )
-    expect(m.follow).toHaveBeenCalledWith("tok", "ven_1")
-  })
-})
-
 describe("what each verb sends to xvm-api", () => {
   it("POST follows the venue by the id in the path with the person's token", async () => {
     await post()

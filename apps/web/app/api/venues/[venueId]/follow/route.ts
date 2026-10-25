@@ -7,7 +7,7 @@ import { getValidXvmApiToken, xvmApiErrorResponse } from "@/lib/api/xvm-api-stor
 
 async function getXvmApiVenueId(venueId: string) {
   return prisma.venue.findFirst({
-    where: { OR: [{ id: venueId }, { slug: venueId }], isActive: true },
+    where: { OR: [{ id: venueId }, { slug: venueId }, { xvmApiVenueId: venueId }], isActive: true },
     select: { xvmApiVenueId: true },
   })
 }

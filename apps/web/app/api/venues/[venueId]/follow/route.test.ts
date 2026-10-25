@@ -66,10 +66,12 @@ describe.each([
     expect((await call()).status).toBe(503)
   })
 
-  it("finds the venue by its id or its slug", async () => {
+  it("finds the venue by its id, its slug or its xvm-api id", async () => {
     await call()
     expect(m.venueFind).toHaveBeenCalledWith(
-      expect.objectContaining({ where: { OR: [{ id: "cm123" }, { slug: "cm123" }], isActive: true } })
+      expect.objectContaining({
+        where: { OR: [{ id: "cm123" }, { slug: "cm123" }, { xvmApiVenueId: "cm123" }], isActive: true },
+      })
     )
   })
 
@@ -82,6 +84,19 @@ describe.each([
     const res = await call()
     expect(res.status).toBe(200)
     expect(await res.json()).toEqual({ following })
+  })
+})
+
+describe("a card that carries an xvm-api venue id", () => {
+  const xvmCtx = { params: Promise.resolve({ venueId: "ven_1" }) }
+
+  it("looks the venue up by that id and follows it", async () => {
+    const res = await POST(new Request("http://localhost/api/venues/ven_1/follow", { method: "POST" }), xvmCtx)
+    expect(res.status).toBe(200)
+    expect(m.venueFind).toHaveBeenCalledWith(
+      expect.objectContaining({ where: expect.objectContaining({ OR: expect.arrayContaining([{ xvmApiVenueId: "ven_1" }]) }) })
+    )
+    expect(m.follow).toHaveBeenCalledWith("tok", "ven_1")
   })
 })
 

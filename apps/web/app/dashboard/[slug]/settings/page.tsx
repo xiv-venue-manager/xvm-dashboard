@@ -404,13 +404,13 @@ export default function SettingsPage({ params }: { params: Promise<{ slug: strin
 
       if (!response.ok) {
         const data = await response.json()
-        throw new Error(data.error || "Failed to delete venue")
+        throw new Error(data.error || "Failed to deactivate venue")
       }
 
       // Redirect to dashboard
       router.push("/dashboard")
     } catch (error: unknown) {
-      setError(error instanceof Error ? error.message : "Failed to delete venue")
+      setError(error instanceof Error ? error.message : "Failed to deactivate venue")
       setIsDeleting(false)
     }
   }
@@ -1965,23 +1965,25 @@ export default function SettingsPage({ params }: { params: Promise<{ slug: strin
                 <div className="pbody">
                   <div className="setrow" style={{ paddingLeft: 0, paddingRight: 0, border: "none" }}>
                     <div className="sinfo">
-                      <div className="stitle">Delete venue</div>
+                      <div className="stitle">Deactivate venue</div>
                       <div className="sdesc">
-                        Permanently removes the venue and all associated data. Cannot be undone.
+                        Hides the venue from your dashboard and the public site. Its records are kept, but you cannot
+                        bring it back from here. Contact support to have it restored.
                       </div>
                     </div>
                     <AlertDialog>
                       <AlertDialogTrigger asChild>
                         <Button variant="destructive" size="sm" disabled={isDeleting}>
-                          {isDeleting ? "Deleting…" : "Delete venue"}
+                          {isDeleting ? "Deactivating…" : "Deactivate venue"}
                         </Button>
                       </AlertDialogTrigger>
                       <AlertDialogContent>
                         <AlertDialogHeader>
-                          <AlertDialogTitle>Delete this venue?</AlertDialogTitle>
+                          <AlertDialogTitle>Deactivate this venue?</AlertDialogTitle>
                           <AlertDialogDescription>
-                            All events, staff, tasks, sales and settings will be permanently removed. This cannot be
-                            undone.
+                            The venue disappears from the dashboard and the public site for everyone. Its events,
+                            staff, tasks and sales are kept, but you cannot bring it back from here. Contact support
+                            to have it restored.
                           </AlertDialogDescription>
                         </AlertDialogHeader>
                         <AlertDialogFooter>
@@ -1990,7 +1992,7 @@ export default function SettingsPage({ params }: { params: Promise<{ slug: strin
                             onClick={handleDeleteVenue}
                             className="bg-destructive text-white hover:bg-destructive/90"
                           >
-                            Yes, delete permanently
+                            Yes, deactivate venue
                           </AlertDialogAction>
                         </AlertDialogFooter>
                       </AlertDialogContent>

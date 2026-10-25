@@ -135,9 +135,9 @@ export const DELETE = withRateLimit(
         invalidateCache(cacheKeys.venueBySlug(access.venue.slug)),
       ])
 
-      return NextResponse.json({ message: "Venue deleted successfully" }, { status: 200 })
+      return NextResponse.json({ message: "Venue deactivated" }, { status: 200 })
     } catch (error) {
-      console.error("Error deleting venue:", error)
+      console.error("Error deactivating venue:", error)
       return NextResponse.json({ error: "Internal server error" }, { status: 500 })
     }
   },

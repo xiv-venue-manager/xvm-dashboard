@@ -10,7 +10,6 @@ import {
   getWebhookUrlForType,
   type VenueWebhookConfig,
 } from "@/lib/discord-webhook"
-import { notifyVenueOwners } from "@/lib/notify"
 import { resolveDisplayName } from "@/lib/display-name"
 import { invalidateCache, cacheKeys } from "@/lib/redis-cache"
 
@@ -45,13 +44,6 @@ export async function POST(request: Request, { params }: { params: Promise<{ tok
         venue: null,
       })
     }
-
-    notifyVenueOwners(venue.id, {
-      type: "STAFF_JOINED",
-      title: "New staff member",
-      body: `${session.user.name ?? "Someone"} joined ${venue.name} as ${membership.tier}.`,
-      link: `/dashboard/${venue.slug}/staff`,
-    }).catch(() => {})
 
     const venueSettings = venue.settings as Record<string, unknown> | null
     const webhookConfig: VenueWebhookConfig = {

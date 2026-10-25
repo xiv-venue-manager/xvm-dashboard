@@ -83,7 +83,7 @@ shadcn colour variables (`--background`, `--primary`, `--card`, and so on), `--x
 
 ## Going away
 
-These still work but sit on Prisma, which is being removed. Do not build new things on them: `lib/prisma`, `lib/notify`, the Prisma-backed parts of `lib/api/xvm-api-store` (the credential table), and `lib/shift-bot`. See `docs/PRISMA_MIGRATION_MANIFEST.md`.
+These still work but sit on Prisma, which is being removed. Do not build new things on them: `lib/prisma`, the Prisma-backed parts of `lib/api/xvm-api-store` (the credential table), and `lib/shift-bot`. See `docs/PRISMA_MIGRATION_MANIFEST.md`.
 
 ## What does not exist
 

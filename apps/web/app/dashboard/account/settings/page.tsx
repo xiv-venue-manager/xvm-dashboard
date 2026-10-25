@@ -27,9 +27,7 @@ export default function AccountSettingsPage() {
   const [error, setError] = useState("")
 
   const [notifications, setNotifications] = useState({
-    newFollower: false,
     eventRsvp: false,
-    lowStaffCoverage: false,
     dailySummary: false,
   })
 
@@ -150,13 +148,7 @@ export default function AccountSettingsPage() {
         </div>
         <div className="pbody space-y-1">
           {[
-            { key: "newFollower" as const, title: "New follower", desc: "When someone follows your venue." },
             { key: "eventRsvp" as const, title: "Event RSVPs", desc: "When a patron RSVPs to an event." },
-            {
-              key: "lowStaffCoverage" as const,
-              title: "Low staff coverage",
-              desc: "When an open shift is unfilled within 24h.",
-            },
             { key: "dailySummary" as const, title: "Daily summary", desc: "A nightly recap of sales and attendance." },
           ].map(({ key, title, desc }) => (
             <div key={key} className="flex items-center justify-between py-3 px-1">

@@ -5,7 +5,7 @@ import { useState } from "react"
 import { Button } from "@/components/ui/button"
 import { Card, CardContent } from "@/components/ui/card"
 import { ChevronLeft, ChevronRight } from "lucide-react"
-import { dayKeyFor, hourLabelFor, type CalendarShift, type StaffNameLookup } from "@/lib/shift-format"
+import { dayKeyFor, hourLabelFor, utcDayKey, type CalendarShift, type StaffNameLookup } from "@/lib/shift-format"
 import { browserTimeZone } from "@/lib/local-day"
 import { ShiftDayDialog } from "@/components/shift-day-dialog"
 import { useMounted } from "@/lib/use-mounted"
@@ -122,7 +122,7 @@ export function ShiftsCalendar({
         {cells.map((day, index) => {
           if (!day) return <div key={index} />
 
-          const key = dayKeyFor(day, timeZone)
+          const key = utcDayKey(day)
           const isToday = key === todayKey
           const dayShifts = ownByDay.get(key) ?? []
           const hasOtherCoverage = otherCoverageDays.has(key)

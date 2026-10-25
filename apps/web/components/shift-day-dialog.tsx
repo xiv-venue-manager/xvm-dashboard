@@ -10,6 +10,7 @@ import { OpenShiftChip } from "@/components/open-shift-chip"
 import { ClaimedShiftChip } from "@/components/claimed-shift-chip"
 import {
   dayKeyFor,
+  utcDayKey,
   hourLabelFor,
   statusBadgeClass,
   staffNameOf,
@@ -43,7 +44,7 @@ export function ShiftDayDialog({
 
   const open = date !== null
   const dayShifts = date
-    ? shifts.filter((s) => dayKeyFor(new Date(s.scheduledStart), timeZone) === dayKeyFor(date, timeZone))
+    ? shifts.filter((s) => dayKeyFor(new Date(s.scheduledStart), timeZone) === utcDayKey(date))
     : []
   const visibleShifts = canManage ? dayShifts : dayShifts.filter((s) => s.membershipId === currentMembershipId)
 

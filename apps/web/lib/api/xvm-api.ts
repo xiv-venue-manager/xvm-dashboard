@@ -1575,6 +1575,113 @@ export async function joinEventShift(personToken: string, venueId: string, event
   return xvmFetch<ShiftRow>(`/venues/${venueId}/event-shifts/${eventShiftId}/join`, { method: "POST" }, personToken)
 }
 
+export interface RosterSeat {
+  shift_id: number
+  membership_id: number
+  name: string
+  approved_at: string | null
+  status: ShiftApiStatus
+}
+
+export interface RosterShift {
+  id: number
+  event_position_id: number
+  starts_at: string
+  ends_at: string
+  capacity: number
+  cancelled_at: string | null
+  cancel_reason: string | null
+  taken: number
+  pending: number
+  people: RosterSeat[]
+}
+
+export interface RosterPosition {
+  id: number
+  position_id: number
+  name: string
+  archived_at: string | null
+  sort_order: number
+  shifts: RosterShift[]
+}
+
+export async function getEventRoster(personToken: string, venueId: string, eventId: number): Promise<RosterPosition[]> {
+  if (!process.env.XVM_API_BASE_URL) throw new Error("XVM_API_BASE_URL is not set")
+  return xvmFetch<RosterPosition[]>(`/venues/${venueId}/events/${eventId}/roster`, {}, personToken)
+}
+
+export async function addEventPosition(
+  personToken: string,
+  venueId: string,
+  eventId: number,
+  positionId: number
+): Promise<void> {
+  if (!process.env.XVM_API_BASE_URL) throw new Error("XVM_API_BASE_URL is not set")
+  await xvmFetch(
+    `/venues/${venueId}/events/${eventId}/positions`,
+    { method: "POST", body: JSON.stringify({ position_id: positionId }) },
+    personToken
+  )
+}
+
+export async function removeEventPosition(
+  personToken: string,
+  venueId: string,
+  eventId: number,
+  eventPositionId: number
+): Promise<void> {
+  if (!process.env.XVM_API_BASE_URL) throw new Error("XVM_API_BASE_URL is not set")
+  await xvmFetch(`/venues/${venueId}/events/${eventId}/positions/${eventPositionId}`, { method: "DELETE" }, personToken)
+}
+
+export async function addEventShift(
+  personToken: string,
+  venueId: string,
+  eventId: number,
+  eventPositionId: number,
+  data: { starts_at: string; ends_at: string; capacity: number }
+): Promise<void> {
+  if (!process.env.XVM_API_BASE_URL) throw new Error("XVM_API_BASE_URL is not set")
+  await xvmFetch(
+    `/venues/${venueId}/events/${eventId}/positions/${eventPositionId}/shifts`,
+    { method: "POST", body: JSON.stringify(data) },
+    personToken
+  )
+}
+
+export async function cancelEventShift(
+  personToken: string,
+  venueId: string,
+  eventShiftId: number,
+  reason?: string | null
+): Promise<void> {
+  if (!process.env.XVM_API_BASE_URL) throw new Error("XVM_API_BASE_URL is not set")
+  await xvmFetch(
+    `/venues/${venueId}/event-shifts/${eventShiftId}/cancel`,
+    { method: "POST", body: JSON.stringify({ reason: reason ?? null }) },
+    personToken
+  )
+}
+
+export async function deleteEventShift(personToken: string, venueId: string, eventShiftId: number): Promise<void> {
+  if (!process.env.XVM_API_BASE_URL) throw new Error("XVM_API_BASE_URL is not set")
+  await xvmFetch(`/venues/${venueId}/event-shifts/${eventShiftId}`, { method: "DELETE" }, personToken)
+}
+
+export async function assignEventShift(
+  personToken: string,
+  venueId: string,
+  eventShiftId: number,
+  membershipId: number
+): Promise<void> {
+  if (!process.env.XVM_API_BASE_URL) throw new Error("XVM_API_BASE_URL is not set")
+  await xvmFetch(
+    `/venues/${venueId}/event-shifts/${eventShiftId}/assign`,
+    { method: "POST", body: JSON.stringify({ membership_id: membershipId }) },
+    personToken
+  )
+}
+
 export async function clockInShift(personToken: string, venueId: string, shiftId: number): Promise<ShiftRow> {
   if (!process.env.XVM_API_BASE_URL) throw new Error("XVM_API_BASE_URL is not set")
   return xvmFetch<ShiftRow>(`/venues/${venueId}/shifts/${shiftId}/clock-in`, { method: "POST" }, personToken)

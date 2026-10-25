@@ -11,12 +11,22 @@ import { DeleteEventButton } from "@/components/delete-event-button"
 import { CancelSeriesButton } from "@/components/cancel-series-button"
 import { GeneratePotPayrollButton } from "@/components/generate-pot-payroll-button"
 import { LocalTime } from "@/components/server-time"
+import { EventRoster } from "@/components/event-roster"
 import { extractPartakeImages, extractPartakeTextBody } from "@/lib/discord-webhook"
 import { renderPartakeProse } from "@/lib/render-partake-prose"
 import { formatVenueLocationShort } from "@/lib/venue-location"
 import { eventHiddenFromStaff } from "@/lib/event-visibility"
 import { xvmPageReader } from "@/lib/api/xvm-page-read"
-import { getEvent, getPotDistribution, getVenue, XvmApiError } from "@/lib/api/xvm-api"
+import {
+  getEvent,
+  getEventRoster,
+  getMe,
+  getPotDistribution,
+  getVenue,
+  listMemberships,
+  listPositions,
+  XvmApiError,
+} from "@/lib/api/xvm-api"
 import { eventRevenueGil } from "@/lib/api/event-revenue"
 import { creatorNameOf } from "@/lib/api/event-creator"
 import { toDashboardEventShape } from "@/lib/api/event-shape"
@@ -93,6 +103,22 @@ export default async function EventDetailsPage({ params }: { params: Promise<{ s
         })
       : null
 
+  const roster = await readXvm("event-detail roster", null, async (token, xvmApiVenueId) => {
+    const [rows, memberships, positions, me] = await Promise.all([
+      getEventRoster(token, xvmApiVenueId, Number(eventId)),
+      listMemberships(token, xvmApiVenueId),
+      listPositions(token, xvmApiVenueId),
+      getMe(token),
+    ])
+    const onEvent = new Set(rows.map((row) => row.position_id))
+    return {
+      rows,
+      currentMembershipId: memberships.find((m) => m.person.id === me.person?.id)?.id ?? null,
+      staff: memberships.filter((m) => m.is_employed).map((m) => ({ id: m.id, name: m.person.display_name, image: null })),
+      positionOptions: positions.filter((p) => !onEvent.has(p.id)).map((p) => ({ id: p.id, name: p.name })),
+    }
+  })
+
   return (
     <VenueLayout venueSlug={venue.slug} venueName={venue.name} userRole={userRole}>
       <div className="page-inner max-w-4xl">
@@ -139,6 +165,28 @@ export default async function EventDetailsPage({ params }: { params: Promise<{ s
         <div className="grid grid-cols-1 md:grid-cols-3 gap-6">
           {/* Main Content */}
           <div className="md:col-span-2 space-y-6">
+            {roster && (
+              <Card>
+                <CardHeader>
+                  <CardTitle>Roster</CardTitle>
+                  <CardDescription>Who is working this event, and the seats still open</CardDescription>
+                </CardHeader>
+                <CardContent>
+                  <EventRoster
+                    venueSlug={slug}
+                    eventId={eventId}
+                    canManage={canEdit}
+                    currentMembershipId={roster.currentMembershipId}
+                    roster={roster.rows}
+                    positionOptions={roster.positionOptions}
+                    staff={roster.staff}
+                    defaultStartsAt={new Date(event.startTime).toISOString()}
+                    defaultEndsAt={new Date(event.endTime).toISOString()}
+                  />
+                </CardContent>
+              </Card>
+            )}
+
             {/* Location */}
             {event.location && (
               <Card>

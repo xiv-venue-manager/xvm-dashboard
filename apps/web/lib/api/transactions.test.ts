@@ -2,16 +2,14 @@ import { describe, it, expect, vi, beforeEach } from "vitest"
 
 const {
   mockVenueFindUnique,
-  mockMembershipFindFirst,
-  mockGetValidXvmApiToken,
+  mockListMemberships,
   mockCreateFinanceTransaction,
   mockGetService,
   mockListEvents,
 } = vi.hoisted(() => ({
     mockListEvents: vi.fn(),
     mockVenueFindUnique: vi.fn(),
-    mockMembershipFindFirst: vi.fn(),
-    mockGetValidXvmApiToken: vi.fn(),
+    mockListMemberships: vi.fn(),
     mockCreateFinanceTransaction: vi.fn(),
     mockGetService: vi.fn(),
   }))
@@ -19,10 +17,8 @@ const {
 vi.mock("@/lib/prisma", () => ({
   prisma: {
     venue: { findUnique: mockVenueFindUnique },
-    membership: { findFirst: mockMembershipFindFirst },
   },
 }))
-vi.mock("@/lib/api/xvm-api-store", () => ({ getValidXvmApiToken: mockGetValidXvmApiToken }))
 vi.mock("@/lib/api/xvm-api", async (importOriginal) => {
   const actual = await importOriginal<typeof import("@/lib/api/xvm-api")>()
   return {
@@ -30,6 +26,7 @@ vi.mock("@/lib/api/xvm-api", async (importOriginal) => {
     createFinanceTransaction: mockCreateFinanceTransaction,
     getService: mockGetService,
     listEvents: mockListEvents,
+    listMemberships: mockListMemberships,
   }
 })
 vi.mock("@/lib/sse/venue-events", () => ({ venueEventBus: { emit: vi.fn() } }))
@@ -46,9 +43,8 @@ import { venueEventBus } from "@/lib/sse/venue-events"
 describe("createTransaction (xvm-api)", () => {
   beforeEach(() => {
     vi.clearAllMocks()
-    mockVenueFindUnique.mockResolvedValue({ xvmApiVenueId: 42, discordWebhookUrl: null, settings: null })
-    mockMembershipFindFirst.mockResolvedValue({ nickname: "Bobby" })
-    mockGetValidXvmApiToken.mockResolvedValue("token123")
+    mockVenueFindUnique.mockResolvedValue({ discordWebhookUrl: null, settings: null })
+    mockListMemberships.mockResolvedValue([])
     mockListEvents.mockResolvedValue([])
   })
 
@@ -79,35 +75,81 @@ describe("createTransaction (xvm-api)", () => {
     mockCreateFinanceTransaction.mockResolvedValue(financeTransactionResponse)
     mockGetService.mockResolvedValue({ id: 3, name: "Drink", inventory: { stock_count: 5 } })
 
-    await createTransaction("venue1", "user1", {
+    await createTransaction("token123", "ven_42", "user1", {
       serviceId: "3",
       type: "SALE",
       amount: 4500,
       customerName: "Bob",
     } satisfies CreateTransactionInput)
 
-    expect(venueEventBus.emit).toHaveBeenCalledWith(42, expect.objectContaining({ type: "sale", venueId: 42 }))
+    expect(venueEventBus.emit).toHaveBeenCalledWith("ven_42", expect.objectContaining({ type: "sale", venueId: "ven_42" }))
+  })
+
+  describe("staff name", () => {
+    const sale = { type: "SALE", amount: 4500, customerName: "Bob" } satisfies CreateTransactionInput
+    const member = (over: { nickname: string | null }) => ({
+      id: 11,
+      venue_id: "ven_42",
+      person: { id: 5, display_name: "Rana Reed", discord_id: null },
+      tier: "staff",
+      effective_tier: "staff",
+      is_employed: true,
+      position_ids: [],
+      ...over,
+    })
+    const staffOf = () =>
+      (venueEventBus.emit as ReturnType<typeof vi.fn>).mock.calls.at(-1)?.[1].data.staff as { id: string; name: string }
+
+    beforeEach(() => {
+      mockCreateFinanceTransaction.mockResolvedValue({ ...financeTransactionResponse, service_id: null, membership_id: 11 })
+    })
+
+    it("uses the nickname of the membership the sale was recorded under", async () => {
+      mockListMemberships.mockResolvedValue([member({ nickname: "Bobby" })])
+      await createTransaction("token123", "ven_42", "user1", sale)
+      expect(mockListMemberships).toHaveBeenCalledWith("token123", "ven_42")
+      expect(staffOf()).toEqual({ id: "user1", name: "Bobby" })
+    })
+
+    it("reports Unknown when the membership has no nickname", async () => {
+      mockListMemberships.mockResolvedValue([member({ nickname: null })])
+      await createTransaction("token123", "ven_42", "user1", sale)
+      expect(staffOf().name).toBe("Unknown")
+    })
+
+    it("still records the sale when the membership lookup fails", async () => {
+      mockListMemberships.mockRejectedValue(new Error("down"))
+      const result = await createTransaction("token123", "ven_42", "user1", sale)
+      expect(result.id).toBe(7)
+      expect(venueEventBus.emit).toHaveBeenCalled()
+    })
+  })
+
+  it("reads the webhook config by xvm-api venue id", async () => {
+    mockCreateFinanceTransaction.mockResolvedValue({ ...financeTransactionResponse, service_id: null })
+    await createTransaction("token123", "ven_42", "user1", { type: "SALE", amount: 4500, customerName: "Bob" })
+    expect(mockVenueFindUnique).toHaveBeenCalledWith(expect.objectContaining({ where: { xvmApiVenueId: "ven_42" } }))
   })
 
   it("creates a sale transaction and returns the real post-sale stock count", async () => {
     mockCreateFinanceTransaction.mockResolvedValue(financeTransactionResponse)
     mockGetService.mockResolvedValue({ id: 3, name: "Drink", inventory: { stock_count: 5 } })
 
-    const result = await createTransaction("venue1", "user1", {
+    const result = await createTransaction("token123", "ven_42", "user1", {
       serviceId: "3",
       type: "SALE",
       amount: 4500,
       customerName: "Bob",
     } satisfies CreateTransactionInput)
 
-    expect(mockCreateFinanceTransaction).toHaveBeenCalledWith("token123", 42, {
+    expect(mockCreateFinanceTransaction).toHaveBeenCalledWith("token123", "ven_42", {
       kind: "sale",
       amount: 4500,
       service_id: 3,
       customer_name: "Bob",
       notes: undefined,
     })
-    expect(mockGetService).toHaveBeenCalledWith("token123", 42, 3)
+    expect(mockGetService).toHaveBeenCalledWith("token123", "ven_42", 3)
     expect(result).toMatchObject({
       id: 7,
       amount: 4500,
@@ -124,7 +166,7 @@ describe("createTransaction (xvm-api)", () => {
       service_name: null,
     })
 
-    const result = await createTransaction("venue1", "user1", {
+    const result = await createTransaction("token123", "ven_42", "user1", {
       type: "TIP",
       amount: 5,
       customerName: "Bob",
@@ -139,7 +181,7 @@ describe("createTransaction (xvm-api)", () => {
     mockGetService.mockRejectedValue(new Error("xvm-api unavailable"))
     const consoleErrorSpy = vi.spyOn(console, "error").mockImplementation(() => {})
 
-    const result = await createTransaction("venue1", "user1", {
+    const result = await createTransaction("token123", "ven_42", "user1", {
       serviceId: "3",
       type: "SALE",
       amount: 10,
@@ -158,7 +200,7 @@ describe("createTransaction (xvm-api)", () => {
     mockCreateFinanceTransaction.mockRejectedValue(new XvmApiError(409, "out of stock"))
     mockGetService.mockResolvedValue({ id: 3, name: "Potion" })
 
-    const call = createTransaction("venue1", "user1", {
+    const call = createTransaction("token123", "ven_42", "user1", {
       serviceId: "3",
       type: "SALE",
       amount: 10,
@@ -194,32 +236,32 @@ describe("createTransaction (xvm-api)", () => {
     })
 
     it("uses a numeric event id from the caller without looking anything up", async () => {
-      await createTransaction("venue1", "user1", { ...sale, eventId: "12" })
+      await createTransaction("token123", "ven_42", "user1", { ...sale, eventId: "12" })
       expect(mockCreateFinanceTransaction.mock.calls[0][2].event_id).toBe(12)
       expect(mockListEvents).not.toHaveBeenCalled()
     })
 
     it("attributes the sale to the running event when the caller sends none", async () => {
       mockListEvents.mockResolvedValue([liveItem(31)])
-      await createTransaction("venue1", "user1", sale)
+      await createTransaction("token123", "ven_42", "user1", sale)
       expect(mockCreateFinanceTransaction.mock.calls[0][2].event_id).toBe(31)
     })
 
     it("ignores an old cuid event id and falls back to the running event", async () => {
       mockListEvents.mockResolvedValue([liveItem(31)])
-      await createTransaction("venue1", "user1", { ...sale, eventId: "cmabc123xyz" })
+      await createTransaction("token123", "ven_42", "user1", { ...sale, eventId: "cmabc123xyz" })
       expect(mockCreateFinanceTransaction.mock.calls[0][2].event_id).toBe(31)
     })
 
     it("leaves the sale unattributed when nothing is running", async () => {
-      await createTransaction("venue1", "user1", sale)
+      await createTransaction("token123", "ven_42", "user1", sale)
       expect(mockCreateFinanceTransaction.mock.calls[0][2].event_id).toBeUndefined()
     })
 
     it("still records the sale when the live event lookup fails", async () => {
       mockListEvents.mockRejectedValue(new Error("xvm-api unavailable"))
       const spy = vi.spyOn(console, "error").mockImplementation(() => {})
-      const result = await createTransaction("venue1", "user1", sale)
+      const result = await createTransaction("token123", "ven_42", "user1", sale)
       expect(result.id).toBe(7)
       expect(mockCreateFinanceTransaction.mock.calls[0][2].event_id).toBeUndefined()
       spy.mockRestore()
@@ -227,7 +269,7 @@ describe("createTransaction (xvm-api)", () => {
 
     it("skips a running occurrence that has no row yet", async () => {
       mockListEvents.mockResolvedValue([{ ...liveItem(0), id: null, materialized: false, recurrence_rule_id: 3 }])
-      await createTransaction("venue1", "user1", sale)
+      await createTransaction("token123", "ven_42", "user1", sale)
       expect(mockCreateFinanceTransaction.mock.calls[0][2].event_id).toBeUndefined()
     })
   })

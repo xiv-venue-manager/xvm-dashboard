@@ -199,18 +199,13 @@ export default function PayrollPage() {
 
       // Fetch tips total for the current week
       try {
-        const venueRes = await fetch(`/api/venues?slug=${slug}`)
-        const venues = await venueRes.json()
-        const venue = venues.find((v: { slug: string }) => v.slug === slug)
-        if (venue) {
-          const now = new Date()
-          const weekAgo = new Date(now.getTime() - 7 * 24 * 60 * 60 * 1000)
-          const tipsRes = await fetch(`/api/venues/${venue.id}/transactions?kind=tip&startDate=${weekAgo.toISOString()}`)
-          if (tipsRes.ok) {
-            const { transactions } = (await tipsRes.json()) as { transactions: { amount: number }[] }
-            const totalMinor = transactions.reduce((sum, t) => sum + t.amount, 0)
-            setTipsTotal(Math.round(minorUnitsToGil(totalMinor) ?? 0))
-          }
+        const now = new Date()
+        const weekAgo = new Date(now.getTime() - 7 * 24 * 60 * 60 * 1000)
+        const tipsRes = await fetch(`/api/venues/${slug}/transactions?kind=tip&startDate=${weekAgo.toISOString()}`)
+        if (tipsRes.ok) {
+          const { transactions } = (await tipsRes.json()) as { transactions: { amount: number }[] }
+          const totalMinor = transactions.reduce((sum, t) => sum + t.amount, 0)
+          setTipsTotal(Math.round(minorUnitsToGil(totalMinor) ?? 0))
         }
       } catch {
         /* tips query is best-effort */

@@ -54,7 +54,6 @@ function toUiTransaction(row: FinanceTransactionRow): Transaction {
 
 export default function SalesPage({ params }: { params: Promise<{ slug: string }> }) {
   const [slug, setSlug] = useState("")
-  const [venueId, setVenueId] = useState("")
   const [transactions, setTransactions] = useState<Transaction[]>([])
   const [services, setServices] = useState<Service[]>([])
   const [staffNamesByPersonId, setStaffNamesByPersonId] = useState<Map<number, string>>(new Map())
@@ -73,19 +72,12 @@ export default function SalesPage({ params }: { params: Promise<{ slug: string }
         setIsLoading(true)
         setError("")
 
-        const venueResponse = await fetch(`/api/venues`)
-        if (!venueResponse.ok) throw new Error("Failed to fetch venue")
-        const venues = await venueResponse.json()
-        const venue = venues.find((v: { slug: string; id: string }) => v.slug === slug)
-        if (!venue) throw new Error("Venue not found")
-        setVenueId(venue.id)
-
         const to = new Date()
         const from = new Date(to.getTime() - LOOKBACK_DAYS * 24 * 60 * 60 * 1000)
 
         const [transactionsResponse, servicesResponse, staffResponse] = await Promise.all([
           fetch(
-            `/api/venues/${venue.id}/transactions?startDate=${from.toISOString()}&endDate=${to.toISOString()}`
+            `/api/venues/${slug}/transactions?startDate=${from.toISOString()}&endDate=${to.toISOString()}`
           ),
           fetch(`/api/venues/${slug}/services`),
           fetch(`/api/venues/${slug}/staff`),
@@ -176,13 +168,11 @@ export default function SalesPage({ params }: { params: Promise<{ slug: string }
             <VenueEyebrow slug={slug} />
             <h1 className="page-h1">Sales</h1>
           </div>
-          {venueId && (
-            <SalesLogDialog
-              venueId={venueId}
-              services={services}
-              onLogged={(t) => setTransactions((prev) => [t, ...prev])}
-            />
-          )}
+          <SalesLogDialog
+            venueId={slug}
+            services={services}
+            onLogged={(t) => setTransactions((prev) => [t, ...prev])}
+          />
         </div>
 
         {error && (

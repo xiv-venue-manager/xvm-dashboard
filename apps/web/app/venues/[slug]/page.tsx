@@ -3,18 +3,14 @@ import { getServerSession } from "next-auth"
 import { authOptions } from "@/lib/auth"
 import { notFound } from "next/navigation"
 import Link from "next/link"
-import { prisma } from "@/lib/prisma"
 
 export async function generateMetadata({ params }: { params: Promise<{ slug: string }> }): Promise<Metadata> {
   const { slug } = await params
-  const venue = await prisma.venue.findUnique({
-    where: { slug, isActive: true },
-    select: { xvmApiVenueId: true },
+  const publicVenue = await getPublicVenueBySlug(slug).catch((err) => {
+    if (err instanceof XvmApiError && err.status === 404) return null
+    throw err
   })
-  if (!venue) return { title: "Venue Not Found" }
-
-  const publicVenue = venue.xvmApiVenueId ? await getPublicVenue(venue.xvmApiVenueId).catch(() => null) : null
-  if (!publicVenue) return { title: slug }
+  if (!publicVenue) return { title: "Venue Not Found" }
 
   const desc = publicVenue.description ?? `${publicVenue.name} is an FFXIV roleplay venue.`
   const ogImage = publicVenue.banner_url ?? "/og-image.png"
@@ -33,8 +29,7 @@ export async function generateMetadata({ params }: { params: Promise<{ slug: str
   }
 }
 import { format } from "date-fns"
-import { MapPin, Calendar, Clock, Crown, Image as ImageIcon, ChevronLeft, Scroll, Heart } from "lucide-react"
-import { getServerTimeLabel } from "@/lib/server-time"
+import { MapPin, Calendar, Clock, Image as ImageIcon, ChevronLeft, Scroll, Heart } from "lucide-react"
 import { LocalTime } from "@/components/server-time"
 import { formatVenueAddress, formatLifestreamCommand } from "@/lib/venue-location"
 import { VenueFollowButton } from "@/components/venue-follow-button"
@@ -43,12 +38,14 @@ import { SiteFooter } from "@/components/site-footer"
 import { VenueScheduleDisplay } from "@/components/venue-schedule-display"
 import { xvmHoursToScheduleEntries } from "@/lib/schedule-utils"
 import {
+  getPublicEvents,
   getPublicHours,
-  getPublicVenue,
+  getPublicVenueBySlug,
   listMyFollows,
+  XvmApiError,
   type FollowRow,
+  type PublicEvents,
   type PublicHours,
-  type PublicVenue,
 } from "@/lib/api/xvm-api"
 import { xvmPersonReader } from "@/lib/api/xvm-page-read"
 
@@ -56,147 +53,57 @@ export default async function VenueProfilePage({ params }: { params: Promise<{ s
   const session = await getServerSession(authOptions)
   const { slug } = await params
 
-  // Server Component: evaluated once per request, not a re-rendering client component that would need memoization.
-  // eslint-disable-next-line react-hooks/purity
-  const cutoff = new Date(Date.now() - 2 * 60 * 60 * 1000)
-
-  const venue = await prisma.venue.findUnique({
-    where: { slug, isActive: true },
-    include: {
-      _count: { select: { events: true, memberships: true } },
-      events: {
-        where: {
-          status: { in: ["ACTIVE", "PUBLISHED"] },
-          startTime: { gte: cutoff },
-        },
-        orderBy: { startTime: "asc" },
-        take: 5,
-        select: { id: true, title: true, startTime: true, endTime: true, status: true, eventType: true },
-      },
-    },
+  const venue = await getPublicVenueBySlug(slug).catch((err) => {
+    if (err instanceof XvmApiError && err.status === 404) return null
+    throw err
   })
-
   if (!venue) notFound()
 
-  // xvm-api is the source of truth for hours - Prisma's scheduleEntries and
-  // venueSchedule (ffxivvenues sync) tables are retiring and are no longer
-  // read here. A venue not yet connected to xvm-api (or a failed request)
-  // gets no schedule until it's migrated - non-fatal, matches this page's
-  // existing style of never hard-failing the render over an optional signal.
+  // Hours and events are optional signals: a failed read leaves that section
+  // empty rather than failing the page.
   let xvmHours: PublicHours | null = null
-  if (venue.xvmApiVenueId) {
-    try {
-      xvmHours = await getPublicHours(venue.xvmApiVenueId)
-    } catch {
-      xvmHours = null
-    }
+  try {
+    xvmHours = await getPublicHours(venue.id)
+  } catch {
+    xvmHours = null
   }
   const scheduleEntries = xvmHours ? xvmHoursToScheduleEntries(xvmHours.rules) : []
 
-  // xvm-api is the only source for these now - no Prisma fallback. A venue
-  // not yet connected, or a failed request, gets a degraded page (these
-  // sections omitted) rather than silently serving Prisma's stale copy as
-  // current - same principle settings/route.ts already applies to visibility
-  // fields.
-  let publicVenue: PublicVenue | null = null
-  if (venue.xvmApiVenueId) {
-    try {
-      publicVenue = await getPublicVenue(venue.xvmApiVenueId)
-    } catch {
-      publicVenue = null
-    }
+  let events: PublicEvents = { live: null, upcoming: [] }
+  try {
+    events = await getPublicEvents(venue.id)
+  } catch {
+    events = { live: null, upcoming: [] }
   }
-  const displayName = publicVenue?.name ?? slug
-  const displayDescription = publicVenue?.description ?? null
-  const displayBannerUrl = publicVenue?.banner_url ?? null
-  const displayImages = publicVenue ? publicVenue.images.map((img) => img.image_url) : []
-  const displayLocation = publicVenue
-    ? {
-        dataCenter: publicVenue.data_center,
-        world: publicVenue.world,
-        district: publicVenue.district,
-        ward: publicVenue.ward,
-        plot: publicVenue.plot,
-        apartment: publicVenue.room,
-        location: null as string | null,
-      }
-    : null
 
-  const followedByViewer = async () => {
-    if (!session?.user?.id || !venue.xvmApiVenueId) return false
-    const follows = await (await xvmPersonReader(session.user.id))("venue follow state", [] as FollowRow[], (token) =>
-      listMyFollows(token)
-    )
-    return follows.some((f) => f.venue_id === venue.xvmApiVenueId)
+  const displayName = venue.name
+  const displayDescription = venue.description
+  const displayBannerUrl = venue.banner_url
+  const displayImages = venue.images.map((img) => img.image_url)
+  const displayLocation = {
+    dataCenter: venue.data_center,
+    world: venue.world,
+    district: venue.district,
+    ward: venue.ward,
+    plot: venue.plot,
+    apartment: venue.room,
+    location: null as string | null,
   }
-  const [owner, isFollowing] = await Promise.all([
-    prisma.user.findUnique({
-      where: { id: venue.ownerId },
-      select: { name: true, image: true, createdAt: true },
-    }),
-    followedByViewer(),
-  ])
-  const followerCount = publicVenue?.follower_count ?? 0
 
-  const liveEvent = venue.events.find((e) => e.status === "ACTIVE")
-  const upcomingEvents = venue.events.filter((e) => e.status === "PUBLISHED")
+  const isFollowing = session?.user?.id
+    ? (
+        await (await xvmPersonReader(session.user.id))("venue follow state", [] as FollowRow[], (token) =>
+          listMyFollows(token)
+        )
+      ).some((f) => f.venue_id === venue.id)
+    : false
+  const followerCount = venue.follower_count
+
+  const liveEvent = events.live
+  const upcomingEvents = events.upcoming
   const isOpen = !!liveEvent || (xvmHours?.open_now.open ?? false)
-  const tzLabel = displayLocation ? getServerTimeLabel() : null
-  const todayUTCDay = new Date().getUTCDay()
-  const DAY_NAMES = ["Sunday", "Monday", "Tuesday", "Wednesday", "Thursday", "Friday", "Saturday"]
-  const address = displayLocation ? formatVenueAddress(displayLocation) : null
-  const lifestreamCommand = displayLocation ? formatLifestreamCommand(displayLocation) : null
-
-  // Parse hours from settings
-  const s = venue.settings as Record<string, unknown> | null
-  const defaultHours = (s?.defaultHours as string | undefined) ?? ""
-  const openNights = (s?.openNights as string | undefined) ?? ""
-
-  // Map day abbreviations/names to DAY_NAMES index (0=Sunday)
-  const DAY_PATTERNS: [RegExp, number][] = [
-    [/\bsun(day)?\b/i, 0],
-    [/\bmon(day)?\b/i, 1],
-    [/\btue(s(day)?)?\b/i, 2],
-    [/\bwed(nesday)?\b/i, 3],
-    [/\bthu(rs?(day)?)?\b/i, 4],
-    [/\bfri(day)?\b/i, 5],
-    [/\bsat(urday)?\b/i, 6],
-  ]
-
-  // Detect a "Fri-Sun" / "Fri–Sat" range and expand it
-  function expandDayRange(text: string): number[] {
-    const rangeMatch = text.match(/(\w+)\s*[-–]\s*(\w+)/)
-    if (rangeMatch) {
-      const from = DAY_PATTERNS.findIndex(([rx]) => rx.test(rangeMatch[1]))
-      const to = DAY_PATTERNS.findIndex(([rx]) => rx.test(rangeMatch[2]))
-      if (from !== -1 && to !== -1) {
-        const days: number[] = []
-        let i = from
-        while (true) {
-          days.push(i % 7)
-          if (i % 7 === to) break
-          i++
-          if (i - from > 7) break // safety
-        }
-        return days
-      }
-    }
-    return []
-  }
-
-  function parseOpenDays(nights: string): Set<number> | null {
-    if (!nights.trim()) return null
-    if (/every\s*(night|day)/i.test(nights)) return new Set([0, 1, 2, 3, 4, 5, 6])
-    const range = expandDayRange(nights)
-    if (range.length > 0) return new Set(range)
-    const found = new Set<number>()
-    for (const [rx, idx] of DAY_PATTERNS) {
-      if (rx.test(nights)) found.add(idx)
-    }
-    return found.size > 0 ? found : null
-  }
-
-  const openDays = parseOpenDays(openNights)
+  const address = formatVenueAddress(displayLocation)
+  const lifestreamCommand = formatLifestreamCommand(displayLocation)
 
   const jsonLd = {
     "@context": "https://schema.org",
@@ -205,16 +112,12 @@ export default async function VenueProfilePage({ params }: { params: Promise<{ s
     description: displayDescription ?? `${displayName} is an FFXIV roleplay venue.`,
     url: `https://xivvenuemanager.com/venues/${venue.slug}`,
     ...(displayBannerUrl ? { image: displayBannerUrl } : {}),
-    ...(displayLocation
-      ? {
-          address: {
-            "@type": "PostalAddress",
-            addressLocality: displayLocation.world,
-            addressRegion: displayLocation.dataCenter,
-            addressCountry: "Virtual",
-          },
-        }
-      : {}),
+    address: {
+      "@type": "PostalAddress",
+      addressLocality: displayLocation.world,
+      addressRegion: displayLocation.dataCenter,
+      addressCountry: "Virtual",
+    },
   }
   // Escape HTML-unsafe chars so venue names can't break out of the JSON-LD block
   const safeJsonLd = JSON.stringify(jsonLd).replace(/</g, "\\u003c").replace(/>/g, "\\u003e").replace(/\//g, "\\u002f")
@@ -285,21 +188,15 @@ export default async function VenueProfilePage({ params }: { params: Promise<{ s
                   {address}
                 </div>
               )}
-              {/* Tags from settings or eventType */}
-              {/* Tags pulled from settings json if present */}
-              {(() => {
-                const s = venue.settings as Record<string, unknown> | null
-                const tags = (s?.tags as string[] | undefined) ?? []
-                return tags.length > 0 ? (
-                  <div className="tags flex flex-wrap gap-2 mt-[14px]">
-                    {tags.map((t) => (
-                      <span key={t} className={`tag ${t === "18+" ? "adult" : ""}`}>
-                        {t}
-                      </span>
-                    ))}
-                  </div>
-                ) : null
-              })()}
+              {venue.tags.length > 0 && (
+                <div className="tags flex flex-wrap gap-2 mt-[14px]">
+                  {venue.tags.map((t) => (
+                    <span key={t} className={`tag ${t === "18+" ? "adult" : ""}`}>
+                      {t}
+                    </span>
+                  ))}
+                </div>
+              )}
             </div>
 
             {/* Follow action */}
@@ -332,7 +229,7 @@ export default async function VenueProfilePage({ params }: { params: Promise<{ s
           <div className="max-w-[1080px] mx-auto px-8 py-[14px] flex items-center gap-4 flex-wrap">
             <span className="text-[0.92rem]">
               <strong>{liveEvent.title}</strong>
-              {" · "}open until {liveEvent.endTime ? <LocalTime date={liveEvent.endTime} formatStr="time" /> : "late"}
+              {" · "}open until <LocalTime date={new Date(liveEvent.ends_at)} formatStr="time" />
             </span>
             <div className="flex-1" />
             {lifestreamCommand && <CopyAddressInline address={lifestreamCommand} />}
@@ -373,29 +270,31 @@ export default async function VenueProfilePage({ params }: { params: Promise<{ s
                           <Calendar /> Upcoming events
                         </div>
                         <div className="events-list panel">
-                          {upcomingEvents.map((ev) => (
-                            <div key={ev.id} className="event-row border-b border-[var(--blue-008)] last:border-b-0">
-                              <div className="datebox">
-                                <div className="mo">{format(ev.startTime, "MMM")}</div>
-                                <div className="dy">{format(ev.startTime, "d")}</div>
-                              </div>
-                              <div className="ev-mid">
-                                <div className="ev-title">{ev.title}</div>
-                                <div className="ev-sub">
-                                  <span className="meta">
-                                    <Clock />
-                                    {format(ev.startTime, "EEE")} · <LocalTime date={ev.startTime} formatStr="time" />
-                                    {ev.endTime && (
-                                      <>
-                                        –<LocalTime date={ev.endTime} formatStr="time" />
-                                      </>
-                                    )}
-                                  </span>
-                                  {ev.eventType && <span className="tag">{ev.eventType}</span>}
+                          {upcomingEvents.map((ev) => {
+                            const start = new Date(ev.starts_at)
+                            return (
+                              <div
+                                key={`${ev.starts_at}-${ev.title}`}
+                                className="event-row border-b border-[var(--blue-008)] last:border-b-0"
+                              >
+                                <div className="datebox">
+                                  <div className="mo">{format(start, "MMM")}</div>
+                                  <div className="dy">{format(start, "d")}</div>
+                                </div>
+                                <div className="ev-mid">
+                                  <div className="ev-title">{ev.title}</div>
+                                  <div className="ev-sub">
+                                    <span className="meta">
+                                      <Clock />
+                                      {format(start, "EEE")} · <LocalTime date={start} formatStr="time" />–
+                                      <LocalTime date={new Date(ev.ends_at)} formatStr="time" />
+                                    </span>
+                                    {ev.event_type && <span className="tag">{ev.event_type}</span>}
+                                  </div>
                                 </div>
                               </div>
-                            </div>
-                          ))}
+                            )
+                          })}
                         </div>
                       </div>
                     )}
@@ -430,86 +329,35 @@ export default async function VenueProfilePage({ params }: { params: Promise<{ s
                     <div className="dh">
                       <Clock /> Hours
                     </div>
-                    {scheduleEntries.length > 0 ? (
-                      <VenueScheduleDisplay entries={scheduleEntries} />
-                    ) : openDays ? (
-                      DAY_NAMES.map((day, i) => {
-                        const isDayOpen = openDays.has(i)
-                        const isToday = i === todayUTCDay
-                        return (
-                          <div key={day} className={`hours-row${isToday ? " today" : isDayOpen ? "" : " closed"}`}>
-                            <span className="day">{day}</span>
-                            <span className="hrs">{isDayOpen ? defaultHours || "Open" : "Closed"}</span>
-                          </div>
-                        )
-                      })
-                    ) : defaultHours ? (
-                      // Has hours but couldn't parse specific days — show a summary row
-                      <>
-                        <div className="px-5 py-3 text-[0.86rem]">
-                          <span className="text-muted-foreground">Hours</span>
-                          <span className="float-right font-medium">
-                            {defaultHours} {tzLabel}
-                          </span>
-                        </div>
-                        {openNights && (
-                          <div className="px-5 pb-3 text-[0.86rem]">
-                            <span className="text-muted-foreground">Open</span>
-                            <span className="float-right font-medium">{openNights}</span>
-                          </div>
-                        )}
-                      </>
-                    ) : (
-                      <VenueScheduleDisplay entries={[]} />
-                    )}
+                    <VenueScheduleDisplay entries={scheduleEntries} />
                   </div>
 
                   {/* Location */}
-                  {displayLocation && (
-                    <div className="dcard">
-                      <div className="dh">
-                        <MapPin /> Location
-                      </div>
-                      <div className="loc-block">
-                        {[
-                          { k: "Data Centre", v: displayLocation.dataCenter },
-                          { k: "World", v: displayLocation.world },
-                          ...(displayLocation.district ? [{ k: "District", v: displayLocation.district }] : []),
-                          ...(displayLocation.ward != null ? [{ k: "Ward", v: String(displayLocation.ward) }] : []),
-                          ...(displayLocation.plot != null
-                            ? [{ k: "Plot", v: String(displayLocation.plot) }]
-                            : displayLocation.apartment != null
-                              ? [{ k: "Room", v: String(displayLocation.apartment) }]
-                              : []),
-                        ].map(({ k, v }) => (
-                          <div key={k} className="loc-line">
-                            <span className="lk">{k}</span>
-                            <span className="lv">{v}</span>
-                          </div>
-                        ))}
-                        {lifestreamCommand && <CopyAddressButton address={lifestreamCommand} />}
-                      </div>
+                  <div className="dcard">
+                    <div className="dh">
+                      <MapPin /> Location
                     </div>
-                  )}
-
-                  {/* Hosted by */}
-                  {owner && (
-                    <div className="dcard">
-                      <div className="dh">
-                        <Crown /> Hosted by
-                      </div>
-                      <div className="host-row">
-                        <div className="av">{owner.name?.charAt(0)?.toUpperCase() ?? "?"}</div>
-                        <div>
-                          <div className="hn">
-                            <Crown />
-                            {owner.name ?? "Owner"}
-                          </div>
-                          <div className="hr">Owner · since {format(owner.createdAt, "yyyy")}</div>
+                    <div className="loc-block">
+                      {[
+                        { k: "Data Centre", v: displayLocation.dataCenter },
+                        { k: "World", v: displayLocation.world },
+                        ...(displayLocation.district ? [{ k: "District", v: displayLocation.district }] : []),
+                        ...(displayLocation.ward != null ? [{ k: "Ward", v: String(displayLocation.ward) }] : []),
+                        ...(displayLocation.plot != null
+                          ? [{ k: "Plot", v: String(displayLocation.plot) }]
+                          : displayLocation.apartment != null
+                            ? [{ k: "Room", v: String(displayLocation.apartment) }]
+                            : []),
+                      ].map(({ k, v }) => (
+                        <div key={k} className="loc-line">
+                          <span className="lk">{k}</span>
+                          <span className="lv">{v}</span>
                         </div>
-                      </div>
+                      ))}
+                      {lifestreamCommand && <CopyAddressButton address={lifestreamCommand} />}
                     </div>
-                  )}
+                  </div>
+
                 </div>
               </div>
             )

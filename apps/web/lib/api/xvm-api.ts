@@ -999,6 +999,7 @@ export interface PublicVenue {
   subdivision: boolean | null
   timezone: string
   follower_count: number
+  tags: string[]
   images: VenueImageRow[]
 }
 
@@ -1011,6 +1012,16 @@ export const getPublicVenue = cache(async (venueId: string): Promise<PublicVenue
   // Same shared public rate limiter as getPublicHours - cached for the same reason.
   return xvmFetch<PublicVenue>(`/public/venues/${venueId}`, { next: { revalidate: 60 } })
 })
+
+export const getPublicVenueBySlug = cache(async (slug: string): Promise<PublicVenue> => {
+  if (!process.env.XVM_API_BASE_URL) throw new Error("XVM_API_BASE_URL is not set")
+  return xvmFetch<PublicVenue>(`/public/venues/by-slug/${encodeURIComponent(slug)}`, { next: { revalidate: 60 } })
+})
+
+export async function getPublicEvents(venueId: string): Promise<PublicEvents> {
+  if (!process.env.XVM_API_BASE_URL) throw new Error("XVM_API_BASE_URL is not set")
+  return xvmFetch<PublicEvents>(`/public/venues/${venueId}/events`, { next: { revalidate: 60 } })
+}
 
 export interface PublicHoursBatch {
   venues: Record<string, PublicHours>
@@ -1068,6 +1079,64 @@ export async function getPublicVenuesForIds(venueIds: string[]): Promise<Record<
     }
   }
   return merged
+}
+
+export interface PublicEvent {
+  title: string
+  event_type: string | null
+  starts_at: string
+  ends_at: string
+}
+
+export interface PublicEvents {
+  live: PublicEvent | null
+  upcoming: PublicEvent[]
+}
+
+export async function getPublicEventsBatch(venueIds: string[]): Promise<{ venues: Record<string, PublicEvents> }> {
+  if (!process.env.XVM_API_BASE_URL) throw new Error("XVM_API_BASE_URL is not set")
+  if (venueIds.length === 0) return { venues: {} }
+  const params = new URLSearchParams({ ids: venueIds.join(",") })
+  return xvmFetch<{ venues: Record<string, PublicEvents> }>(`/public/venues/events?${params}`, {
+    next: { revalidate: 60 },
+  })
+}
+
+// Same chunking and failure rule as getPublicVenuesForIds: a chunk that fails
+// leaves its venues without events rather than failing the page.
+export async function getPublicEventsForIds(venueIds: string[]): Promise<Record<string, PublicEvents>> {
+  const merged: Record<string, PublicEvents> = {}
+  for (let i = 0; i < venueIds.length; i += PUBLIC_HOURS_BATCH_MAX) {
+    try {
+      const batch = await getPublicEventsBatch(venueIds.slice(i, i + PUBLIC_HOURS_BATCH_MAX))
+      Object.assign(merged, batch.venues)
+    } catch {
+      // whole chunk failed - those venues show no events
+    }
+  }
+  return merged
+}
+
+export const PUBLIC_DIRECTORY_PAGE = 50
+const PUBLIC_DIRECTORY_MAX_PAGES = 10
+
+// Every active venue, newest first, optionally on one data centre. Pages by
+// before_id until a short page, up to PUBLIC_DIRECTORY_MAX_PAGES (500 venues).
+export async function listPublicDirectory(options: { dataCenter?: string; limit?: number } = {}): Promise<PublicVenue[]> {
+  if (!process.env.XVM_API_BASE_URL) throw new Error("XVM_API_BASE_URL is not set")
+  const limit = options.limit ?? Infinity
+  const venues: PublicVenue[] = []
+  let beforeId: string | undefined
+  for (let page = 0; page < PUBLIC_DIRECTORY_MAX_PAGES && venues.length < limit; page++) {
+    const params = new URLSearchParams({ limit: String(Math.min(PUBLIC_DIRECTORY_PAGE, limit - venues.length)) })
+    if (options.dataCenter) params.set("data_center", options.dataCenter)
+    if (beforeId) params.set("before_id", beforeId)
+    const rows = await xvmFetch<PublicVenue[]>(`/public/venues/directory?${params}`, { next: { revalidate: 60 } })
+    venues.push(...rows)
+    if (rows.length < PUBLIC_DIRECTORY_PAGE) break
+    beforeId = rows[rows.length - 1].id
+  }
+  return venues
 }
 
 // ── Positions API ──────────────────────────────────────────────

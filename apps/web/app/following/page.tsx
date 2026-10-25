@@ -7,14 +7,15 @@ export const metadata: Metadata = {
   title: "Following",
   description: "Venues you follow across the realm.",
 }
-import { prisma } from "@/lib/prisma"
 import { FollowingClient } from "@/components/following-client"
 import { ExploreLayout } from "@/components/explore-layout"
 import {
+  getPublicEventsForIds,
   getPublicHoursForVenues,
   getPublicVenuesForIds,
   listMyFollows,
   type FollowRow,
+  type PublicEvents,
   type PublicHours,
   type PublicVenue,
 } from "@/lib/api/xvm-api"
@@ -30,33 +31,15 @@ export default async function FollowingPage() {
   const follows = await readPerson("following list", [] as FollowRow[], (token) => listMyFollows(token))
   const followedXvmIds = follows.map((f) => f.venue_id)
 
-  const venueRows =
-    followedXvmIds.length > 0
-      ? await prisma.venue.findMany({
-          where: { xvmApiVenueId: { in: followedXvmIds }, isActive: true },
-          select: {
-            id: true,
-            slug: true,
-            dataCenter: true,
-            world: true,
-            xvmApiVenueId: true,
-            events: {
-              where: { status: "ACTIVE" },
-              take: 1,
-              select: { title: true },
-            },
-          },
-        })
-      : []
-  const venueByXvmId = new Map(venueRows.map((v) => [v.xvmApiVenueId, v]))
-
-  // xvm-api is the source of truth for a connected venue's hours. Following is
-  // capped at 200 by /me/follows, and getPublicHoursForVenues chunks the ids
-  // into batches of 50 and merges them - one request per 50 followed venues
-  // rather than one per venue. Failed reads show closed (unless a live event
-  // is running) - Prisma no longer computes hours.
+  // xvm-api is the source of truth for a followed venue's profile, hours and
+  // events. Following is capped at 200 by /me/follows, and each helper chunks
+  // the ids into batches of 50 and merges them - one request per 50 followed
+  // venues rather than one per venue. Failed reads show closed (unless a live
+  // event is running). A deactivated venue is absent from the profile read and
+  // is left out.
   let hoursByVenue: Record<string, PublicHours> = {}
   let profileByVenue: Record<string, PublicVenue> = {}
+  let eventsByVenue: Record<string, PublicEvents> = {}
   if (followedXvmIds.length > 0) {
     try {
       hoursByVenue = await getPublicHoursForVenues(followedXvmIds)
@@ -64,28 +47,28 @@ export default async function FollowingPage() {
       hoursByVenue = {}
     }
     profileByVenue = await getPublicVenuesForIds(followedXvmIds)
+    eventsByVenue = await getPublicEventsForIds(followedXvmIds)
   }
 
-  // Follows come newest first; a follow whose venue has no Prisma row yet is left out.
+  // Follows come newest first.
   const venues = follows.flatMap((f) => {
-    const venue = venueByXvmId.get(f.venue_id)
-    if (!venue) return []
-    const xvmHoursEntry = hoursByVenue[f.venue_id]
-    const xvmProfile = profileByVenue[f.venue_id]
+    const profile = profileByVenue[f.venue_id]
+    if (!profile) return []
+    const liveEvent = eventsByVenue[f.venue_id]?.live ?? null
     return [
       {
-        id: venue.id,
-        name: xvmProfile?.name ?? venue.slug,
-        slug: venue.slug,
-        dataCenter: venue.dataCenter,
-        world: venue.world,
-        district: xvmProfile?.district ?? null,
-        ward: xvmProfile?.ward ?? null,
-        plot: xvmProfile?.plot ?? null,
-        apartment: xvmProfile?.room ?? null,
-        followCount: xvmProfile?.follower_count ?? 0,
-        isOpenNow: venue.events.length > 0 || (xvmHoursEntry?.open_now.open ?? false),
-        activeEvent: venue.events[0] ?? null,
+        id: profile.id,
+        name: profile.name,
+        slug: profile.slug,
+        dataCenter: profile.data_center,
+        world: profile.world,
+        district: profile.district,
+        ward: profile.ward,
+        plot: profile.plot,
+        apartment: profile.room,
+        followCount: profile.follower_count,
+        isOpenNow: liveEvent !== null || (hoursByVenue[f.venue_id]?.open_now.open ?? false),
+        activeEvent: liveEvent ? { title: liveEvent.title } : null,
       },
     ]
   })

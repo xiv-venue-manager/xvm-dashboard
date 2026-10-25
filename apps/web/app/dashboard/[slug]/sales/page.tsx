@@ -178,7 +178,7 @@ export default function SalesPage({ params }: { params: Promise<{ slug: string }
           </div>
           {venueId && (
             <SalesLogDialog
-              venueId={venueId}
+              venueId={slug}
               services={services}
               onLogged={(t) => setTransactions((prev) => [t, ...prev])}
             />

@@ -10,8 +10,13 @@ import {
 } from "@/lib/discord-webhook"
 import { resolveDisplayName } from "@/lib/display-name"
 import { parseVenueSettings } from "@/lib/types/venue-settings"
-import { getValidXvmApiToken } from "@/lib/api/xvm-api-store"
-import { createFinanceTransaction, getService, XvmApiError, type FinanceTransactionKind } from "@/lib/api/xvm-api"
+import {
+  createFinanceTransaction,
+  getService,
+  listMemberships,
+  XvmApiError,
+  type FinanceTransactionKind,
+} from "@/lib/api/xvm-api"
 import { gilToMinorUnits, minorUnitsToGil } from "@/lib/api/position-convert"
 import { findLiveEventId } from "@/lib/api/event-window"
 
@@ -70,20 +75,16 @@ async function resolveEventId(token: string, xvmApiVenueId: string, requested: s
  * auth, venue access verification, and permission checks - this helper only
  * owns the domain write + side effects.
  */
-export async function createTransaction(venueId: string, staffUserId: string, input: CreateTransactionInput) {
+export async function createTransaction(
+  token: string,
+  xvmApiVenueId: string,
+  staffUserId: string,
+  input: CreateTransactionInput
+) {
   const venue = await prisma.venue.findUnique({
-    where: { id: venueId },
-    select: { xvmApiVenueId: true, discordWebhookUrl: true, settings: true },
+    where: { xvmApiVenueId },
+    select: { discordWebhookUrl: true, settings: true },
   })
-  if (!venue?.xvmApiVenueId) {
-    throw new Error(`Venue ${venueId} is not connected to xvm-api`)
-  }
-  const xvmApiVenueId = venue.xvmApiVenueId
-
-  const token = await getValidXvmApiToken(staffUserId)
-  if (!token) {
-    throw new Error(`No valid xvm-api token for user ${staffUserId}`)
-  }
 
   const resolvedType = input.type ?? "SALE"
   const serviceId = input.serviceId ? Number(input.serviceId) : undefined
@@ -112,18 +113,18 @@ export async function createTransaction(venueId: string, staffUserId: string, in
     throw error
   }
 
-  // Minor display regression flagged for review: the old code joined
-  // Transaction.staff.characters for a richer name including FFXIV
-  // character name. Transaction creation no longer goes through Prisma, so
-  // that relation isn't available here - fall back to nickname only.
-  const staffMembership = await prisma.membership.findFirst({
-    where: { userId: staffUserId, venueId },
-    select: { nickname: true },
-  })
+  let staffName: { nickname: string | null; displayName: string | undefined } | undefined
+  try {
+    const memberships = await listMemberships(token, xvmApiVenueId)
+    const member = memberships.find((m) => m.id === newTransaction.membership_id)
+    if (member) staffName = { nickname: member.nickname, displayName: member.person.display_name }
+  } catch (error) {
+    console.error("Failed to resolve the staff name for a sale:", error)
+  }
   const resolvedStaffName = resolveDisplayName({
     characterName: undefined,
-    nickname: staffMembership?.nickname,
-    displayName: undefined,
+    nickname: staffName?.nickname,
+    displayName: staffName?.displayName,
     discordName: undefined,
   })
 
@@ -154,11 +155,11 @@ export async function createTransaction(venueId: string, staffUserId: string, in
   }
 
   // Discord webhook (fire-and-forget - never block the response)
-  const venueSettings = parseVenueSettings(venue.settings)
+  const venueSettings = parseVenueSettings(venue?.settings)
   const webhookConfig: VenueWebhookConfig = {
     discordWebhooks: venueSettings.discordWebhooks,
     webhooks: venueSettings.webhooks,
-    discordWebhookUrl: venue.discordWebhookUrl,
+    discordWebhookUrl: venue?.discordWebhookUrl,
   }
 
   const webhookUrl = getWebhookUrlForType(webhookConfig, "saleLogged")

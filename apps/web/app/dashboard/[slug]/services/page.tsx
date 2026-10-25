@@ -135,7 +135,7 @@ export default function ServicesPage({ params }: { params: Promise<{ slug: strin
           fetch(`/api/venues/${slug}/services`),
           fetch(`/api/venues/${slug}/roles`),
           fetch(`/api/venues/${slug}/services/categories`),
-          fetch(`/api/venues/${venue.id}/inventory-settings`)
+          fetch(`/api/venues/${slug}/inventory-settings`)
             .then((r) => (r.ok ? r.json() : null))
             .then((data) => {
               if (data) setInventoryEnabled(data.settings.enabled)

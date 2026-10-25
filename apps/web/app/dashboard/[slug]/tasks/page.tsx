@@ -137,7 +137,7 @@ export default function TasksPage({ params }: { params: Promise<{ slug: string }
         setUserRole(venue.memberships?.[0]?.role ?? null)
 
         // Get tasks
-        const tasksResponse = await fetch(`/api/venues/${venue.id}/tasks`)
+        const tasksResponse = await fetch(`/api/venues/${slug}/tasks`)
         if (tasksResponse.ok) {
           const tasksData = await tasksResponse.json()
           setTasks(tasksData)
@@ -169,12 +169,7 @@ export default function TasksPage({ params }: { params: Promise<{ slug: string }
     setFormError("")
 
     try {
-      // Get venue ID
-      const venueResponse = await fetch(`/api/venues?slug=${slug}`)
-      const venues = await venueResponse.json()
-      const venue = venues.find((v: { slug: string }) => v.slug === slug)
-
-      const response = await fetch(`/api/venues/${venue.id}/tasks`, {
+      const response = await fetch(`/api/venues/${slug}/tasks`, {
         method: "POST",
         headers: { "Content-Type": "application/json" },
         body: JSON.stringify({
@@ -217,13 +212,8 @@ export default function TasksPage({ params }: { params: Promise<{ slug: string }
     }
 
     try {
-      // Get venue ID
-      const venueResponse = await fetch(`/api/venues?slug=${slug}`)
-      const venues = await venueResponse.json()
-      const venue = venues.find((v: { slug: string }) => v.slug === slug)
-
       const action = newStatus === "IN_PROGRESS" ? "start" : newStatus === "COMPLETED" ? "complete" : "cancel"
-      const response = await fetch(`/api/venues/${venue.id}/tasks/${taskId}`, {
+      const response = await fetch(`/api/venues/${slug}/tasks/${taskId}`, {
         method: "POST",
         headers: { "Content-Type": "application/json" },
         body: JSON.stringify({ action }),
@@ -243,12 +233,7 @@ export default function TasksPage({ params }: { params: Promise<{ slug: string }
 
   const handleDeleteTask = async (taskId: number) => {
     try {
-      // Get venue ID
-      const venueResponse = await fetch(`/api/venues?slug=${slug}`)
-      const venues = await venueResponse.json()
-      const venue = venues.find((v: { slug: string }) => v.slug === slug)
-
-      const response = await fetch(`/api/venues/${venue.id}/tasks/${taskId}`, {
+      const response = await fetch(`/api/venues/${slug}/tasks/${taskId}`, {
         method: "DELETE",
       })
 
@@ -302,11 +287,6 @@ export default function TasksPage({ params }: { params: Promise<{ slug: string }
         return
       }
 
-      // Get venue ID
-      const venueResponse = await fetch(`/api/venues?slug=${slug}`)
-      const venues = await venueResponse.json()
-      const venue = venues.find((v: { slug: string }) => v.slug === slug)
-
       const requestBody = {
         title: formData.title,
         description: formData.description || null,
@@ -316,7 +296,7 @@ export default function TasksPage({ params }: { params: Promise<{ slug: string }
         dueDate: toAwareDueDate(formData.dueDate) ?? null,
       }
 
-      const response = await fetch(`/api/venues/${venue.id}/tasks/${editingTask.id}`, {
+      const response = await fetch(`/api/venues/${slug}/tasks/${editingTask.id}`, {
         method: "PUT",
         headers: { "Content-Type": "application/json" },
         body: JSON.stringify(requestBody),

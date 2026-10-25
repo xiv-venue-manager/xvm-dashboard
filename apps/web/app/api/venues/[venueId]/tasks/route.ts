@@ -5,6 +5,7 @@ import { z } from "zod"
 import { prisma } from "@/lib/prisma"
 import { withRateLimit } from "@/lib/middleware/with-rate-limit"
 import { getValidXvmApiToken, xvmApiErrorResponse } from "@/lib/api/xvm-api-store"
+import { requireMyVenue } from "@/lib/api/venue-access"
 import {
   listTasks,
   createTask,
@@ -65,19 +66,6 @@ function toTaskShape(task: TaskRow, positionsById: Map<number, PositionRow>, mem
   }
 }
 
-async function requireXvmVenueId(venueId: string) {
-  const venue = await prisma.venue.findUnique({ where: { id: venueId }, select: { xvmApiVenueId: true } })
-  if (!venue?.xvmApiVenueId) {
-    return {
-      error: NextResponse.json(
-        { error: "not_connected", message: "This venue hasn't been connected to xvm-api yet." },
-        { status: 409 }
-      ),
-    }
-  }
-  return { xvmApiVenueId: venue.xvmApiVenueId }
-}
-
 export const GET = withRateLimit<{ params: Promise<{ venueId: string }> }>(
   async (request, context) => {
     if (!context?.params) {
@@ -101,15 +89,16 @@ export const GET = withRateLimit<{ params: Promise<{ venueId: string }> }>(
     // visible by default since today's board always showed them.
     const includeCancelled = searchParams.get("includeCancelled") === "true"
 
-    const gate = await requireXvmVenueId(venueId)
-    if (gate.error) return gate.error
+    const lookup = await requireMyVenue(session.user.id, venueId, "[tasks] /me/venues read error")
+    if (!lookup.ok) return lookup.response
+    const xvmApiVenueId = lookup.venue.id
 
     try {
       const [tasks, positions, categories, memberships] = await Promise.all([
-        listTasks(token, gate.xvmApiVenueId!, { includeCompleted: true, includeCancelled }),
-        listPositions(token, gate.xvmApiVenueId!),
-        listTaskCategories(token, gate.xvmApiVenueId!),
-        listMemberships(token, gate.xvmApiVenueId!),
+        listTasks(token, xvmApiVenueId, { includeCompleted: true, includeCancelled }),
+        listPositions(token, xvmApiVenueId),
+        listTaskCategories(token, xvmApiVenueId),
+        listMemberships(token, xvmApiVenueId),
       ])
       const positionsById = new Map(positions.map((p) => [p.id, p]))
       const categoriesById = new Map(categories.map((c) => [c.id, c.name]))
@@ -143,8 +132,9 @@ export const POST = withRateLimit<{ params: Promise<{ venueId: string }> }>(
     }
 
     const { venueId } = await context.params
-    const gate = await requireXvmVenueId(venueId)
-    if (gate.error) return gate.error
+    const lookup = await requireMyVenue(session.user.id, venueId, "[tasks] /me/venues read error")
+    if (!lookup.ok) return lookup.response
+    const xvmApiVenueId = lookup.venue.id
 
     let data: z.infer<typeof createTaskSchema>
     try {
@@ -159,10 +149,10 @@ export const POST = withRateLimit<{ params: Promise<{ venueId: string }> }>(
     try {
       let categoryId: number | null = null
       if (data.category) {
-        categoryId = await resolveCategoryId(token, gate.xvmApiVenueId!, data.category)
+        categoryId = await resolveCategoryId(token, xvmApiVenueId, data.category)
       }
 
-      const task = await createTask(token, gate.xvmApiVenueId!, {
+      const task = await createTask(token, xvmApiVenueId, {
         title: data.title,
         description: data.description ?? null,
         priority: priorityToInt(data.priority),
@@ -171,14 +161,14 @@ export const POST = withRateLimit<{ params: Promise<{ venueId: string }> }>(
         assigned_position_id: data.assignedRoleId ?? null,
       })
 
-      const positions = data.assignedRoleId ? await listPositions(token, gate.xvmApiVenueId!) : []
+      const positions = data.assignedRoleId ? await listPositions(token, xvmApiVenueId) : []
       const positionsById = new Map(positions.map((p) => [p.id, p]))
       // A brand-new task never has assigned_membership_id set - create() only
       // ever assigns a position, never a person - so no memberships fetch needed here.
       const shape = toTaskShape(task, positionsById, new Map())
 
       const venue = await prisma.venue.findUnique({
-        where: { id: venueId },
+        where: { xvmApiVenueId },
         select: { discordWebhookUrl: true, settings: true },
       })
       if (venue) {

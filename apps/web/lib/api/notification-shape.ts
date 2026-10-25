@@ -21,8 +21,15 @@ const VENUE_SECTION: Partial<Record<NotificationKind, string>> = {
   "shift.claim_rejected": "shifts",
 }
 
+const SITE_ORIGIN = "https://site.invalid"
+
 function isSitePath(link: string): boolean {
-  return link.startsWith("/") && !link.startsWith("//")
+  if (!link.startsWith("/")) return false
+  try {
+    return new URL(link, SITE_ORIGIN).origin === SITE_ORIGIN
+  } catch {
+    return false
+  }
 }
 
 export function notificationLink(row: Pick<NotificationRow, "kind" | "link" | "venue_slug">): string | null {

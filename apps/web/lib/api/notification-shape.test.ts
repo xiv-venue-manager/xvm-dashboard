@@ -44,7 +44,15 @@ describe("notificationLink", () => {
     expect(notificationLink(row({ link: "/dashboard/velvet-chord/staff" }))).toBe("/dashboard/velvet-chord/staff")
   })
 
-  it.each(["https://evil.example/", "//evil.example/", "javascript:alert(1)"])(
+  it.each([
+    "https://evil.example/",
+    "//evil.example/",
+    "javascript:alert(1)",
+    "/\\evil.example",
+    "/\\/evil.example",
+    "/\t/evil.example",
+    "/\r\n/evil.example",
+  ])(
     "ignores a link that leaves the site (%s) and builds its own",
     (link) => {
       expect(notificationLink(row({ link }))).toBe("/dashboard/velvet-chord/analytics")

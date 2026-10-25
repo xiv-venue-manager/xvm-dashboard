@@ -113,18 +113,17 @@ export async function createTransaction(
     throw error
   }
 
-  let staffName: { nickname: string | null; displayName: string | undefined } | undefined
+  let nickname: string | null | undefined
   try {
     const memberships = await listMemberships(token, xvmApiVenueId)
-    const member = memberships.find((m) => m.id === newTransaction.membership_id)
-    if (member) staffName = { nickname: member.nickname, displayName: member.person.display_name }
+    nickname = memberships.find((m) => m.id === newTransaction.membership_id)?.nickname
   } catch (error) {
     console.error("Failed to resolve the staff name for a sale:", error)
   }
   const resolvedStaffName = resolveDisplayName({
     characterName: undefined,
-    nickname: staffName?.nickname,
-    displayName: staffName?.displayName,
+    nickname,
+    displayName: undefined,
     discordName: undefined,
   })
 

@@ -111,10 +111,10 @@ describe("createTransaction (xvm-api)", () => {
       expect(staffOf()).toEqual({ id: "user1", name: "Bobby" })
     })
 
-    it("falls back to the xvm-api display name when there is no nickname", async () => {
+    it("reports Unknown when the membership has no nickname", async () => {
       mockListMemberships.mockResolvedValue([member({ nickname: null })])
       await createTransaction("token123", "ven_42", "user1", sale)
-      expect(staffOf().name).toBe("Rana Reed")
+      expect(staffOf().name).toBe("Unknown")
     })
 
     it("still records the sale when the membership lookup fails", async () => {

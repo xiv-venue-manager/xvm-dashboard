@@ -4,31 +4,27 @@ import { useState } from "react"
 import { useRouter } from "next/navigation"
 
 interface OpenShiftChipProps {
-  shiftId: number
+  eventShiftId: number
   venueSlug: string
   timeLabel: string
 }
 
-export function OpenShiftChip({ shiftId, venueSlug, timeLabel }: OpenShiftChipProps) {
+export function OpenShiftChip({ eventShiftId, venueSlug, timeLabel }: OpenShiftChipProps) {
   const router = useRouter()
-  const [step, setStep] = useState<"idle" | "confirm" | "loading" | "pending">("idle")
+  const [step, setStep] = useState<"idle" | "confirm" | "loading" | "pending" | "joined">("idle")
   const [error, setError] = useState<string | null>(null)
 
   async function handleConfirm() {
     setStep("loading")
     setError(null)
-    const res = await fetch(`/api/venues/${venueSlug}/shifts/${shiftId}`, {
-      method: "PATCH",
-      headers: { "Content-Type": "application/json" },
-      body: JSON.stringify({ action: "claim" }),
-    })
+    const res = await fetch(`/api/venues/${venueSlug}/event-shifts/${eventShiftId}/join`, { method: "POST" })
     const data = await res.json()
     if (!res.ok) {
       setError(data.error ?? "Failed to claim shift")
       setStep("idle")
       return
     }
-    setStep("pending")
+    setStep(data.shift?.status === "CLAIMED" ? "pending" : "joined")
     setTimeout(() => router.refresh(), 2000)
   }
 
@@ -49,7 +45,7 @@ export function OpenShiftChip({ shiftId, venueSlug, timeLabel }: OpenShiftChipPr
         <div className="flex flex-col gap-1 p-1.5 rounded border border-amber-500/40 bg-amber-500/08 text-[0.6rem] leading-snug">
           <p className="text-amber-300 font-semibold">Claim this shift?</p>
           <p className="text-[var(--fg-faint)]">{timeLabel}</p>
-          <p className="text-[var(--fg-faint)]">Your claim goes to a manager for approval.</p>
+          <p className="text-[var(--fg-faint)]">If the venue requires approval, your claim goes to a manager.</p>
           <div className="flex gap-1.5 mt-0.5">
             <button
               onClick={handleConfirm}
@@ -72,6 +68,8 @@ export function OpenShiftChip({ shiftId, venueSlug, timeLabel }: OpenShiftChipPr
       {step === "pending" && (
         <span className="text-[0.62rem] font-semibold text-emerald-400">Claimed — awaiting approval</span>
       )}
+
+      {step === "joined" && <span className="text-[0.62rem] font-semibold text-emerald-400">Claimed</span>}
 
       {error && <p className="text-[0.6rem] text-red-400">{error}</p>}
     </div>

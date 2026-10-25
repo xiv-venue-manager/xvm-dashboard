@@ -1,6 +1,6 @@
 import { describe, it, expect, vi, beforeEach } from "vitest"
 
-import { listEvents, getEvent, createEvent, createEventSeries, logPatronVisit, listPatronLogs, getPatronLogSummary, listMyAnnouncements, dismissAnnouncement, listAnnouncements, createAnnouncement, deleteAnnouncement, listShouts, createShout, deleteShout, listMyCharacters, listMyVenues, linkMyCharacter, unlinkMyCharacter, submitFeedback, listMyFeedback, listAdminFeedback, triageFeedback, getVenueFollowers, reissueInvite, reclassifyPatronLogs, getPatronPresence, materializeEvent, endEventSeries, updateEvent, publishEvent, cancelEvent, deleteEvent, type EventRow, XvmApiError, getFfxivLink, linkFfxivListing, listMyFfxivListings, syncFfxivListing, unlinkFfxivListing, type ListingLinkRow, deleteRoom, listTasks, createTask, updateTask, assignTask, startTask, completeTask, cancelTask, getPublicHoursBatch, getPublicHoursForVenues, getInvitePreview, getPublicPlatformStats, PUBLIC_HOURS_BATCH_MAX, listGiveaways, createGiveaway, updateGiveaway, deleteGiveaway, listGiveawayEntries, rollGiveaway, listRaffles, createRaffle, updateRaffle, deleteRaffle, listRaffleEntries, creditTickets, refundTickets, rollRaffle, listServiceCategories, createServiceCategory, updateServiceCategory, deleteServiceCategory, listServices, getService, createService, updateService, deleteService, grantServicePosition, revokeServicePosition, linkServiceInventory, unlinkServiceInventory, setStock, createStockMovement, listStockMovements, listFinanceTransactions, createFinanceTransaction, updateFinanceTransaction, voidFinanceTransaction, listPanels, createPanel, getPanel, updatePanel, deletePanel, addPanelOption, updatePanelOption, deletePanelOption, applyPanelTemplate, postPanel, listPanelPosts, listReactionRoleTemplates, getFinanceSummary, listShiftsOnNow, type TaskRow, type PublicHours, type GiveawayRow, type RaffleRow, type ServiceCategoryRow, type ServiceRow, type StockMovementRow, type FinanceTransactionRow, type PanelRow } from "./xvm-api"
+import { listEvents, getEvent, createEvent, createEventSeries, logPatronVisit, listPatronLogs, getPatronLogSummary, listMyAnnouncements, dismissAnnouncement, listAnnouncements, createAnnouncement, deleteAnnouncement, listShouts, createShout, deleteShout, listMyCharacters, listMyVenues, linkMyCharacter, unlinkMyCharacter, submitFeedback, listMyFeedback, listAdminFeedback, triageFeedback, getVenueFollowers, reissueInvite, reclassifyPatronLogs, getPatronPresence, materializeEvent, endEventSeries, updateEvent, publishEvent, cancelEvent, deleteEvent, type EventRow, XvmApiError, getFfxivLink, linkFfxivListing, listMyFfxivListings, syncFfxivListing, unlinkFfxivListing, type ListingLinkRow, deleteRoom, listTasks, createTask, updateTask, assignTask, startTask, completeTask, cancelTask, getPublicHoursBatch, getPublicHoursForVenues, getInvitePreview, getPublicPlatformStats, PUBLIC_HOURS_BATCH_MAX, listGiveaways, createGiveaway, updateGiveaway, deleteGiveaway, listGiveawayEntries, rollGiveaway, listRaffles, createRaffle, updateRaffle, deleteRaffle, listRaffleEntries, creditTickets, refundTickets, rollRaffle, listServiceCategories, createServiceCategory, updateServiceCategory, deleteServiceCategory, listServices, getService, createService, updateService, deleteService, grantServicePosition, revokeServicePosition, linkServiceInventory, unlinkServiceInventory, setStock, createStockMovement, listStockMovements, listFinanceTransactions, createFinanceTransaction, updateFinanceTransaction, voidFinanceTransaction, listPanels, createPanel, getPanel, updatePanel, deletePanel, addPanelOption, updatePanelOption, deletePanelOption, applyPanelTemplate, postPanel, listPanelPosts, listReactionRoleTemplates, getFinanceSummary, listShiftsOnNow, listShiftBoard, listShiftBoardChunked, joinEventShift, withdrawShift, type BoardShift, type TaskRow, type PublicHours, type GiveawayRow, type RaffleRow, type ServiceCategoryRow, type ServiceRow, type StockMovementRow, type FinanceTransactionRow, type PanelRow } from "./xvm-api"
 
 function mockFetchOnce({ ok, status, body }: { ok: boolean; status: number; body: unknown }) {
   ;(fetch as ReturnType<typeof vi.fn>).mockResolvedValueOnce({
@@ -795,6 +795,63 @@ describe("finance summary and on-now shifts", () => {
     expect(result).toEqual([])
     const [url] = (fetch as ReturnType<typeof vi.fn>).mock.calls[0]
     expect(url).toMatch(/\/venues\/venue-1\/shifts\/now$/)
+  })
+
+  const board = (id: number): BoardShift => ({
+    id,
+    event_position_id: 3,
+    starts_at: "2026-10-11T19:00:00Z",
+    ends_at: "2026-10-11T23:00:00Z",
+    capacity: 2,
+    cancelled_at: null,
+    cancel_reason: null,
+    taken: 1,
+    pending: 0,
+    event_id: 9,
+    event_title: "Masquerade",
+    position_id: 4,
+    position_name: "Bartender",
+  })
+
+  it("listShiftBoard GETs /event-shifts with open_only", async () => {
+    mockFetchOnce({ ok: true, status: 200, body: [board(20)] })
+    const result = await listShiftBoard("token", "venue-1", {
+      from: "2026-10-01T00:00:00.000Z",
+      to: "2026-10-08T00:00:00.000Z",
+      openOnly: true,
+    })
+    expect(result[0].position_name).toBe("Bartender")
+    const [url] = (fetch as ReturnType<typeof vi.fn>).mock.calls[0]
+    expect(url).toMatch(/\/venues\/venue-1\/event-shifts\?/)
+    expect(url).toContain("open_only=true")
+  })
+
+  it("listShiftBoardChunked splits a long window into 60-day requests and drops repeats", async () => {
+    mockFetchOnce({ ok: true, status: 200, body: [board(20), board(21)] })
+    mockFetchOnce({ ok: true, status: 200, body: [board(21), board(22)] })
+    const result = await listShiftBoardChunked("token", "venue-1", {
+      from: "2026-01-01T00:00:00.000Z",
+      to: "2026-04-01T00:00:00.000Z",
+      openOnly: true,
+    })
+    expect((fetch as ReturnType<typeof vi.fn>).mock.calls).toHaveLength(2)
+    expect(result.map((shift) => shift.id).sort()).toEqual([20, 21, 22])
+  })
+
+  it("joinEventShift POSTs to the event shift's join path", async () => {
+    mockFetchOnce({ ok: true, status: 201, body: { id: 41, status: "pending_approval" } })
+    await joinEventShift("token", "venue-1", 20)
+    const [url, init] = (fetch as ReturnType<typeof vi.fn>).mock.calls[0]
+    expect(url).toMatch(/\/venues\/venue-1\/event-shifts\/20\/join$/)
+    expect(init.method).toBe("POST")
+  })
+
+  it("withdrawShift POSTs to the shift's withdraw path", async () => {
+    mockFetchOnce({ ok: true, status: 200, body: { id: 41, status: "cancelled" } })
+    await withdrawShift("token", "venue-1", 41)
+    const [url, init] = (fetch as ReturnType<typeof vi.fn>).mock.calls[0]
+    expect(url).toMatch(/\/venues\/venue-1\/shifts\/41\/withdraw$/)
+    expect(init.method).toBe("POST")
   })
 })
 

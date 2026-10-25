@@ -47,7 +47,7 @@ function memLimit(id: string, limit: number, windowMs: number): RateLimitResult 
 
 /**
  * Check and increment a rate limit counter.
- * @param identifier unique key (e.g. "plugin:<keyHash>" or "ip:<ip>")
+ * @param identifier unique key (e.g. "auth-ip:<ip>" or "ip:<ip>:<method>:<path>")
  * @param limit max requests per window
  * @param windowSec window length in seconds
  */

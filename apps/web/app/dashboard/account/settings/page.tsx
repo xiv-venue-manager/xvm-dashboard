@@ -277,6 +277,7 @@ export default function AccountSettingsPage() {
               <AlertDialog
                 open={deleteOpen}
                 onOpenChange={(open) => {
+                  if (deleting) return
                   setDeleteOpen(open)
                   if (!open) setDeletion(null)
                 }}
@@ -296,10 +297,10 @@ export default function AccountSettingsPage() {
                     </AlertDialogDescription>
                   </AlertDialogHeader>
                   {deletion && (
-                    <p className="text-sm text-[var(--destructive)]">{deletion.message}</p>
+                    <p role="alert" className="text-sm text-[var(--destructive)]">{deletion.message}</p>
                   )}
                   <AlertDialogFooter>
-                    <AlertDialogCancel>Cancel</AlertDialogCancel>
+                    <AlertDialogCancel disabled={deleting}>Cancel</AlertDialogCancel>
                     <AlertDialogAction
                       disabled={deleting}
                       className="bg-[var(--support-pink)] text-[#070b14] hover:bg-pink-400"

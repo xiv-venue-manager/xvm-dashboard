@@ -3,11 +3,8 @@ import { describe, it, expect } from "vitest"
 import { DELETION_FAILED, deletionOutcome } from "./account-deletion"
 
 describe("deletionOutcome", () => {
-  it("is scheduled on a 200, with the day the account is anonymised", () => {
-    expect(deletionOutcome(200, { anonymisesAt: "2026-11-26T09:00:00Z" })).toEqual({
-      kind: "scheduled",
-      anonymisesOn: "26 November 2026",
-    })
+  it("is scheduled on a 200 that carries a date", () => {
+    expect(deletionOutcome(200, { anonymisesAt: "2026-11-26T09:00:00Z" })).toEqual({ kind: "scheduled" })
   })
 
   it("keeps the refusal text of a 409, so the person can fix what blocks it", () => {

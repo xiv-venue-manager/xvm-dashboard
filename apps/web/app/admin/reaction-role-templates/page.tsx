@@ -62,9 +62,9 @@ export default function AdminReactionRoleTemplatesPage() {
   const { status } = useSession()
   const [templates, setTemplates] = useState<TemplateRow[]>([])
   const [loading, setLoading] = useState(true)
-  // Which 403 it was. "not_admin" is this dashboard refusing; "scope" is xvm-api refusing a
-  // credential without platform_admin, and carries xvm-api's own wording.
-  const [forbidden, setForbidden] = useState<{ kind: "not_admin" | "scope"; message: string } | null>(null)
+  // Which 403 it was. "not_admin" is the admin gate refusing; "xvm_api" is any other 403 xvm-api
+  // passes through, and carries xvm-api's own wording.
+  const [forbidden, setForbidden] = useState<{ kind: "not_admin" | "xvm_api"; message: string } | null>(null)
   const [error, setError] = useState<string | null>(null)
   const [busy, setBusy] = useState(false)
   const [draft, setDraft] = useState(emptyTemplate)
@@ -80,7 +80,7 @@ export default function AdminReactionRoleTemplatesPage() {
         setForbidden(
           body?.error === "not_admin"
             ? { kind: "not_admin", message: body.message ?? "This page is for platform admins." }
-            : { kind: "scope", message: body?.error ?? "xvm-api refused the request." }
+            : { kind: "xvm_api", message: body?.error ?? "xvm-api refused the request." }
         )
         setError(null)
         return
@@ -146,11 +146,7 @@ export default function AdminReactionRoleTemplatesPage() {
             {forbidden.kind === "not_admin" ? (
               <>This page is for platform admins. Ask for an admin account if you need one.</>
             ) : (
-              <>
-                You are a platform admin, but your xvm-api link doesn&apos;t carry the platform_admin scope —
-                reconnect it from Settings, or ask for the scope to be granted. xvm-api said:{" "}
-                {forbidden.message}
-              </>
+              <>xvm-api refused the request: {forbidden.message}</>
             )}
           </AlertDescription>
         </Alert>

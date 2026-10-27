@@ -331,7 +331,7 @@ export default async function EventDetailsPage({ params }: { params: Promise<{ s
               <CardContent>
                 <p className="font-semibold">{venue.name}</p>
                 <p className="text-sm text-muted-foreground">
-                  {venue.world} ({venue.dataCenter})
+                  {venue.dataCenter} · {venue.world}
                 </p>
                 {venueLocation && formatVenueLocationShort(venueLocation) && (
                   <p className="text-sm text-muted-foreground mt-2">📍 {formatVenueLocationShort(venueLocation)}</p>

@@ -95,7 +95,7 @@ export default async function DashboardPage() {
                       <div className="min-w-0">
                         <p className="font-cinzel font-semibold text-base tracking-wide truncate">{venue.name}</p>
                         <p className="text-xs text-muted-foreground mt-0.5">
-                          {venue.world} · {venue.dataCenter}
+                          {venue.dataCenter} · {venue.world}
                         </p>
                       </div>
                       <span className={`text-xs font-medium px-2 py-0.5 rounded-full border shrink-0 ${roleClass}`}>

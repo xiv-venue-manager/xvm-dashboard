@@ -2,10 +2,11 @@ import { describe, it, expect, vi, beforeEach } from "vitest"
 
 const m = vi.hoisted(() => ({
   userUpdate: vi.fn(),
+  accountFindFirst: vi.fn(),
 }))
 
 vi.mock("@/lib/prisma", () => ({
-  prisma: { user: { update: m.userUpdate } },
+  prisma: { user: { update: m.userUpdate }, account: { findFirst: m.accountFindFirst } },
 }))
 vi.mock("@next-auth/prisma-adapter", () => ({ PrismaAdapter: () => ({}) }))
 vi.mock("@/lib/api/xvm-api", () => ({ exchangeToken: vi.fn() }))
@@ -15,6 +16,8 @@ vi.mock("@/lib/api/xvm-api-store", () => ({
 }))
 
 import { authOptions } from "./auth"
+import { exchangeToken } from "@/lib/api/xvm-api"
+import { getValidXvmApiToken } from "@/lib/api/xvm-api-store"
 import { SESSION_COOKIE_NAME } from "@/lib/session-cookie"
 
 // next-auth v4 keeps the values passed to a provider factory under `options`, not on the
@@ -79,6 +82,18 @@ describe("jwt", () => {
     const stored = { accessToken: "t", expiresAt: 1, scope: "guilds" }
     const token = await jwt({ token: { id: "u1", discord: stored } })
     expect(token.discord).toEqual(stored)
+  })
+
+  it("marks the exchange fresh when the person has just signed in with Discord", async () => {
+    await jwt({ token: { id: "u1" }, user: { id: "u1", name: "A" }, account })
+    expect(exchangeToken).toHaveBeenCalledWith("4242", "A", true)
+  })
+
+  it("re-mints a missing xvm-api token without marking it fresh, so a pending deletion stays pending", async () => {
+    vi.mocked(getValidXvmApiToken).mockResolvedValue(null)
+    m.accountFindFirst.mockResolvedValue({ providerAccountId: "4242" })
+    await jwt({ token: { id: "u1", name: "A" } })
+    expect(exchangeToken).toHaveBeenCalledWith("4242", "A")
   })
 
   it("stores no grant for another provider", async () => {

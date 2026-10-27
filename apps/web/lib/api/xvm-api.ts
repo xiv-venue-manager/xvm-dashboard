@@ -315,14 +315,19 @@ async function xvmFetch<T>(path: string, options: RequestInit = {}, bearerToken?
 
 // ── Auth ───────────────────────────────────────────────────────
 
-export async function exchangeToken(externalId: string, displayName: string): Promise<CredentialIssued> {
+export async function exchangeToken(externalId: string, displayName: string, freshSignIn = false): Promise<CredentialIssued> {
   if (!process.env.XVM_API_BASE_URL) throw new Error("XVM_API_BASE_URL is not set")
   if (!process.env.XVM_API_DASHBOARD_SERVICE_TOKEN) throw new Error("XVM_API_DASHBOARD_SERVICE_TOKEN is not set")
   return xvmFetch<CredentialIssued>(
     "/internal/tokens/exchange",
     {
       method: "POST",
-      body: JSON.stringify({ provider: "discord", external_id: externalId, display_name: displayName }),
+      body: JSON.stringify({
+        provider: "discord",
+        external_id: externalId,
+        display_name: displayName,
+        ...(freshSignIn && { fresh_sign_in: true }),
+      }),
     },
     XVM_API_DASHBOARD_SERVICE_TOKEN
   )

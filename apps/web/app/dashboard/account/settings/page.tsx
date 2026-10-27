@@ -48,7 +48,11 @@ export default function AccountSettingsPage() {
       outcome = { kind: "failed", message: DELETION_FAILED }
     }
     if (outcome.kind === "scheduled") {
-      await signOut({ callbackUrl: DELETION_SIGN_IN_URL })
+      try {
+        await signOut({ callbackUrl: DELETION_SIGN_IN_URL })
+      } catch {
+        window.location.assign(DELETION_SIGN_IN_URL)
+      }
       return
     }
     setDeletion(outcome)

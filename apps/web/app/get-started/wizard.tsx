@@ -538,7 +538,9 @@ export function GetStartedWizard() {
                     background: "var(--card)",
                   }}
                 >
-                  <div style={{ fontWeight: 600, fontSize: "0.95rem", marginBottom: 6 }}>Add Frogge to Discord</div>
+                  <div style={{ fontWeight: 600, fontSize: "0.95rem", marginBottom: 6 }}>
+                    Add the XIV Venue Manager bot to Discord
+                  </div>
                   <p style={{ color: "var(--muted-foreground)", fontSize: "0.85rem", lineHeight: 1.55, margin: 0 }}>
                     Manage VIPs, track staff, and sync your schedule - all from your Discord server.
                   </p>
@@ -556,7 +558,7 @@ export function GetStartedWizard() {
                       color: "var(--xiv-blue)",
                     }}
                   >
-                    Install Frogge <ExternalLink style={{ width: 14, height: 14 }} />
+                    Install the bot <ExternalLink style={{ width: 14, height: 14 }} />
                   </a>
                 </div>
               </>

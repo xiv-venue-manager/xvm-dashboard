@@ -1,7 +1,6 @@
 import Link from "next/link"
 import Image from "next/image"
 import { getPublicStats } from "@/lib/public-stats"
-import { DISCORD_BOT_INVITE_URL } from "@/lib/discord-invite"
 
 export const revalidate = 60
 
@@ -708,7 +707,7 @@ export default async function Home() {
 
             {/* Frogge */}
             <a
-              href={DISCORD_BOT_INVITE_URL}
+              href="https://frogge.tech"
               target="_blank"
               rel="noopener noreferrer"
               className="group rounded-xl border border-[var(--blue-018)] bg-[var(--card)] p-7 flex flex-col gap-5 transition-all duration-[250ms] hover:border-[rgba(0,180,255,0.45)] hover:shadow-[0_0_20px_rgba(0,180,255,0.07),inset_0_1px_0_rgba(0,180,255,0.12)] hover:-translate-y-0.5 xiv-scroll-reveal"

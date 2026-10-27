@@ -21,7 +21,8 @@ Run this against xvm-api's Postgres database:
 
   UPDATE people SET is_platform_admin = true WHERE id = ${person};
   UPDATE credentials SET revoked_at = now()
-    WHERE client = 'dashboard' AND revoked_at IS NULL AND person_id = ${person};
+    WHERE client = 'dashboard' AND revoked_at IS NULL AND person_id = ${person}
+      AND (expires_at IS NULL OR expires_at > now());
 
 xvm-api fixes the scope when it mints a credential, so revoking their dashboard credential is what makes
 the change apply on their next request instead of their next sign-in. To remove an admin, run the same

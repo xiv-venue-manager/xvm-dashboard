@@ -67,7 +67,7 @@ export const authOptions: NextAuthOptions = {
       )
       if (isFirstDiscordSignIn && account) {
         try {
-          const issued = await exchangeToken(account.providerAccountId, user.name ?? "Unknown")
+          const issued = await exchangeToken(account.providerAccountId, user.name ?? "Unknown", true)
           await upsertXvmApiCredential(user.id, issued)
         } catch (err) {
           console.error("xvm-api token exchange failed:", err)

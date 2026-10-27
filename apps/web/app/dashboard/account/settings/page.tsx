@@ -231,23 +231,6 @@ export default function AccountSettingsPage() {
         </div>
       </div>
 
-      {/* Sign out */}
-      <div className="vcard overflow-hidden mt-6">
-        <div className="flex items-center gap-2 px-[22px] py-[13px] border-b border-[var(--blue-008)] font-semibold text-sm">
-          Session
-        </div>
-        <div className="pbody">
-          <button
-            onClick={() => signOut({ callbackUrl: "/" })}
-            className="flex items-center gap-2 px-5 py-2.5 rounded-lg text-sm font-semibold border border-[var(--blue-018)] text-foreground hover:bg-[var(--blue-007)] transition-colors"
-          >
-            <LogOut className="w-4 h-4" />
-            Sign out
-          </button>
-          <p className="field-hint mt-2">Signs you out on this device.</p>
-        </div>
-      </div>
-
       {/* Danger zone */}
       <div className="vcard overflow-hidden mt-6 border-[rgba(243,139,168,0.25)]">
         <div className="flex items-center gap-2 px-[22px] py-[13px] border-b border-[rgba(243,139,168,0.15)] font-semibold text-sm text-[var(--support-pink)]">

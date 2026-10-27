@@ -1,24 +1,20 @@
 import { describe, it, expect, vi, beforeEach } from "vitest"
 
 const {
-  mockVenueFindUnique,
   mockListMemberships,
   mockCreateFinanceTransaction,
   mockGetService,
   mockListEvents,
 } = vi.hoisted(() => ({
     mockListEvents: vi.fn(),
-    mockVenueFindUnique: vi.fn(),
     mockListMemberships: vi.fn(),
     mockCreateFinanceTransaction: vi.fn(),
     mockGetService: vi.fn(),
   }))
 
-vi.mock("@/lib/prisma", () => ({
-  prisma: {
-    venue: { findUnique: mockVenueFindUnique },
-  },
-}))
+vi.mock("@/lib/prisma", () => {
+  throw new Error("must not read Prisma")
+})
 vi.mock("@/lib/api/xvm-api", async (importOriginal) => {
   const actual = await importOriginal<typeof import("@/lib/api/xvm-api")>()
   return {
@@ -30,11 +26,9 @@ vi.mock("@/lib/api/xvm-api", async (importOriginal) => {
   }
 })
 vi.mock("@/lib/sse/venue-events", () => ({ venueEventBus: { emit: vi.fn() } }))
-vi.mock("@/lib/discord-webhook", () => ({
-  sendDiscordWebhook: vi.fn(),
-  formatSaleLoggedEmbed: vi.fn(() => ({})),
-  getWebhookUrlForType: vi.fn(() => null),
-}))
+vi.mock("@/lib/discord-webhook", () => {
+  throw new Error("must not send a webhook")
+})
 
 import { createTransaction, InsufficientStockError, type CreateTransactionInput } from "./transactions"
 import { XvmApiError } from "@/lib/api/xvm-api"
@@ -43,7 +37,6 @@ import { venueEventBus } from "@/lib/sse/venue-events"
 describe("createTransaction (xvm-api)", () => {
   beforeEach(() => {
     vi.clearAllMocks()
-    mockVenueFindUnique.mockResolvedValue({ discordWebhookUrl: null, settings: null })
     mockListMemberships.mockResolvedValue([])
     mockListEvents.mockResolvedValue([])
   })
@@ -123,12 +116,6 @@ describe("createTransaction (xvm-api)", () => {
       expect(result.id).toBe(7)
       expect(venueEventBus.emit).toHaveBeenCalled()
     })
-  })
-
-  it("reads the webhook config by xvm-api venue id", async () => {
-    mockCreateFinanceTransaction.mockResolvedValue({ ...financeTransactionResponse, service_id: null })
-    await createTransaction("token123", "ven_42", "user1", { type: "SALE", amount: 4500, customerName: "Bob" })
-    expect(mockVenueFindUnique).toHaveBeenCalledWith(expect.objectContaining({ where: { xvmApiVenueId: "ven_42" } }))
   })
 
   it("creates a sale transaction and returns the real post-sale stock count", async () => {

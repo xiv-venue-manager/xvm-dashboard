@@ -2,7 +2,6 @@ import { NextResponse } from "next/server"
 import { getServerSession } from "next-auth"
 import { authOptions } from "@/lib/auth"
 import { z } from "zod"
-import { prisma } from "@/lib/prisma"
 import { withRateLimit } from "@/lib/middleware/with-rate-limit"
 import { getValidXvmApiToken, xvmApiErrorResponse } from "@/lib/api/xvm-api-store"
 import { requireMyVenue } from "@/lib/api/venue-access"
@@ -25,12 +24,6 @@ import {
 } from "@/lib/api/xvm-api"
 import { priorityToInt, intToPriority, resolveCategoryId } from "@/lib/api/task-convert"
 import { validators } from "@/lib/validation"
-import {
-  sendDiscordWebhook,
-  formatTaskCompletedEmbed,
-  getWebhookUrlForType,
-  type VenueWebhookConfig,
-} from "@/lib/discord-webhook"
 
 const updateTaskSchema = z.object({
   title: validators.taskTitle.optional(),
@@ -271,32 +264,6 @@ export const POST = withRateLimit<{ params: Promise<{ venueId: string; taskId: s
           : data.action === "complete"
             ? await completeTask(token, xvmApiVenueId, id)
             : await cancelTask(token, xvmApiVenueId, id, data.reason ?? null)
-
-      if (data.action === "complete") {
-        const venue = await prisma.venue.findUnique({
-          where: { xvmApiVenueId },
-          select: { discordWebhookUrl: true, settings: true },
-        })
-        if (venue) {
-          const venueSettings = venue.settings as Record<string, unknown> | null
-          const webhookConfig: VenueWebhookConfig = {
-            discordWebhooks: venueSettings?.discordWebhooks as VenueWebhookConfig["discordWebhooks"],
-            webhooks: venueSettings?.webhooks as VenueWebhookConfig["webhooks"],
-            discordWebhookUrl: venue.discordWebhookUrl,
-          }
-          const webhookUrl = getWebhookUrlForType(webhookConfig, "taskCompleted")
-          if (webhookUrl) {
-            const embed = formatTaskCompletedEmbed({
-              title: task.title,
-              priority: intToPriority(task.priority),
-              completer: null, // completed_by_person_id has no display-name lookup wired here - out of scope, see plan notes
-            })
-            sendDiscordWebhook(webhookUrl, { embeds: [embed] }).catch((error) =>
-              console.error("[Task Completed] webhook error:", error)
-            )
-          }
-        }
-      }
 
       return NextResponse.json(await shapeAfterFetch(token, xvmApiVenueId, task))
     } catch (err) {

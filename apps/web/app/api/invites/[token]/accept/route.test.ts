@@ -64,7 +64,10 @@ describe("invite accept", () => {
 
   it("still succeeds with a null venue when the venue lookup rejects", async () => {
     m.resolveMyVenue.mockRejectedValue(new Error("down"))
+    const warn = vi.spyOn(console, "warn").mockImplementation(() => {})
     const res = await call()
+    expect(warn).toHaveBeenCalledWith("[invites/accept] venue lookup failed", expect.any(Error))
+    warn.mockRestore()
     expect(res.status).toBe(200)
     expect(await res.json()).toEqual({ success: true, membership: { id: 11, role: "STAFF" }, venue: null })
   })

@@ -24,7 +24,10 @@ export async function POST(request: Request, { params }: { params: Promise<{ tok
 
     await invalidateCache(cacheKeys.userVenues(session.user.id))
 
-    const venue = await resolveMyVenue(session.user.id, membership.venue_id).catch(() => null)
+    const venue = await resolveMyVenue(session.user.id, membership.venue_id).catch((e) => {
+      console.warn("[invites/accept] venue lookup failed", e)
+      return null
+    })
 
     return NextResponse.json({
       success: true,

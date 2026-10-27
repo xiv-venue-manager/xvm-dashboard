@@ -2,8 +2,6 @@ import { NextResponse } from "next/server"
 import { getServerSession } from "next-auth"
 import { z } from "zod"
 import { authOptions } from "@/lib/auth"
-import { prisma } from "@/lib/prisma"
-import { Prisma } from "@/generated/prisma/client"
 import { getMe, updateMyDisplayName } from "@/lib/api/xvm-api"
 import { getValidXvmApiToken, xvmApiErrorResponse } from "@/lib/api/xvm-api-store"
 
@@ -12,25 +10,12 @@ const profileSchema = z.object({
     .string()
     .trim()
     .min(1, "Display name is required")
-    .max(50, "Display name too long (max 50 characters)")
-    .optional(),
-  notifications: z
-    .object({
-      eventRsvp: z.boolean().optional(),
-      dailySummary: z.boolean().optional(),
-    })
-    .optional(),
+    .max(50, "Display name too long (max 50 characters)"),
 })
 
 export async function GET() {
   const session = await getServerSession(authOptions)
   if (!session?.user?.id) return NextResponse.json({ error: "Unauthorized" }, { status: 401 })
-
-  const user = await prisma.user.findUnique({
-    where: { id: session.user.id },
-    select: { id: true, settings: true },
-  })
-  if (!user) return NextResponse.json({ error: "User not found" }, { status: 404 })
 
   let displayName: string | null = null
   const token = await getValidXvmApiToken(session.user.id)
@@ -41,7 +26,7 @@ export async function GET() {
       await xvmApiErrorResponse(err, session.user.id, "[user profile] GET error")
     }
   }
-  return NextResponse.json({ ...user, displayName })
+  return NextResponse.json({ id: session.user.id, displayName })
 }
 
 export async function PATCH(req: Request) {
@@ -59,32 +44,12 @@ export async function PATCH(req: Request) {
     throw error
   }
 
-  let displayName: string | undefined
-  if (parsed.displayName !== undefined) {
-    const token = await getValidXvmApiToken(session.user.id)
-    if (!token) return NextResponse.json({ error: "xvm-api link not established yet" }, { status: 503 })
-    try {
-      displayName = (await updateMyDisplayName(token, parsed.displayName)).display_name
-    } catch (err) {
-      return xvmApiErrorResponse(err, session.user.id, "[user profile] PATCH error")
-    }
+  const token = await getValidXvmApiToken(session.user.id)
+  if (!token) return NextResponse.json({ error: "xvm-api link not established yet" }, { status: 503 })
+  try {
+    const { display_name } = await updateMyDisplayName(token, parsed.displayName)
+    return NextResponse.json({ id: session.user.id, displayName: display_name })
+  } catch (err) {
+    return xvmApiErrorResponse(err, session.user.id, "[user profile] PATCH error")
   }
-
-  const existingUser = await prisma.user.findUnique({
-    where: { id: session.user.id },
-    select: { settings: true },
-  })
-  let settings = existingUser?.settings ?? null
-  if (parsed.notifications !== undefined) {
-    const currentSettings = (existingUser?.settings as Record<string, unknown>) ?? {}
-    settings = (
-      await prisma.user.update({
-        where: { id: session.user.id },
-        data: { settings: { ...currentSettings, notifications: parsed.notifications } as Prisma.InputJsonValue },
-        select: { settings: true },
-      })
-    ).settings
-  }
-
-  return NextResponse.json({ id: session.user.id, displayName, settings })
 }

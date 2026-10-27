@@ -20,7 +20,7 @@ The Danger zone card on Account Settings deletes the person with `prisma.user.de
 `DELETE /api/user/deletion`:
 
 1. No session: 401.
-2. No usable stored xvm-api token (`getValidXvmApiToken` returns null): 409 with "Sign in again, then retry." It does not re-mint, because an unflagged exchange is not a sign-in.
+2. No usable stored xvm-api token (`getValidXvmApiToken` returns null): 503 with "xvm-api link not established yet. Sign out and back in, then try again.", as the other routes do. It does not re-mint, because an unflagged exchange is not a sign-in.
 3. Calls `requestAccountDeletion`. A failure goes through `xvmApiErrorResponse`, which passes a 409 (unpaid payroll, last owner) through with its message and treats a 401 as an expired link.
 4. On success it calls `invalidateXvmApiCredential` (the API has already revoked the credential) and returns `{ anonymisesAt }`.
 
@@ -34,7 +34,7 @@ Dialog states:
 
 - **Idle:** the confirmation text and Cancel / Delete my account.
 - **Refused (409):** the API's text appears in the dialog, which stays open.
-- **Accepted:** the dialog shows "Scheduled for deletion on <date>. Sign in again before then to cancel." with one Sign out button that calls `signOut({ callbackUrl: "/" })`.
+- **Accepted:** the dialog closes and the Danger zone card itself shows "Scheduled for deletion on <date>. Sign in again before then to cancel." with a Sign out button that calls `signOut({ callbackUrl: "/" })`. The card, not the dialog, holds the message so it survives the dialog being dismissed.
 - **Other failure (503):** a generic error in the dialog, which stays open.
 
 ## Tests

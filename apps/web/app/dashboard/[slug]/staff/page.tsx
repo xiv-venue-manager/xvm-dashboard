@@ -4,8 +4,7 @@ import { redirect, notFound } from "next/navigation"
 import Link from "next/link"
 import { Button } from "@/components/ui/button"
 import { formatGilCompact } from "@/lib/format"
-import { prisma } from "@/lib/prisma"
-import { roleInVenue } from "@/lib/api/venue-access"
+import { resolveMyVenue } from "@/lib/api/venue-access"
 import { Users, Shield } from "lucide-react"
 import { FormerStaff } from "@/components/former-staff"
 import { PendingInvites } from "@/components/pending-invites"
@@ -65,10 +64,9 @@ export default async function StaffPage({ params }: { params: Promise<{ slug: st
   const { slug } = await params
 
   // Get venue
-  const venue = await prisma.venue.findUnique({ where: { slug } })
-
-  const userRole = venue ? await roleInVenue(session.user.id, venue) : null
-  if (!venue || !userRole) notFound()
+  const venue = await resolveMyVenue(session.user.id, slug)
+  if (!venue) notFound()
+  const userRole = venue.role
 
 
   // xvm-api splits active memberships and pending invites into two separate
@@ -79,12 +77,12 @@ export default async function StaffPage({ params }: { params: Promise<{ slug: st
   let pendingInvites: PendingInviteShape[] = []
 
   const token = await getValidXvmApiToken(session.user.id)
-  if (token && venue.xvmApiVenueId) {
+  if (token) {
     try {
       const [memberships, positions, invites] = await Promise.all([
-        listMemberships(token, venue.xvmApiVenueId),
-        listPositions(token, venue.xvmApiVenueId),
-        listInvites(token, venue.xvmApiVenueId),
+        listMemberships(token, venue.id),
+        listPositions(token, venue.id),
+        listInvites(token, venue.id),
       ])
       const positionsById = new Map(positions.map((p) => [p.id, p]))
       // roster() returns every membership regardless of employment status -
@@ -108,7 +106,7 @@ export default async function StaffPage({ params }: { params: Promise<{ slug: st
   const weekAgo = new Date(Date.now() - 7 * 24 * 60 * 60 * 1000)
 
   const statsTo = new Date(weekAgo.getTime() + 7 * 24 * 60 * 60 * 1000)
-  const readXvm = await xvmPageReader(session.user.id, venue.xvmApiVenueId)
+  const readXvm = await xvmPageReader(session.user.id, venue.id)
   const [activeShifts, weeklyShifts, weeklyTransactions] = await Promise.all([
     readXvm("staff page on-now", [] as ShiftRow[], (t, v) => listShiftsOnNow(t, v)),
     readXvm("staff page weekly shifts", [] as ShiftRow[], (t, v) =>

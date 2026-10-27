@@ -72,15 +72,3 @@ export const validators = {
     .max(40, "Character name too long (max 40 characters)"),
   world: z.string().trim().min(1, "World is required").max(32, "World name too long (max 32 characters)"),
 }
-
-// ============================================
-// Discord Content Sanitization
-// ============================================
-
-export function sanitizeDiscordContent(text: string | null | undefined): string {
-  if (!text) return ""
-
-  const sanitized = text.replace(/@(everyone|here)/gi, "@​$1").replace(/https?:\/\/[^\s]+/gi, "[link removed]")
-
-  return sanitized.slice(0, 100)
-}

@@ -61,7 +61,6 @@ Added to `Membership` model:
 
 - Links Discord account to pending membership
 - Updates status to "active"
-- Sends Discord webhook notification (if configured)
 - Requires user to be signed in
 
 ### Pages
@@ -102,12 +101,6 @@ Added to `Membership` model:
 - User cannot already be a member
 - Invite can only be used once
 - Token cleared after acceptance
-
-### Discord Webhook
-
-- Sends notification when staff joins
-- Includes staff name and role
-- Only if webhook is configured and enabled
 
 ---
 
@@ -157,7 +150,6 @@ Email field in User model is now:
 3. **Result**:
    ```
    - Bob now appears in "Active Staff" list
-   - Discord webhook sent: "👋 Bob has joined the team as staff"
    - Invite token removed (can't be reused)
    ```
 
@@ -244,7 +236,6 @@ DATABASE_URL=your_database_url
 - Invite expiration (7 days)
 - Pending invite tracking
 - Auto-accept on Discord auth
-- Discord webhook notifications
 - Email completely removed from UI
 - Secure token generation
 - One-time use invites
@@ -292,7 +283,7 @@ DATABASE_URL=your_database_url
 2. **Send invites via Discord DM** for security
 3. **Check pending invites regularly** to see who hasn't joined yet
 4. **Don't reuse old invite links** (they're one-time use)
-5. **Monitor Discord webhooks** to see when staff join
+5. **Check the staff list** to see when staff join
 
 ---
 

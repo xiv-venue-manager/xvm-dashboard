@@ -148,7 +148,6 @@ All shadcn/ui components automatically inherit the theme:
 
 - Form inputs with Surface0 backgrounds
 - Toggle switches with Lavender focus rings
-- Discord webhook section with accent highlights
 
 ---
 

@@ -1,68 +1,30 @@
 /**
- * Script to grant admin privileges to a user
- * Usage: npx tsx scripts/make-admin.ts <email_or_discord_id>
+ * Platform admin is decided by xvm-api now: `people.is_platform_admin`, which the dashboard reads as
+ * the `platform_admin` scope on the person's credential. This script used to set the dashboard's own
+ * `User.isAdmin`, which nothing reads any more, so it prints the SQL to run on xvm-api's database.
+ * Usage: npx tsx scripts/make-admin.ts <discord_id>
  */
 
-import { PrismaClient } from "../generated/prisma/client"
-import { PrismaPg } from "@prisma/adapter-pg"
+const discordId = process.argv[2]
 
-const adapter = new PrismaPg({ connectionString: process.env.DATABASE_URL! })
-const prisma = new PrismaClient({ adapter })
-
-async function makeAdmin() {
-  const identifier = process.argv[2]
-
-  if (!identifier) {
-    console.error("❌ Error: Please provide an email or Discord ID")
-    console.log("\nUsage:")
-    console.log("  npx tsx scripts/make-admin.ts <email_or_discord_id>")
-    console.log("\nExamples:")
-    console.log("  npx tsx scripts/make-admin.ts user@example.com")
-    console.log("  npx tsx scripts/make-admin.ts 123456789012345678")
-    process.exit(1)
-  }
-
-  try {
-    console.log(`\n🔍 Looking for user: ${identifier}`)
-
-    // Try to find user by email or Discord ID
-    const user = await prisma.user.findFirst({
-      where: {
-        OR: [{ email: identifier }, { discordId: identifier }],
-      },
-    })
-
-    if (!user) {
-      console.error(`\n❌ Error: No user found with email or Discord ID: ${identifier}`)
-      console.log("\nTip: Make sure the user has logged in at least once")
-      process.exit(1)
-    }
-
-    if (user.isAdmin) {
-      console.log(`\n✅ User is already an admin:`)
-      console.log(`   Name: ${user.displayName || user.name}`)
-      console.log(`   Email: ${user.email}`)
-      console.log(`   Discord ID: ${user.discordId}`)
-      process.exit(0)
-    }
-
-    // Update user to admin
-    const updatedUser = await prisma.user.update({
-      where: { id: user.id },
-      data: { isAdmin: true },
-    })
-
-    console.log(`\n✅ Successfully granted admin privileges!`)
-    console.log(`   Name: ${updatedUser.displayName || updatedUser.name}`)
-    console.log(`   Email: ${updatedUser.email}`)
-    console.log(`   Discord ID: ${updatedUser.discordId}`)
-    console.log(`\n🎉 You can now access the admin panel at: /admin/feedback`)
-  } catch (error) {
-    console.error("\n❌ Error making user admin:", error)
-    process.exit(1)
-  } finally {
-    await prisma.$disconnect()
-  }
+if (!discordId || !/^\d{17,20}$/.test(discordId)) {
+  console.error("Usage: npx tsx scripts/make-admin.ts <discord_id>")
+  console.error("The Discord id is the numeric user id, 17 to 20 digits.")
+  process.exit(1)
 }
 
-makeAdmin()
+const person = `(SELECT person_id FROM person_accounts WHERE provider = 'discord' AND external_id = '${discordId}')`
+
+console.log(`Nothing was changed. Platform admin lives in xvm-api now, not in the dashboard's database.
+
+Run this against xvm-api's Postgres database:
+
+  UPDATE people SET is_platform_admin = true WHERE id = ${person};
+  UPDATE credentials SET revoked_at = now()
+    WHERE client = 'dashboard' AND revoked_at IS NULL AND person_id = ${person};
+
+xvm-api fixes the scope when it mints a credential, so revoking their dashboard credential is what makes
+the change apply on their next request instead of their next sign-in. To remove an admin, run the same
+two statements with is_platform_admin = false.`)
+
+process.exit(1)

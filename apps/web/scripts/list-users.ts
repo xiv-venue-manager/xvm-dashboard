@@ -20,7 +20,6 @@ async function listUsers() {
         name: true,
         displayName: true,
         discordId: true,
-        isAdmin: true,
         createdAt: true,
       },
       orderBy: {
@@ -34,16 +33,14 @@ async function listUsers() {
     }
 
     users.forEach((user, index) => {
-      console.log(`${index + 1}. ${user.isAdmin ? "👑" : "👤"} ${user.displayName || user.name || "Unknown"}`)
+      console.log(`${index + 1}. 👤 ${user.displayName || user.name || "Unknown"}`)
       console.log(`   Email: ${user.email || "N/A"}`)
       console.log(`   Discord ID: ${user.discordId || "N/A"}`)
-      console.log(`   Admin: ${user.isAdmin ? "Yes" : "No"}`)
       console.log(`   Joined: ${user.createdAt.toLocaleDateString()}`)
       console.log()
     })
 
     console.log(`Total users: ${users.length}`)
-    console.log(`Admins: ${users.filter((u) => u.isAdmin).length}`)
   } catch (error) {
     console.error("\n❌ Error listing users:", error)
     process.exit(1)

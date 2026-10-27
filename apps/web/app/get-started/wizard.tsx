@@ -4,6 +4,7 @@ import { useState } from "react"
 import { useRouter } from "next/navigation"
 import { ArrowLeft, ArrowRight, Check, ExternalLink } from "lucide-react"
 import { FFXIV_DISTRICTS, addressProblem } from "@/lib/venue-location"
+import { DISCORD_BOT_INVITE_URL } from "@/lib/discord-invite"
 
 // ── DC / World data ──────────────────────────────────────────────
 const DATA_CENTERS = [
@@ -542,7 +543,7 @@ export function GetStartedWizard() {
                     Manage VIPs, track staff, and sync your schedule - all from your Discord server.
                   </p>
                   <a
-                    href="https://discord.com/oauth2/authorize?client_id=1224902245821321338"
+                    href={DISCORD_BOT_INVITE_URL}
                     target="_blank"
                     rel="noopener noreferrer"
                     style={{

@@ -35,6 +35,7 @@ import type { VenueSettings } from "@xiv-venue-manager/types"
 import type { ListingLinkRow, ListingSummary } from "@/lib/api/xvm-api"
 import { FFXIV_DISTRICTS, addressProblem, isDistrict } from "@/lib/venue-location"
 import { canManageVenue } from "@/lib/roles"
+import { DISCORD_BOT_INVITE_URL } from "@/lib/discord-invite"
 
 const SETTINGS_LOAD_TIMEOUT_MS = 8000
 const SAVE_OFF_MESSAGE = "Saving is off: this venue's profile couldn't be loaded from xvm-api. Reload the page to try again."
@@ -1463,7 +1464,7 @@ export default function SettingsPage({ params }: { params: Promise<{ slug: strin
                       <p className="text-xs text-[var(--fg-faint)] mt-1">
                         Enable Developer Mode in Discord settings to copy channel IDs.{" "}
                         <a
-                          href={`https://discord.com/oauth2/authorize?client_id=${process.env.NEXT_PUBLIC_DISCORD_APPLICATION_ID}&scope=bot&permissions=274877908992`}
+                          href={DISCORD_BOT_INVITE_URL}
                           target="_blank"
                           rel="noopener noreferrer"
                           className="text-[var(--xiv-blue)] hover:underline"

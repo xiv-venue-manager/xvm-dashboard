@@ -34,7 +34,7 @@ Dialog states:
 
 - **Idle:** the confirmation text and Cancel / Delete my account.
 - **Refused (409):** the API's text appears in the dialog, which stays open.
-- **Accepted:** the dialog closes and the Danger zone card itself shows "Scheduled for deletion on <date>. Sign in again before then to cancel." with a Sign out button that calls `signOut({ callbackUrl: "/" })`. The card, not the dialog, holds the message so it survives the dialog being dismissed.
+- **Accepted:** the dialog closes and the Danger zone card itself shows "Scheduled for deletion on <date>. Sign in again before then to cancel." with a Sign out button that calls `signOut({ callbackUrl: "/" })`. The card, not the dialog, holds the message so it survives the dialog being dismissed. Superseded: the deleting tab now signs out at once and the card is gone, see `2026-10-27-end-session-on-pending-deletion-design.md`.
 - **Other failure (503):** a generic error in the dialog, which stays open.
 
 ## Tests

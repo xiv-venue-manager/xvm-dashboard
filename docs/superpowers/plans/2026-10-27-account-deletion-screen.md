@@ -12,6 +12,8 @@
 
 **Conventions to hold to:** no inline comments that explain WHAT; no em dashes in user-facing text; match surrounding style (no Prettier yet); one worktree (`~/xvm-dashboard-delete-account`, branch `feat/account-deletion-screen`). Run commands from `apps/web` unless stated.
 
+> **Superseded in part:** the accepted state described here (a scheduled-date card with a Sign out button) was replaced by signing the deleting tab out at once. See `docs/superpowers/plans/2026-10-27-end-session-on-pending-deletion.md`.
+
 ---
 
 ## File map

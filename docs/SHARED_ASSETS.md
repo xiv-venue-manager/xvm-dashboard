@@ -55,6 +55,7 @@ House-specific:
 | `display-name` | `resolveDisplayName` | The one order for what to call a staff member |
 | `roles` | `canManageVenue`, `isVenueOwner` | OWNER and MANAGER tier checks |
 | `callback-url` | `signInCallbackUrl` | Where sign-in returns to. Link to `/auth/signin?callbackUrl=<path>`; anything but a same-origin path falls back to `/dashboard` |
+| `sign-in-reason` | `DELETION_REASON`, `DELETION_SIGN_IN_URL`, `signInNotice` | The one reason code and notice text for a session ended by a pending deletion. Redirect to `DELETION_SIGN_IN_URL`; the sign-in page passes `?reason=` to `signInNotice`, which answers null for an unknown or missing reason |
 | `redis-cache` | `getCached`, `setCache`, `getOrSet`, `invalidateCache`, `cacheKeys`, `cacheTTL` | Cache-aside. `getOrSet` cannot skip caching a failure, use `getCached` and `setCache` for that |
 | `rate-limit`, `middleware/with-rate-limit` | `withRateLimit`, `checkLimit`, `budgets` | Wrap an API route handler |
 | `storage` | `getUploadUrl`, `deleteObject`, `keyFromUrl` | MinIO |

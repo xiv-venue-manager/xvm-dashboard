@@ -16,7 +16,7 @@ export const DELETE = withRateLimit(
     const token = await getValidXvmApiToken(session.user.id)
     if (!token) {
       return NextResponse.json(
-        { error: "xvm-api link not established yet. Sign out and back in, then try again." },
+        { error: "xvm-api link not established yet. If your account is already scheduled for deletion, signing in again will cancel it. Otherwise sign out and back in, then try again." },
         { status: 503 }
       )
     }

@@ -44,7 +44,7 @@ describe("DELETE /api/user/deletion", () => {
     m.token.mockResolvedValue(null)
     const res = await call()
     expect(res.status).toBe(503)
-    expect((await res.json()).error).toContain("Sign out and back in")
+    expect((await res.json()).error).toContain("scheduled for deletion")
     expect(m.request).not.toHaveBeenCalled()
   })
 

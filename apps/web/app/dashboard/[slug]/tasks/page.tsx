@@ -79,7 +79,6 @@ interface Role {
 
 const TASK_CATEGORIES = ["Setup", "Cleanup", "Promotional", "Maintenance", "Administrative", "Other"]
 
-// Matches the Discord task-notification embed colors (lib/discord-webhook.ts) so priority reads the same everywhere.
 const PRIORITY_COLORS: Record<string, string> = {
   URGENT: "#ed4245",
   HIGH: "#faa61a",

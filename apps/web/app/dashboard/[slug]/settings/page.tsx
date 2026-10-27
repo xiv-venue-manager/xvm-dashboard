@@ -15,7 +15,6 @@ import { LogoUpload } from "@/components/logo-upload"
 import { DiscordGuildConnect } from "@/components/discord-guild-connect"
 import { ChannelPicker } from "@/components/discord-picker"
 import type { VenueImage } from "@/lib/api/xvm-api"
-import { Checkbox } from "@/components/ui/checkbox"
 import { Select, SelectContent, SelectItem, SelectTrigger, SelectValue } from "@/components/ui/select"
 import { Alert, AlertDescription } from "@/components/ui/alert"
 import {
@@ -48,20 +47,6 @@ export default function SettingsPage({ params }: { params: Promise<{ slug: strin
     salesVisibility: "all",
     revenueVisibility: "all",
     eventVisibility: "all",
-    discordWebhookUrl: "",
-    webhooks: {
-      taskCreated: false,
-      taskCompleted: false,
-      partakeEvent: false,
-      saleLogged: false,
-      dailySalesSummary: false,
-      staffJoined: false,
-    },
-    discordWebhooks: {
-      staff: "",
-      events: "",
-      revenue: "",
-    },
     partakeTeamId: null,
     venueType: null,
   })
@@ -192,23 +177,6 @@ export default function SettingsPage({ params }: { params: Promise<{ slug: strin
           setLogoUrl(settingsData.logoUrl ?? null)
           setSettings({
             ...settingsData,
-            // Ensure discordWebhookUrl is never null
-            discordWebhookUrl: settingsData.discordWebhookUrl || "",
-            // Ensure webhooks object exists with defaults
-            webhooks: settingsData.webhooks || {
-              taskCreated: false,
-              taskCompleted: false,
-              partakeEvent: false,
-              saleLogged: false,
-              dailySalesSummary: false,
-              staffJoined: false,
-            },
-            // Ensure discordWebhooks object exists with defaults
-            discordWebhooks: settingsData.discordWebhooks || {
-              staff: "",
-              events: "",
-              revenue: "",
-            },
             partakeTeamId: null,
             venueType: settingsData.venueType ?? null,
           })
@@ -324,7 +292,7 @@ export default function SettingsPage({ params }: { params: Promise<{ slug: strin
         throw new Error(d.error || "Failed to save venue profile")
       }
 
-      // Save settings JSON (tagline, tags, hours, permissions, webhooks etc.)
+      // Save settings JSON (tagline, tags, hours, permissions etc.)
       const settingsRes = await fetch(`/api/venues/${slug}/settings`, {
         method: "PUT",
         headers: { "Content-Type": "application/json" },
@@ -1367,7 +1335,7 @@ export default function SettingsPage({ params }: { params: Promise<{ slug: strin
                 </span>
                 <div className="iinfo">
                   <div className="iname">Discord</div>
-                  <div className="idesc">OAuth sign-in and event webhooks</div>
+                  <div className="idesc">OAuth sign-in</div>
                 </div>
                 <span className="status open">
                   <span className="dot" />
@@ -1706,147 +1674,6 @@ export default function SettingsPage({ params }: { params: Promise<{ slug: strin
                   />
                   <span className="text-sm">{inventoryEnabled ? "Enabled" : "Disabled"}</span>
                 </label>
-              </div>
-            </section>
-
-            {/* ── Discord Webhooks ── */}
-            <section className="panel">
-              <div className="ph">
-                <span className="pt">
-                  <svg
-                    xmlns="http://www.w3.org/2000/svg"
-                    viewBox="0 0 24 24"
-                    fill="none"
-                    stroke="currentColor"
-                    strokeWidth="2"
-                  >
-                    <path d="M18 8A6 6 0 0 0 6 8c0 7-3 9-3 9h18s-3-2-3-9" />
-                    <path d="M13.73 21a2 2 0 0 1-3.46 0" />
-                  </svg>
-                  Discord Webhooks
-                </span>
-              </div>
-              <div className="pbody space-y-5">
-                <p className="text-xs text-[var(--fg-faint)]">
-                  Server Settings → Integrations → Webhooks → New Webhook. Paste the URL below.
-                </p>
-                {[
-                  {
-                    id: "webhook-staff",
-                    label: "Staff operations",
-                    desc: "Task and staff notifications",
-                    value: settings.discordWebhooks.staff,
-                    onChange: (v: string) =>
-                      setSettings({ ...settings, discordWebhooks: { ...settings.discordWebhooks, staff: v } }),
-                    checks: [
-                      {
-                        id: "task-created",
-                        label: "Task created",
-                        val: settings.webhooks.taskCreated,
-                        set: (v: boolean) =>
-                          setSettings({ ...settings, webhooks: { ...settings.webhooks, taskCreated: v } }),
-                        disabled: false,
-                      },
-                      {
-                        id: "task-done",
-                        label: "Task completed",
-                        val: settings.webhooks.taskCompleted,
-                        set: (v: boolean) =>
-                          setSettings({ ...settings, webhooks: { ...settings.webhooks, taskCompleted: v } }),
-                        disabled: false,
-                      },
-                      {
-                        id: "staff-joined",
-                        label: "Staff joined",
-                        val: settings.webhooks.staffJoined,
-                        set: (v: boolean) =>
-                          setSettings({ ...settings, webhooks: { ...settings.webhooks, staffJoined: v } }),
-                        disabled: false,
-                      },
-                    ],
-                  },
-                  {
-                    id: "webhook-events",
-                    label: "Events channel",
-                    desc: "Event announcements and Partake mirrors",
-                    value: settings.discordWebhooks.events,
-                    onChange: (v: string) =>
-                      setSettings({ ...settings, discordWebhooks: { ...settings.discordWebhooks, events: v } }),
-                    checks: [
-                      {
-                        id: "partake-mirror",
-                        label: "Partake event mirror",
-                        val: settings.webhooks.partakeEvent,
-                        set: (v: boolean) =>
-                          setSettings({ ...settings, webhooks: { ...settings.webhooks, partakeEvent: v } }),
-                        disabled: !settings.partakeTeamId,
-                      },
-                    ],
-                  },
-                  {
-                    id: "webhook-revenue",
-                    label: "Revenue channel",
-                    desc: "Sales and daily summaries",
-                    value: settings.discordWebhooks.revenue,
-                    onChange: (v: string) =>
-                      setSettings({ ...settings, discordWebhooks: { ...settings.discordWebhooks, revenue: v } }),
-                    checks: [
-                      {
-                        id: "sale-logged",
-                        label: "Sale logged",
-                        val: settings.webhooks.saleLogged,
-                        set: (v: boolean) =>
-                          setSettings({ ...settings, webhooks: { ...settings.webhooks, saleLogged: v } }),
-                        disabled: false,
-                      },
-                      {
-                        id: "daily-summary",
-                        label: "Daily sales summary",
-                        val: settings.webhooks.dailySalesSummary,
-                        set: (v: boolean) =>
-                          setSettings({ ...settings, webhooks: { ...settings.webhooks, dailySalesSummary: v } }),
-                        disabled: false,
-                      },
-                    ],
-                  },
-                ].map((wh) => (
-                  <div key={wh.id}>
-                    <Label
-                      htmlFor={wh.id}
-                      className="text-xs font-semibold text-muted-foreground uppercase tracking-wide mb-1.5 block"
-                    >
-                      {wh.label}
-                    </Label>
-                    <Input
-                      id={wh.id}
-                      type="url"
-                      placeholder="https://discord.com/api/webhooks/…"
-                      value={wh.value}
-                      onChange={(e) => wh.onChange(e.target.value)}
-                      disabled={isSaving}
-                      className="bg-background border-[var(--blue-015)] focus:border-[var(--blue-035)] text-sm h-9 mb-1"
-                    />
-                    <p className="text-xs text-[var(--fg-faint)] mb-2">{wh.desc}</p>
-                    {wh.value && (
-                      <div className="flex flex-wrap gap-x-4 gap-y-1.5 pl-2 border-l-2 border-[var(--blue-015)]">
-                        {wh.checks.map((c) => (
-                          <label
-                            key={c.id}
-                            className={`flex items-center gap-2 text-xs cursor-pointer ${c.disabled ? "opacity-40 cursor-not-allowed" : ""}`}
-                          >
-                            <Checkbox
-                              checked={c.val}
-                              onCheckedChange={(v) => c.set(v as boolean)}
-                              disabled={isSaving || c.disabled}
-                              className="w-3.5 h-3.5"
-                            />
-                            {c.label}
-                          </label>
-                        ))}
-                      </div>
-                    )}
-                  </div>
-                ))}
               </div>
             </section>
 

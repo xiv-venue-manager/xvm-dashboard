@@ -23,7 +23,8 @@ vi.mock("@/lib/api/xvm-api-store", () => ({
   xvmApiErrorResponse: vi.fn(),
 }))
 
-import { PUT } from "./route"
+import { GET, PUT } from "./route"
+import { getDefaultVenueSettings } from "@/lib/types/venue-settings"
 
 const CHANNEL = "1509616350337962099"
 const OLD_CHANNEL = "1409616350337962011"
@@ -42,7 +43,7 @@ beforeEach(() => {
     settings: { shiftBot: shiftBot(OLD_CHANNEL) },
     venueType: null,
   })
-  m.venueUpdate.mockResolvedValue({ settings: {}, discordWebhookUrl: null })
+  m.venueUpdate.mockResolvedValue({ settings: {} })
   m.channel.mockResolvedValue({ ok: true })
 })
 
@@ -106,5 +107,39 @@ describe("PUT /api/venues/[venueId]/settings, shift bot channel", () => {
   it("does not check a save that has no shift bot in it", async () => {
     await put({ tagline: "Open nightly" })
     expect(m.channel).not.toHaveBeenCalled()
+  })
+})
+
+describe("venue webhook settings are retired", () => {
+  const stored = {
+    ...getDefaultVenueSettings(),
+    tagline: "Old",
+    webhooks: { saleLogged: true },
+    discordWebhooks: { staff: "https://discord.com/api/webhooks/1/a", events: "", revenue: "" },
+  }
+
+  it("accepts a PUT that still carries webhook fields, drops them, and keeps the stored ones", async () => {
+    m.venueFind.mockResolvedValue({ id: "vn_1", settings: stored, venueType: null })
+    const res = await put({
+      tagline: "New",
+      webhooks: { saleLogged: false },
+      discordWebhooks: { staff: "https://discord.com/api/webhooks/2/b" },
+      discordWebhookUrl: "https://discord.com/api/webhooks/3/c",
+    })
+    expect(res.status).toBe(200)
+    const data = m.venueUpdate.mock.calls[0][0].data
+    expect(data).not.toHaveProperty("discordWebhookUrl")
+    expect(data.settings.tagline).toBe("New")
+    expect(data.settings.webhooks).toEqual(stored.webhooks)
+    expect(data.settings.discordWebhooks).toEqual(stored.discordWebhooks)
+    expect(m.venueUpdate.mock.calls[0][0].select).not.toHaveProperty("discordWebhookUrl")
+  })
+
+  it("does not return a discordWebhookUrl from GET", async () => {
+    m.venueFind.mockResolvedValue({ settings: stored, venueType: null, froggeToken: null })
+    const res = await GET(new Request("http://localhost/api") as never, context as never)
+    expect(res.status).toBe(200)
+    expect(await res.json()).not.toHaveProperty("discordWebhookUrl")
+    expect(m.venueFind.mock.calls[0][0].select).not.toHaveProperty("discordWebhookUrl")
   })
 })

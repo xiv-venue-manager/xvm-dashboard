@@ -9,14 +9,24 @@ vi.mock("@/lib/prisma", () => ({
   prisma: { user: { update: m.userUpdate }, account: { findFirst: m.accountFindFirst } },
 }))
 vi.mock("@next-auth/prisma-adapter", () => ({ PrismaAdapter: () => ({}) }))
-vi.mock("@/lib/api/xvm-api", () => ({ exchangeToken: vi.fn() }))
+vi.mock("@/lib/api/xvm-api", () => ({
+  exchangeToken: vi.fn(),
+  XvmApiError: class XvmApiError extends Error {
+    constructor(
+      public status: number,
+      public body: string
+    ) {
+      super(`xvm-api ${status}: ${body}`)
+    }
+  },
+}))
 vi.mock("@/lib/api/xvm-api-store", () => ({
   upsertXvmApiCredential: vi.fn(),
   getValidXvmApiToken: vi.fn(),
 }))
 
 import { authOptions } from "./auth"
-import { exchangeToken } from "@/lib/api/xvm-api"
+import { exchangeToken, XvmApiError } from "@/lib/api/xvm-api"
 import { getValidXvmApiToken } from "@/lib/api/xvm-api-store"
 import { SESSION_COOKIE_NAME } from "@/lib/session-cookie"
 
@@ -99,6 +109,57 @@ describe("jwt", () => {
   it("stores no grant for another provider", async () => {
     const token = await jwt({ token: { id: "u1" }, user: { id: "u1" }, account: { ...account, provider: "github" } })
     expect(token.discord).toBeUndefined()
+  })
+
+  describe("a pending deletion", () => {
+    const refreshing = () => {
+      vi.mocked(getValidXvmApiToken).mockResolvedValue(null)
+      m.accountFindFirst.mockResolvedValue({ providerAccountId: "4242" })
+    }
+
+    it("marks the token when the refresh exchange is refused with a 409", async () => {
+      refreshing()
+      vi.mocked(exchangeToken).mockRejectedValueOnce(
+        new XvmApiError(409, '{"detail":"This account is scheduled for deletion. Sign in again to cancel it."}')
+      )
+      const token = await jwt({ token: { id: "u1", name: "A" } })
+      expect(token.deletionPending).toBe(true)
+      expect(console.error).not.toHaveBeenCalled()
+    })
+
+    it("does not mark the token for any other failure, which stays logged and non-fatal", async () => {
+      refreshing()
+      vi.mocked(exchangeToken)
+        .mockRejectedValueOnce(new XvmApiError(503, "down"))
+        .mockRejectedValueOnce(new Error("network"))
+      expect((await jwt({ token: { id: "u1", name: "A" } })).deletionPending).toBeUndefined()
+      expect((await jwt({ token: { id: "u1", name: "A" } })).deletionPending).toBeUndefined()
+      expect(console.error).toHaveBeenCalledTimes(2)
+    })
+
+    it("does not try to mint a token again while the marker is set", async () => {
+      refreshing()
+      const token = await jwt({ token: { id: "u1", name: "A", deletionPending: true } })
+      expect(token.deletionPending).toBe(true)
+      expect(getValidXvmApiToken).not.toHaveBeenCalled()
+      expect(exchangeToken).not.toHaveBeenCalled()
+    })
+  })
+})
+
+describe("session", () => {
+  // eslint-disable-next-line @typescript-eslint/no-explicit-any
+  const session = (args: any) => (authOptions.callbacks!.session as any)(args)
+
+  it("exposes the pending deletion marker", async () => {
+    const out = await session({ session: { user: {} }, token: { id: "u1", deletionPending: true } })
+    expect(out.deletionPending).toBe(true)
+    expect(out.user.id).toBe("u1")
+  })
+
+  it("leaves the flag off a normal session", async () => {
+    const out = await session({ session: { user: {} }, token: { id: "u1" } })
+    expect(out.deletionPending).toBeUndefined()
   })
 })
 

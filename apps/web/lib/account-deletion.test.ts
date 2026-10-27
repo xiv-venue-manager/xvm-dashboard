@@ -32,4 +32,13 @@ describe("deletionOutcome", () => {
   it("does not call a 200 without a date scheduled", () => {
     expect(deletionOutcome(200, {})).toEqual({ kind: "failed", message: DELETION_FAILED })
   })
+
+  it("does not call a 200 with an unparseable date scheduled", () => {
+    expect(deletionOutcome(200, { anonymisesAt: "garbage" })).toEqual({ kind: "failed", message: DELETION_FAILED })
+  })
+
+  it("falls back to the generic message when a 409 error is empty or not a string", () => {
+    expect(deletionOutcome(409, { error: "" })).toEqual({ kind: "refused", message: DELETION_FAILED })
+    expect(deletionOutcome(409, { error: 5 })).toEqual({ kind: "refused", message: DELETION_FAILED })
+  })
 })

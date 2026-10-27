@@ -1,5 +1,5 @@
 import type { MetadataRoute } from "next"
-import { prisma } from "@/lib/prisma"
+import { listPublicDirectory } from "@/lib/api/xvm-api"
 import { DATA_CENTRES } from "./discover/[dc]/page"
 
 export const dynamic = "force-dynamic"
@@ -8,14 +8,10 @@ export const revalidate = 3600
 const BASE = "https://xivvenuemanager.com"
 
 export default async function sitemap(): Promise<MetadataRoute.Sitemap> {
-  const venues = await prisma.venue.findMany({
-    where: { isActive: true },
-    select: { slug: true, updatedAt: true },
-  })
+  const venues = await listPublicDirectory()
 
   const venueEntries: MetadataRoute.Sitemap = venues.map((v) => ({
     url: `${BASE}/venues/${v.slug}`,
-    lastModified: v.updatedAt,
     changeFrequency: "daily",
     priority: 0.7,
   }))

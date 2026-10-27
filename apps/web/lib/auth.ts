@@ -2,7 +2,7 @@ import { NextAuthOptions } from "next-auth"
 import { PrismaAdapter } from "@next-auth/prisma-adapter"
 import DiscordProvider from "next-auth/providers/discord"
 import { prisma } from "@/lib/prisma"
-import { exchangeToken } from "@/lib/api/xvm-api"
+import { exchangeToken, XvmApiError } from "@/lib/api/xvm-api"
 import { upsertXvmApiCredential, getValidXvmApiToken } from "@/lib/api/xvm-api-store"
 import { SESSION_COOKIE_NAME } from "@/lib/session-cookie"
 
@@ -74,8 +74,10 @@ export const authOptions: NextAuthOptions = {
         }
       }
       // Refresh the xvm-api token on every callback invocation if it's missing
-      // or near expiry. Same non-fatal handling as above.
-      if (token.id && !isFirstDiscordSignIn) {
+      // or near expiry. Same non-fatal handling as above, except a 409: xvm-api
+      // has revoked every credential for an account that is scheduled for
+      // deletion (or deleted), so this session cannot continue.
+      if (token.id && !isFirstDiscordSignIn && !token.deletionPending) {
         try {
           const existing = await getValidXvmApiToken(token.id as string)
           if (!existing) {
@@ -88,7 +90,11 @@ export const authOptions: NextAuthOptions = {
             }
           }
         } catch (err) {
-          console.error("xvm-api token refresh failed:", err)
+          if (err instanceof XvmApiError && err.status === 409) {
+            token.deletionPending = true
+          } else {
+            console.error("xvm-api token refresh failed:", err)
+          }
         }
       }
       return token
@@ -96,6 +102,9 @@ export const authOptions: NextAuthOptions = {
     async session({ session, token }) {
       if (session.user) {
         session.user.id = token.id as string
+      }
+      if (token.deletionPending) {
+        session.deletionPending = true
       }
       return session
     },

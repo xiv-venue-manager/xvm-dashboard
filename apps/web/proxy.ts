@@ -2,6 +2,7 @@ import { NextResponse } from "next/server"
 import type { NextRequest } from "next/server"
 import { getToken } from "next-auth/jwt"
 import { SESSION_COOKIE_NAME, SESSION_COOKIE_SECURE } from "@/lib/session-cookie"
+import { DELETION_REASON } from "@/lib/sign-in-reason"
 
 function buildCsp(nonce: string): string {
   const isDev = process.env.NODE_ENV === "development"
@@ -65,9 +66,11 @@ export async function proxy(req: NextRequest) {
       cookieName: SESSION_COOKIE_NAME,
       secureCookie: SESSION_COOKIE_SECURE,
     })
-    if (!token) {
+    const pending = token?.deletionPending
+    if (!token || pending) {
       const signInUrl = new URL("/auth/signin", req.url)
       signInUrl.searchParams.set("callbackUrl", path + req.nextUrl.search)
+      if (pending) signInUrl.searchParams.set("reason", DELETION_REASON)
       return NextResponse.redirect(signInUrl)
     }
   }

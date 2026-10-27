@@ -3,6 +3,7 @@ import "next-auth/jwt"
 
 declare module "next-auth" {
   interface Session {
+    deletionPending?: boolean
     user: {
       id: string
       name?: string | null
@@ -22,6 +23,7 @@ declare module "next-auth" {
 declare module "next-auth/jwt" {
   interface JWT {
     id: string
+    deletionPending?: boolean
     discord?: { accessToken: string; expiresAt: number | null; scope: string | null }
   }
 }

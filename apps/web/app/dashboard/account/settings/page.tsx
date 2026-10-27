@@ -3,7 +3,7 @@
 import { useEffect, useState } from "react"
 import { useSession, signOut } from "next-auth/react"
 import Link from "next/link"
-import { ArrowLeft, Save, LogOut, Trash2, Bell, Key } from "lucide-react"
+import { ArrowLeft, Save, Trash2, Bell, Key } from "lucide-react"
 import {
   AlertDialog,
   AlertDialogAction,
@@ -15,6 +15,8 @@ import {
   AlertDialogTitle,
   AlertDialogTrigger,
 } from "@/components/ui/alert-dialog"
+import { DELETION_FAILED, deletionOutcome, type DeletionOutcome } from "@/lib/account-deletion"
+import { DELETION_SIGN_IN_URL } from "@/lib/sign-in-reason"
 
 export default function AccountSettingsPage() {
   const { data: session } = useSession()
@@ -30,6 +32,32 @@ export default function AccountSettingsPage() {
     eventRsvp: false,
     dailySummary: false,
   })
+
+  const [deleteOpen, setDeleteOpen] = useState(false)
+  const [deleting, setDeleting] = useState(false)
+  const [deletion, setDeletion] = useState<Exclude<DeletionOutcome, { kind: "scheduled" }> | null>(null)
+
+  const requestDeletion = async () => {
+    setDeleting(true)
+    let outcome: DeletionOutcome
+    try {
+      const res = await fetch("/api/user/deletion", { method: "DELETE" })
+      const body: unknown = await res.json().catch(() => null)
+      outcome = deletionOutcome(res.status, body)
+    } catch {
+      outcome = { kind: "failed", message: DELETION_FAILED }
+    }
+    if (outcome.kind === "scheduled") {
+      try {
+        await signOut({ callbackUrl: DELETION_SIGN_IN_URL })
+      } catch {
+        window.location.assign(DELETION_SIGN_IN_URL)
+      }
+      return
+    }
+    setDeletion(outcome)
+    setDeleting(false)
+  }
 
 
   useEffect(() => {
@@ -211,23 +239,6 @@ export default function AccountSettingsPage() {
         </div>
       </div>
 
-      {/* Sign out */}
-      <div className="vcard overflow-hidden mt-6">
-        <div className="flex items-center gap-2 px-[22px] py-[13px] border-b border-[var(--blue-008)] font-semibold text-sm">
-          Session
-        </div>
-        <div className="pbody">
-          <button
-            onClick={() => signOut({ callbackUrl: "/" })}
-            className="flex items-center gap-2 px-5 py-2.5 rounded-lg text-sm font-semibold border border-[var(--blue-018)] text-foreground hover:bg-[var(--blue-007)] transition-colors"
-          >
-            <LogOut className="w-4 h-4" />
-            Sign out
-          </button>
-          <p className="field-hint mt-2">Signs you out on this device.</p>
-        </div>
-      </div>
-
       {/* Danger zone */}
       <div className="vcard overflow-hidden mt-6 border-[rgba(243,139,168,0.25)]">
         <div className="flex items-center gap-2 px-[22px] py-[13px] border-b border-[rgba(243,139,168,0.15)] font-semibold text-sm text-[var(--support-pink)]">
@@ -235,9 +246,17 @@ export default function AccountSettingsPage() {
         </div>
         <div className="pbody">
           <p className="text-[0.88rem] text-muted-foreground mb-4">
-            Deleting your account is permanent. All your venues, events, sales and staff data will be removed.
+            Deleting your account ends your role at every venue now and signs you out everywhere. Your account is
+            anonymised after 30 days. Sign in again before then to cancel the deletion, though your venue roles stay ended.
           </p>
-          <AlertDialog>
+          <AlertDialog
+            open={deleteOpen}
+            onOpenChange={(open) => {
+              if (deleting) return
+              setDeleteOpen(open)
+              if (!open) setDeletion(null)
+            }}
+          >
             <AlertDialogTrigger asChild>
               <button className="flex items-center gap-2 px-5 py-2.5 rounded-lg text-sm font-semibold border border-[rgba(243,139,168,0.35)] text-[var(--support-pink)] bg-[rgba(243,139,168,0.06)] hover:bg-[rgba(243,139,168,0.12)] transition-colors">
                 <Trash2 className="w-4 h-4" />
@@ -248,19 +267,24 @@ export default function AccountSettingsPage() {
               <AlertDialogHeader>
                 <AlertDialogTitle>Delete your account?</AlertDialogTitle>
                 <AlertDialogDescription>
-                  This will permanently delete your account and all associated data. This action cannot be undone.
+                  Your role at every venue ends now and you are signed out everywhere. Your account is anonymised after
+                  30 days. Signing in again before then cancels the deletion, but your venue roles stay ended.
                 </AlertDialogDescription>
               </AlertDialogHeader>
+              {deletion && (
+                <p role="alert" className="text-sm text-[var(--destructive)]">{deletion.message}</p>
+              )}
               <AlertDialogFooter>
-                <AlertDialogCancel>Cancel</AlertDialogCancel>
+                <AlertDialogCancel disabled={deleting}>Cancel</AlertDialogCancel>
                 <AlertDialogAction
+                  disabled={deleting}
                   className="bg-[var(--support-pink)] text-[#070b14] hover:bg-pink-400"
-                  onClick={async () => {
-                    await fetch("/api/user/account", { method: "DELETE" })
-                    signOut({ callbackUrl: "/" })
+                  onClick={(event) => {
+                    event.preventDefault()
+                    void requestDeletion()
                   }}
                 >
-                  Delete permanently
+                  {deleting ? "Deleting…" : "Delete my account"}
                 </AlertDialogAction>
               </AlertDialogFooter>
             </AlertDialogContent>

@@ -4,6 +4,20 @@ import Image from "next/image"
 import { signIn } from "next-auth/react"
 import { Button } from "@/components/ui/button"
 import { signInCallbackUrl } from "@/lib/callback-url"
+import { Suspense } from "react"
+import { useSearchParams } from "next/navigation"
+import { Alert, AlertDescription } from "@/components/ui/alert"
+import { signInNotice } from "@/lib/sign-in-reason"
+
+function SignInNotice() {
+  const notice = signInNotice(useSearchParams().get("reason"))
+  if (!notice) return null
+  return (
+    <Alert>
+      <AlertDescription>{notice}</AlertDescription>
+    </Alert>
+  )
+}
 
 export default function SignInPage() {
   return (
@@ -27,6 +41,10 @@ export default function SignInPage() {
             <h1 className="font-cinzel text-2xl font-bold tracking-wide">Welcome Back</h1>
             <p className="text-muted-foreground text-sm">Sign in to access your venue dashboard</p>
           </div>
+
+          <Suspense fallback={null}>
+            <SignInNotice />
+          </Suspense>
 
           <Button
             onClick={() =>

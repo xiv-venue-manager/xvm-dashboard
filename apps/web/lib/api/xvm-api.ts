@@ -345,6 +345,16 @@ export async function updateMyDisplayName(personToken: string, displayName: stri
   return xvmFetch<MePerson>("/me", { method: "PATCH", body: JSON.stringify({ display_name: displayName }) }, personToken)
 }
 
+export interface AccountDeletion {
+  requested_at: string
+  anonymises_at: string
+}
+
+export async function requestAccountDeletion(personToken: string): Promise<AccountDeletion> {
+  if (!process.env.XVM_API_BASE_URL) throw new Error("XVM_API_BASE_URL is not set")
+  return xvmFetch<AccountDeletion>("/me", { method: "DELETE" }, personToken)
+}
+
 export interface MyVenueRow {
   venue: VenueRow
   tier: string

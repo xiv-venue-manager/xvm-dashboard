@@ -56,4 +56,12 @@ describe("proxy", () => {
 
     expect(new URL(res.headers.get("location")!).searchParams.has("reason")).toBe(false)
   })
+
+  it("lets a marked token reach the sign-in page, so it cannot loop", async () => {
+    m.getToken.mockResolvedValue({ id: "user-1", deletionPending: true })
+
+    const res = await proxy(new NextRequest("http://localhost:3000/auth/signin"))
+
+    expect(res.headers.get("location")).toBeNull()
+  })
 })

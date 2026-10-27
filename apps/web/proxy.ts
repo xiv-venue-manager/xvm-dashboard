@@ -66,10 +66,11 @@ export async function proxy(req: NextRequest) {
       cookieName: SESSION_COOKIE_NAME,
       secureCookie: SESSION_COOKIE_SECURE,
     })
-    if (!token || token.deletionPending) {
+    const pending = token?.deletionPending
+    if (!token || pending) {
       const signInUrl = new URL("/auth/signin", req.url)
       signInUrl.searchParams.set("callbackUrl", path + req.nextUrl.search)
-      if (token) signInUrl.searchParams.set("reason", DELETION_REASON)
+      if (pending) signInUrl.searchParams.set("reason", DELETION_REASON)
       return NextResponse.redirect(signInUrl)
     }
   }

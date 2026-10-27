@@ -39,7 +39,7 @@ Dialog states:
 
 ## Tests
 
-Route tests: no session gives 401; no stored token gives 409 and makes no API call; a 409 from xvm-api is passed through with its message; success drops the credential; `prisma.user.delete` is never called. The `xvm-api.ts` helper gets a request-shape test. Then `tsc`, eslint, the full vitest run, and a live check against a local xvm-api at the #217 head: request, 409 path (an owner of an active venue), accepted state, and cancel by signing in again.
+Route tests: no session gives 401; no stored token gives 503 and makes no API call; a 409 from xvm-api is passed through with its message; success drops the credential; `prisma.user.delete` is never called. The `xvm-api.ts` helper gets a request-shape test. Then `tsc`, eslint, the full vitest run, and a live check against a local xvm-api at the #217 head: request, 409 path (an owner of an active venue), accepted state, and cancel by signing in again.
 
 ## Out of scope
 

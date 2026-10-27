@@ -241,16 +241,9 @@ export function NavbarClient({ session, venues }: NavbarClientProps) {
                 asChild
                 variant="ghost"
                 size="sm"
-                className="hidden sm:inline-flex text-sm text-foreground/60 hover:text-foreground hover:bg-[rgba(0,180,255,0.06)]"
+                className="text-sm text-foreground/60 hover:text-foreground hover:bg-[rgba(0,180,255,0.06)]"
               >
                 <Link href="/auth/signin">Sign In</Link>
-              </Button>
-              <Button
-                asChild
-                size="sm"
-                className="font-cinzel font-semibold tracking-wide ml-1 text-xs xiv-btn-shimmer xiv-cta"
-              >
-                <Link href="/auth/signin">Get Started</Link>
               </Button>
             </>
           )}

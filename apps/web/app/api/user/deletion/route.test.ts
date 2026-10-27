@@ -66,10 +66,12 @@ describe("DELETE /api/user/deletion", () => {
   })
 
   it("still reports success when clearing the stored credential fails, since xvm-api already revoked it", async () => {
-    vi.spyOn(console, "error").mockImplementation(() => {})
+    const spy = vi.spyOn(console, "error").mockImplementation(() => {})
     m.invalidate.mockRejectedValue(new Error("db down"))
     const res = await call()
     expect(res.status).toBe(200)
+    expect(spy).toHaveBeenCalled()
+    spy.mockRestore()
   })
 
   it("never deletes the Prisma user", async () => {

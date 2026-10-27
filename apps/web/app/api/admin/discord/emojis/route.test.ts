@@ -1,8 +1,9 @@
 import { describe, it, expect, vi, beforeEach } from "vitest"
 
-const { mockSession, mockUser, mockFetch, mockGetCached, mockSetCache } = vi.hoisted(() => ({
+const { mockSession, mockMe, mockToken, mockFetch, mockGetCached, mockSetCache } = vi.hoisted(() => ({
   mockSession: vi.fn(),
-  mockUser: vi.fn(),
+  mockMe: vi.fn(),
+  mockToken: vi.fn(),
   mockFetch: vi.fn(),
   mockGetCached: vi.fn(),
   mockSetCache: vi.fn(),
@@ -11,7 +12,11 @@ const { mockSession, mockUser, mockFetch, mockGetCached, mockSetCache } = vi.hoi
 vi.mock("next-auth", () => ({ getServerSession: mockSession }))
 vi.mock("@/lib/auth", () => ({ authOptions: {} }))
 vi.mock("@/lib/middleware/with-rate-limit", () => ({ withRateLimit: (handler: unknown) => handler }))
-vi.mock("@/lib/prisma", () => ({ prisma: { user: { findUnique: mockUser } } }))
+vi.mock("@/lib/api/xvm-api", () => ({ getMe: mockMe }))
+vi.mock("@/lib/api/xvm-api-store", () => ({
+  getValidXvmApiToken: mockToken,
+  xvmApiErrorResponse: () => new Response(null, { status: 503 }),
+}))
 vi.mock("@/lib/redis-cache", () => ({
   getCached: mockGetCached,
   setCache: mockSetCache,
@@ -31,7 +36,8 @@ beforeEach(() => {
   vi.clearAllMocks()
   vi.spyOn(console, "error").mockImplementation(() => {})
   mockSession.mockResolvedValue({ user: { id: "user-1" } })
-  mockUser.mockResolvedValue({ isAdmin: true })
+  mockMe.mockResolvedValue({ scopes: ["platform_admin"] })
+  mockToken.mockResolvedValue("tok")
   mockGetCached.mockResolvedValue(null)
   mockSetCache.mockResolvedValue(undefined)
   mockFetch.mockResolvedValue({ ok: true, data: emojis })
@@ -60,15 +66,22 @@ describe("GET admin/discord/emojis", () => {
   it("rejects an unauthenticated caller before looking anything up", async () => {
     mockSession.mockResolvedValue(null)
     expect((await get()).status).toBe(401)
-    expect(mockUser).not.toHaveBeenCalled()
+    expect(mockMe).not.toHaveBeenCalled()
     expect(mockFetch).not.toHaveBeenCalled()
   })
 
   it("refuses a non-admin before calling Discord, naming itself as the refuser", async () => {
-    mockUser.mockResolvedValue({ isAdmin: false })
+    mockMe.mockResolvedValue({ scopes: [] })
     const res = await get()
     expect(res.status).toBe(403)
     expect((await res.json()).error).toBe("not_admin")
+    expect(mockFetch).not.toHaveBeenCalled()
+  })
+
+  it("answers 503 without an xvm-api credential, since the admin scope is read from it", async () => {
+    mockToken.mockResolvedValue(null)
+    expect((await get()).status).toBe(503)
+    expect(mockMe).not.toHaveBeenCalled()
     expect(mockFetch).not.toHaveBeenCalled()
   })
 

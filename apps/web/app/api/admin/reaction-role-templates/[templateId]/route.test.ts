@@ -1,8 +1,8 @@
 import { describe, it, expect, vi, beforeEach } from "vitest"
 
-const { mockSession, mockUser, mockToken, mockUpdate, mockDelete } = vi.hoisted(() => ({
+const { mockSession, mockMe, mockToken, mockUpdate, mockDelete } = vi.hoisted(() => ({
   mockSession: vi.fn(),
-  mockUser: vi.fn(),
+  mockMe: vi.fn(),
   mockToken: vi.fn(),
   mockUpdate: vi.fn(),
   mockDelete: vi.fn(),
@@ -11,12 +11,12 @@ const { mockSession, mockUser, mockToken, mockUpdate, mockDelete } = vi.hoisted(
 vi.mock("next-auth", () => ({ getServerSession: mockSession }))
 vi.mock("@/lib/auth", () => ({ authOptions: {} }))
 vi.mock("@/lib/middleware/with-rate-limit", () => ({ withRateLimit: (handler: unknown) => handler }))
-vi.mock("@/lib/prisma", () => ({ prisma: { user: { findUnique: mockUser } } }))
 vi.mock("@/lib/api/xvm-api-store", () => ({
   getValidXvmApiToken: mockToken,
   xvmApiErrorResponse: () => new Response(null, { status: 503 }),
 }))
 vi.mock("@/lib/api/xvm-api", () => ({
+  getMe: mockMe,
   updateReactionRoleTemplate: mockUpdate,
   deleteReactionRoleTemplate: mockDelete,
 }))
@@ -41,7 +41,7 @@ beforeEach(() => {
   vi.clearAllMocks()
   vi.spyOn(console, "error").mockImplementation(() => {})
   mockSession.mockResolvedValue({ user: { id: "user-1" } })
-  mockUser.mockResolvedValue({ isAdmin: true })
+  mockMe.mockResolvedValue({ scopes: ["platform_admin"] })
   mockToken.mockResolvedValue("tok")
   mockUpdate.mockResolvedValue({ id: 7, name: "Pronouns" })
   mockDelete.mockResolvedValue(undefined)
@@ -78,7 +78,7 @@ describe("PATCH admin/reaction-role-templates/[templateId]", () => {
   })
 
   it("refuses a non-admin before calling xvm-api", async () => {
-    mockUser.mockResolvedValue({ isAdmin: false })
+    mockMe.mockResolvedValue({ scopes: [] })
     expect((await patch("7", { title: "x" })).status).toBe(403)
     expect(mockUpdate).not.toHaveBeenCalled()
   })

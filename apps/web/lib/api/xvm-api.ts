@@ -38,6 +38,7 @@ export interface Me {
   client: string
   name: string
   venue_narrow: string | null
+  scopes: string[]
   person: MePerson | null
   memberships: MeMembership[]
 }

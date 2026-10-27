@@ -1,8 +1,8 @@
 import { describe, it, expect, vi, beforeEach } from "vitest"
 
-const { mockSession, mockUser, mockToken, mockAdd } = vi.hoisted(() => ({
+const { mockSession, mockMe, mockToken, mockAdd } = vi.hoisted(() => ({
   mockSession: vi.fn(),
-  mockUser: vi.fn(),
+  mockMe: vi.fn(),
   mockToken: vi.fn(),
   mockAdd: vi.fn(),
 }))
@@ -10,12 +10,11 @@ const { mockSession, mockUser, mockToken, mockAdd } = vi.hoisted(() => ({
 vi.mock("next-auth", () => ({ getServerSession: mockSession }))
 vi.mock("@/lib/auth", () => ({ authOptions: {} }))
 vi.mock("@/lib/middleware/with-rate-limit", () => ({ withRateLimit: (handler: unknown) => handler }))
-vi.mock("@/lib/prisma", () => ({ prisma: { user: { findUnique: mockUser } } }))
 vi.mock("@/lib/api/xvm-api-store", () => ({
   getValidXvmApiToken: mockToken,
   xvmApiErrorResponse: () => new Response(null, { status: 503 }),
 }))
-vi.mock("@/lib/api/xvm-api", () => ({ addReactionRoleTemplateOption: mockAdd }))
+vi.mock("@/lib/api/xvm-api", () => ({ getMe: mockMe, addReactionRoleTemplateOption: mockAdd }))
 
 import { POST } from "./route"
 
@@ -33,7 +32,7 @@ beforeEach(() => {
   vi.clearAllMocks()
   vi.spyOn(console, "error").mockImplementation(() => {})
   mockSession.mockResolvedValue({ user: { id: "user-1" } })
-  mockUser.mockResolvedValue({ isAdmin: true })
+  mockMe.mockResolvedValue({ scopes: ["platform_admin"] })
   mockToken.mockResolvedValue("tok")
   mockAdd.mockResolvedValue({ id: 3, ...option })
 })
@@ -85,7 +84,7 @@ describe("POST admin/reaction-role-templates/[templateId]/options", () => {
   })
 
   it("refuses a non-admin before validating or calling xvm-api", async () => {
-    mockUser.mockResolvedValue({ isAdmin: false })
+    mockMe.mockResolvedValue({ scopes: [] })
     const res = await post("7", { name: "" })
     expect(res.status).toBe(403)
     expect(mockAdd).not.toHaveBeenCalled()

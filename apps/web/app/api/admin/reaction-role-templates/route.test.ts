@@ -1,8 +1,8 @@
 import { describe, it, expect, vi, beforeEach } from "vitest"
 
-const { mockSession, mockUser, mockToken, mockList, mockCreate } = vi.hoisted(() => ({
+const { mockSession, mockMe, mockToken, mockList, mockCreate } = vi.hoisted(() => ({
   mockSession: vi.fn(),
-  mockUser: vi.fn(),
+  mockMe: vi.fn(),
   mockToken: vi.fn(),
   mockList: vi.fn(),
   mockCreate: vi.fn(),
@@ -11,12 +11,12 @@ const { mockSession, mockUser, mockToken, mockList, mockCreate } = vi.hoisted(()
 vi.mock("next-auth", () => ({ getServerSession: mockSession }))
 vi.mock("@/lib/auth", () => ({ authOptions: {} }))
 vi.mock("@/lib/middleware/with-rate-limit", () => ({ withRateLimit: (handler: unknown) => handler }))
-vi.mock("@/lib/prisma", () => ({ prisma: { user: { findUnique: mockUser } } }))
 vi.mock("@/lib/api/xvm-api-store", () => ({
   getValidXvmApiToken: mockToken,
   xvmApiErrorResponse: () => new Response(null, { status: 503 }),
 }))
 vi.mock("@/lib/api/xvm-api", () => ({
+  getMe: mockMe,
   listReactionRoleTemplates: mockList,
   createReactionRoleTemplate: mockCreate,
 }))
@@ -36,7 +36,7 @@ beforeEach(() => {
   vi.clearAllMocks()
   vi.spyOn(console, "error").mockImplementation(() => {})
   mockSession.mockResolvedValue({ user: { id: "user-1" } })
-  mockUser.mockResolvedValue({ isAdmin: true })
+  mockMe.mockResolvedValue({ scopes: ["platform_admin"] })
   mockToken.mockResolvedValue("tok")
   mockList.mockResolvedValue([])
   mockCreate.mockResolvedValue({ id: 1, ...valid })
@@ -55,7 +55,7 @@ describe("GET admin/reaction-role-templates", () => {
   })
 
   it("refuses a signed-in non-admin before calling xvm-api", async () => {
-    mockUser.mockResolvedValue({ isAdmin: false })
+    mockMe.mockResolvedValue({ scopes: [] })
     expect((await get()).status).toBe(403)
     expect(mockList).not.toHaveBeenCalled()
   })
@@ -64,7 +64,7 @@ describe("GET admin/reaction-role-templates", () => {
   // want opposite advice - "you are not an admin" against "reconnect your link". The page tells
   // them apart by this code, so renaming it silently sends admins to fix the wrong thing.
   it("names itself as the refuser, so the page does not blame the scope", async () => {
-    mockUser.mockResolvedValue({ isAdmin: false })
+    mockMe.mockResolvedValue({ scopes: [] })
     expect((await (await get()).json()).error).toBe("not_admin")
   })
 
@@ -94,13 +94,12 @@ describe("POST admin/reaction-role-templates", () => {
   })
 
   it("refuses a non-admin before validating or calling xvm-api", async () => {
-    mockUser.mockResolvedValue({ isAdmin: false })
+    mockMe.mockResolvedValue({ scopes: [] })
     expect((await post(valid)).status).toBe(403)
     expect(mockCreate).not.toHaveBeenCalled()
   })
 
-  // The platform_admin scope lives on the xvm-api credential, not on User.isAdmin,
-  // so a dashboard admin without it gets a 403 from xvm-api. That must not read as success.
+  // A write xvm-api refuses must not read as success.
   it("does not answer 2xx when xvm-api refuses the write", async () => {
     mockCreate.mockRejectedValue(new Error("403 platform_admin required"))
     expect((await post(valid)).status).not.toBe(201)

@@ -43,6 +43,9 @@ export interface VenueRow {
   name: string
   slug: string
   description: string | null
+  tagline: string | null
+  tags: string[]
+  is_adult: boolean
   logo_url: string | null
   banner_url: string | null
   venue_type: string | null
@@ -97,10 +100,13 @@ const VOCABULARY = {
   revenueVisibility: ["all", "hide", "own"],
   eventVisibility: ["all", "published"],
 } as const
-const NO_HOME = ["tagline", "tags", "isAdult", "openNights", "defaultHours", "shiftBot", "notifications"] as const
+const NO_HOME = ["openNights", "defaultHours", "shiftBot", "notifications"] as const
 const MAX_NAME = 100
 const MAX_SHORT = 32
 const MAX_URL = 500
+const MAX_TAGLINE = 200
+const MAX_TAGS = 20
+const MAX_TAG = 50
 
 const squash = (value: string) => value.trim().replace(/\s+/g, " ")
 
@@ -123,6 +129,9 @@ export function mapVenues(source: VenuesExport, ctx: VenuesContext): VenuesResul
   let webhookFlags = 0
   let webhookUrls = 0
   let unusedDiscord = 0
+  let longTags = 0
+  let longTaglines = 0
+  let tagOverflow = 0
 
   for (const v of [...source.venues].sort((a, b) => a.createdAt.localeCompare(b.createdAt) || a.id.localeCompare(b.id))) {
     if (v.ownerCount === 0 && !v.hasContent) {
@@ -173,11 +182,37 @@ export function mapVenues(source: VenuesExport, ctx: VenuesContext): VenuesResul
       return url.trim()
     }
 
+    let tagline: string | null = null
+    if (typeof v.settings.tagline === "string" && v.settings.tagline.trim()) {
+      if (v.settings.tagline.trim().length > MAX_TAGLINE) longTaglines++
+      else tagline = v.settings.tagline.trim()
+    }
+
+    const tags: string[] = []
+    const seenTags = new Set<string>()
+    for (const raw of Array.isArray(v.settings.tags) ? v.settings.tags : []) {
+      const tag = typeof raw === "string" ? raw.trim() : ""
+      if (!tag || seenTags.has(tag.toLowerCase())) continue
+      if (tag.length > MAX_TAG) {
+        longTags++
+        continue
+      }
+      seenTags.add(tag.toLowerCase())
+      tags.push(tag)
+    }
+    if (tags.length > MAX_TAGS) {
+      tagOverflow += tags.length
+      tags.length = MAX_TAGS
+    }
+
     result.venues.push({
       key: v.id,
       name,
       slug,
       description: v.description === null ? null : v.description.trim() || null,
+      tagline,
+      tags,
+      is_adult: v.settings.isAdult === true,
       logo_url: keepUrl(v.logoUrl, "logo"),
       banner_url: keepUrl(v.bannerUrl, "banner"),
       venue_type: v.venueType,
@@ -247,6 +282,9 @@ export function mapVenues(source: VenuesExport, ctx: VenuesContext): VenuesResul
     if (v.discordServerId !== null && v.discordServerId.trim()) unusedDiscord++
   }
 
+  if (longTaglines > 0) warn("venues", `${longTaglines === 1 ? "tagline" : `${longTaglines} taglines`} over ${MAX_TAGLINE} characters, left empty`)
+  if (longTags > 0) warn("venues", `${longTags} tags were over ${MAX_TAG} characters, not carried`)
+  if (tagOverflow > 0) warn("venues", `${tagOverflow} tags is over xvm-api's limit of ${MAX_TAGS}, the first ${MAX_TAGS} are carried`)
   if (defaultedVisibility > 0) warn("venues", `${defaultedVisibility} visibility settings were missing or unknown, set to all`)
   if (droppedImages > 0) warn("venues", `${droppedImages} gallery images were blank or over ${MAX_URL} characters, not carried`)
   if (duplicateImages > 0) warn("venues", `${duplicateImages} repeated gallery images were collapsed to one`)

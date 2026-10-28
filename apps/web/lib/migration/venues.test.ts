@@ -44,7 +44,7 @@ const run = (venues: ExportedVenue[], c: VenuesContext = ctx()) => mapVenues({ v
 describe("venues", () => {
   it("maps a venue with its location, timezone and visibility", () => {
     expect(run([venue()]).venues[0]).toEqual({
-      key: "v1", name: "The Test Lounge", slug: "test-lounge", description: null, logo_url: null, banner_url: null,
+      key: "v1", name: "The Test Lounge", slug: "test-lounge", description: null, tagline: null, tags: [], is_adult: false, logo_url: null, banner_url: null,
       venue_type: "LOUNGE", data_center: "Aether", world: "Adamantoise", district: "Mist", ward: 12, plot: 30, room: null,
       timezone: "America/Toronto", currency_name: "Gil", task_visibility: "all", sales_visibility: "all",
       revenue_visibility: "all", event_visibility: "all", is_active: true,
@@ -127,8 +127,30 @@ describe("links, images and leftovers", () => {
   })
 
   it("keeps the settings xvm-api has no home for, so nothing is lost", () => {
-    const r = run([venue({ settings: { taskVisibility: "all", salesVisibility: "all", revenueVisibility: "all", eventVisibility: "all", tagline: "Come in", tags: ["bar"], openNights: ["fri"], webhooks: {}, discoverySources: [] } })])
-    expect(r.leftovers).toEqual([{ venue_key: "v1", settings: { tagline: "Come in", tags: ["bar"], openNights: ["fri"] } }])
+    const r = run([venue({ settings: { taskVisibility: "all", salesVisibility: "all", revenueVisibility: "all", eventVisibility: "all", openNights: ["fri"], webhooks: {}, discoverySources: [] } })])
+    expect(r.leftovers).toEqual([{ venue_key: "v1", settings: { openNights: ["fri"] } }])
+  })
+
+  it("carries the tagline, tags and adult flag into the venue row", () => {
+    const r = run([venue({ settings: { tagline: "  Come in  ", tags: ["bar", " Music ", "bar", "", "x".repeat(51)], isAdult: true } })])
+    expect(r.venues[0]).toMatchObject({ tagline: "Come in", tags: ["bar", "Music"], is_adult: true })
+    expect(r.leftovers).toEqual([])
+    expect(r.warnings.map((w) => w.message)).toContain("1 tags were over 50 characters, not carried")
+  })
+
+  it("defaults a venue with none of them to no tagline, no tags and not adult", () => {
+    const r = run([venue({ settings: { tagline: " ", tags: "bar", isAdult: "yes" } })])
+    expect(r.venues[0]).toMatchObject({ tagline: null, tags: [], is_adult: false })
+  })
+
+  it("leaves a tagline over 200 characters empty and caps tags at 20", () => {
+    const tags = Array.from({ length: 25 }, (_, i) => `t${i}`)
+    const r = run([venue({ settings: { tagline: "x".repeat(201), tags } })])
+    expect(r.venues[0].tagline).toBeNull()
+    expect(r.venues[0].tags).toEqual(tags.slice(0, 20))
+    expect(r.warnings.map((w) => w.message)).toEqual(
+      expect.arrayContaining(["tagline over 200 characters, left empty", "25 tags is over xvm-api's limit of 20, the first 20 are carried"])
+    )
   })
 
   it("does not count a venue whose webhook flags are all off or whose addresses are blank", () => {

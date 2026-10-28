@@ -3,7 +3,7 @@
 import { useEffect, useState } from "react"
 import { useSession, signOut } from "next-auth/react"
 import Link from "next/link"
-import { ArrowLeft, Save, Trash2, Bell, Key } from "lucide-react"
+import { ArrowLeft, Save, Trash2, Key } from "lucide-react"
 import {
   AlertDialog,
   AlertDialogAction,
@@ -27,11 +27,6 @@ export default function AccountSettingsPage() {
   const [saving, setSaving] = useState(false)
   const [saved, setSaved] = useState(false)
   const [error, setError] = useState("")
-
-  const [notifications, setNotifications] = useState({
-    eventRsvp: false,
-    dailySummary: false,
-  })
 
   const [deleteOpen, setDeleteOpen] = useState(false)
   const [deleting, setDeleting] = useState(false)
@@ -70,10 +65,6 @@ export default function AccountSettingsPage() {
           setSavedName(name)
           setDisplayName(name)
           setProfileLoaded(true)
-          const settings = data.settings as { notifications?: Record<string, boolean> } | undefined
-          if (settings?.notifications) {
-            setNotifications((prev) => ({ ...prev, ...settings.notifications }))
-          }
         } else {
           setError("Could not load your profile. Reload to edit it.")
         }
@@ -91,16 +82,13 @@ export default function AccountSettingsPage() {
       const res = await fetch("/api/user/profile", {
         method: "PATCH",
         headers: { "Content-Type": "application/json" },
-        body: JSON.stringify({
-          ...(displayName.trim() && displayName.trim() !== savedName ? { displayName: displayName.trim() } : {}),
-          notifications,
-        }),
+        body: JSON.stringify({ displayName: displayName.trim() }),
       })
       if (!res.ok) {
         const d = await res.json()
         throw new Error(d.error || "Failed to save")
       }
-      if (displayName.trim()) setSavedName(displayName.trim())
+      setSavedName(displayName.trim())
       setSaved(true)
       setTimeout(() => setSaved(false), 2500)
     } catch (e: unknown) {
@@ -109,6 +97,8 @@ export default function AccountSettingsPage() {
       setSaving(false)
     }
   }
+
+  const nameChanged = displayName.trim() !== "" && displayName.trim() !== savedName
 
   return (
     <div className="page-inner" style={{ maxWidth: 740 }}>
@@ -159,50 +149,8 @@ export default function AccountSettingsPage() {
 
           <button
             onClick={save}
-            disabled={saving || !profileLoaded}
+            disabled={saving || !profileLoaded || !nameChanged}
             className="xiv-btn-shimmer xiv-cta flex items-center gap-2 px-5 py-2.5 rounded-lg text-sm font-semibold disabled:opacity-50 disabled:cursor-not-allowed"
-          >
-            <Save className="w-4 h-4" />
-            {saving ? "Saving…" : saved ? "Saved!" : "Save changes"}
-          </button>
-        </div>
-      </div>
-
-      {/* Notifications */}
-      <div className="vcard overflow-hidden mt-6">
-        <div className="flex items-center gap-2 px-[22px] py-[13px] border-b border-[var(--blue-008)] font-semibold text-sm">
-          <Bell className="w-4 h-4" />
-          Notifications
-        </div>
-        <div className="pbody space-y-1">
-          {[
-            { key: "eventRsvp" as const, title: "Event RSVPs", desc: "When a patron RSVPs to an event." },
-            { key: "dailySummary" as const, title: "Daily summary", desc: "A nightly recap of sales and attendance." },
-          ].map(({ key, title, desc }) => (
-            <div key={key} className="flex items-center justify-between py-3 px-1">
-              <div>
-                <div className="text-sm font-medium">{title}</div>
-                <div className="text-xs text-[var(--fg-faint)]">{desc}</div>
-              </div>
-              <button
-                type="button"
-                onClick={() => setNotifications((prev) => ({ ...prev, [key]: !prev[key] }))}
-                className={`w-10 h-[22px] rounded-full transition-colors relative ${
-                  notifications[key] ? "bg-[var(--xiv-blue)]" : "bg-[var(--blue-018)]"
-                }`}
-              >
-                <span
-                  className={`absolute top-[3px] w-4 h-4 rounded-full bg-white transition-transform ${
-                    notifications[key] ? "left-[22px]" : "left-[3px]"
-                  }`}
-                />
-              </button>
-            </div>
-          ))}
-          <button
-            onClick={save}
-            disabled={saving}
-            className="xiv-btn-shimmer xiv-cta flex items-center gap-2 px-5 py-2.5 rounded-lg text-sm font-semibold disabled:opacity-50 disabled:cursor-not-allowed mt-4"
           >
             <Save className="w-4 h-4" />
             {saving ? "Saving…" : saved ? "Saved!" : "Save changes"}

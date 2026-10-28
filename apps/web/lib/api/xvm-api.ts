@@ -3610,6 +3610,20 @@ export async function unlinkVenueExternal(
   await xvmFetch<void>(`/venues/${venueId}/links/${linkId}`, { method: "DELETE" }, personToken)
 }
 
+export async function getVenueByLink(
+  personToken: string,
+  provider: string,
+  externalId: string
+): Promise<VenueRow | null> {
+  if (!process.env.XVM_API_BASE_URL) throw new Error("XVM_API_BASE_URL is not set")
+  try {
+    return await xvmFetch<VenueRow>(`/venues/by-link/${provider}/${encodeURIComponent(externalId)}`, {}, personToken)
+  } catch (err) {
+    if (err instanceof XvmApiError && err.status === 404) return null
+    throw err
+  }
+}
+
 export async function linkVenueExternal(
   personToken: string,
   venueId: string,

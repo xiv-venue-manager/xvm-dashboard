@@ -5,6 +5,7 @@ import { useRouter } from "next/navigation"
 import { ArrowLeft, ArrowRight, Check, ExternalLink } from "lucide-react"
 import { FFXIV_DISTRICTS, addressProblem } from "@/lib/venue-location"
 import { DISCORD_BOT_INVITE_URL } from "@/lib/discord-invite"
+import { connectServer, type ConnectServer } from "@/lib/connect-discord"
 
 // ── DC / World data ──────────────────────────────────────────────
 const DATA_CENTERS = [
@@ -47,7 +48,7 @@ const STEP_META = [
 ]
 
 // ── Component ────────────────────────────────────────────────────
-export function GetStartedWizard() {
+export function GetStartedWizard({ server }: { server: ConnectServer | null }) {
   const router = useRouter()
 
   const [step, setStep] = useState(1)
@@ -55,6 +56,7 @@ export function GetStartedWizard() {
   const [creating, setCreating] = useState(false)
   const [error, setError] = useState("")
   const [createdSlug, setCreatedSlug] = useState("")
+  const [serverProblem, setServerProblem] = useState<string | null>(null)
 
   // Step 1
   const [name, setName] = useState("")
@@ -111,6 +113,7 @@ export function GetStartedWizard() {
       setCreating(true)
       setError("")
       const slug = slugify(name)
+      let created = ""
       try {
         const res = await fetch("/api/venues", {
           method: "POST",
@@ -161,14 +164,16 @@ export function GetStartedWizard() {
               throw new Error(d2.error || "Failed")
             }
             const v2 = await res2.json()
-            setCreatedSlug(v2.slug)
+            created = v2.slug
           } else {
             throw new Error(d.error || "Failed to create venue")
           }
         } else {
           const v = await res.json()
-          setCreatedSlug(v.slug)
+          created = v.slug
         }
+        setCreatedSlug(created)
+        if (server) setServerProblem(await connectServer(created, server.id))
         setDone(true)
       } catch (e: unknown) {
         setError(e instanceof Error ? e.message : "Failed to create venue")
@@ -213,6 +218,16 @@ export function GetStartedWizard() {
                 }}
               >
                 Your venue is ready. Open the dashboard to schedule events and manage your staff.
+                {server &&
+                  (serverProblem ? (
+                    <>
+                      {" "}
+                      Connect {server.name ?? "your Discord server"} from Settings, since it couldn&apos;t be connected
+                      here: {serverProblem}
+                    </>
+                  ) : (
+                    <> It&apos;s connected to {server.name ?? "your Discord server"} too, so /menu there opens its menu.</>
+                  ))}
               </p>
               <button
                 onClick={() => router.push(`/dashboard/${createdSlug}`)}
@@ -538,28 +553,40 @@ export function GetStartedWizard() {
                     background: "var(--card)",
                   }}
                 >
-                  <div style={{ fontWeight: 600, fontSize: "0.95rem", marginBottom: 6 }}>
-                    Add the XIV Venue Manager bot to Discord
-                  </div>
-                  <p style={{ color: "var(--muted-foreground)", fontSize: "0.85rem", lineHeight: 1.55, margin: 0 }}>
-                    Manage VIPs, track staff, and sync your schedule - all from your Discord server.
-                  </p>
-                  <a
-                    href={DISCORD_BOT_INVITE_URL}
-                    target="_blank"
-                    rel="noopener noreferrer"
-                    style={{
-                      display: "inline-flex",
-                      alignItems: "center",
-                      gap: 6,
-                      marginTop: 10,
-                      fontSize: "0.85rem",
-                      fontWeight: 500,
-                      color: "var(--xiv-blue)",
-                    }}
-                  >
-                    Install the bot <ExternalLink style={{ width: 14, height: 14 }} />
-                  </a>
+                  {server ? (
+                    <>
+                      <div style={{ fontWeight: 600, fontSize: "0.95rem", marginBottom: 6 }}>Your Discord server</div>
+                      <p style={{ color: "var(--muted-foreground)", fontSize: "0.85rem", lineHeight: 1.55, margin: 0 }}>
+                        {server.name ?? "The server you came from"} will be connected to this venue once it&apos;s
+                        created.
+                      </p>
+                    </>
+                  ) : (
+                    <>
+                      <div style={{ fontWeight: 600, fontSize: "0.95rem", marginBottom: 6 }}>
+                        Add the XIV Venue Manager bot to Discord
+                      </div>
+                      <p style={{ color: "var(--muted-foreground)", fontSize: "0.85rem", lineHeight: 1.55, margin: 0 }}>
+                        Manage VIPs, track staff, and sync your schedule - all from your Discord server.
+                      </p>
+                      <a
+                        href={DISCORD_BOT_INVITE_URL}
+                        target="_blank"
+                        rel="noopener noreferrer"
+                        style={{
+                          display: "inline-flex",
+                          alignItems: "center",
+                          gap: 6,
+                          marginTop: 10,
+                          fontSize: "0.85rem",
+                          fontWeight: 500,
+                          color: "var(--xiv-blue)",
+                        }}
+                      >
+                        Install the bot <ExternalLink style={{ width: 14, height: 14 }} />
+                      </a>
+                    </>
+                  )}
                 </div>
               </>
             )}

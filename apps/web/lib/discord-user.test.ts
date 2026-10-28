@@ -1,8 +1,17 @@
 import { describe, it, expect, vi, beforeEach, afterEach } from "vitest"
+import { cookies, headers } from "next/headers"
 import { NextRequest } from "next/server"
 import { encode } from "next-auth/jwt"
 import { SESSION_COOKIE_NAME } from "@/lib/session-cookie"
-import { listManageableGuilds, administersGuild, discordGrantFrom, type DiscordGrant } from "./discord-user"
+import {
+  listManageableGuilds,
+  administersGuild,
+  discordGrantFrom,
+  discordGrantFromPage,
+  type DiscordGrant,
+} from "./discord-user"
+
+vi.mock("next/headers", () => ({ cookies: vi.fn(), headers: vi.fn() }))
 
 const fetchMock = vi.fn()
 vi.stubGlobal("fetch", fetchMock)
@@ -76,6 +85,19 @@ describe("listManageableGuilds", () => {
   it("reports Discord being down as unavailable", async () => {
     fetchMock.mockResolvedValue({ ok: false, status: 503 })
     expect(await listManageableGuilds(live)).toEqual({ ok: false, failure: "discord_unavailable" })
+  })
+})
+
+describe("discordGrantFromPage", () => {
+  it("reads the grant out of the page's own session cookie", async () => {
+    vi.stubEnv("NEXTAUTH_SECRET", "test-secret")
+    const jwt = await encode({ token: { id: "1", discord: live }, secret: "test-secret" })
+    const request = new NextRequest("https://x.test/connect/discord", {
+      headers: { cookie: `${SESSION_COOKIE_NAME}=${jwt}` },
+    })
+    vi.mocked(cookies).mockResolvedValue(request.cookies as never)
+    vi.mocked(headers).mockResolvedValue(request.headers as never)
+    expect(await discordGrantFromPage()).toEqual(live)
   })
 })
 

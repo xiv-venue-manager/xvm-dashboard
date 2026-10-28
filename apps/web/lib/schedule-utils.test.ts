@@ -17,7 +17,13 @@ describe("utcWeeklyToLocal", () => {
   it("shifts to the next local weekday when a late UTC time crosses local midnight", () => {
     // Saturday 23:30 UTC, Europe/London is UTC+1 in August (BST) -> Sunday 00:30 local
     process.env.TZ = "Europe/London"
-    expect(utcWeeklyToLocal(6, 23, 30)).toEqual({ day: 0, hour: 0, minute: 30 })
+    vi.useFakeTimers()
+    vi.setSystemTime(new Date(Date.UTC(2026, 7, 12, 12, 0, 0)))
+    try {
+      expect(utcWeeklyToLocal(6, 23, 30)).toEqual({ day: 0, hour: 0, minute: 30 })
+    } finally {
+      vi.useRealTimers()
+    }
   })
 
   it("shifts to the previous local weekday when a negative offset crosses local midnight backwards", () => {
@@ -55,7 +61,13 @@ describe("localDayOf", () => {
       commencing: null,
       label: null,
     }
-    expect(localDayOf(entry)).toBe(0)
+    vi.useFakeTimers()
+    vi.setSystemTime(new Date(Date.UTC(2026, 7, 12, 12, 0, 0)))
+    try {
+      expect(localDayOf(entry)).toBe(0)
+    } finally {
+      vi.useRealTimers()
+    }
   })
 })
 

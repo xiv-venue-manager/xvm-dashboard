@@ -142,4 +142,21 @@ describe("venue webhook settings are retired", () => {
     expect(await res.json()).not.toHaveProperty("discordWebhookUrl")
     expect(m.venueFind.mock.calls[0][0].select).not.toHaveProperty("discordWebhookUrl")
   })
+
+  it("serves no stored webhook address from GET", async () => {
+    m.venueFind.mockResolvedValue({ settings: stored, venueType: null, froggeToken: null })
+    const body = await (await GET(new Request("http://localhost/api") as never, context as never)).json()
+    expect(body.tagline).toBe("Old")
+    expect(body).not.toHaveProperty("discordWebhooks")
+    expect(body).not.toHaveProperty("webhooks")
+  })
+
+  it("serves no stored webhook address from PUT", async () => {
+    m.venueFind.mockResolvedValue({ id: "vn_1", settings: stored, venueType: null })
+    m.venueUpdate.mockResolvedValue({ settings: { ...stored, tagline: "New" } })
+    const body = await (await put({ tagline: "New" })).json()
+    expect(body.tagline).toBe("New")
+    expect(body).not.toHaveProperty("discordWebhooks")
+    expect(body).not.toHaveProperty("webhooks")
+  })
 })

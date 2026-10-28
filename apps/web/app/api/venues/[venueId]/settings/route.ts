@@ -66,6 +66,13 @@ const updateSettingsSchema = z.object({
   roomManagerRoleIds: z.array(z.string()).optional(),
 })
 
+function servedSettings(value: unknown): Record<string, unknown> {
+  const settings: Record<string, unknown> = { ...parseVenueSettings(value) }
+  delete settings.webhooks
+  delete settings.discordWebhooks
+  return settings
+}
+
 export const GET = withRateLimit<{ params: Promise<{ venueId: string }> }>(
   async (request, context) => {
     if (!context?.params) {
@@ -107,7 +114,7 @@ export const GET = withRateLimit<{ params: Promise<{ venueId: string }> }>(
       }
 
       const responseBody: Record<string, unknown> = {
-        ...parseVenueSettings(venue.settings),
+        ...servedSettings(venue.settings),
         venueType: venue.venueType,
         froggeToken: venue.froggeToken,
       }
@@ -281,7 +288,7 @@ export const PUT = withRateLimit<{ params: Promise<{ venueId: string }> }>(
       })
 
       const putResponseBody: Record<string, unknown> = {
-        ...parseVenueSettings(updatedVenue.settings),
+        ...servedSettings(updatedVenue.settings),
         venueType: venue.venueType,
       }
 

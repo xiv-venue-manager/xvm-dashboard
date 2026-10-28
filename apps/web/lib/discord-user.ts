@@ -1,4 +1,5 @@
 import { getToken } from "next-auth/jwt"
+import { cookies, headers } from "next/headers"
 import type { NextRequest } from "next/server"
 import { SESSION_COOKIE_NAME, SESSION_COOKIE_SECURE } from "@/lib/session-cookie"
 
@@ -45,6 +46,11 @@ export async function discordGrantFrom(request: NextRequest): Promise<DiscordGra
     secureCookie: SESSION_COOKIE_SECURE,
   })
   return token?.discord ?? null
+}
+
+// A server page has no NextRequest, but getToken reads nothing from one beyond its cookies and headers.
+export async function discordGrantFromPage(): Promise<DiscordGrant | null> {
+  return discordGrantFrom({ cookies: await cookies(), headers: await headers() } as unknown as NextRequest)
 }
 
 // Deliberately the caller's own Discord token, not the bot's. A guild may only be linked by

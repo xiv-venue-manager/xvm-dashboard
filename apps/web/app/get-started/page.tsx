@@ -8,11 +8,29 @@ export const metadata: Metadata = {
 import { getServerSession } from "next-auth"
 import { authOptions } from "@/lib/auth"
 import { redirect } from "next/navigation"
+import { getGuildPresence } from "@/lib/discord-rest"
+import { administersGuild, discordGrantFromPage } from "@/lib/discord-user"
+import { guildIdFrom, signInUrl, type ConnectServer } from "@/lib/connect-discord"
 import { GetStartedWizard } from "./wizard"
 
-export default async function GetStartedPage() {
-  const session = await getServerSession(authOptions)
-  if (!session?.user) redirect("/auth/signin?callbackUrl=/get-started")
+async function serverToConnect(guildId: string | null): Promise<ConnectServer | null> {
+  if (!guildId) return null
+  const [presence, authority] = await Promise.all([
+    getGuildPresence(guildId),
+    discordGrantFromPage().then((grant) => administersGuild(grant, guildId)),
+  ])
+  if (!presence.botIsMember || !authority.ok || !authority.administers) return null
+  return { id: guildId, name: presence.name, iconUrl: presence.iconUrl }
+}
 
-  return <GetStartedWizard />
+export default async function GetStartedPage({
+  searchParams,
+}: {
+  searchParams: Promise<{ guild?: string | string[] }>
+}) {
+  const session = await getServerSession(authOptions)
+  const guildId = guildIdFrom((await searchParams).guild)
+  if (!session?.user) redirect(signInUrl(guildId ? `/get-started?guild=${guildId}` : "/get-started"))
+
+  return <GetStartedWizard server={await serverToConnect(guildId)} />
 }

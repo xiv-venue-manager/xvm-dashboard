@@ -6,12 +6,16 @@ import { withRateLimit } from "@/lib/middleware/with-rate-limit"
 import { getValidXvmApiToken, xvmApiErrorResponse } from "@/lib/api/xvm-api-store"
 import { getMyTeamProfile, updateMyTeamProfile } from "@/lib/api/xvm-api"
 import { TEAM_BIO_MAX } from "@/lib/team-groups"
+import { PHOTO_ZOOM_MAX, PHOTO_ZOOM_MIN } from "@/lib/team-photo"
 import { refreshTeamPage } from "@/lib/refresh-team"
 
 const updateSchema = z
   .object({
     bio: z.string().max(TEAM_BIO_MAX).nullable().optional(),
     listed: z.boolean().optional(),
+    photo_x: z.number().min(0).max(1).optional(),
+    photo_y: z.number().min(0).max(1).optional(),
+    photo_zoom: z.number().min(PHOTO_ZOOM_MIN).max(PHOTO_ZOOM_MAX).optional(),
   })
   .strict()
 

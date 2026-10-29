@@ -3646,6 +3646,9 @@ export interface PublicTeamMember {
   group: string
   bio: string | null
   photo_url: string | null
+  photo_x: number
+  photo_y: number
+  photo_zoom: number
 }
 
 export interface PublicTeam {
@@ -3659,6 +3662,9 @@ export interface TeamProfile extends PublicTeamMember {
 export interface TeamProfileUpdate {
   bio?: string | null
   listed?: boolean
+  photo_x?: number
+  photo_y?: number
+  photo_zoom?: number
 }
 
 export interface AdminTeamMember extends TeamProfile {

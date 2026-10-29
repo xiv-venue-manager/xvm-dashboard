@@ -7,6 +7,9 @@ const member = (name: string, group: string) => ({
   group,
   bio: null,
   photo_url: null,
+  photo_x: 0.5,
+  photo_y: 0.5,
+  photo_zoom: 1,
 })
 
 describe("groupTeam", () => {

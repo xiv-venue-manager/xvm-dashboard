@@ -58,6 +58,12 @@ describe("team client", () => {
     expect(JSON.parse(init.body as string)).toEqual({ bio: "Hello" })
   })
 
+  it("sends photo position and zoom in the patch", async () => {
+    respond({ name: "N" })
+    await updateMyTeamProfile("tok", { photo_x: 0.2, photo_y: 0.8, photo_zoom: 1.5 })
+    expect(JSON.parse(lastCall()[1].body as string)).toEqual({ photo_x: 0.2, photo_y: 0.8, photo_zoom: 1.5 })
+  })
+
   it("uploads a photo as multipart without setting its own content type", async () => {
     respond({ name: "N" })
     await setMyTeamPhoto("tok", new Blob(["x"], { type: "image/png" }))

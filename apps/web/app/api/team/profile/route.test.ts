@@ -24,7 +24,7 @@ type Handler = (req: Request) => Promise<Response>
 const get = () => (GET as unknown as Handler)(new Request("http://localhost/api"))
 const patch = (body: unknown) =>
   (PATCH as unknown as Handler)(new Request("http://localhost/api", { method: "PATCH", body: JSON.stringify(body) }))
-const card = { name: "N", role_title: "Developer", group_label: "Builders", bio: null, photo_url: null, listed: true }
+const card = { name: "N", role_title: "Developer", group_label: "Builders", bio: null, photo_url: null, photo_x: 0.5, photo_y: 0.5, photo_zoom: 1, listed: true }
 
 beforeEach(() => {
   vi.clearAllMocks()
@@ -55,7 +55,7 @@ describe("GET /api/team/profile", () => {
 
 describe("PATCH /api/team/profile", () => {
   it("rejects fields a member may not set, with no API call", async () => {
-    for (const body of [{ role_title: "Boss" }, { group_label: "X" }, { sort_order: 0 }, { bio: "x".repeat(1001) }, { listed: null }]) {
+    for (const body of [{ role_title: "Boss" }, { group_label: "X" }, { sort_order: 0 }, { bio: "x".repeat(1001) }, { listed: null }, { sort_order: 0, photo_x: 0.5 }]) {
       expect((await patch(body)).status).toBe(400)
     }
     expect(m.update).not.toHaveBeenCalled()
@@ -80,5 +80,29 @@ describe("PATCH /api/team/profile", () => {
     m.update.mockResolvedValue(card)
     expect((await patch({ bio: null })).status).toBe(200)
     expect(m.update).toHaveBeenCalledWith("tok", { bio: null })
+  })
+
+  it("forwards photo position and zoom", async () => {
+    m.update.mockResolvedValue(card)
+    const body = { photo_x: 0.25, photo_y: 1, photo_zoom: 2.5 }
+    expect((await patch(body)).status).toBe(200)
+    expect(m.update).toHaveBeenCalledWith("tok", body)
+  })
+
+  it("rejects out-of-range, null and non-numeric photo values, with no API call", async () => {
+    const bad = [
+      { photo_x: -0.1 },
+      { photo_x: 1.1 },
+      { photo_y: 2 },
+      { photo_zoom: 0.9 },
+      { photo_zoom: 3.1 },
+      { photo_x: null },
+      { photo_y: null },
+      { photo_zoom: null },
+      { photo_x: "NaN" },
+      { photo_zoom: "2" },
+    ]
+    for (const body of bad) expect((await patch(body)).status).toBe(400)
+    expect(m.update).not.toHaveBeenCalled()
   })
 })

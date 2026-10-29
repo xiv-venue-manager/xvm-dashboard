@@ -77,6 +77,8 @@ export default function AdminTeamPage() {
   async function search() {
     setError(null)
     setPicked(null)
+    setCandidates([])
+    setSearched(false)
     if (query.trim().length < 2) return setError("Type at least two letters of their name.")
     const res = await fetch(`/api/admin/team/candidates?q=${encodeURIComponent(query.trim())}`)
     if (!res.ok) return setError(await message(res, "Search failed."))

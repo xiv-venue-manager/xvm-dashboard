@@ -178,7 +178,7 @@ export default function EditTeamCardPage() {
       </div>
 
       <h2 className="mb-3 mt-10 text-[11px] font-semibold uppercase tracking-[0.14em] text-[var(--xiv-blue)]">Preview</h2>
-      <TeamRow member={{ ...profile, bio: bio.trim() === "" ? null : bio }} flip={false} />
+      <TeamRow member={{ ...profile, bio: bio.trim() === "" ? null : bio }} />
     </div>
   )
 }

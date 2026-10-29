@@ -3,13 +3,9 @@ import { initials } from "@/lib/team-groups"
 
 type Card = Pick<PublicTeamMember, "name" | "role_title" | "bio" | "photo_url">
 
-export function TeamRow({ member, flip }: { member: Card; flip: boolean }) {
+export function TeamRow({ member }: { member: Card }) {
   return (
-    <article
-      className={`flex flex-col gap-4 rounded-xl border border-[var(--blue-018)] bg-card p-4 shadow-[var(--glow-card-inset)] sm:w-fit sm:max-w-full sm:items-center sm:gap-6 sm:p-5 ${
-        flip ? "sm:ml-auto sm:flex-row-reverse" : "sm:flex-row"
-      }`}
-    >
+    <article className="flex flex-col gap-4 rounded-xl border border-[var(--blue-018)] bg-card p-4 shadow-[var(--glow-card-inset)] sm:w-fit sm:min-w-[22rem] sm:max-w-full sm:flex-row sm:items-center sm:gap-6 sm:p-5">
       {member.photo_url ? (
         // eslint-disable-next-line @next/next/no-img-element
         <img
@@ -27,7 +23,7 @@ export function TeamRow({ member, flip }: { member: Card; flip: boolean }) {
           {initials(member.name)}
         </div>
       )}
-      <div className={`flex min-w-0 flex-col items-start ${flip ? "sm:items-end" : ""}`}>
+      <div className="min-w-0">
         <h3 className="font-heading text-lg font-semibold text-foreground">{member.name}</h3>
         <span className="mt-1.5 inline-block rounded-full border border-[var(--blue-018)] bg-[var(--blue-010)] px-2.5 py-0.5 text-xs text-[var(--xiv-blue)]">
           {member.role_title}

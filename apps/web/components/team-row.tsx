@@ -27,7 +27,7 @@ export function TeamRow({ member, flip }: { member: Card; flip: boolean }) {
           {initials(member.name)}
         </div>
       )}
-      <div className="min-w-0">
+      <div className={`flex min-w-0 flex-col items-start ${flip ? "sm:items-end" : ""}`}>
         <h3 className="font-heading text-lg font-semibold text-foreground">{member.name}</h3>
         <span className="mt-1.5 inline-block rounded-full border border-[var(--blue-018)] bg-[var(--blue-010)] px-2.5 py-0.5 text-xs text-[var(--xiv-blue)]">
           {member.role_title}

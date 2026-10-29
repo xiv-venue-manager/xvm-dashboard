@@ -26,6 +26,7 @@ export default async function TeamPage() {
   }
 
   const sections = groupTeam(team.members)
+  const rowsBefore = sections.map((_, i) => sections.slice(0, i).reduce((n, s) => n + s.members.length, 0))
 
   return (
     <div className="min-h-screen">
@@ -42,7 +43,7 @@ export default async function TeamPage() {
           <p className="text-muted-foreground">The team page is being set up. Check back soon.</p>
         ) : (
           <div className="space-y-10">
-            {sections.map((section) => (
+            {sections.map((section, sectionIndex) => (
               <section key={section.label ?? "ungrouped"}>
                 {section.label && (
                   <h2 className="mb-3 text-[11px] font-semibold uppercase tracking-[0.14em] text-[var(--xiv-blue)]">
@@ -51,7 +52,7 @@ export default async function TeamPage() {
                 )}
                 <div className="space-y-3">
                   {section.members.map((member, index) => (
-                    <TeamRow key={`${member.name}-${index}`} member={member} flip={index % 2 === 1} />
+                    <TeamRow key={`${member.name}-${index}`} member={member} flip={(rowsBefore[sectionIndex] + index) % 2 === 1} />
                   ))}
                 </div>
               </section>

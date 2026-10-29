@@ -6,8 +6,8 @@ type Card = Pick<PublicTeamMember, "name" | "role_title" | "bio" | "photo_url">
 export function TeamRow({ member, flip }: { member: Card; flip: boolean }) {
   return (
     <article
-      className={`flex flex-col gap-4 rounded-xl border border-[var(--blue-018)] bg-card p-4 shadow-[var(--glow-card-inset)] sm:items-center sm:gap-6 sm:p-5 ${
-        flip ? "sm:flex-row-reverse" : "sm:flex-row"
+      className={`flex flex-col gap-4 rounded-xl border border-[var(--blue-018)] bg-card p-4 shadow-[var(--glow-card-inset)] sm:w-fit sm:max-w-full sm:items-center sm:gap-6 sm:p-5 ${
+        flip ? "sm:ml-auto sm:flex-row-reverse" : "sm:flex-row"
       }`}
     >
       {member.photo_url ? (

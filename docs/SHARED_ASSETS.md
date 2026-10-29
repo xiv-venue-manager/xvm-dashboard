@@ -14,6 +14,7 @@ House-specific:
 |---|---|
 | `data-table` (`DataTable`, `DataTableColumn`) | Tables with per-column `hideOnMobile` and alignment |
 | `date-time-picker` | A date and time field |
+| `multi-select` (`MultiSelect`) | A dropdown that lets several options be ticked, built on `dropdown-menu`, with the selected labels on the trigger |
 | `stat-readout` | A labelled figure with an icon variant (`blue`, `success`, `warning`, `default`) |
 | `crystal-divider` | The XIV section divider |
 | `loading-spinner` | A spinner |

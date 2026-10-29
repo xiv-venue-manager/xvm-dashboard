@@ -1,7 +1,7 @@
 import type { PublicTeamMember } from "@/lib/api/xvm-api"
 import { initials } from "@/lib/team-groups"
 
-type Card = Pick<PublicTeamMember, "name" | "role_title" | "bio" | "photo_url">
+type Card = Pick<PublicTeamMember, "name" | "roles" | "bio" | "photo_url">
 
 export function TeamRow({ member }: { member: Card }) {
   return (
@@ -26,7 +26,7 @@ export function TeamRow({ member }: { member: Card }) {
       <div className="min-w-0">
         <h3 className="font-heading text-lg font-semibold text-foreground">{member.name}</h3>
         <span className="mt-1.5 inline-block rounded-full border border-[var(--blue-018)] bg-[var(--blue-010)] px-2.5 py-0.5 text-xs text-[var(--xiv-blue)]">
-          {member.role_title}
+          {member.roles.join(", ")}
         </span>
         {member.bio && (
           <p className="mt-3 whitespace-pre-line text-[0.95rem] leading-relaxed text-[var(--fg-subtle)]">{member.bio}</p>

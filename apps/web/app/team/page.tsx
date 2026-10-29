@@ -43,12 +43,10 @@ export default async function TeamPage() {
         ) : (
           <div className="space-y-10">
             {sections.map((section) => (
-              <section key={section.label ?? "ungrouped"}>
-                {section.label && (
-                  <h2 className="mb-3 text-[11px] font-semibold uppercase tracking-[0.14em] text-[var(--xiv-blue)]">
-                    {section.label}
-                  </h2>
-                )}
+              <section key={section.name}>
+                <h2 className="mb-3 text-[11px] font-semibold uppercase tracking-[0.14em] text-[var(--xiv-blue)]">
+                  {section.name}
+                </h2>
                 <div className="space-y-3">
                   {section.members.map((member, index) => (
                     <TeamRow key={`${member.name}-${index}`} member={member} />

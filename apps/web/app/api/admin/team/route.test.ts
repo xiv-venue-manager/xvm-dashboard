@@ -69,7 +69,17 @@ describe("/api/admin/team", () => {
   })
 
   it("rejects an invalid add with no API call", async () => {
-    for (const body of [{}, { person_id: 0, role_title: "X" }, { person_id: 1, role_title: "" }, { person_id: 1, role_title: "x".repeat(81) }, { person_id: 1, role_title: "X", group_label: "y".repeat(41) }, { person_id: 1, role_title: "X", extra: 1 }]) {
+    const ok = { person_id: 1, role_ids: [1], group_id: 1 }
+    for (const body of [
+      {},
+      { ...ok, person_id: 0 },
+      { ...ok, role_ids: [] },
+      { ...ok, role_ids: [1, 1] },
+      { ...ok, role_ids: [0] },
+      { person_id: 1, role_ids: [1] },
+      { ...ok, group_id: 0 },
+      { ...ok, role_title: "X" },
+    ]) {
       expect((await call(POST, "POST", body)).status).toBe(400)
     }
     expect(m.add).not.toHaveBeenCalled()
@@ -78,47 +88,48 @@ describe("/api/admin/team", () => {
 
   it("adds a member", async () => {
     m.add.mockResolvedValue({ person_id: 7 })
-    const res = await call(POST, "POST", { person_id: 7, role_title: "Tester", group_label: "Testers" })
+    const res = await call(POST, "POST", { person_id: 7, role_ids: [1, 2], group_id: 3 })
     expect(res.status).toBe(201)
-    expect(m.add).toHaveBeenCalledWith("tok", { person_id: 7, role_title: "Tester", group_label: "Testers" })
+    expect(m.add).toHaveBeenCalledWith("tok", { person_id: 7, role_ids: [1, 2], group_id: 3 })
     expect(m.refresh).toHaveBeenCalledTimes(1)
   })
 
   it("passes xvm-api's 409 for a double add through", async () => {
     m.add.mockRejectedValue(new XvmApiError(409, JSON.stringify({ detail: "That person is already on the team." })))
-    expect((await call(POST, "POST", { person_id: 7, role_title: "Tester" })).status).toBe(409)
+    expect((await call(POST, "POST", { person_id: 7, role_ids: [1], group_id: 1 })).status).toBe(409)
     expect(m.refresh).not.toHaveBeenCalled()
   })
 })
 
 describe("/api/admin/team/[personId]", () => {
   it("is 404 for an id that is not a number, with no API call", async () => {
-    expect((await withId(PATCH, "PATCH", "abc", { role_title: "X" })).status).toBe(404)
+    expect((await withId(PATCH, "PATCH", "abc", { group_id: 1 })).status).toBe(404)
     expect((await withId(DELETE, "DELETE", "1e3")).status).toBe(404)
     expect(m.update).not.toHaveBeenCalled()
     expect(m.remove).not.toHaveBeenCalled()
     expect(m.refresh).not.toHaveBeenCalled()
   })
 
-  it("rejects a blank role title or a negative order", async () => {
-    expect((await withId(PATCH, "PATCH", "7", { role_title: "" })).status).toBe(400)
-    expect((await withId(PATCH, "PATCH", "7", { sort_order: -1 })).status).toBe(400)
+  it("rejects empty or repeated roles, a bad group or a negative order", async () => {
+    for (const body of [{ role_ids: [] }, { role_ids: [2, 2] }, { group_id: 0 }, { group_id: null }, { sort_order: -1 }, { role_title: "X" }]) {
+      expect((await withId(PATCH, "PATCH", "7", body)).status).toBe(400)
+    }
     expect(m.update).not.toHaveBeenCalled()
     expect(m.refresh).not.toHaveBeenCalled()
   })
 
-  it("updates the role, group and order, and can clear the group", async () => {
+  it("updates the roles, group and order", async () => {
     m.update.mockResolvedValue({ person_id: 7 })
-    const res = await withId(PATCH, "PATCH", "7", { role_title: "Lead", group_label: null, sort_order: 2 })
+    const res = await withId(PATCH, "PATCH", "7", { role_ids: [2, 1], group_id: 4, sort_order: 2 })
     expect(res.status).toBe(200)
-    expect(m.update).toHaveBeenCalledWith("tok", 7, { role_title: "Lead", group_label: null, sort_order: 2 })
+    expect(m.update).toHaveBeenCalledWith("tok", 7, { role_ids: [2, 1], group_id: 4, sort_order: 2 })
     expect(m.refresh).toHaveBeenCalledTimes(1)
   })
 
   it("does not refresh when xvm-api rejects an update or a removal", async () => {
     m.update.mockRejectedValue(new XvmApiError(404, JSON.stringify({ detail: "Not on the team." })))
     m.remove.mockRejectedValue(new XvmApiError(404, JSON.stringify({ detail: "Not on the team." })))
-    expect((await withId(PATCH, "PATCH", "7", { role_title: "Lead" })).status).toBe(404)
+    expect((await withId(PATCH, "PATCH", "7", { group_id: 2 })).status).toBe(404)
     expect((await withId(DELETE, "DELETE", "7")).status).toBe(404)
     expect(m.refresh).not.toHaveBeenCalled()
   })

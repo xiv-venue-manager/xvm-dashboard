@@ -117,8 +117,8 @@ export default function EditTeamCardPage() {
       </Link>
       <h1 className="mt-4 font-cinzel text-2xl font-bold tracking-wide">Edit my card</h1>
       <p className="mt-1 text-sm text-muted-foreground">
-        Your role is <strong className="text-foreground">{profile.role_title}</strong>
-        {profile.group_label ? ` in ${profile.group_label}` : ""}. An admin sets that.
+        Your roles are <strong className="text-foreground">{profile.roles.join(", ")}</strong>
+        {` in ${profile.group}`}. An admin sets that.
       </p>
 
       <div className="mt-6 space-y-6">

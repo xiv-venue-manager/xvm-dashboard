@@ -1,10 +1,15 @@
 import { beforeEach, describe, expect, it, vi } from "vitest"
 
 import {
+  addTeamCatalogueItem,
   addTeamMember,
   getMyTeamProfile,
   getPublicTeam,
   listAdminTeam,
+  listTeamCatalogue,
+  removeTeamCatalogueItem,
+  renameTeamCatalogueItem,
+  reorderTeamCatalogue,
   removeTeamMember,
   searchTeamCandidates,
   setMyTeamPhoto,
@@ -70,14 +75,18 @@ describe("team client", () => {
     expect(lastCall()[0]).toBe("http://xvm-api.test/admin/team")
 
     respond({ person_id: 7 }, 201)
-    await addTeamMember("tok", { person_id: 7, role_title: "Tester", group_label: "Testers" })
+    await addTeamMember("tok", { person_id: 7, role_ids: [1, 2], group_id: 3 })
     expect(lastCall()[1].method).toBe("POST")
-    expect(JSON.parse(lastCall()[1].body as string)).toEqual({ person_id: 7, role_title: "Tester", group_label: "Testers" })
+    expect(JSON.parse(lastCall()[1].body as string)).toEqual({ person_id: 7, role_ids: [1, 2], group_id: 3 })
 
     respond({ person_id: 7 })
     await updateTeamMember("tok", 7, { sort_order: 2 })
     expect(lastCall()[0]).toBe("http://xvm-api.test/admin/team/7")
     expect(lastCall()[1].method).toBe("PATCH")
+
+    respond({ person_id: 7 })
+    await updateTeamMember("tok", 7, { role_ids: [2], group_id: 4 })
+    expect(JSON.parse(lastCall()[1].body as string)).toEqual({ role_ids: [2], group_id: 4 })
 
     respond(null, 204)
     await removeTeamMember("tok", 7)
@@ -89,5 +98,35 @@ describe("team client", () => {
     respond([])
     await searchTeamCandidates("tok", "a&b c")
     expect(lastCall()[0]).toBe("http://xvm-api.test/admin/team/candidates?q=a%26b%20c")
+  })
+
+  it.each(["roles", "groups"] as const)("manages the %s catalogue", async (kind) => {
+    respond([])
+    await listTeamCatalogue("tok", kind)
+    expect(lastCall()[0]).toBe(`http://xvm-api.test/admin/team/${kind}`)
+    expect(headers(lastCall()[1]).Authorization).toBe("Bearer tok")
+
+    respond({ id: 1 }, 201)
+    await addTeamCatalogueItem("tok", kind, "Lead")
+    expect(lastCall()[0]).toBe(`http://xvm-api.test/admin/team/${kind}`)
+    expect(lastCall()[1].method).toBe("POST")
+    expect(JSON.parse(lastCall()[1].body as string)).toEqual({ name: "Lead" })
+
+    respond({ id: 1 })
+    await renameTeamCatalogueItem("tok", kind, 5, "Chief")
+    expect(lastCall()[0]).toBe(`http://xvm-api.test/admin/team/${kind}/5`)
+    expect(lastCall()[1].method).toBe("PATCH")
+    expect(JSON.parse(lastCall()[1].body as string)).toEqual({ name: "Chief" })
+
+    respond([])
+    await reorderTeamCatalogue("tok", kind, [3, 1, 2])
+    expect(lastCall()[0]).toBe(`http://xvm-api.test/admin/team/${kind}/order`)
+    expect(lastCall()[1].method).toBe("PUT")
+    expect(JSON.parse(lastCall()[1].body as string)).toEqual({ ids: [3, 1, 2] })
+
+    respond(null, 204)
+    await removeTeamCatalogueItem("tok", kind, 5)
+    expect(lastCall()[0]).toBe(`http://xvm-api.test/admin/team/${kind}/5`)
+    expect(lastCall()[1].method).toBe("DELETE")
   })
 })

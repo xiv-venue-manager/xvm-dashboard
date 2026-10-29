@@ -3642,8 +3642,8 @@ export async function linkVenueExternal(
 
 export interface PublicTeamMember {
   name: string
-  role_title: string
-  group_label: string | null
+  roles: string[]
+  group: string
   bio: string | null
   photo_url: string | null
 }
@@ -3663,20 +3663,31 @@ export interface TeamProfileUpdate {
 
 export interface AdminTeamMember extends TeamProfile {
   person_id: number
+  role_ids: number[]
+  group_id: number
   sort_order: number
 }
 
 export interface TeamMemberCreate {
   person_id: number
-  role_title: string
-  group_label?: string | null
+  role_ids: number[]
+  group_id: number
   sort_order?: number
 }
 
 export interface TeamMemberUpdate {
-  role_title?: string
-  group_label?: string | null
+  role_ids?: number[]
+  group_id?: number
   sort_order?: number
+}
+
+export type TeamCatalogueKind = "roles" | "groups"
+
+export interface TeamCatalogueItem {
+  id: number
+  name: string
+  sort_order: number
+  member_count: number
 }
 
 export interface TeamCandidate {
@@ -3733,4 +3744,34 @@ export async function removeTeamMember(personToken: string, personId: number): P
 export async function searchTeamCandidates(personToken: string, query: string): Promise<TeamCandidate[]> {
   if (!process.env.XVM_API_BASE_URL) throw new Error("XVM_API_BASE_URL is not set")
   return xvmFetch<TeamCandidate[]>(`/admin/team/candidates?q=${encodeURIComponent(query)}`, {}, personToken)
+}
+
+export async function listTeamCatalogue(personToken: string, kind: TeamCatalogueKind): Promise<TeamCatalogueItem[]> {
+  if (!process.env.XVM_API_BASE_URL) throw new Error("XVM_API_BASE_URL is not set")
+  return xvmFetch<TeamCatalogueItem[]>(`/admin/team/${kind}`, {}, personToken)
+}
+
+export async function addTeamCatalogueItem(personToken: string, kind: TeamCatalogueKind, name: string): Promise<TeamCatalogueItem> {
+  if (!process.env.XVM_API_BASE_URL) throw new Error("XVM_API_BASE_URL is not set")
+  return xvmFetch<TeamCatalogueItem>(`/admin/team/${kind}`, { method: "POST", body: JSON.stringify({ name }) }, personToken)
+}
+
+export async function renameTeamCatalogueItem(
+  personToken: string,
+  kind: TeamCatalogueKind,
+  id: number,
+  name: string
+): Promise<TeamCatalogueItem> {
+  if (!process.env.XVM_API_BASE_URL) throw new Error("XVM_API_BASE_URL is not set")
+  return xvmFetch<TeamCatalogueItem>(`/admin/team/${kind}/${id}`, { method: "PATCH", body: JSON.stringify({ name }) }, personToken)
+}
+
+export async function removeTeamCatalogueItem(personToken: string, kind: TeamCatalogueKind, id: number): Promise<void> {
+  if (!process.env.XVM_API_BASE_URL) throw new Error("XVM_API_BASE_URL is not set")
+  return xvmFetch<void>(`/admin/team/${kind}/${id}`, { method: "DELETE" }, personToken)
+}
+
+export async function reorderTeamCatalogue(personToken: string, kind: TeamCatalogueKind, ids: number[]): Promise<TeamCatalogueItem[]> {
+  if (!process.env.XVM_API_BASE_URL) throw new Error("XVM_API_BASE_URL is not set")
+  return xvmFetch<TeamCatalogueItem[]>(`/admin/team/${kind}/order`, { method: "PUT", body: JSON.stringify({ ids }) }, personToken)
 }

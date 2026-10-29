@@ -23,14 +23,14 @@ import { adminLoadErrorMessage } from "@/lib/admin-load-error"
 import type { AdminTeamMember, TeamCandidate } from "@/lib/api/xvm-api"
 
 interface Draft {
-  role_title: string
-  group_label: string
+  roles: string
+  group: string
   sort_order: string
 }
 
 const toDraft = (m: AdminTeamMember): Draft => ({
-  role_title: m.role_title,
-  group_label: m.group_label ?? "",
+  roles: m.roles.join(", "),
+  group: m.group,
   sort_order: String(m.sort_order),
 })
 
@@ -94,8 +94,8 @@ export default function AdminTeamPage() {
       headers: { "Content-Type": "application/json" },
       body: JSON.stringify({
         person_id: picked.person_id,
-        role_title: newRole,
-        group_label: newGroup.trim() === "" ? null : newGroup,
+        role_ids: newRole.split(",").map((id) => Number(id.trim())),
+        group_id: Number(newGroup),
         sort_order: members.length,
       }),
     })
@@ -117,8 +117,6 @@ export default function AdminTeamPage() {
       method: "PATCH",
       headers: { "Content-Type": "application/json" },
       body: JSON.stringify({
-        role_title: draft.role_title,
-        group_label: draft.group_label.trim() === "" ? null : draft.group_label,
         sort_order: Number(draft.sort_order),
       }),
     })
@@ -195,14 +193,14 @@ export default function AdminTeamPage() {
         {picked && (
           <div className="grid gap-3 sm:grid-cols-[1fr_1fr_auto] sm:items-end">
             <div className="space-y-1">
-              <Label htmlFor="new-role">Role for {picked.name}</Label>
+              <Label htmlFor="new-role">Role ids for {picked.name}</Label>
               <Input id="new-role" value={newRole} maxLength={80} onChange={(e) => setNewRole(e.target.value)} />
             </div>
             <div className="space-y-1">
-              <Label htmlFor="new-group">Group (optional)</Label>
+              <Label htmlFor="new-group">Group id</Label>
               <Input id="new-group" value={newGroup} maxLength={40} onChange={(e) => setNewGroup(e.target.value)} />
             </div>
-            <Button onClick={add} disabled={newRole.trim() === ""}>
+            <Button onClick={add} disabled={newRole.trim() === "" || newGroup.trim() === ""}>
               Add
             </Button>
           </div>
@@ -245,18 +243,16 @@ export default function AdminTeamPage() {
                   <Label htmlFor={`role-${member.person_id}`}>Role</Label>
                   <Input
                     id={`role-${member.person_id}`}
-                    value={draft.role_title}
-                    maxLength={80}
-                    onChange={(e) => setDrafts({ ...drafts, [member.person_id]: { ...draft, role_title: e.target.value } })}
+                    value={draft.roles}
+                    readOnly
                   />
                 </div>
                 <div className="space-y-1">
                   <Label htmlFor={`group-${member.person_id}`}>Group</Label>
                   <Input
                     id={`group-${member.person_id}`}
-                    value={draft.group_label}
-                    maxLength={40}
-                    onChange={(e) => setDrafts({ ...drafts, [member.person_id]: { ...draft, group_label: e.target.value } })}
+                    value={draft.group}
+                    readOnly
                   />
                 </div>
                 <div className="space-y-1">
@@ -269,7 +265,7 @@ export default function AdminTeamPage() {
                     onChange={(e) => setDrafts({ ...drafts, [member.person_id]: { ...draft, sort_order: e.target.value } })}
                   />
                 </div>
-                <Button variant="outline" onClick={() => void saveRow(member)} disabled={draft.role_title.trim() === ""}>
+                <Button variant="outline" onClick={() => void saveRow(member)}>
                   Save
                 </Button>
               </div>

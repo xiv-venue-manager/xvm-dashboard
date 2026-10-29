@@ -7,11 +7,13 @@ import { getValidXvmApiToken, xvmApiErrorResponse } from "@/lib/api/xvm-api-stor
 import { addTeamMember, listAdminTeam } from "@/lib/api/xvm-api"
 import { refreshTeamPage } from "@/lib/refresh-team"
 
+const roleIds = z.array(z.number().int().positive()).refine((ids) => new Set(ids).size === ids.length)
+
 const createSchema = z
   .object({
     person_id: z.number().int().positive(),
-    role_title: z.string().min(1).max(80),
-    group_label: z.string().min(1).max(40).nullable().optional(),
+    role_ids: roleIds.min(1),
+    group_id: z.number().int().positive(),
     sort_order: z.number().int().min(0).optional(),
   })
   .strict()

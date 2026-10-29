@@ -1,10 +1,10 @@
 import { describe, expect, it } from "vitest"
 import { groupTeam, initials, TEAM_BIO_MAX } from "./team-groups"
 
-const member = (name: string, group_label: string | null) => ({
+const member = (name: string, group: string) => ({
   name,
-  role_title: "Role",
-  group_label,
+  roles: ["Role"],
+  group,
   bio: null,
   photo_url: null,
 })
@@ -14,27 +14,15 @@ describe("groupTeam", () => {
     expect(groupTeam([])).toEqual([])
   })
 
-  it("groups by label in the order each label first appears", () => {
+  it("groups by name in the order each group first appears", () => {
     const sections = groupTeam([
       member("A", "Builders"),
       member("B", "Testers"),
       member("C", "Builders"),
     ])
-    expect(sections.map((s) => s.label)).toEqual(["Builders", "Testers"])
+    expect(sections.map((s) => s.name)).toEqual(["Builders", "Testers"])
     expect(sections[0].members.map((m) => m.name)).toEqual(["A", "C"])
     expect(sections[1].members.map((m) => m.name)).toEqual(["B"])
-  })
-
-  it("puts members without a label in a last section with no heading", () => {
-    const sections = groupTeam([member("A", null), member("B", "Builders")])
-    expect(sections.map((s) => s.label)).toEqual(["Builders", null])
-    expect(sections[1].members.map((m) => m.name)).toEqual(["A"])
-  })
-
-  it("keeps a team with no labels at all as one section with no heading", () => {
-    const sections = groupTeam([member("A", null), member("B", null)])
-    expect(sections).toHaveLength(1)
-    expect(sections[0].label).toBeNull()
   })
 })
 

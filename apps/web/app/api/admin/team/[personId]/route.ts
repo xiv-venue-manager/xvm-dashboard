@@ -7,10 +7,12 @@ import { getValidXvmApiToken, xvmApiErrorResponse } from "@/lib/api/xvm-api-stor
 import { removeTeamMember, updateTeamMember } from "@/lib/api/xvm-api"
 import { refreshTeamPage } from "@/lib/refresh-team"
 
+const roleIds = z.array(z.number().int().positive()).refine((ids) => new Set(ids).size === ids.length)
+
 const updateSchema = z
   .object({
-    role_title: z.string().min(1).max(80).optional(),
-    group_label: z.string().min(1).max(40).nullable().optional(),
+    role_ids: roleIds.min(1).optional(),
+    group_id: z.number().int().positive().optional(),
     sort_order: z.number().int().min(0).optional(),
   })
   .strict()

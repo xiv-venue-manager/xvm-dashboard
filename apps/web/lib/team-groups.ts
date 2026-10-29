@@ -2,29 +2,22 @@ export const TEAM_BIO_MAX = 1000
 export const TEAM_CACHE_TAG = "team"
 
 interface Groupable {
-  group_label: string | null
+  group: string
 }
 
 export interface TeamSection<T extends Groupable> {
-  label: string | null
+  name: string
   members: T[]
 }
 
 export function groupTeam<T extends Groupable>(members: T[]): TeamSection<T>[] {
-  const labelled = new Map<string, T[]>()
-  const unlabelled: T[] = []
+  const sections = new Map<string, T[]>()
   for (const member of members) {
-    if (member.group_label === null) {
-      unlabelled.push(member)
-      continue
-    }
-    const bucket = labelled.get(member.group_label)
+    const bucket = sections.get(member.group)
     if (bucket) bucket.push(member)
-    else labelled.set(member.group_label, [member])
+    else sections.set(member.group, [member])
   }
-  const sections: TeamSection<T>[] = [...labelled].map(([label, group]) => ({ label, members: group }))
-  if (unlabelled.length > 0) sections.push({ label: null, members: unlabelled })
-  return sections
+  return [...sections].map(([name, group]) => ({ name, members: group }))
 }
 
 export function initials(name: string): string {

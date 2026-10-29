@@ -29,7 +29,7 @@ export default async function TeamPage() {
 
   return (
     <div className="min-h-screen">
-      <div className="mx-auto max-w-[860px] px-4 pb-20 pt-[120px] sm:px-6">
+      <div className="mx-auto max-w-[860px] px-4 pb-20 pt-16 sm:px-6">
         <header className="mb-10">
           <h1 className="font-cinzel text-3xl font-bold tracking-wide">Meet the team</h1>
           <p className="mt-2 text-muted-foreground">The people who build and run XIV Venue Manager.</p>

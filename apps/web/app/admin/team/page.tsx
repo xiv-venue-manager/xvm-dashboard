@@ -18,7 +18,7 @@ import {
   AlertDialogTitle,
   AlertDialogTrigger,
 } from "@/components/ui/alert-dialog"
-import { Trash2 } from "lucide-react"
+import { Trash2, Users } from "lucide-react"
 import { adminLoadErrorMessage } from "@/lib/admin-load-error"
 import type { AdminTeamMember, TeamCandidate } from "@/lib/api/xvm-api"
 
@@ -138,15 +138,18 @@ export default function AdminTeamPage() {
 
   if (loadError) {
     return (
-      <div className="mx-auto max-w-[860px] px-4 pb-20 pt-[120px] sm:px-6">
+      <div className="page-inner max-w-3xl">
         <p className="text-muted-foreground">{loadError}</p>
       </div>
     )
   }
 
   return (
-    <div className="mx-auto max-w-[860px] px-4 pb-20 pt-[120px] sm:px-6">
-      <h1 className="font-cinzel text-2xl font-bold tracking-wide">Team</h1>
+    <div className="page-inner max-w-3xl">
+      <h1 className="page-h1 flex items-center gap-2">
+        <Users className="h-6 w-6 text-[var(--xiv-blue)]" />
+        Team
+      </h1>
       <p className="mt-1 text-sm text-muted-foreground">
         Who is on the Meet the team page, and what they are called there. Sections follow the order of each group&apos;s first
         person by order number.

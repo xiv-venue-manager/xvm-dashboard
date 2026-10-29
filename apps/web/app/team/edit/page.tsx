@@ -92,7 +92,7 @@ export default function EditTeamCardPage() {
 
   if (notOnTeam) {
     return (
-      <div className="mx-auto max-w-[640px] px-4 pb-20 pt-[120px] sm:px-6">
+      <div className="mx-auto max-w-[640px] px-4 pb-20 pt-16 sm:px-6">
         <h1 className="font-cinzel text-2xl font-bold tracking-wide">You are not on the team page</h1>
         <p className="mt-3 text-muted-foreground">An admin adds people to the team. Ask one to add you, then come back here.</p>
         <Link href="/team" className="mt-6 inline-block text-sm text-[var(--xiv-blue)]">
@@ -104,14 +104,14 @@ export default function EditTeamCardPage() {
 
   if (!profile) {
     return (
-      <div className="mx-auto max-w-[640px] px-4 pb-20 pt-[120px] sm:px-6">
+      <div className="mx-auto max-w-[640px] px-4 pb-20 pt-16 sm:px-6">
         <p className="text-muted-foreground">{error ?? "Couldn't load your card."}</p>
       </div>
     )
   }
 
   return (
-    <div className="mx-auto max-w-[760px] px-4 pb-20 pt-[120px] sm:px-6">
+    <div className="mx-auto max-w-[760px] px-4 pb-20 pt-16 sm:px-6">
       <Link href="/team" className="text-sm text-muted-foreground transition-colors hover:text-[var(--xiv-blue)]">
         ← Back to the team page
       </Link>

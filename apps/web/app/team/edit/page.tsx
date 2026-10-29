@@ -10,8 +10,13 @@ import { Switch } from "@/components/ui/switch"
 import { Textarea } from "@/components/ui/textarea"
 import { PageLoading } from "@/components/ui/loading-spinner"
 import { TeamRow } from "@/components/team-row"
+import { TeamPhotoAdjuster } from "@/components/team-photo-adjuster"
 import { TEAM_BIO_MAX } from "@/lib/team-groups"
+import { clampFrame, DEFAULT_PHOTO_FRAME, type PhotoFrame } from "@/lib/team-photo"
 import type { TeamProfile } from "@/lib/api/xvm-api"
+
+const frameOf = (card: TeamProfile): PhotoFrame => clampFrame({ x: card.photo_x, y: card.photo_y, zoom: card.photo_zoom })
+const round3 = (n: number) => Math.round(n * 1000) / 1000
 
 const PHOTO_TYPES = "image/png,image/jpeg,image/webp,image/gif"
 
@@ -26,6 +31,7 @@ export default function EditTeamCardPage() {
   const [profile, setProfile] = useState<TeamProfile | null>(null)
   const [bio, setBio] = useState("")
   const [listed, setListed] = useState(true)
+  const [frame, setFrame] = useState<PhotoFrame>(DEFAULT_PHOTO_FRAME)
   const [loading, setLoading] = useState(true)
   const [notOnTeam, setNotOnTeam] = useState(false)
   const [busy, setBusy] = useState(false)
@@ -46,6 +52,7 @@ export default function EditTeamCardPage() {
         setProfile(card)
         setBio(card.bio ?? "")
         setListed(card.listed)
+        setFrame(frameOf(card))
       })
       .catch(() => setError("Couldn't reach the server."))
       .finally(() => setLoading(false))
@@ -59,10 +66,18 @@ export default function EditTeamCardPage() {
       const res = await fetch("/api/team/profile", {
         method: "PATCH",
         headers: { "Content-Type": "application/json" },
-        body: JSON.stringify({ bio: bio.trim() === "" ? null : bio, listed }),
+        body: JSON.stringify({
+          bio: bio.trim() === "" ? null : bio,
+          listed,
+          photo_x: round3(frame.x),
+          photo_y: round3(frame.y),
+          photo_zoom: round3(frame.zoom),
+        }),
       })
       if (!res.ok) return setError(await message(res, "Couldn't save your card."))
-      setProfile(await res.json())
+      const card: TeamProfile = await res.json()
+      setProfile(card)
+      setFrame(frameOf(card))
       setSaved(true)
     } catch {
       setError("Couldn't reach the server.")
@@ -80,7 +95,9 @@ export default function EditTeamCardPage() {
       form.append("file", file)
       const res = await fetch("/api/team/profile/photo", { method: "PUT", body: form })
       if (!res.ok) return setError(await message(res, "Couldn't upload that photo."))
-      setProfile(await res.json())
+      const card: TeamProfile = await res.json()
+      setProfile(card)
+      setFrame(frameOf(card))
     } catch {
       setError("Couldn't reach the server.")
     } finally {
@@ -140,6 +157,21 @@ export default function EditTeamCardPage() {
           <p className="text-xs text-muted-foreground">PNG, JPEG, WebP or GIF, up to 8 MB. It is shown as a 120px square.</p>
         </div>
 
+        {profile.photo_url && (
+          <div className="space-y-2">
+            <Label>Photo position</Label>
+            <TeamPhotoAdjuster
+              src={profile.photo_url}
+              frame={frame}
+              disabled={busy}
+              onChange={(next) => {
+                setFrame(next)
+                setSaved(false)
+              }}
+            />
+          </div>
+        )}
+
         <div className="space-y-2">
           <Label htmlFor="bio">About you</Label>
           <Textarea
@@ -179,7 +211,9 @@ export default function EditTeamCardPage() {
       </div>
 
       <h2 className="mb-3 mt-10 text-[11px] font-semibold uppercase tracking-[0.14em] text-[var(--xiv-blue)]">Preview</h2>
-      <TeamRow member={{ ...profile, bio: bio.trim() === "" ? null : bio }} />
+      <TeamRow
+        member={{ ...profile, bio: bio.trim() === "" ? null : bio, photo_x: frame.x, photo_y: frame.y, photo_zoom: frame.zoom }}
+      />
     </div>
   )
 }

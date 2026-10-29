@@ -1,20 +1,21 @@
 import type { PublicTeamMember } from "@/lib/api/xvm-api"
 import { initials } from "@/lib/team-groups"
+import { clampFrame, photoImageStyle } from "@/lib/team-photo"
 
-type Card = Pick<PublicTeamMember, "name" | "roles" | "bio" | "photo_url">
+type Card = Pick<PublicTeamMember, "name" | "roles" | "bio" | "photo_url" | "photo_x" | "photo_y" | "photo_zoom">
 
 export function TeamRow({ member }: { member: Card }) {
   return (
     <article className="flex flex-col gap-4 rounded-xl border border-[var(--blue-018)] bg-card p-4 shadow-[var(--glow-card-inset)] sm:w-fit sm:min-w-[22rem] sm:max-w-full sm:flex-row sm:items-center sm:gap-6 sm:p-5">
       {member.photo_url ? (
-        // eslint-disable-next-line @next/next/no-img-element
-        <img
-          src={member.photo_url}
-          alt={member.name}
-          width={120}
-          height={120}
-          className="h-[120px] w-[120px] flex-none rounded-[10px] object-cover sm:self-start"
-        />
+        <div className="relative h-[120px] w-[120px] flex-none overflow-hidden rounded-[10px] sm:self-start">
+          {/* eslint-disable-next-line @next/next/no-img-element */}
+          <img
+            src={member.photo_url}
+            alt={member.name}
+            style={photoImageStyle(clampFrame({ x: member.photo_x, y: member.photo_y, zoom: member.photo_zoom }))}
+          />
+        </div>
       ) : (
         <div
           aria-hidden="true"

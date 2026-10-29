@@ -1,9 +1,5 @@
 import { beforeEach, describe, expect, it, vi } from "vitest"
 
-vi.hoisted(() => {
-  process.env.XVM_API_BASE_URL = "http://xvm-api.test"
-})
-
 import {
   addTeamMember,
   getMyTeamProfile,

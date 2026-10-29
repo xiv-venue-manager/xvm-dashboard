@@ -9,6 +9,7 @@ import { UserMenu } from "./user-menu"
 import { FeedbackDialog } from "./feedback-dialog"
 import { useSidebar } from "./sidebar-context"
 import { Menu, Heart, Bell, CheckCheck, LayoutDashboard } from "lucide-react"
+import { Tooltip, TooltipContent, TooltipProvider, TooltipTrigger } from "@/components/ui/tooltip"
 import { Popover, PopoverContent, PopoverTrigger } from "@/components/ui/popover"
 import { LocalTime } from "@/components/server-time"
 import type { Session } from "next-auth"
@@ -77,7 +78,7 @@ export function NavbarClient({ session, venues }: NavbarClientProps) {
 
   return (
     <nav className="sticky top-0 z-50 w-full xiv-nav xiv-glass relative">
-      <div className="h-[60px] flex items-center gap-5 px-6">
+      <div className="h-[60px] flex items-center gap-3 sm:gap-5 px-4 sm:px-6">
         {/* Hamburger — left of brand, only visible below 1081px on venue pages */}
         {isVenuePage && (
           <button
@@ -99,7 +100,7 @@ export function NavbarClient({ session, venues }: NavbarClientProps) {
             className="object-contain transition-opacity group-hover:opacity-90"
             priority
           />
-          <span className="hidden sm:flex items-baseline gap-1.5 font-cinzel tracking-wide">
+          <span className="hidden md:flex items-baseline gap-1.5 font-cinzel tracking-wide">
             <span className="font-bold text-base text-xiv">XIV</span>
             <span className="font-medium text-sm text-foreground/80">Venue Manager</span>
           </span>
@@ -108,146 +109,171 @@ export function NavbarClient({ session, venues }: NavbarClientProps) {
         <div className="flex-1" />
 
         {/* Right */}
-        <div className="flex items-center gap-[14px]">
-          {session ? (
-            <>
-              {/* Dashboard shortcut — hidden once you're already on a venue page, the sidebar covers it there */}
-              {!isVenuePage && venues.length > 0 && (
+        <TooltipProvider>
+          <div className="flex items-center gap-1.5 sm:gap-[14px]">
+            {session ? (
+              <>
+                {/* Dashboard shortcut — hidden once you're already on a venue page, the sidebar covers it there */}
+                {!isVenuePage && venues.length > 0 && (
+                  <Tooltip>
+                    <TooltipTrigger asChild>
+                      <Button
+                        asChild
+                        variant="ghost"
+                        size="sm"
+                        className="text-muted-foreground hover:text-foreground hover:bg-[var(--blue-007)]"
+                      >
+                        <Link
+                          href={venues.length === 1 ? `/dashboard/${venues[0].slug}` : "/dashboard"}
+                          aria-label="Dashboard"
+                        >
+                          <LayoutDashboard className="h-4 w-4 lg:mr-1" />
+                          <span className="hidden lg:inline">Dashboard</span>
+                        </Link>
+                      </Button>
+                    </TooltipTrigger>
+                    <TooltipContent className="lg:hidden">Dashboard</TooltipContent>
+                  </Tooltip>
+                )}
+
+                {/* Bell */}
+                <Popover
+                  open={notifOpen}
+                  onOpenChange={(o) => {
+                    setNotifOpen(o)
+                    if (o) markAllRead()
+                  }}
+                >
+                  <Tooltip>
+                    <TooltipTrigger asChild>
+                      <PopoverTrigger asChild>
+                        <button
+                          className="relative p-[7px] rounded-[var(--radius-md)] text-muted-foreground hover:text-foreground hover:bg-[var(--blue-007)] transition-colors"
+                          aria-label="Notifications"
+                        >
+                          <Bell className="h-[19px] w-[19px]" />
+                          {unreadCount > 0 && (
+                            <span className="absolute top-[5px] right-[5px] min-w-[7px] h-[7px] rounded-full bg-[var(--xiv-blue)] border-2 border-background" />
+                          )}
+                        </button>
+                      </PopoverTrigger>
+                    </TooltipTrigger>
+                    <TooltipContent>Notifications</TooltipContent>
+                  </Tooltip>
+                  <PopoverContent
+                    align="end"
+                    className="w-80 p-0 border-[var(--blue-018)] bg-[rgba(7,11,20,0.97)] backdrop-blur-2xl"
+                  >
+                    <div className="flex items-center justify-between px-4 py-3 border-b border-[var(--blue-008)]">
+                      <span className="font-semibold text-sm">Notifications</span>
+                      {unreadCount > 0 && (
+                        <button
+                          onClick={markAllRead}
+                          className="flex items-center gap-1.5 text-xs text-[var(--xiv-blue)] hover:underline"
+                        >
+                          <CheckCheck className="h-3 w-3" /> Mark all read
+                        </button>
+                      )}
+                    </div>
+                    <div className="max-h-[400px] overflow-y-auto">
+                      {notifications.length === 0 ? (
+                        <div className="flex flex-col items-center justify-center py-10 px-4 text-center">
+                          <Bell className="h-8 w-8 text-[var(--fg-faint)] mb-3 opacity-30" />
+                          <p className="text-sm text-muted-foreground">No notifications yet</p>
+                          <p className="text-xs text-[var(--fg-faint)] mt-1">
+                            Followers, staff joins, and task assignments appear here
+                          </p>
+                        </div>
+                      ) : (
+                        notifications.map((n) => (
+                          <a
+                            key={n.id}
+                            href={n.link ?? "#"}
+                            onClick={() => setNotifOpen(false)}
+                            className={`flex gap-3 px-4 py-3 border-b border-[var(--blue-008)] last:border-b-0 hover:bg-[var(--blue-007)] transition-colors ${n.read ? "opacity-60" : ""}`}
+                          >
+                            <span
+                              className={`mt-0.5 w-2 h-2 rounded-full flex-shrink-0 ${n.read ? "bg-transparent" : "bg-[var(--xiv-blue)]"}`}
+                            />
+                            <div className="flex-1 min-w-0">
+                              <p className="text-sm font-medium leading-tight">{n.title}</p>
+                              <p className="text-xs text-muted-foreground mt-0.5 leading-snug">{n.body}</p>
+                              <p className="text-[0.68rem] text-[var(--fg-faint)] mt-1">
+                                <LocalTime date={n.createdAt} formatStr="datetime" />
+                              </p>
+                            </div>
+                          </a>
+                        ))
+                      )}
+                    </div>
+                  </PopoverContent>
+                </Popover>
+
+                <FeedbackDialog iconOnlyBelowLg />
+
+                <Tooltip>
+                  <TooltipTrigger asChild>
+                    <Button
+                      asChild
+                      variant="ghost"
+                      size="sm"
+                      className="text-[var(--support-pink)] hover:text-pink-300 hover:bg-[rgba(243,139,168,0.08)]"
+                    >
+                      <Link
+                        href="https://ko-fi.com/ehnocure"
+                        target="_blank"
+                        rel="noopener noreferrer"
+                        aria-label="Support on Ko-fi"
+                      >
+                        <Heart className="h-4 w-4 lg:mr-1" />
+                        <span className="hidden lg:inline">Support</span>
+                      </Link>
+                    </Button>
+                  </TooltipTrigger>
+                  <TooltipContent className="lg:hidden">Support</TooltipContent>
+                </Tooltip>
+
+                <UserMenu
+                  user={session.user}
+                  currentVenueName={currentVenue?.name}
+                  currentVenueRole={currentVenue?.role}
+                />
+              </>
+            ) : (
+              <>
+                <Tooltip>
+                  <TooltipTrigger asChild>
+                    <Button
+                      asChild
+                      variant="ghost"
+                      size="sm"
+                      className="text-pink-400 hover:text-pink-300 hover:bg-pink-500/10"
+                    >
+                      <Link
+                        href="https://ko-fi.com/ehnocure"
+                        target="_blank"
+                        rel="noopener noreferrer"
+                        aria-label="Support on Ko-fi"
+                      >
+                        <Heart className="h-4 w-4 lg:mr-1" />
+                        <span className="hidden lg:inline">Support</span>
+                      </Link>
+                    </Button>
+                  </TooltipTrigger>
+                  <TooltipContent className="lg:hidden">Support</TooltipContent>
+                </Tooltip>
                 <Button
                   asChild
                   variant="ghost"
                   size="sm"
-                  className="text-muted-foreground hover:text-foreground hover:bg-[var(--blue-007)]"
+                  className="text-sm text-foreground/60 hover:text-foreground hover:bg-[rgba(0,180,255,0.06)]"
                 >
-                  <Link href={venues.length === 1 ? `/dashboard/${venues[0].slug}` : "/dashboard"}>
-                    <LayoutDashboard className="h-4 w-4 sm:mr-1" />
-                    <span className="hidden sm:inline">Dashboard</span>
-                  </Link>
+                  <Link href="/auth/signin">Sign In</Link>
                 </Button>
-              )}
-
-              {/* Bell */}
-              <Popover
-                open={notifOpen}
-                onOpenChange={(o) => {
-                  setNotifOpen(o)
-                  if (o) markAllRead()
-                }}
-              >
-                <PopoverTrigger asChild>
-                  <button
-                    className="relative p-[7px] rounded-[var(--radius-md)] text-muted-foreground hover:text-foreground hover:bg-[var(--blue-007)] transition-colors"
-                    aria-label="Notifications"
-                  >
-                    <Bell className="h-[19px] w-[19px]" />
-                    {unreadCount > 0 && (
-                      <span className="absolute top-[5px] right-[5px] min-w-[7px] h-[7px] rounded-full bg-[var(--xiv-blue)] border-2 border-background" />
-                    )}
-                  </button>
-                </PopoverTrigger>
-                <PopoverContent
-                  align="end"
-                  className="w-80 p-0 border-[var(--blue-018)] bg-[rgba(7,11,20,0.97)] backdrop-blur-2xl"
-                >
-                  <div className="flex items-center justify-between px-4 py-3 border-b border-[var(--blue-008)]">
-                    <span className="font-semibold text-sm">Notifications</span>
-                    {unreadCount > 0 && (
-                      <button
-                        onClick={markAllRead}
-                        className="flex items-center gap-1.5 text-xs text-[var(--xiv-blue)] hover:underline"
-                      >
-                        <CheckCheck className="h-3 w-3" /> Mark all read
-                      </button>
-                    )}
-                  </div>
-                  <div className="max-h-[400px] overflow-y-auto">
-                    {notifications.length === 0 ? (
-                      <div className="flex flex-col items-center justify-center py-10 px-4 text-center">
-                        <Bell className="h-8 w-8 text-[var(--fg-faint)] mb-3 opacity-30" />
-                        <p className="text-sm text-muted-foreground">No notifications yet</p>
-                        <p className="text-xs text-[var(--fg-faint)] mt-1">
-                          Followers, staff joins, and task assignments appear here
-                        </p>
-                      </div>
-                    ) : (
-                      notifications.map((n) => (
-                        <a
-                          key={n.id}
-                          href={n.link ?? "#"}
-                          onClick={() => setNotifOpen(false)}
-                          className={`flex gap-3 px-4 py-3 border-b border-[var(--blue-008)] last:border-b-0 hover:bg-[var(--blue-007)] transition-colors ${n.read ? "opacity-60" : ""}`}
-                        >
-                          <span
-                            className={`mt-0.5 w-2 h-2 rounded-full flex-shrink-0 ${n.read ? "bg-transparent" : "bg-[var(--xiv-blue)]"}`}
-                          />
-                          <div className="flex-1 min-w-0">
-                            <p className="text-sm font-medium leading-tight">{n.title}</p>
-                            <p className="text-xs text-muted-foreground mt-0.5 leading-snug">{n.body}</p>
-                            <p className="text-[0.68rem] text-[var(--fg-faint)] mt-1">
-                              <LocalTime date={n.createdAt} formatStr="datetime" />
-                            </p>
-                          </div>
-                        </a>
-                      ))
-                    )}
-                  </div>
-                </PopoverContent>
-              </Popover>
-
-              <FeedbackDialog />
-
-              <Button
-                asChild
-                variant="ghost"
-                size="sm"
-                className="text-[var(--support-pink)] hover:text-pink-300 hover:bg-[rgba(243,139,168,0.08)]"
-              >
-                <Link
-                  href="https://ko-fi.com/ehnocure"
-                  target="_blank"
-                  rel="noopener noreferrer"
-                  aria-label="Support on Ko-fi"
-                >
-                  <Heart className="h-4 w-4 sm:mr-1" />
-                  <span className="hidden sm:inline">Support</span>
-                </Link>
-              </Button>
-
-              <UserMenu
-                user={session.user}
-                currentVenueName={currentVenue?.name}
-                currentVenueRole={currentVenue?.role}
-              />
-            </>
-          ) : (
-            <>
-              <Button
-                asChild
-                variant="ghost"
-                size="sm"
-                className="text-pink-400 hover:text-pink-300 hover:bg-pink-500/10"
-              >
-                <Link
-                  href="https://ko-fi.com/ehnocure"
-                  target="_blank"
-                  rel="noopener noreferrer"
-                  aria-label="Support on Ko-fi"
-                >
-                  <Heart className="h-4 w-4 sm:mr-1" />
-                  <span className="hidden sm:inline">Support</span>
-                </Link>
-              </Button>
-              <Button
-                asChild
-                variant="ghost"
-                size="sm"
-                className="text-sm text-foreground/60 hover:text-foreground hover:bg-[rgba(0,180,255,0.06)]"
-              >
-                <Link href="/auth/signin">Sign In</Link>
-              </Button>
-            </>
-          )}
-        </div>
+              </>
+            )}
+          </div>
+        </TooltipProvider>
       </div>
     </nav>
   )

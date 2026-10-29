@@ -64,4 +64,14 @@ describe("proxy", () => {
 
     expect(res.headers.get("location")).toBeNull()
   })
+
+  it("lets a signed-out visitor read the team page but not edit their card", async () => {
+    m.getToken.mockResolvedValue(null)
+
+    const page = await proxy(new NextRequest("http://localhost:3000/team"))
+    expect(page.headers.get("location")).toBeNull()
+
+    const edit = await proxy(new NextRequest("http://localhost:3000/team/edit"))
+    expect(new URL(edit.headers.get("location")!).pathname).toBe("/auth/signin")
+  })
 })

@@ -34,6 +34,7 @@ const PUBLIC_PATHS = [
   "/auth/signout-shoutcrafter",
   "/test",
   "/stats",
+  "/team",
   "/discover",
   "/sitemap.xml",
   "/llms.txt",

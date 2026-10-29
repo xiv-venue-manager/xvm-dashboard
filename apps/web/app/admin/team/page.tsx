@@ -49,6 +49,7 @@ export default function AdminTeamPage() {
   const [error, setError] = useState<string | null>(null)
   const [query, setQuery] = useState("")
   const [candidates, setCandidates] = useState<TeamCandidate[]>([])
+  const [searched, setSearched] = useState(false)
   const [picked, setPicked] = useState<TeamCandidate | null>(null)
   const [newRole, setNewRole] = useState("")
   const [newGroup, setNewGroup] = useState("")
@@ -80,6 +81,7 @@ export default function AdminTeamPage() {
     const res = await fetch(`/api/admin/team/candidates?q=${encodeURIComponent(query.trim())}`)
     if (!res.ok) return setError(await message(res, "Search failed."))
     setCandidates(await res.json())
+    setSearched(true)
   }
 
   async function add() {
@@ -100,6 +102,7 @@ export default function AdminTeamPage() {
     load([...members, added])
     setPicked(null)
     setCandidates([])
+    setSearched(false)
     setQuery("")
     setNewRole("")
     setNewGroup("")
@@ -154,13 +157,21 @@ export default function AdminTeamPage() {
           <Input
             value={query}
             placeholder="Search by name"
-            onChange={(e) => setQuery(e.target.value)}
+            onChange={(e) => {
+              setQuery(e.target.value)
+              setSearched(false)
+            }}
             onKeyDown={(e) => e.key === "Enter" && void search()}
           />
           <Button variant="outline" onClick={search}>
             Search
           </Button>
         </div>
+        {searched && candidates.length === 0 && !picked && (
+          <p className="text-sm text-muted-foreground">
+            No one matches that name. Only people with an account who are not already on the team can be added.
+          </p>
+        )}
         {candidates.length > 0 && !picked && (
           <ul className="divide-y divide-[var(--blue-008)] rounded-md border border-[var(--blue-008)]">
             {candidates.map((c) => (

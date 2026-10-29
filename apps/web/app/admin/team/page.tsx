@@ -530,12 +530,12 @@ export default function AdminTeamPage() {
                     onChange={(e) => setDrafts({ ...drafts, [member.person_id]: { ...draft, sort_order: e.target.value } })}
                   />
                 </div>
-                <div className="flex items-center gap-2">
+                <div className="relative flex items-center">
                   <Button variant="outline" disabled={draft.role_ids.length === 0} onClick={() => void saveRow(member)}>
                     Save
                   </Button>
                   {savedId === member.person_id && (
-                    <span className="flex items-center gap-1 text-xs text-muted-foreground">
+                    <span className="absolute left-0 top-full mt-1 flex items-center gap-1 whitespace-nowrap text-xs text-muted-foreground sm:bottom-full sm:left-auto sm:right-0 sm:top-auto sm:mb-1 sm:mt-0">
                       <Check className="h-3.5 w-3.5" />
                       Saved
                     </span>

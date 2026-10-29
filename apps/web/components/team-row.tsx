@@ -13,12 +13,12 @@ export function TeamRow({ member }: { member: Card }) {
           alt={member.name}
           width={120}
           height={120}
-          className="h-[120px] w-[120px] flex-none rounded-[10px] object-cover"
+          className="h-[120px] w-[120px] flex-none rounded-[10px] object-cover sm:self-start"
         />
       ) : (
         <div
           aria-hidden="true"
-          className="flex h-[120px] w-[120px] flex-none items-center justify-center rounded-[10px] bg-gradient-to-br from-[#0a3a5c] to-[#00b4ff44] font-heading text-4xl font-semibold text-[var(--xiv-blue)]"
+          className="flex h-[120px] w-[120px] flex-none items-center justify-center rounded-[10px] sm:self-start bg-gradient-to-br from-[#0a3a5c] to-[#00b4ff44] font-heading text-4xl font-semibold text-[var(--xiv-blue)]"
         >
           {initials(member.name)}
         </div>

@@ -138,14 +138,14 @@ export default function AdminTeamPage() {
 
   if (loadError) {
     return (
-      <div className="page-inner max-w-3xl">
+      <div className="page-inner max-w-3xl mx-auto">
         <p className="text-muted-foreground">{loadError}</p>
       </div>
     )
   }
 
   return (
-    <div className="page-inner max-w-3xl">
+    <div className="page-inner max-w-3xl mx-auto">
       <h1 className="page-h1 flex items-center gap-2">
         <Users className="h-6 w-6 text-[var(--xiv-blue)]" />
         Team

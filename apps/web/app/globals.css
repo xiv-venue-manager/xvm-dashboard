@@ -831,7 +831,7 @@
 /* Sidebar scroll area — hide native scrollbar, show thin thumb on hover */
 .sidebar-scroll {
   scrollbar-width: thin;
-  scrollbar-color: var(--blue-015) transparent;
+  scrollbar-color: var(--blue-020) transparent;
 }
 .sidebar-scroll::-webkit-scrollbar {
   width: 6px;
@@ -850,7 +850,7 @@
 /* Rooms board table scroll */
 .rooms-table-scroll {
   scrollbar-width: thin;
-  scrollbar-color: var(--blue-015) transparent;
+  scrollbar-color: var(--blue-020) transparent;
 }
 .rooms-table-scroll::-webkit-scrollbar {
   height: 6px;

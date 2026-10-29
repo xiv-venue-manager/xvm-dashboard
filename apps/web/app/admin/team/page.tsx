@@ -385,7 +385,7 @@ export default function AdminTeamPage() {
       </h1>
       <p className="mt-1 text-sm text-muted-foreground">
         Who is on the Meet the team page, and what they are called there. Everyone needs a group, which is how the list
-        separates people. Sections follow the order of each group&apos;s first person by order number.
+        separates people. Sections follow the Groups list order, and people inside a group follow their order number.
       </p>
       {error && <p className="mt-4 text-sm text-destructive">{error}</p>}
 

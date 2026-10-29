@@ -25,9 +25,16 @@ export function TeamRow({ member }: { member: Card }) {
       )}
       <div className="min-w-0">
         <h3 className="font-heading text-lg font-semibold text-foreground">{member.name}</h3>
-        <span className="mt-1.5 inline-block rounded-full border border-[var(--blue-018)] bg-[var(--blue-010)] px-2.5 py-0.5 text-xs text-[var(--xiv-blue)]">
-          {member.roles.join(", ")}
-        </span>
+        <div className="mt-1.5 flex flex-wrap gap-1.5">
+          {member.roles.map((role, index) => (
+            <span
+              key={`${role}-${index}`}
+              className="rounded-full border border-[var(--blue-018)] bg-[var(--blue-010)] px-2.5 py-0.5 text-xs text-[var(--xiv-blue)]"
+            >
+              {role}
+            </span>
+          ))}
+        </div>
         {member.bio && (
           <p className="mt-3 whitespace-pre-line text-[0.95rem] leading-relaxed text-[var(--fg-subtle)]">{member.bio}</p>
         )}

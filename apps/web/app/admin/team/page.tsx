@@ -20,11 +20,12 @@ import {
   AlertDialogTitle,
   AlertDialogTrigger,
 } from "@/components/ui/alert-dialog"
-import { Avatar, AvatarFallback, AvatarImage } from "@/components/ui/avatar"
+import { Avatar, AvatarFallback } from "@/components/ui/avatar"
 import { Badge } from "@/components/ui/badge"
 import { ArrowDown, ArrowUp, Check, Loader2, Pencil, Trash2, Users, X } from "lucide-react"
 import { adminLoadErrorMessage } from "@/lib/admin-load-error"
 import { initials } from "@/lib/team-groups"
+import { clampFrame, photoImageStyle } from "@/lib/team-photo"
 import type { AdminTeamMember, TeamCandidate, TeamCatalogueItem, TeamCatalogueKind } from "@/lib/api/xvm-api"
 
 interface Draft {
@@ -511,12 +512,22 @@ export default function AdminTeamPage() {
                 <div className="rounded-xl border border-[var(--blue-018)] bg-card p-4">
                   <div className="mb-3 flex items-center justify-between gap-3">
                     <div className="flex min-w-0 items-center gap-3">
-                      <Avatar className="size-10">
-                        {member.photo_url && <AvatarImage src={member.photo_url} alt="" />}
-                        <AvatarFallback className="bg-gradient-to-br from-[#0a3a5c] to-[#00b4ff44] font-heading text-sm font-semibold text-[var(--xiv-blue)]">
-                          {initials(member.name)}
-                        </AvatarFallback>
-                      </Avatar>
+                      {member.photo_url ? (
+                        <span className="relative size-10 shrink-0 overflow-hidden rounded-full">
+                          {/* eslint-disable-next-line @next/next/no-img-element */}
+                          <img
+                            src={member.photo_url}
+                            alt=""
+                            style={photoImageStyle(clampFrame({ x: member.photo_x, y: member.photo_y, zoom: member.photo_zoom }))}
+                          />
+                        </span>
+                      ) : (
+                        <Avatar className="size-10">
+                          <AvatarFallback className="bg-gradient-to-br from-[#0a3a5c] to-[#00b4ff44] font-heading text-sm font-semibold text-[var(--xiv-blue)]">
+                            {initials(member.name)}
+                          </AvatarFallback>
+                        </Avatar>
+                      )}
                       <div className="flex min-w-0 flex-wrap items-center gap-x-2 gap-y-1">
                         <span className="font-heading text-base font-semibold">{member.name}</span>
                         {!member.listed && (

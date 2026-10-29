@@ -589,6 +589,7 @@ export default function AdminTeamPage() {
                           id={`order-${member.person_id}`}
                           type="number"
                           min={0}
+                          className="h-9"
                           value={draft.sort_order}
                           onChange={(e) => setDrafts({ ...drafts, [member.person_id]: { ...draft, sort_order: e.target.value } })}
                         />

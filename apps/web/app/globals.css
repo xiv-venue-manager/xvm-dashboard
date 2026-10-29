@@ -821,6 +821,13 @@
   -webkit-backdrop-filter: blur(16px);
 }
 
+/* Themed scrollbars everywhere: thin, blue-tinted thumb on a transparent track. The standard
+   properties are used because Chromium ignores ::-webkit-scrollbar rules once they are set. */
+* {
+  scrollbar-width: thin;
+  scrollbar-color: var(--blue-020) transparent;
+}
+
 /* Sidebar scroll area — hide native scrollbar, show thin thumb on hover */
 .sidebar-scroll {
   scrollbar-width: thin;

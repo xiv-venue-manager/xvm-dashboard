@@ -1,0 +1,64 @@
+import { describe, expect, it } from "vitest"
+import { groupTeam, initials, TEAM_BIO_MAX } from "./team-groups"
+
+const member = (name: string, group_label: string | null) => ({
+  name,
+  role_title: "Role",
+  group_label,
+  bio: null,
+  photo_url: null,
+})
+
+describe("groupTeam", () => {
+  it("returns no sections for an empty team", () => {
+    expect(groupTeam([])).toEqual([])
+  })
+
+  it("groups by label in the order each label first appears", () => {
+    const sections = groupTeam([
+      member("A", "Builders"),
+      member("B", "Testers"),
+      member("C", "Builders"),
+    ])
+    expect(sections.map((s) => s.label)).toEqual(["Builders", "Testers"])
+    expect(sections[0].members.map((m) => m.name)).toEqual(["A", "C"])
+    expect(sections[1].members.map((m) => m.name)).toEqual(["B"])
+  })
+
+  it("puts members without a label in a last section with no heading", () => {
+    const sections = groupTeam([member("A", null), member("B", "Builders")])
+    expect(sections.map((s) => s.label)).toEqual(["Builders", null])
+    expect(sections[1].members.map((m) => m.name)).toEqual(["A"])
+  })
+
+  it("keeps a team with no labels at all as one section with no heading", () => {
+    const sections = groupTeam([member("A", null), member("B", null)])
+    expect(sections).toHaveLength(1)
+    expect(sections[0].label).toBeNull()
+  })
+})
+
+describe("initials", () => {
+  it("takes the first letters of the first and last words", () => {
+    expect(initials("Name Surname")).toBe("NS")
+    expect(initials("  ada   king  lovelace ")).toBe("AL")
+  })
+
+  it("takes one letter from a single word", () => {
+    expect(initials("ehno")).toBe("E")
+  })
+
+  it("does not split a character outside the basic plane", () => {
+    expect(initials("\u{1D4D0}da")).toBe("\u{1D4D0}")
+  })
+
+  it("falls back to a question mark for a blank name", () => {
+    expect(initials("   ")).toBe("?")
+  })
+})
+
+describe("TEAM_BIO_MAX", () => {
+  it("matches the ceiling xvm-api enforces", () => {
+    expect(TEAM_BIO_MAX).toBe(1000)
+  })
+})

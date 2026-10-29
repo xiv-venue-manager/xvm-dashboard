@@ -15,7 +15,7 @@ export const GET = withRateLimit(
 
     const q = new URL(request.url).searchParams.get("q")?.trim() ?? ""
     if (q.length < 2 || q.length > 100) {
-      return NextResponse.json({ error: "Search for at least two characters." }, { status: 400 })
+      return NextResponse.json({ error: "Type at least two letters of their name." }, { status: 400 })
     }
 
     try {

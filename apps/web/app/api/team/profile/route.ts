@@ -6,6 +6,7 @@ import { withRateLimit } from "@/lib/middleware/with-rate-limit"
 import { getValidXvmApiToken, xvmApiErrorResponse } from "@/lib/api/xvm-api-store"
 import { getMyTeamProfile, updateMyTeamProfile } from "@/lib/api/xvm-api"
 import { TEAM_BIO_MAX } from "@/lib/team-groups"
+import { refreshTeamPage } from "@/lib/refresh-team"
 
 const updateSchema = z
   .object({
@@ -45,7 +46,9 @@ export const PATCH = withRateLimit(
     }
 
     try {
-      return NextResponse.json(await updateMyTeamProfile(token, parsed.data))
+      const profile = await updateMyTeamProfile(token, parsed.data)
+      refreshTeamPage()
+      return NextResponse.json(profile)
     } catch (err) {
       return xvmApiErrorResponse(err, session.user.id, "[team/profile] PATCH error")
     }

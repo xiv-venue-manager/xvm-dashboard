@@ -5,6 +5,7 @@ import { authOptions } from "@/lib/auth"
 import { withRateLimit } from "@/lib/middleware/with-rate-limit"
 import { getValidXvmApiToken, xvmApiErrorResponse } from "@/lib/api/xvm-api-store"
 import { removeTeamMember, updateTeamMember } from "@/lib/api/xvm-api"
+import { refreshTeamPage } from "@/lib/refresh-team"
 
 const updateSchema = z
   .object({
@@ -33,7 +34,9 @@ export const PATCH = withRateLimit<Context>(
     }
 
     try {
-      return NextResponse.json(await updateTeamMember(token, Number(personId), parsed.data))
+      const member = await updateTeamMember(token, Number(personId), parsed.data)
+      refreshTeamPage()
+      return NextResponse.json(member)
     } catch (err) {
       return xvmApiErrorResponse(err, session.user.id, "[admin/team] update error")
     }
@@ -54,6 +57,7 @@ export const DELETE = withRateLimit<Context>(
 
     try {
       await removeTeamMember(token, Number(personId))
+      refreshTeamPage()
       return NextResponse.json({ success: true })
     } catch (err) {
       return xvmApiErrorResponse(err, session.user.id, "[admin/team] remove error")

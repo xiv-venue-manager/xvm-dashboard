@@ -1,4 +1,5 @@
 import { cache } from "react"
+import { TEAM_CACHE_TAG } from "@/lib/team-groups"
 
 const XVM_API_BASE_URL = process.env.XVM_API_BASE_URL
 const XVM_API_DASHBOARD_SERVICE_TOKEN = process.env.XVM_API_DASHBOARD_SERVICE_TOKEN
@@ -3685,7 +3686,7 @@ export interface TeamCandidate {
 
 export async function getPublicTeam(): Promise<PublicTeam> {
   if (!process.env.XVM_API_BASE_URL) throw new Error("XVM_API_BASE_URL is not set")
-  return xvmFetch<PublicTeam>("/public/team", { next: { revalidate: 60 } })
+  return xvmFetch<PublicTeam>("/public/team", { next: { revalidate: 60, tags: [TEAM_CACHE_TAG] } })
 }
 
 export async function getMyTeamProfile(personToken: string): Promise<TeamProfile> {

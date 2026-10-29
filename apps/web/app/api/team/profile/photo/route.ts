@@ -4,6 +4,7 @@ import { authOptions } from "@/lib/auth"
 import { withRateLimit } from "@/lib/middleware/with-rate-limit"
 import { getValidXvmApiToken, xvmApiErrorResponse } from "@/lib/api/xvm-api-store"
 import { setMyTeamPhoto } from "@/lib/api/xvm-api"
+import { refreshTeamPage } from "@/lib/refresh-team"
 
 export const PUT = withRateLimit(
   async (request: NextRequest) => {
@@ -18,7 +19,9 @@ export const PUT = withRateLimit(
     if (!(file instanceof File)) return NextResponse.json({ error: "file required" }, { status: 400 })
 
     try {
-      return NextResponse.json(await setMyTeamPhoto(token, file))
+      const profile = await setMyTeamPhoto(token, file)
+      refreshTeamPage()
+      return NextResponse.json(profile)
     } catch (err) {
       return xvmApiErrorResponse(err, session.user.id, "[team/profile/photo] PUT error")
     }

@@ -1,4 +1,5 @@
 export const TEAM_BIO_MAX = 1000
+export const TEAM_CACHE_TAG = "team"
 
 interface Groupable {
   group_label: string | null

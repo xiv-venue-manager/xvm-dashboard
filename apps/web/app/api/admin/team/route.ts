@@ -5,6 +5,7 @@ import { authOptions } from "@/lib/auth"
 import { withRateLimit } from "@/lib/middleware/with-rate-limit"
 import { getValidXvmApiToken, xvmApiErrorResponse } from "@/lib/api/xvm-api-store"
 import { addTeamMember, listAdminTeam } from "@/lib/api/xvm-api"
+import { refreshTeamPage } from "@/lib/refresh-team"
 
 const createSchema = z
   .object({
@@ -46,7 +47,9 @@ export const POST = withRateLimit(
     }
 
     try {
-      return NextResponse.json(await addTeamMember(token, parsed.data), { status: 201 })
+      const member = await addTeamMember(token, parsed.data)
+      refreshTeamPage()
+      return NextResponse.json(member, { status: 201 })
     } catch (err) {
       return xvmApiErrorResponse(err, session.user.id, "[admin/team] add error")
     }

@@ -1,6 +1,6 @@
 import { describe, it, expect, vi, beforeEach } from "vitest"
 
-const m = vi.hoisted(() => ({ session: vi.fn(), token: vi.fn(), get: vi.fn(), update: vi.fn() }))
+const m = vi.hoisted(() => ({ session: vi.fn(), token: vi.fn(), get: vi.fn(), update: vi.fn(), refresh: vi.fn() }))
 
 vi.mock("next-auth", () => ({ getServerSession: m.session }))
 vi.mock("@/lib/auth", () => ({ authOptions: {} }))
@@ -10,6 +10,7 @@ vi.mock("@/lib/api/xvm-api-store", async () => {
   const actual = await vi.importActual<typeof import("@/lib/api/xvm-api-store")>("@/lib/api/xvm-api-store")
   return { ...actual, getValidXvmApiToken: m.token, invalidateXvmApiCredential: vi.fn() }
 })
+vi.mock("@/lib/refresh-team", () => ({ refreshTeamPage: m.refresh }))
 vi.mock("@/lib/api/xvm-api", async (importOriginal) => ({
   ...(await importOriginal<typeof import("@/lib/api/xvm-api")>()),
   getMyTeamProfile: m.get,
@@ -58,6 +59,7 @@ describe("PATCH /api/team/profile", () => {
       expect((await patch(body)).status).toBe(400)
     }
     expect(m.update).not.toHaveBeenCalled()
+    expect(m.refresh).not.toHaveBeenCalled()
   })
 
   it("forwards a bio and listing change", async () => {
@@ -65,6 +67,13 @@ describe("PATCH /api/team/profile", () => {
     const res = await patch({ bio: "Hello", listed: false })
     expect(res.status).toBe(200)
     expect(m.update).toHaveBeenCalledWith("tok", { bio: "Hello", listed: false })
+    expect(m.refresh).toHaveBeenCalledTimes(1)
+  })
+
+  it("does not refresh the public page when xvm-api rejects the save", async () => {
+    m.update.mockRejectedValue(new XvmApiError(404, JSON.stringify({ detail: "You are not on the team." })))
+    expect((await patch({ listed: false })).status).toBe(404)
+    expect(m.refresh).not.toHaveBeenCalled()
   })
 
   it("lets a member clear their bio", async () => {

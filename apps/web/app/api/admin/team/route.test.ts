@@ -8,6 +8,7 @@ const m = vi.hoisted(() => ({
   update: vi.fn(),
   remove: vi.fn(),
   search: vi.fn(),
+  refresh: vi.fn(),
 }))
 
 vi.mock("next-auth", () => ({ getServerSession: m.session }))
@@ -18,6 +19,7 @@ vi.mock("@/lib/api/xvm-api-store", async () => {
   const actual = await vi.importActual<typeof import("@/lib/api/xvm-api-store")>("@/lib/api/xvm-api-store")
   return { ...actual, getValidXvmApiToken: m.token, invalidateXvmApiCredential: vi.fn() }
 })
+vi.mock("@/lib/refresh-team", () => ({ refreshTeamPage: m.refresh }))
 vi.mock("@/lib/api/xvm-api", async (importOriginal) => ({
   ...(await importOriginal<typeof import("@/lib/api/xvm-api")>()),
   listAdminTeam: m.list,
@@ -71,6 +73,7 @@ describe("/api/admin/team", () => {
       expect((await call(POST, "POST", body)).status).toBe(400)
     }
     expect(m.add).not.toHaveBeenCalled()
+    expect(m.refresh).not.toHaveBeenCalled()
   })
 
   it("adds a member", async () => {
@@ -78,11 +81,13 @@ describe("/api/admin/team", () => {
     const res = await call(POST, "POST", { person_id: 7, role_title: "Tester", group_label: "Testers" })
     expect(res.status).toBe(201)
     expect(m.add).toHaveBeenCalledWith("tok", { person_id: 7, role_title: "Tester", group_label: "Testers" })
+    expect(m.refresh).toHaveBeenCalledTimes(1)
   })
 
   it("passes xvm-api's 409 for a double add through", async () => {
     m.add.mockRejectedValue(new XvmApiError(409, JSON.stringify({ detail: "That person is already on the team." })))
     expect((await call(POST, "POST", { person_id: 7, role_title: "Tester" })).status).toBe(409)
+    expect(m.refresh).not.toHaveBeenCalled()
   })
 })
 
@@ -92,12 +97,14 @@ describe("/api/admin/team/[personId]", () => {
     expect((await withId(DELETE, "DELETE", "1e3")).status).toBe(404)
     expect(m.update).not.toHaveBeenCalled()
     expect(m.remove).not.toHaveBeenCalled()
+    expect(m.refresh).not.toHaveBeenCalled()
   })
 
   it("rejects a blank role title or a negative order", async () => {
     expect((await withId(PATCH, "PATCH", "7", { role_title: "" })).status).toBe(400)
     expect((await withId(PATCH, "PATCH", "7", { sort_order: -1 })).status).toBe(400)
     expect(m.update).not.toHaveBeenCalled()
+    expect(m.refresh).not.toHaveBeenCalled()
   })
 
   it("updates the role, group and order, and can clear the group", async () => {
@@ -105,6 +112,15 @@ describe("/api/admin/team/[personId]", () => {
     const res = await withId(PATCH, "PATCH", "7", { role_title: "Lead", group_label: null, sort_order: 2 })
     expect(res.status).toBe(200)
     expect(m.update).toHaveBeenCalledWith("tok", 7, { role_title: "Lead", group_label: null, sort_order: 2 })
+    expect(m.refresh).toHaveBeenCalledTimes(1)
+  })
+
+  it("does not refresh when xvm-api rejects an update or a removal", async () => {
+    m.update.mockRejectedValue(new XvmApiError(404, JSON.stringify({ detail: "Not on the team." })))
+    m.remove.mockRejectedValue(new XvmApiError(404, JSON.stringify({ detail: "Not on the team." })))
+    expect((await withId(PATCH, "PATCH", "7", { role_title: "Lead" })).status).toBe(404)
+    expect((await withId(DELETE, "DELETE", "7")).status).toBe(404)
+    expect(m.refresh).not.toHaveBeenCalled()
   })
 
   it("removes a member", async () => {
@@ -112,6 +128,7 @@ describe("/api/admin/team/[personId]", () => {
     const res = await withId(DELETE, "DELETE", "7")
     expect(res.status).toBe(200)
     expect(m.remove).toHaveBeenCalledWith("tok", 7)
+    expect(m.refresh).toHaveBeenCalledTimes(1)
   })
 })
 

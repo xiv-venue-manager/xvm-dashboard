@@ -6,7 +6,7 @@ Paths are relative to `apps/web`. Names are the real exports.
 
 ## UI primitives (`components/ui/`)
 
-`alert`, `alert-dialog`, `avatar`, `badge`, `button`, `calendar`, `card`, `checkbox`, `dialog`, `dropdown-menu`, `input`, `label`, `popover`, `select`, `sheet`, `switch`, `table`, `textarea`.
+`alert`, `alert-dialog`, `avatar`, `badge`, `button`, `calendar`, `card`, `checkbox`, `dialog`, `dropdown-menu`, `input`, `label`, `popover`, `select`, `sheet`, `switch`, `table`, `textarea`, `tooltip`.
 
 House-specific:
 
@@ -18,6 +18,7 @@ House-specific:
 | `stat-readout` | A labelled figure with an icon variant (`blue`, `success`, `warning`, `default`) |
 | `crystal-divider` | The XIV section divider |
 | `loading-spinner` | A spinner |
+| `ui/tooltip` (`TooltipProvider`, `Tooltip`, `TooltipTrigger`, `TooltipContent`) | A hover and keyboard-focus label for an icon-only control. The content portals and is dismissed on Escape |
 
 ## Feature components (`components/`)
 

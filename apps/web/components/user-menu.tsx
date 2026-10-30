@@ -9,6 +9,7 @@ import {
   DropdownMenuSeparator,
   DropdownMenuTrigger,
 } from "@/components/ui/dropdown-menu"
+import { Tooltip, TooltipContent, TooltipTrigger } from "@/components/ui/tooltip"
 import { Avatar, AvatarFallback, AvatarImage } from "@/components/ui/avatar"
 import { ChevronDown, User, Settings, Heart, ArrowLeftRight, HelpCircle, LogOut } from "lucide-react"
 
@@ -36,16 +37,21 @@ export function UserMenu({ user, currentVenueName, currentVenueRole }: UserMenuP
 
   return (
     <DropdownMenu>
-      <DropdownMenuTrigger asChild>
-        <button className="user-chip" aria-label="Open user menu">
-          <Avatar className="h-7 w-7 flex-shrink-0">
-            <AvatarImage src={user.image || undefined} alt={user.name || "User"} />
-            <AvatarFallback className="text-[0.7rem] font-bold text-white user-chip-av">{initials}</AvatarFallback>
-          </Avatar>
-          <span className="user-chip-name hidden sm:block">{user.name || "User"}</span>
-          <ChevronDown className="h-[15px] w-[15px] text-[var(--fg-faint)] flex-shrink-0 hidden sm:block" />
-        </button>
-      </DropdownMenuTrigger>
+      <Tooltip>
+        <TooltipTrigger asChild>
+          <DropdownMenuTrigger asChild>
+            <button className="user-chip" aria-label="Open user menu">
+              <Avatar className="h-7 w-7 flex-shrink-0">
+                <AvatarImage src={user.image || undefined} alt={user.name || "User"} />
+                <AvatarFallback className="text-[0.7rem] font-bold text-white user-chip-av">{initials}</AvatarFallback>
+              </Avatar>
+              <span className="user-chip-name hidden lg:block">{user.name || "User"}</span>
+              <ChevronDown className="h-[15px] w-[15px] text-[var(--fg-faint)] flex-shrink-0 hidden lg:block" />
+            </button>
+          </DropdownMenuTrigger>
+        </TooltipTrigger>
+        <TooltipContent className="lg:hidden">{user.name || "Account"}</TooltipContent>
+      </Tooltip>
 
       <DropdownMenuContent
         align="end"

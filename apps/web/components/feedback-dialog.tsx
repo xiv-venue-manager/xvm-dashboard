@@ -12,6 +12,7 @@ import {
   DialogTrigger,
 } from "@/components/ui/dialog"
 import { Button } from "@/components/ui/button"
+import { Tooltip, TooltipContent, TooltipTrigger } from "@/components/ui/tooltip"
 import { Input } from "@/components/ui/input"
 import { Label } from "@/components/ui/label"
 import { Textarea } from "@/components/ui/textarea"
@@ -20,7 +21,7 @@ import { MessageSquare, Check } from "lucide-react"
 import { toast } from "sonner"
 import { apiFetch, ApiError } from "@/lib/api-fetch"
 
-export function FeedbackDialog() {
+export function FeedbackDialog({ iconOnlyBelowLg = false }: { iconOnlyBelowLg?: boolean }) {
   const { data: session } = useSession()
   const [isOpen, setIsOpen] = useState(false)
   const [isSubmitting, setIsSubmitting] = useState(false)
@@ -76,14 +77,21 @@ export function FeedbackDialog() {
     return null // Don't show feedback button if not logged in
   }
 
+  const trigger = (
+    <DialogTrigger asChild>
+      <Button variant="ghost" size="sm" className="font-medium hover:bg-white/5" aria-label="Feedback">
+        <MessageSquare className={iconOnlyBelowLg ? "h-4 w-4 lg:mr-2" : "h-4 w-4 sm:mr-2"} />
+        <span className={iconOnlyBelowLg ? "hidden lg:inline" : "hidden sm:inline"}>Feedback</span>
+      </Button>
+    </DialogTrigger>
+  )
+
   return (
     <Dialog open={isOpen} onOpenChange={setIsOpen}>
-      <DialogTrigger asChild>
-        <Button variant="ghost" size="sm" className="font-medium hover:bg-white/5">
-          <MessageSquare className="h-4 w-4 sm:mr-2" />
-          <span className="hidden sm:inline">Feedback</span>
-        </Button>
-      </DialogTrigger>
+      <Tooltip>
+        <TooltipTrigger asChild>{trigger}</TooltipTrigger>
+        <TooltipContent className={iconOnlyBelowLg ? "lg:hidden" : "sm:hidden"}>Feedback</TooltipContent>
+      </Tooltip>
       <DialogContent className="sm:max-w-[525px]">
         <DialogHeader>
           <DialogTitle>Send Feedback</DialogTitle>

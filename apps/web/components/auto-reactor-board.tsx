@@ -139,11 +139,11 @@ export function AutoReactorBoard({ venueId, canManage, rules: initialRules, enab
           <div className="space-y-3">
             {rules.map((rule) => (
               <Card key={rule.id}>
-                <CardContent className="flex items-center gap-4 p-5">
+                <CardContent className="flex flex-wrap items-center gap-4 p-5 sm:flex-nowrap">
                   <span className="flex w-16 shrink-0 justify-center">
                     <EmojiGlyph emoji={rule.emoji} />
                   </span>
-                  <div className="flex min-w-0 flex-1 flex-wrap items-center gap-2">
+                  <div className="flex min-w-[10rem] flex-1 flex-wrap items-center gap-2 [&>*]:max-w-full [&>*]:whitespace-normal">
                     {isDraft(rule) ? (
                       <Badge variant="status-soon">Draft: add a channel, keyword or role to make it react</Badge>
                     ) : (

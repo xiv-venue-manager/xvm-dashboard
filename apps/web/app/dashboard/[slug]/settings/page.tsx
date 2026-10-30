@@ -12,7 +12,9 @@ import { GalleryManager } from "@/components/gallery-manager"
 import { FinanceCategoriesSettings } from "@/components/finance-categories-settings"
 import { BannerUpload } from "@/components/banner-upload"
 import { LogoUpload } from "@/components/logo-upload"
+import { Server } from "lucide-react"
 import { DiscordGuildConnect } from "@/components/discord-guild-connect"
+import { DiscordSettingsCard } from "@/components/discord-settings-card"
 import { ChannelPicker } from "@/components/discord-picker"
 import type { VenueImage } from "@/lib/api/xvm-api"
 import { Select, SelectContent, SelectItem, SelectTrigger, SelectValue } from "@/components/ui/select"
@@ -92,9 +94,6 @@ export default function SettingsPage({ params }: { params: Promise<{ slug: strin
   const [ffxivSyncing, setFfxivSyncing] = useState(false)
   const [ffxivUnlinking, setFfxivUnlinking] = useState(false)
   const [xvmApiVenueId, setXvmApiVenueId] = useState<string | null>(null)
-  const [xvmApiVenueLinkedAt, setXvmApiVenueLinkedAt] = useState<string | null>(null)
-  const [xvmConnecting, setXvmConnecting] = useState(false)
-  const [xvmConnectError, setXvmConnectError] = useState<string | null>(null)
   const [froggeConnected, setFroggeConnected] = useState(false)
   const [froggeCode, setFroggeCode] = useState("")
   const [froggeConnecting, setFroggeConnecting] = useState(false)
@@ -126,6 +125,15 @@ export default function SettingsPage({ params }: { params: Promise<{ slug: strin
   }, [params])
 
   // Fetch settings
+  async function loadPotSettings(id: string) {
+    const r = await fetch(`/api/venues/${id}/pot-settings`, { signal: AbortSignal.timeout(SETTINGS_LOAD_TIMEOUT_MS) })
+    if (!r.ok) return
+    const data = await r.json()
+    setPotTaxPercent(data.settings.taxPercent)
+    setPotIncludeSalesInPot(data.settings.includeSalesInPot)
+    setPotDefaultTipPooled(data.settings.defaultTipPooled)
+  }
+
   useEffect(() => {
     if (!slug) return
 
@@ -154,7 +162,6 @@ export default function SettingsPage({ params }: { params: Promise<{ slug: strin
           .then((images: VenueImage[]) => setGalleryImages(images))
           .catch(() => setGalleryImages([]))
         setXvmApiVenueId(venue.xvmApiVenueId ?? null)
-        setXvmApiVenueLinkedAt(venue.xvmApiVenueLinkedAt ?? null)
         if (venue.memberships?.[0]) {
           setUserRole(venue.memberships[0].role)
         }
@@ -452,35 +459,6 @@ export default function SettingsPage({ params }: { params: Promise<{ slug: strin
       setFfxivError(e instanceof Error ? e.message : "Failed to unlink")
     } finally {
       setFfxivUnlinking(false)
-    }
-  }
-
-  async function loadPotSettings(id: string) {
-    const r = await fetch(`/api/venues/${id}/pot-settings`, { signal: AbortSignal.timeout(SETTINGS_LOAD_TIMEOUT_MS) })
-    if (!r.ok) return
-    const data = await r.json()
-    setPotTaxPercent(data.settings.taxPercent)
-    setPotIncludeSalesInPot(data.settings.includeSalesInPot)
-    setPotDefaultTipPooled(data.settings.defaultTipPooled)
-  }
-
-  async function handleXvmConnect() {
-    setXvmConnecting(true)
-    setXvmConnectError(null)
-    try {
-      const res = await fetch(`/api/venues/${venueId}/xvm-connect`, { method: "POST" })
-      if (!res.ok) {
-        const err = await res.json()
-        throw new Error(err.error ?? "Failed to connect")
-      }
-      const result = await res.json()
-      setXvmApiVenueId(result.id)
-      setXvmApiVenueLinkedAt(new Date().toISOString())
-      loadPotSettings(slug).catch(() => {})
-    } catch (e) {
-      setXvmConnectError(e instanceof Error ? e.message : "Failed to connect")
-    } finally {
-      setXvmConnecting(false)
     }
   }
 
@@ -1024,9 +1002,7 @@ export default function SettingsPage({ params }: { params: Promise<{ slug: strin
                   </span>
                 )}
                 <div className="w-full pl-[54px] space-y-3">
-                  {!xvmApiVenueId ? (
-                    <p className="text-xs text-[var(--fg-faint)]">Connect this venue to xvm-api first.</p>
-                  ) : ffxivLink ? (
+                  {ffxivLink ? (
                     <>
                       <p className="text-xs text-[var(--fg-faint)]">
                         Schedule synced every 2 hours.
@@ -1185,60 +1161,6 @@ export default function SettingsPage({ params }: { params: Promise<{ slug: strin
               </div>
 
               {/* xvm-api */}
-              {userRole === "OWNER" && (
-                <div className="introw" style={{ flexWrap: "wrap", gap: 14 }}>
-                  <span className="iconbadge ii" style={{ width: 40, height: 40 }}>
-                    <svg
-                      xmlns="http://www.w3.org/2000/svg"
-                      viewBox="0 0 24 24"
-                      fill="none"
-                      stroke="currentColor"
-                      strokeWidth="2"
-                    >
-                      <circle cx="12" cy="12" r="10" />
-                      <path d="M9 12l2 2 4-4" />
-                    </svg>
-                  </span>
-                  <div className="iinfo">
-                    <div className="iname">xvm-api</div>
-                    <div className="idesc">Required for Rooms and other live venue features</div>
-                  </div>
-                  {xvmApiVenueId && (
-                    <span className="status open">
-                      <span className="dot" />
-                      Connected
-                    </span>
-                  )}
-                  <div className="w-full pl-[54px] space-y-3">
-                    {xvmApiVenueId ? (
-                      <p className="text-xs text-[var(--fg-faint)]">
-                        Connected
-                        {xvmApiVenueLinkedAt && (
-                          <>
-                            {" "}
-                            on <LocalTime date={xvmApiVenueLinkedAt} />
-                          </>
-                        )}
-                        .
-                      </p>
-                    ) : (
-                      <>
-                        <Button
-                          type="button"
-                          variant="outline-blue"
-                          size="sm"
-                          onClick={handleXvmConnect}
-                          disabled={xvmConnecting}
-                        >
-                          {xvmConnecting ? "Connecting…" : "Connect to xvm-api"}
-                        </Button>
-                        {xvmConnectError && <p className="text-xs text-red-400">{xvmConnectError}</p>}
-                      </>
-                    )}
-                  </div>
-                </div>
-              )}
-
               {/* Frogge Bot */}
               <div className="introw" style={{ flexWrap: "wrap", gap: 14 }}>
                 <span className="iconbadge ii" style={{ width: 40, height: 40 }}>
@@ -1319,52 +1241,35 @@ export default function SettingsPage({ params }: { params: Promise<{ slug: strin
                   )}
                 </div>
               </div>
-
-              {/* Discord */}
-              <div className="introw">
-                <span className="iconbadge ii" style={{ width: 40, height: 40 }}>
-                  <svg
-                    xmlns="http://www.w3.org/2000/svg"
-                    viewBox="0 0 24 24"
-                    fill="none"
-                    stroke="currentColor"
-                    strokeWidth="2"
-                  >
-                    <path d="M21 15a2 2 0 0 1-2 2H7l-4 4V5a2 2 0 0 1 2-2h14a2 2 0 0 1 2 2z" />
-                  </svg>
-                </span>
-                <div className="iinfo">
-                  <div className="iname">Discord</div>
-                  <div className="idesc">OAuth sign-in</div>
-                </div>
-                <span className="status open">
-                  <span className="dot" />
-                  Connected
-                </span>
-              </div>
             </section>
 
-            {/* ── Discord server ── */}
+            {/* ── Discord ── */}
             <section className="panel">
               <div className="ph">
                 <span className="pt">
                   <svg xmlns="http://www.w3.org/2000/svg" viewBox="0 0 24 24" fill="none" stroke="currentColor" strokeWidth="2">
-                    <path d="M20.84 4.61a5.5 5.5 0 0 0-7.78 0L12 5.67l-1.06-1.06a5.5 5.5 0 0 0-7.78 7.78l1.06 1.06L12 21.23l7.78-7.78 1.06-1.06a5.5 5.5 0 0 0 0-7.78z" />
+                    <path d="M21 15a2 2 0 0 1-2 2H7l-4 4V5a2 2 0 0 1 2-2h14a2 2 0 0 1 2 2z" />
                   </svg>
-                  Discord server
+                  Discord
                 </span>
               </div>
               <div className="introw" style={{ flexWrap: "wrap", gap: 14 }}>
-                <div className="iinfo">
+                <span className="iconbadge ii" style={{ width: 40, height: 40 }}>
+                  <Server />
+                </span>
+                <div className="iinfo min-w-0 flex-1">
                   <div className="iname">Connected server</div>
                   <div className="idesc">Which Discord server this venue belongs to</div>
                 </div>
-                {userRole === "OWNER" ? (
-                  <DiscordGuildConnect venueSlug={slug} />
-                ) : (
-                  <p className="text-xs text-[var(--fg-faint)]">Only the venue owner can change this.</p>
-                )}
+                <div className="ml-auto">
+                  {userRole === "OWNER" ? (
+                    <DiscordGuildConnect venueSlug={slug} />
+                  ) : (
+                    <p className="text-xs text-[var(--fg-faint)]">Only the venue owner can change this.</p>
+                  )}
+                </div>
               </div>
+              <DiscordSettingsCard venueSlug={slug} />
             </section>
 
             {/* ── Discord Shift Bot ── */}

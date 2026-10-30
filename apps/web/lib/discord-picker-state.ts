@@ -40,6 +40,28 @@ export function pickerProblem(status: number, body: { error?: string; message?: 
   return { message: body.message ?? body.error ?? "Couldn't reach Discord.", retryable: true }
 }
 
+/** What is wrong with this one channel, said about this channel, or null when nothing is. */
+export function channelProblem(
+  noun: string,
+  value: string,
+  list: { options: DiscordOption[]; loading: boolean; problem: PickerProblem | null }
+): PickerProblem | null {
+  if (list.loading) return null
+  if (list.problem) {
+    const message = value
+      ? `Can't confirm the ${noun} channel while the server's channels are unavailable.`
+      : `Paste a channel id to set the ${noun} channel.`
+    return { message, retryable: false }
+  }
+  if (value && !list.options.some((option) => option.value === value)) {
+    return {
+      message: `The ${noun} channel isn't in this server's list. It may have been deleted, or the bot can't see it.`,
+      retryable: false,
+    }
+  }
+  return null
+}
+
 /**
  * The roles a picker offers: the safe ones, plus whatever this row already holds.
  *

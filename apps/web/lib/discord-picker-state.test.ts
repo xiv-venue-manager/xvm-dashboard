@@ -8,6 +8,7 @@ import {
   memberSearchProblem,
   canReturnToSearch,
   initials,
+  channelProblem,
   type DiscordOption,
 } from "./discord-picker-state"
 
@@ -205,5 +206,39 @@ describe("initials", () => {
 
   it("still renders something for a name made entirely of symbols", () => {
     expect(initials("\u2726\u2726\u2726")).toBe("#")
+  })
+})
+
+describe("channelProblem", () => {
+  const listed = { options: [{ value: "100", label: "#general" }], loading: false, problem: null }
+  const unavailable = { options: [], loading: false, problem: { message: "Couldn't reach Discord.", retryable: true } }
+
+  it("says nothing while the list is loading, or when the channel is in it", () => {
+    expect(channelProblem("honeypot", "100", { ...listed, loading: true })).toBeNull()
+    expect(channelProblem("honeypot", "100", listed)).toBeNull()
+    expect(channelProblem("honeypot", "", listed)).toBeNull()
+  })
+
+  it("says which channel it cannot confirm when the list is unavailable", () => {
+    expect(channelProblem("honeypot", "999", unavailable)?.message).toContain("honeypot channel")
+    expect(channelProblem("events", "999", unavailable)?.message).toContain("events channel")
+  })
+
+  it("asks for an id, for that channel, when the list is unavailable and none is set", () => {
+    expect(channelProblem("rooms", "", unavailable)?.message).toBe("Paste a channel id to set the rooms channel.")
+  })
+
+  it("says the set channel is missing from a list that loaded", () => {
+    expect(channelProblem("events", "999", listed)?.message).toMatch(/events channel isn't in this server's list/)
+  })
+
+  it("never offers a retry of its own, since the card shows one for the list", () => {
+    expect(channelProblem("rooms", "999", unavailable)?.retryable).toBe(false)
+    expect(channelProblem("rooms", "999", listed)?.retryable).toBe(false)
+  })
+
+  it("words each channel differently", () => {
+    const messages = ["honeypot", "events", "rooms"].map((noun) => channelProblem(noun, "999", unavailable)?.message)
+    expect(new Set(messages).size).toBe(3)
   })
 })

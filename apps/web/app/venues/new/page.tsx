@@ -247,9 +247,9 @@ export default function NewVenuePage() {
                   Apartment
                 </Button>
               </div>
-              <div className="grid grid-cols-3 gap-3">
+              <div className="grid grid-cols-1 gap-3 sm:grid-cols-3">
                 <Select name="district" value={selectedDistrict} onValueChange={setSelectedDistrict}>
-                  <SelectTrigger>
+                  <SelectTrigger className="w-full">
                     <SelectValue placeholder="District" />
                   </SelectTrigger>
                   <SelectContent>

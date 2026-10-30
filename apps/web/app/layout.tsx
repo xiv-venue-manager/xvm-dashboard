@@ -1,5 +1,6 @@
 import type { Metadata } from "next"
-import { Inter, Outfit, Cinzel, JetBrains_Mono } from "next/font/google"
+import { Inter, Outfit, Cinzel } from "next/font/google"
+import localFont from "next/font/local"
 import "./globals.css"
 import { Navbar } from "@/components/navbar"
 import { SessionProvider } from "@/components/session-provider"
@@ -24,10 +25,10 @@ const cinzel = Cinzel({
   display: "swap",
 })
 
-const jetbrainsMono = JetBrains_Mono({
+const jetbrainsMono = localFont({
+  src: "./fonts/jetbrains-mono-latin-wght.woff2",
   variable: "--font-jetbrains",
-  subsets: ["latin"],
-  weight: ["400", "500", "600"],
+  weight: "400 600",
 })
 
 export const dynamic = "force-dynamic"

@@ -101,7 +101,7 @@ export default function AdminAnnouncementsPage() {
 
   if (loadError) {
     return (
-      <div className="page-inner max-w-3xl">
+      <div className="page-inner max-w-3xl mx-auto">
         <div className="xiv-card rounded-xl p-8 text-center space-y-4">
           <p className="text-sm text-muted-foreground">{loadError}</p>
           <Button asChild variant="outline">
@@ -113,7 +113,7 @@ export default function AdminAnnouncementsPage() {
   }
 
   return (
-    <div className="page-inner max-w-3xl">
+    <div className="page-inner max-w-3xl mx-auto">
       <div className="flex items-center justify-between mb-8">
         <div>
           <h1 className="page-h1 flex items-center gap-2">

@@ -125,7 +125,7 @@ export default function AdminReactionRoleTemplatesPage() {
 
   if (status === "unauthenticated") {
     return (
-      <div className="page-inner">
+      <div className="page-inner mx-auto">
         <Alert>
           <AlertDescription>Sign in to manage reaction role templates.</AlertDescription>
         </Alert>
@@ -140,7 +140,7 @@ export default function AdminReactionRoleTemplatesPage() {
 
   if (forbidden) {
     return (
-      <div className="page-inner">
+      <div className="page-inner mx-auto">
         <Alert>
           <AlertDescription>
             {forbidden.kind === "not_admin" ? (
@@ -155,7 +155,7 @@ export default function AdminReactionRoleTemplatesPage() {
   }
 
   return (
-    <div className="page-inner max-w-3xl">
+    <div className="page-inner max-w-3xl mx-auto">
       <div className="mb-6 flex items-center gap-2">
         <Layers className="h-5 w-5 text-[var(--xiv-blue)]" />
         <h1 className="page-h1">Reaction Role Templates</h1>

@@ -25,6 +25,7 @@ import { Badge } from "@/components/ui/badge"
 import { PageLoading } from "@/components/ui/loading-spinner"
 import { VenueLayoutClient } from "@/components/venue-layout-client"
 import { canManageVenue, isVenueOwner } from "@/lib/roles"
+import { toast } from "sonner"
 
 // Preset colors for quick selection
 const PRESET_COLORS = [
@@ -213,7 +214,7 @@ export default function RolesPage({ params }: { params: Promise<{ slug: string }
 
       setRoles(roles.filter((r) => r.id !== role.id))
     } catch (error: unknown) {
-      alert(error instanceof Error ? error.message : "Failed to delete role")
+      toast.error(error instanceof Error ? error.message : "Failed to delete role")
     }
   }
 

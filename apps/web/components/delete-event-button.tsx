@@ -14,6 +14,7 @@ import {
   AlertDialogTitle,
   AlertDialogTrigger,
 } from "@/components/ui/alert-dialog"
+import { toast } from "sonner"
 
 interface DeleteEventButtonProps {
   venueId: string
@@ -41,7 +42,7 @@ export function DeleteEventButton({ venueId, eventId, venueSlug }: DeleteEventBu
       router.refresh()
     } catch (error) {
       console.error("Error deleting event:", error)
-      alert("Failed to delete event. Please try again.")
+      toast.error("Failed to delete event. Please try again.")
       setIsDeleting(false)
     }
   }

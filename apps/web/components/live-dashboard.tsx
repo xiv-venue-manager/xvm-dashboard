@@ -20,6 +20,7 @@ import { Coins, UserPlus, UserMinus, Users, Clock, StopCircle, Terminal, Radio }
 import { formatDistanceToNowStrict } from "date-fns"
 import { useRouter } from "next/navigation"
 import type { TimelineItem } from "@/components/timeline-feed"
+import { toast } from "sonner"
 
 function formatDuration(ms: number): string {
   const s = Math.floor(ms / 1000)
@@ -113,12 +114,12 @@ export function LiveDashboard({
       })
       if (!res.ok) {
         const body = await res.json().catch(() => ({}))
-        alert(body.error || `Failed to end event (${res.status})`)
+        toast.error(body.error || `Failed to end event (${res.status})`)
         return
       }
       router.refresh()
     } catch {
-      alert("Network error ending event.")
+      toast.error("Network error ending event.")
     } finally {
       setEnding(false)
     }

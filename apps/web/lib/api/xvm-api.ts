@@ -1,4 +1,5 @@
 import { cache } from "react"
+import { TEAM_CACHE_TAG } from "@/lib/team-groups"
 
 const XVM_API_BASE_URL = process.env.XVM_API_BASE_URL
 const XVM_API_DASHBOARD_SERVICE_TOKEN = process.env.XVM_API_DASHBOARD_SERVICE_TOKEN
@@ -3635,4 +3636,148 @@ export async function linkVenueExternal(
     { method: "POST", body: JSON.stringify(data) },
     personToken
   )
+}
+
+// ── Team ──────────────────────────────────────────────────────
+
+export interface PublicTeamMember {
+  name: string
+  roles: string[]
+  group: string
+  bio: string | null
+  photo_url: string | null
+  photo_x: number
+  photo_y: number
+  photo_zoom: number
+}
+
+export interface PublicTeam {
+  members: PublicTeamMember[]
+}
+
+export interface TeamProfile extends PublicTeamMember {
+  listed: boolean
+}
+
+export interface TeamProfileUpdate {
+  bio?: string | null
+  listed?: boolean
+  photo_x?: number
+  photo_y?: number
+  photo_zoom?: number
+}
+
+export interface AdminTeamMember extends TeamProfile {
+  person_id: number
+  role_ids: number[]
+  group_id: number
+  sort_order: number
+}
+
+export interface TeamMemberCreate {
+  person_id: number
+  role_ids: number[]
+  group_id: number
+  sort_order?: number
+}
+
+export interface TeamMemberUpdate {
+  role_ids?: number[]
+  group_id?: number
+  sort_order?: number
+}
+
+export type TeamCatalogueKind = "roles" | "groups"
+
+export interface TeamCatalogueItem {
+  id: number
+  name: string
+  sort_order: number
+  member_count: number
+}
+
+export interface TeamCandidate {
+  person_id: number
+  name: string
+}
+
+export async function getPublicTeam(): Promise<PublicTeam> {
+  if (!process.env.XVM_API_BASE_URL) throw new Error("XVM_API_BASE_URL is not set")
+  return xvmFetch<PublicTeam>("/public/team", { next: { revalidate: 60, tags: [TEAM_CACHE_TAG] } })
+}
+
+export async function getMyTeamProfile(personToken: string): Promise<TeamProfile> {
+  if (!process.env.XVM_API_BASE_URL) throw new Error("XVM_API_BASE_URL is not set")
+  return xvmFetch<TeamProfile>("/me/team-profile", {}, personToken)
+}
+
+export async function updateMyTeamProfile(personToken: string, data: TeamProfileUpdate): Promise<TeamProfile> {
+  if (!process.env.XVM_API_BASE_URL) throw new Error("XVM_API_BASE_URL is not set")
+  return xvmFetch<TeamProfile>("/me/team-profile", { method: "PATCH", body: JSON.stringify(data) }, personToken)
+}
+
+export async function setMyTeamPhoto(personToken: string, file: File | Blob): Promise<TeamProfile> {
+  if (!process.env.XVM_API_BASE_URL) throw new Error("XVM_API_BASE_URL is not set")
+  const form = new FormData()
+  form.append("file", file)
+  return xvmFetch<TeamProfile>("/me/team-profile/photo", { method: "PUT", body: form }, personToken)
+}
+
+export async function listAdminTeam(personToken: string): Promise<AdminTeamMember[]> {
+  if (!process.env.XVM_API_BASE_URL) throw new Error("XVM_API_BASE_URL is not set")
+  return xvmFetch<AdminTeamMember[]>("/admin/team", {}, personToken)
+}
+
+export async function addTeamMember(personToken: string, data: TeamMemberCreate): Promise<AdminTeamMember> {
+  if (!process.env.XVM_API_BASE_URL) throw new Error("XVM_API_BASE_URL is not set")
+  return xvmFetch<AdminTeamMember>("/admin/team", { method: "POST", body: JSON.stringify(data) }, personToken)
+}
+
+export async function updateTeamMember(
+  personToken: string,
+  personId: number,
+  data: TeamMemberUpdate
+): Promise<AdminTeamMember> {
+  if (!process.env.XVM_API_BASE_URL) throw new Error("XVM_API_BASE_URL is not set")
+  return xvmFetch<AdminTeamMember>(`/admin/team/${personId}`, { method: "PATCH", body: JSON.stringify(data) }, personToken)
+}
+
+export async function removeTeamMember(personToken: string, personId: number): Promise<void> {
+  if (!process.env.XVM_API_BASE_URL) throw new Error("XVM_API_BASE_URL is not set")
+  return xvmFetch<void>(`/admin/team/${personId}`, { method: "DELETE" }, personToken)
+}
+
+export async function searchTeamCandidates(personToken: string, query: string): Promise<TeamCandidate[]> {
+  if (!process.env.XVM_API_BASE_URL) throw new Error("XVM_API_BASE_URL is not set")
+  return xvmFetch<TeamCandidate[]>(`/admin/team/candidates?q=${encodeURIComponent(query)}`, {}, personToken)
+}
+
+export async function listTeamCatalogue(personToken: string, kind: TeamCatalogueKind): Promise<TeamCatalogueItem[]> {
+  if (!process.env.XVM_API_BASE_URL) throw new Error("XVM_API_BASE_URL is not set")
+  return xvmFetch<TeamCatalogueItem[]>(`/admin/team/${kind}`, {}, personToken)
+}
+
+export async function addTeamCatalogueItem(personToken: string, kind: TeamCatalogueKind, name: string): Promise<TeamCatalogueItem> {
+  if (!process.env.XVM_API_BASE_URL) throw new Error("XVM_API_BASE_URL is not set")
+  return xvmFetch<TeamCatalogueItem>(`/admin/team/${kind}`, { method: "POST", body: JSON.stringify({ name }) }, personToken)
+}
+
+export async function renameTeamCatalogueItem(
+  personToken: string,
+  kind: TeamCatalogueKind,
+  id: number,
+  name: string
+): Promise<TeamCatalogueItem> {
+  if (!process.env.XVM_API_BASE_URL) throw new Error("XVM_API_BASE_URL is not set")
+  return xvmFetch<TeamCatalogueItem>(`/admin/team/${kind}/${id}`, { method: "PATCH", body: JSON.stringify({ name }) }, personToken)
+}
+
+export async function removeTeamCatalogueItem(personToken: string, kind: TeamCatalogueKind, id: number): Promise<void> {
+  if (!process.env.XVM_API_BASE_URL) throw new Error("XVM_API_BASE_URL is not set")
+  return xvmFetch<void>(`/admin/team/${kind}/${id}`, { method: "DELETE" }, personToken)
+}
+
+export async function reorderTeamCatalogue(personToken: string, kind: TeamCatalogueKind, ids: number[]): Promise<TeamCatalogueItem[]> {
+  if (!process.env.XVM_API_BASE_URL) throw new Error("XVM_API_BASE_URL is not set")
+  return xvmFetch<TeamCatalogueItem[]>(`/admin/team/${kind}/order`, { method: "PUT", body: JSON.stringify({ ids }) }, personToken)
 }

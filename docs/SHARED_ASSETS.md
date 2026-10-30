@@ -14,6 +14,7 @@ House-specific:
 |---|---|
 | `data-table` (`DataTable`, `DataTableColumn`) | Tables with per-column `hideOnMobile` and alignment |
 | `date-time-picker` | A date and time field |
+| `multi-select` (`MultiSelect`) | A dropdown that lets several options be ticked, built on `dropdown-menu`, with the selected labels on the trigger |
 | `stat-readout` | A labelled figure with an icon variant (`blue`, `success`, `warning`, `default`) |
 | `crystal-divider` | The XIV section divider |
 | `loading-spinner` | A spinner |
@@ -28,6 +29,7 @@ House-specific:
 | `item-search-combobox` | Searching game items |
 | `discord-picker` | `RolePicker`, `ChannelPicker`, `DiscordOptionPicker`, `useDiscordOptions`: choose a Discord role or channel from the venue's server. Use these instead of a hand-rolled dropdown or a paste-an-id field |
 | `user-picker` | `UserPicker`: find a Discord member by typing part of the name, with entering an id as the fallback. Keyed to a venue |
+| `team-row` (`TeamRow`) | One person on the Meet the team page: photo or initials, name, role chip, bio. Used by `/team` and the live preview in `/team/edit` |
 | `discord-members` | `MemberChip`, `useResolvedMembers`: put names and avatars on Discord ids a page already holds. `useResolvedMembers` asks the members route once per id, in as many requests as its cap needs; `MemberChip` renders whatever label the caller decided on. This is for a table of saved ids — `user-picker` is for choosing a new one |
 | `emoji-picker` | `EmojiPicker`: an emoji field — a text input that still takes a typed or pasted value, with a picker beside it. `source="venue"` offers that venue's custom emoji, `source="application"` the bot's own, for a platform surface with no venue to scope to. Unicode either way |
 | `emoji-glyph` | `EmojiGlyph`: render a stored emoji value. A custom emoji is `<:name:id>` markup, which shows as literal text anywhere it is not passed through this |

@@ -3,6 +3,9 @@
  * for the pot tax and flags, and an inventory module toggle for the inventory switch. Reads a JSON
  * export and never touches Prisma or xvm-api.
  *
+ * Every venue gets a payroll settings row with auto_close_after_hours null (the sweep off), because
+ * prod has no auto-close and xvm-api's own default would switch a 2 hour sweep on for them all.
+ *
  * xvm-api has no column for "the pot is switched on", so the venues that had it on come out in a
  * separate list, potEnabledVenues, until that question is answered.
  *

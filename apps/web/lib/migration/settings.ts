@@ -13,6 +13,7 @@ export interface ExportedInventorySettings {
 }
 
 export interface SettingsExport {
+  venues: { id: string }[]
   pot: ExportedPotSettings[]
   inventory: ExportedInventorySettings[]
 }
@@ -22,6 +23,7 @@ export interface PayrollSettingsRow {
   tax_basis_points: number
   include_sales_in_pot: boolean
   default_tip_pooled: boolean
+  auto_close_after_hours: null
 }
 
 export interface ModuleRow {
@@ -46,7 +48,6 @@ export function mapSettings(source: SettingsExport): SettingsResult {
   const warn = (key: string, message: string) => result.warnings.push({ key, message })
 
   const seenPot = new Set<string>()
-  let defaults = 0
 
   for (const p of [...source.pot].sort((a, b) => a.venueId.localeCompare(b.venueId))) {
     if (seenPot.has(p.venueId)) {
@@ -62,17 +63,27 @@ export function mapSettings(source: SettingsExport): SettingsResult {
     }
     if (p.enabled) result.potEnabledVenues.push(p.venueId)
 
-    if (basisPoints === 0 && !p.includeSalesInPot && !p.defaultTipPooled) {
-      defaults++
-      continue
-    }
     result.payrollSettings.push({
       venue_key: p.venueId,
       tax_basis_points: basisPoints,
       include_sales_in_pot: p.includeSalesInPot,
       default_tip_pooled: p.defaultTipPooled,
+      auto_close_after_hours: null,
     })
   }
+
+  const hasRow = new Set(result.payrollSettings.map((s) => s.venue_key))
+  for (const id of new Set([...source.venues.map((v) => v.id), ...seenPot])) {
+    if (hasRow.has(id)) continue
+    result.payrollSettings.push({
+      venue_key: id,
+      tax_basis_points: 0,
+      include_sales_in_pot: false,
+      default_tip_pooled: false,
+      auto_close_after_hours: null,
+    })
+  }
+  result.payrollSettings.sort((a, b) => a.venue_key.localeCompare(b.venue_key))
 
   const seenInventory = new Set<string>()
   for (const i of [...source.inventory].sort((a, b) => a.venueId.localeCompare(b.venueId))) {
@@ -84,7 +95,6 @@ export function mapSettings(source: SettingsExport): SettingsResult {
     if (i.enabled) result.modules.push({ venue_key: i.venueId, module: "inventory", enabled: true })
   }
 
-  if (defaults > 0) warn("pot", `${defaults} venues had only default pot settings, no row made because xvm-api answers with its own defaults`)
   if (result.potEnabledVenues.length > 0) {
     warn("pot", `${result.potEnabledVenues.length} venues had the pot switched on, which has no column in xvm-api, listed in potEnabledVenues`)
   }

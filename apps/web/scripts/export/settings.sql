@@ -1,4 +1,8 @@
 SELECT json_build_object(
+  'venues', (
+    SELECT coalesce(json_agg(t ORDER BY t.id), '[]'::json)
+    FROM (SELECT v.id FROM venues v) t
+  ),
   'pot', (
     SELECT coalesce(json_agg(t ORDER BY t."venueId"), '[]'::json)
     FROM (

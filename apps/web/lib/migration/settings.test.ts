@@ -13,13 +13,13 @@ const pot = (over: Partial<ExportedPotSettings> = {}): ExportedPotSettings => ({
 
 const inventory = (over: Partial<ExportedInventorySettings> = {}): ExportedInventorySettings => ({ venueId: "v1", enabled: false, ...over })
 
-const run = (potRows: ExportedPotSettings[], inventoryRows: ExportedInventorySettings[] = []) =>
-  mapSettings({ pot: potRows, inventory: inventoryRows })
+const run = (potRows: ExportedPotSettings[], inventoryRows: ExportedInventorySettings[] = [], venueIds: string[] = potRows.map((p) => p.venueId)) =>
+  mapSettings({ pot: potRows, inventory: inventoryRows, venues: venueIds.map((id) => ({ id })) })
 
 describe("pot settings", () => {
   it("maps the tax percent to basis points and keeps the two flags", () => {
     expect(run([pot({ taxPercent: 7.5, includeSalesInPot: true, defaultTipPooled: true })]).payrollSettings).toEqual([
-      { venue_key: "v1", tax_basis_points: 750, include_sales_in_pot: true, default_tip_pooled: true },
+      { venue_key: "v1", tax_basis_points: 750, include_sales_in_pot: true, default_tip_pooled: true, auto_close_after_hours: null },
     ])
   })
 
@@ -32,22 +32,25 @@ describe("pot settings", () => {
     expect(run([pot({ taxPercent: 12.345 })]).payrollSettings[0].tax_basis_points).toBe(1235)
   })
 
-  it("skips a tax outside 0 to 100", () => {
+  it("skips a tax outside 0 to 100 but still gives the venue a default row", () => {
     const r = run([pot({ venueId: "a", taxPercent: 120 }), pot({ venueId: "b", taxPercent: -1 })])
-    expect(r.payrollSettings).toEqual([])
+    expect(r.payrollSettings.map((s) => [s.venue_key, s.tax_basis_points])).toEqual([["a", 0], ["b", 0]])
     expect(r.skipped.map((s) => s.key)).toEqual(["a", "b"])
   })
 
-  it("makes no row for a venue with only default settings, and counts them", () => {
-    const r = run([pot({ venueId: "a" }), pot({ venueId: "b", taxPercent: 5 })])
-    expect(r.payrollSettings.map((s) => s.venue_key)).toEqual(["b"])
-    expect(r.warnings).toEqual([{ key: "pot", message: "1 venues had only default pot settings, no row made because xvm-api answers with its own defaults" }])
+  it("makes a row with auto-close off for every venue, including ones with default or no pot settings", () => {
+    const r = run([pot({ venueId: "a" }), pot({ venueId: "b", taxPercent: 5 })], [], ["a", "b", "c"])
+    expect(r.payrollSettings).toEqual([
+      { venue_key: "a", tax_basis_points: 0, include_sales_in_pot: false, default_tip_pooled: false, auto_close_after_hours: null },
+      { venue_key: "b", tax_basis_points: 500, include_sales_in_pot: false, default_tip_pooled: false, auto_close_after_hours: null },
+      { venue_key: "c", tax_basis_points: 0, include_sales_in_pot: false, default_tip_pooled: false, auto_close_after_hours: null },
+    ])
   })
 
   it("lists the venues with the pot switched on, even when everything else is default", () => {
     const r = run([pot({ venueId: "a", enabled: true }), pot({ venueId: "b", enabled: true, taxPercent: 5 }), pot({ venueId: "c" })])
     expect(r.potEnabledVenues).toEqual(["a", "b"])
-    expect(r.payrollSettings.map((s) => s.venue_key)).toEqual(["b"])
+    expect(r.payrollSettings.map((s) => s.venue_key)).toEqual(["a", "b", "c"])
     expect(r.warnings.map((w) => w.message)).toContain("2 venues had the pot switched on, which has no column in xvm-api, listed in potEnabledVenues")
   })
 

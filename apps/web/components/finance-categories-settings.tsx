@@ -2,6 +2,8 @@
 
 import { useEffect, useState } from "react"
 import { Button } from "@/components/ui/button"
+import { Input } from "@/components/ui/input"
+import { Select, SelectContent, SelectItem, SelectTrigger, SelectValue } from "@/components/ui/select"
 
 interface FinanceCategoriesSettingsProps {
   venueSlug: string
@@ -20,6 +22,8 @@ const APPLIES_TO_OPTIONS: { value: "revenue" | "expense" | "payout" | ""; label:
   { value: "expense", label: "Expense" },
   { value: "payout", label: "Payout" },
 ]
+
+const ANY = "any"
 
 export function FinanceCategoriesSettings({ venueSlug }: FinanceCategoriesSettingsProps) {
   const [categories, setCategories] = useState<FinanceCategoryRow[]>([])
@@ -109,25 +113,29 @@ export function FinanceCategoriesSettings({ venueSlug }: FinanceCategoriesSettin
         {categories.length === 0 && <li className="text-sm text-muted-foreground">No categories yet</li>}
       </ul>
       <div className="flex items-center gap-2">
-        <input
+        <Input
           type="text"
           value={newName}
           onChange={(e) => setNewName(e.target.value)}
           placeholder="New category name"
           maxLength={50}
-          className="rounded-[var(--radius-sm)] border border-[var(--blue-015)] bg-background px-3 py-1.5 text-sm focus:border-[var(--blue-035)] focus:outline-none flex-1"
+          className="h-9 flex-1"
         />
-        <select
-          value={newAppliesTo}
-          onChange={(e) => setNewAppliesTo(e.target.value as "revenue" | "expense" | "payout" | "")}
-          className="rounded-[var(--radius-sm)] border border-[var(--blue-015)] bg-background px-3 py-1.5 text-sm focus:border-[var(--blue-035)] focus:outline-none"
+        <Select
+          value={newAppliesTo || ANY}
+          onValueChange={(value) => setNewAppliesTo((value === ANY ? "" : value) as "revenue" | "expense" | "payout" | "")}
         >
-          {APPLIES_TO_OPTIONS.map((opt) => (
-            <option key={opt.value} value={opt.value}>
-              {opt.label}
-            </option>
-          ))}
-        </select>
+          <SelectTrigger className="bg-background border-[var(--blue-015)] focus:border-[var(--blue-035)]">
+            <SelectValue />
+          </SelectTrigger>
+          <SelectContent>
+            {APPLIES_TO_OPTIONS.map((opt) => (
+              <SelectItem key={opt.value} value={opt.value || ANY}>
+                {opt.label}
+              </SelectItem>
+            ))}
+          </SelectContent>
+        </Select>
         <Button size="sm" disabled={isSaving || !newName.trim()} onClick={handleAdd}>
           Add
         </Button>

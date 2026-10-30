@@ -12,6 +12,7 @@ import { Badge } from "@/components/ui/badge"
 import { RoleBadge } from "@/components/role-badge"
 import { Switch } from "@/components/ui/switch"
 import { Checkbox } from "@/components/ui/checkbox"
+import { Select, SelectContent, SelectItem, SelectTrigger, SelectValue } from "@/components/ui/select"
 import {
   DropdownMenu,
   DropdownMenuContent,
@@ -45,6 +46,8 @@ import { ItemSearchCombobox } from "@/components/item-search-combobox"
 import { canManageVenue, isVenueOwner } from "@/lib/roles"
 import { minorUnitsToGil } from "@/lib/api/position-convert"
 import { toast } from "sonner"
+
+const NO_CATEGORY = "none"
 
 interface Role {
   id: number
@@ -857,29 +860,32 @@ export default function ServicesPage({ params }: { params: Promise<{ slug: strin
               </div>
               <div className="space-y-2">
                 <Label htmlFor="create-category">Category</Label>
-                <select
-                  id="create-category"
-                  value={formData.categoryId}
-                  onChange={(e) => setFormData({ ...formData, categoryId: e.target.value })}
+                <Select
+                  value={formData.categoryId || NO_CATEGORY}
+                  onValueChange={(value) => setFormData({ ...formData, categoryId: value === NO_CATEGORY ? "" : value })}
                   disabled={isSubmitting}
-                  className="w-full h-9 rounded-[var(--radius-sm)] border border-[var(--blue-015)] bg-background px-3 text-sm focus:border-[var(--blue-035)] focus:outline-none"
                 >
-                  <option value="">No category</option>
-                  {categories.map((cat) => (
-                    <option key={cat.id} value={cat.id}>
-                      {cat.name}
-                    </option>
-                  ))}
-                </select>
+                  <SelectTrigger id="create-category" className="w-full bg-background border-[var(--blue-015)] focus:border-[var(--blue-035)]">
+                    <SelectValue />
+                  </SelectTrigger>
+                  <SelectContent>
+                    <SelectItem value={NO_CATEGORY}>No category</SelectItem>
+                    {categories.map((cat) => (
+                      <SelectItem key={cat.id} value={String(cat.id)}>
+                        {cat.name}
+                      </SelectItem>
+                    ))}
+                  </SelectContent>
+                </Select>
                 <div className="flex items-center gap-2">
-                  <input
+                  <Input
                     type="text"
                     value={newCategoryName}
                     onChange={(e) => setNewCategoryName(e.target.value)}
                     placeholder="New category name"
                     maxLength={50}
                     disabled={isSubmitting || isCreatingCategory}
-                    className="flex-1 h-9 rounded-[var(--radius-sm)] border border-[var(--blue-015)] bg-background px-3 text-sm focus:border-[var(--blue-035)] focus:outline-none"
+                    className="h-9 flex-1"
                   />
                   <Button
                     type="button"
@@ -1000,29 +1006,32 @@ export default function ServicesPage({ params }: { params: Promise<{ slug: strin
               </div>
               <div className="space-y-2">
                 <Label htmlFor="edit-category">Category</Label>
-                <select
-                  id="edit-category"
-                  value={formData.categoryId}
-                  onChange={(e) => setFormData({ ...formData, categoryId: e.target.value })}
+                <Select
+                  value={formData.categoryId || NO_CATEGORY}
+                  onValueChange={(value) => setFormData({ ...formData, categoryId: value === NO_CATEGORY ? "" : value })}
                   disabled={isSubmitting}
-                  className="w-full h-9 rounded-[var(--radius-sm)] border border-[var(--blue-015)] bg-background px-3 text-sm focus:border-[var(--blue-035)] focus:outline-none"
                 >
-                  <option value="">No category</option>
-                  {categories.map((cat) => (
-                    <option key={cat.id} value={cat.id}>
-                      {cat.name}
-                    </option>
-                  ))}
-                </select>
+                  <SelectTrigger id="edit-category" className="w-full bg-background border-[var(--blue-015)] focus:border-[var(--blue-035)]">
+                    <SelectValue />
+                  </SelectTrigger>
+                  <SelectContent>
+                    <SelectItem value={NO_CATEGORY}>No category</SelectItem>
+                    {categories.map((cat) => (
+                      <SelectItem key={cat.id} value={String(cat.id)}>
+                        {cat.name}
+                      </SelectItem>
+                    ))}
+                  </SelectContent>
+                </Select>
                 <div className="flex items-center gap-2">
-                  <input
+                  <Input
                     type="text"
                     value={newCategoryName}
                     onChange={(e) => setNewCategoryName(e.target.value)}
                     placeholder="New category name"
                     maxLength={50}
                     disabled={isSubmitting || isCreatingCategory}
-                    className="flex-1 h-9 rounded-[var(--radius-sm)] border border-[var(--blue-015)] bg-background px-3 text-sm focus:border-[var(--blue-035)] focus:outline-none"
+                    className="h-9 flex-1"
                   />
                   <Button
                     type="button"

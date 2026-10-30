@@ -88,14 +88,10 @@ export function FeedbackDialog({ iconOnlyBelowLg = false }: { iconOnlyBelowLg?: 
 
   return (
     <Dialog open={isOpen} onOpenChange={setIsOpen}>
-      {iconOnlyBelowLg ? (
-        <Tooltip>
-          <TooltipTrigger asChild>{trigger}</TooltipTrigger>
-          <TooltipContent className="lg:hidden">Feedback</TooltipContent>
-        </Tooltip>
-      ) : (
-        trigger
-      )}
+      <Tooltip>
+        <TooltipTrigger asChild>{trigger}</TooltipTrigger>
+        <TooltipContent className={iconOnlyBelowLg ? "lg:hidden" : "sm:hidden"}>Feedback</TooltipContent>
+      </Tooltip>
       <DialogContent className="sm:max-w-[525px]">
         <DialogHeader>
           <DialogTitle>Send Feedback</DialogTitle>

@@ -5,6 +5,7 @@ import { Navbar } from "@/components/navbar"
 import { SessionProvider } from "@/components/session-provider"
 import { VenueProvider } from "@/components/venue-context"
 import { SidebarProvider } from "@/components/sidebar-context"
+import { TooltipProvider } from "@/components/ui/tooltip"
 import { Toaster } from "sonner"
 
 const inter = Inter({
@@ -76,19 +77,21 @@ export default function RootLayout({
     <html lang="en" className={`${inter.variable} ${outfit.variable} ${cinzel.variable} ${jetbrainsMono.variable}`}>
       <body className="antialiased font-sans">
         <SessionProvider>
-          <SidebarProvider>
-            <VenueProvider>
-              {/* Skip Navigation Link for Accessibility */}
-              <a
-                href="#main-content"
-                className="sr-only focus:not-sr-only focus:absolute focus:top-4 focus:left-4 focus:z-50 focus:px-4 focus:py-2 focus:bg-primary focus:text-primary-foreground focus:rounded-md focus:ring-2 focus:ring-ring focus:outline-none"
-              >
-                Skip to main content
-              </a>
-              <Navbar />
-              <main id="main-content">{children}</main>
-            </VenueProvider>
-          </SidebarProvider>
+          <TooltipProvider>
+            <SidebarProvider>
+              <VenueProvider>
+                {/* Skip Navigation Link for Accessibility */}
+                <a
+                  href="#main-content"
+                  className="sr-only focus:not-sr-only focus:absolute focus:top-4 focus:left-4 focus:z-50 focus:px-4 focus:py-2 focus:bg-primary focus:text-primary-foreground focus:rounded-md focus:ring-2 focus:ring-ring focus:outline-none"
+                >
+                  Skip to main content
+                </a>
+                <Navbar />
+                <main id="main-content">{children}</main>
+              </VenueProvider>
+            </SidebarProvider>
+          </TooltipProvider>
           <Toaster
             theme="dark"
             position="top-right"

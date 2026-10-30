@@ -62,8 +62,6 @@ const updateSettingsSchema = z.object({
       cachedGuildIconUrl: z.string().optional(),
     })
     .optional(),
-  // Room manager roles
-  roomManagerRoleIds: z.array(z.string()).optional(),
 })
 
 function servedSettings(value: unknown): Record<string, unknown> {
@@ -207,12 +205,12 @@ export const PUT = withRateLimit<{ params: Promise<{ venueId: string }> }>(
       const body = await request.json()
       const validatedData = updateSettingsSchema.parse(body)
 
-      // Only OWNER can update most settings; MANAGER can update roomManagerRoleIds and the
-      // operational staff-visibility fields. Revenue visibility stays owner-only - it's a
+      // Only OWNER can update most settings; MANAGER can update the operational
+      // staff-visibility fields. Revenue visibility stays owner-only - it's a
       // financial-disclosure policy call, not day-to-day staff coordination like the other three.
       const isOwner = access.venue.role === "OWNER"
       const isManager = access.venue.role === "MANAGER"
-      const managerAllowedKeys = new Set(["roomManagerRoleIds", "taskVisibility", "salesVisibility", "eventVisibility"])
+      const managerAllowedKeys = new Set(["taskVisibility", "salesVisibility", "eventVisibility"])
       const onlyManagerAllowedFields = Object.keys(validatedData).every((k) => managerAllowedKeys.has(k))
 
       if (!isOwner && !(isManager && onlyManagerAllowedFields)) {

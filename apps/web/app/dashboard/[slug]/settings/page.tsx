@@ -15,7 +15,6 @@ import { LogoUpload } from "@/components/logo-upload"
 import { Server } from "lucide-react"
 import { DiscordGuildConnect } from "@/components/discord-guild-connect"
 import { DiscordSettingsCard } from "@/components/discord-settings-card"
-import { ChannelPicker } from "@/components/discord-picker"
 import type { VenueImage } from "@/lib/api/xvm-api"
 import { Select, SelectContent, SelectItem, SelectTrigger, SelectValue } from "@/components/ui/select"
 import { Alert, AlertDescription } from "@/components/ui/alert"
@@ -36,7 +35,6 @@ import type { VenueSettings } from "@xiv-venue-manager/types"
 import type { ListingLinkRow, ListingSummary } from "@/lib/api/xvm-api"
 import { FFXIV_DISTRICTS, addressProblem, isDistrict } from "@/lib/venue-location"
 import { canManageVenue } from "@/lib/roles"
-import { DISCORD_BOT_INVITE_URL } from "@/lib/discord-invite"
 
 const SETTINGS_LOAD_TIMEOUT_MS = 8000
 const SAVE_OFF_MESSAGE = "Saving is off: this venue's profile couldn't be loaded from xvm-api. Reload the page to try again."
@@ -99,22 +97,10 @@ export default function SettingsPage({ params }: { params: Promise<{ slug: strin
   const [froggeConnecting, setFroggeConnecting] = useState(false)
   const [froggeError, setFroggeError] = useState<string | null>(null)
   const [froggeDisconnecting, setFroggeDisconnecting] = useState(false)
-  const [shiftBotEnabled, setShiftBotEnabled] = useState(false)
-  const [shiftBotChannelId, setShiftBotChannelId] = useState("")
-  const [shiftBotDaysBefore, setShiftBotDaysBefore] = useState(3)
-  const [shiftBotThumbnailUrl, setShiftBotThumbnailUrl] = useState("")
   const [potTaxPercent, setPotTaxPercent] = useState(0)
   const [potIncludeSalesInPot, setPotIncludeSalesInPot] = useState(false)
   const [potDefaultTipPooled, setPotDefaultTipPooled] = useState(false)
   const [inventoryEnabled, setInventoryEnabled] = useState(false)
-  const [shiftBotTemplates, setShiftBotTemplates] = useState<
-    Array<{
-      name: string
-      startOffsetHours: number
-      durationHours: number
-      slots: number
-    }>
-  >([])
   const [isDirty, setIsDirty] = useState(false)
   const settingsReadyRef = useRef(false)
   const partakeLoadedRef = useRef(false)
@@ -188,11 +174,6 @@ export default function SettingsPage({ params }: { params: Promise<{ slug: strin
             venueType: settingsData.venueType ?? null,
           })
           setFroggeConnected(!!settingsData.froggeToken)
-          setShiftBotEnabled(settingsData.shiftBot?.enabled ?? false)
-          setShiftBotChannelId(settingsData.shiftBot?.channelId ?? "")
-          setShiftBotDaysBefore(settingsData.shiftBot?.daysBeforeEvent ?? 3)
-          setShiftBotThumbnailUrl(settingsData.shiftBot?.thumbnailUrl ?? "")
-          setShiftBotTemplates(settingsData.shiftBot?.templates ?? [])
         }
 
         fetch(`/api/venues/${slug}/partake-link`)
@@ -254,11 +235,6 @@ export default function SettingsPage({ params }: { params: Promise<{ slug: strin
     venueApartment,
     venueBuilding,
     housingType,
-    shiftBotEnabled,
-    shiftBotChannelId,
-    shiftBotDaysBefore,
-    shiftBotThumbnailUrl,
-    shiftBotTemplates,
     potTaxPercent,
     potIncludeSalesInPot,
     potDefaultTipPooled,
@@ -303,16 +279,7 @@ export default function SettingsPage({ params }: { params: Promise<{ slug: strin
       const settingsRes = await fetch(`/api/venues/${slug}/settings`, {
         method: "PUT",
         headers: { "Content-Type": "application/json" },
-        body: JSON.stringify({
-          ...settings,
-          shiftBot: {
-            enabled: shiftBotEnabled,
-            channelId: shiftBotChannelId,
-            daysBeforeEvent: shiftBotDaysBefore,
-            templates: shiftBotTemplates,
-            thumbnailUrl: shiftBotThumbnailUrl || undefined,
-          },
-        }),
+        body: JSON.stringify(settings),
       })
       if (!settingsRes.ok) {
         const d = await settingsRes.json()
@@ -1270,201 +1237,6 @@ export default function SettingsPage({ params }: { params: Promise<{ slug: strin
                 </div>
               </div>
               <DiscordSettingsCard venueSlug={slug} />
-            </section>
-
-            {/* ── Discord Shift Bot ── */}
-            <section className="panel">
-              <div className="ph">
-                <span className="pt">
-                  <svg
-                    xmlns="http://www.w3.org/2000/svg"
-                    viewBox="0 0 24 24"
-                    fill="none"
-                    stroke="currentColor"
-                    strokeWidth="2"
-                  >
-                    <path d="M17 21v-2a4 4 0 0 0-4-4H5a4 4 0 0 0-4 4v2" />
-                    <circle cx="9" cy="7" r="4" />
-                    <path d="M23 21v-2a4 4 0 0 0-3-3.87" />
-                    <path d="M16 3.13a4 4 0 0 1 0 7.75" />
-                  </svg>
-                  Discord Shift Bot
-                </span>
-              </div>
-              <div className="introw" style={{ flexWrap: "wrap", gap: 14 }}>
-                <span className="iconbadge ii" style={{ width: 40, height: 40 }}>
-                  <svg
-                    xmlns="http://www.w3.org/2000/svg"
-                    viewBox="0 0 24 24"
-                    fill="none"
-                    stroke="currentColor"
-                    strokeWidth="2"
-                  >
-                    <path d="M17 21v-2a4 4 0 0 0-4-4H5a4 4 0 0 0-4 4v2" />
-                    <circle cx="9" cy="7" r="4" />
-                    <path d="M23 21v-2a4 4 0 0 0-3-3.87" />
-                    <path d="M16 3.13a4 4 0 0 1 0 7.75" />
-                  </svg>
-                </span>
-                <div className="iinfo">
-                  <div className="iname">Discord Shift Bot</div>
-                  <div className="idesc">Post shift signup embeds before each event</div>
-                </div>
-                <label className="flex items-center gap-2 cursor-pointer ml-auto shrink-0">
-                  <input
-                    type="checkbox"
-                    checked={shiftBotEnabled}
-                    onChange={(e) => setShiftBotEnabled(e.target.checked)}
-                    className="rounded"
-                  />
-                  <span className="text-sm">{shiftBotEnabled ? "Enabled" : "Disabled"}</span>
-                </label>
-                {shiftBotEnabled && (
-                  <div className="w-full pl-[54px] space-y-4">
-                    <div>
-                      <label className="block text-sm font-medium mb-1">Discord Channel ID</label>
-                      {venueId ? (
-                        <ChannelPicker venueId={slug} value={shiftBotChannelId} onChange={setShiftBotChannelId} className="flex-1 min-w-44" />
-                      ) : (
-                        <input
-                          type="text"
-                          value={shiftBotChannelId}
-                          onChange={(e) => setShiftBotChannelId(e.target.value)}
-                          placeholder="Right-click channel → Copy ID"
-                          className="flex-1 w-full rounded-[var(--radius-sm)] border border-[var(--blue-015)] bg-background px-3 py-1.5 text-sm focus:border-[var(--blue-035)] focus:outline-none"
-                        />
-                      )}
-                      <p className="text-xs text-[var(--fg-faint)] mt-1">
-                        Enable Developer Mode in Discord settings to copy channel IDs.{" "}
-                        <a
-                          href={DISCORD_BOT_INVITE_URL}
-                          target="_blank"
-                          rel="noopener noreferrer"
-                          className="text-[var(--xiv-blue)] hover:underline"
-                        >
-                          Invite the bot to your server →
-                        </a>
-                      </p>
-                    </div>
-
-                    <div>
-                      <label className="block text-sm font-medium mb-1">
-                        Embed Thumbnail URL <span className="text-[var(--fg-faint)] font-normal">(optional)</span>
-                      </label>
-                      <input
-                        type="url"
-                        value={shiftBotThumbnailUrl}
-                        onChange={(e) => setShiftBotThumbnailUrl(e.target.value)}
-                        placeholder="https://… — leave blank to use your Discord server icon"
-                        className="flex-1 w-full rounded-[var(--radius-sm)] border border-[var(--blue-015)] bg-background px-3 py-1.5 text-sm focus:border-[var(--blue-035)] focus:outline-none"
-                      />
-                    </div>
-
-                    <div>
-                      <label className="block text-sm font-medium mb-1">Days before event to post</label>
-                      <input
-                        type="number"
-                        min={1}
-                        max={14}
-                        value={shiftBotDaysBefore}
-                        onChange={(e) => setShiftBotDaysBefore(Number(e.target.value))}
-                        className="rounded-[var(--radius-sm)] border border-[var(--blue-015)] bg-background px-3 py-1.5 text-sm focus:border-[var(--blue-035)] focus:outline-none w-24 text-center"
-                      />
-                    </div>
-
-                    <div>
-                      <div className="flex items-center justify-between mb-2">
-                        <label className="text-sm font-medium">Shift Templates</label>
-                        <Button
-                          type="button"
-                          variant="outline-blue"
-                          size="sm"
-                          onClick={() =>
-                            setShiftBotTemplates((t) => [
-                              ...t,
-                              { name: "", startOffsetHours: 0, durationHours: 4, slots: 5 },
-                            ])
-                          }
-                        >
-                          + Add Template
-                        </Button>
-                      </div>
-                      <p className="text-xs text-[var(--fg-faint)] mb-3">
-                        Leave empty to post one shift per event matching the full event duration.
-                      </p>
-                      {shiftBotTemplates.length > 0 && (
-                        <div className="flex gap-2 items-center px-3 mb-1">
-                          <span className="flex-1 text-xs text-[var(--fg-faint)]">Name</span>
-                          <span className="w-[4.5rem] text-xs text-[var(--fg-faint)] text-center">Offset (h)</span>
-                          <span className="w-[4.5rem] text-xs text-[var(--fg-faint)] text-center">Duration (h)</span>
-                          <span className="w-[4.5rem] text-xs text-[var(--fg-faint)] text-center">Slots</span>
-                          <span className="w-5" />
-                        </div>
-                      )}
-                      <div className="space-y-3">
-                        {shiftBotTemplates.map((t, i) => (
-                          <div
-                            key={i}
-                            className="flex gap-2 items-center p-3 rounded-lg border border-[var(--blue-018)] bg-[var(--card)]"
-                          >
-                            <input
-                              type="text"
-                              value={t.name}
-                              onChange={(e) =>
-                                setShiftBotTemplates((prev) =>
-                                  prev.map((x, j) => (j === i ? { ...x, name: e.target.value } : x))
-                                )
-                              }
-                              placeholder="Shift name"
-                              className="rounded-[var(--radius-sm)] border border-[var(--blue-015)] bg-background px-3 py-1.5 text-sm focus:border-[var(--blue-035)] focus:outline-none flex-1"
-                            />
-                            <input
-                              type="number"
-                              min={0}
-                              value={t.startOffsetHours}
-                              onChange={(e) =>
-                                setShiftBotTemplates((prev) =>
-                                  prev.map((x, j) => (j === i ? { ...x, startOffsetHours: Number(e.target.value) } : x))
-                                )
-                              }
-                              className="rounded-[var(--radius-sm)] border border-[var(--blue-015)] bg-background px-2 py-1.5 text-sm focus:border-[var(--blue-035)] focus:outline-none w-[4.5rem] text-center"
-                            />
-                            <input
-                              type="number"
-                              min={1}
-                              value={t.durationHours}
-                              onChange={(e) =>
-                                setShiftBotTemplates((prev) =>
-                                  prev.map((x, j) => (j === i ? { ...x, durationHours: Number(e.target.value) } : x))
-                                )
-                              }
-                              className="rounded-[var(--radius-sm)] border border-[var(--blue-015)] bg-background px-2 py-1.5 text-sm focus:border-[var(--blue-035)] focus:outline-none w-[4.5rem] text-center"
-                            />
-                            <input
-                              type="number"
-                              min={1}
-                              value={t.slots}
-                              onChange={(e) =>
-                                setShiftBotTemplates((prev) =>
-                                  prev.map((x, j) => (j === i ? { ...x, slots: Number(e.target.value) } : x))
-                                )
-                              }
-                              className="rounded-[var(--radius-sm)] border border-[var(--blue-015)] bg-background px-2 py-1.5 text-sm focus:border-[var(--blue-035)] focus:outline-none w-[4.5rem] text-center"
-                            />
-                            <button
-                              type="button"
-                              onClick={() => setShiftBotTemplates((prev) => prev.filter((_, j) => j !== i))}
-                              className="text-[var(--fg-faint)] hover:text-red-400 text-sm px-1 transition-colors"
-                            >
-                              ✕
-                            </button>
-                          </div>
-                        ))}
-                      </div>
-                    </div>
-                  </div>
-                )}
-              </div>
             </section>
 
             {/* ── Operations ── */}

@@ -4,38 +4,6 @@
  */
 
 /**
- * Discord webhook configuration
- * Supports multiple webhook URLs for different event types
- */
-export interface DiscordWebhooks {
-  /** Staff-related notifications (invites, role changes) */
-  staff?: string
-  /** Event notifications (created, starting soon) */
-  events?: string
-  /** Revenue and sales notifications */
-  revenue?: string
-}
-
-/**
- * Webhook notification toggles
- * Controls which events trigger Discord notifications
- */
-export interface WebhookSettings {
-  /** Task created notification */
-  taskCreated?: boolean
-  /** Task completed notification */
-  taskCompleted?: boolean
-  /** Mirror Partake-synced events to Discord (post / patch / cancel) */
-  partakeEvent?: boolean
-  /** Sale logged notification */
-  saleLogged?: boolean
-  /** Daily sales summary */
-  dailySalesSummary?: boolean
-  /** Staff member joined */
-  staffJoined?: boolean
-}
-
-/**
  * A single shift template defining one shift type for an event night.
  * startOffsetHours is relative to the Partake event start time.
  */
@@ -91,10 +59,6 @@ export interface VenueSettings {
   salesVisibility: SalesVisibility
   revenueVisibility: RevenueVisibility
   eventVisibility: EventVisibility
-  discordWebhooks: DiscordWebhooks
-  webhooks: WebhookSettings
-  /** Legacy single webhook URL */
-  discordWebhookUrl?: string | null
   /** Partake.gg team integration ID */
   partakeTeamId?: number | null
   /** Venue category */
@@ -173,18 +137,5 @@ export function getDefaultVenueSettings(): VenueSettings {
     salesVisibility: "all",
     revenueVisibility: "all",
     eventVisibility: "all",
-    discordWebhooks: {
-      staff: "",
-      events: "",
-      revenue: "",
-    },
-    webhooks: {
-      taskCreated: false,
-      taskCompleted: false,
-      partakeEvent: false,
-      saleLogged: false,
-      dailySalesSummary: false,
-      staffJoined: false,
-    },
   }
 }

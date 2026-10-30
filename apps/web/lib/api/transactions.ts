@@ -1,15 +1,7 @@
 import { venueEventBus } from "@/lib/sse/venue-events"
 import { z } from "zod"
-import { prisma } from "@/lib/prisma"
-import { validators, sanitizeDiscordContent } from "@/lib/validation"
-import {
-  sendDiscordWebhook,
-  formatSaleLoggedEmbed,
-  getWebhookUrlForType,
-  type VenueWebhookConfig,
-} from "@/lib/discord-webhook"
+import { validators } from "@/lib/validation"
 import { resolveDisplayName } from "@/lib/display-name"
-import { parseVenueSettings } from "@/lib/types/venue-settings"
 import {
   createFinanceTransaction,
   getService,
@@ -70,10 +62,9 @@ async function resolveEventId(token: string, xvmApiVenueId: string, requested: s
 }
 
 /**
- * Create a transaction row in xvm-api, fire the sale-logged Discord webhook,
- * and emit the SSE event for the live dashboard. Callers are responsible for
- * auth, venue access verification, and permission checks - this helper only
- * owns the domain write + side effects.
+ * Create a transaction row in xvm-api and emit the SSE event for the live
+ * dashboard. Callers are responsible for auth, venue access verification, and
+ * permission checks - this helper only owns the domain write + side effects.
  */
 export async function createTransaction(
   token: string,
@@ -81,11 +72,6 @@ export async function createTransaction(
   staffUserId: string,
   input: CreateTransactionInput
 ) {
-  const venue = await prisma.venue.findUnique({
-    where: { xvmApiVenueId },
-    select: { discordWebhookUrl: true, settings: true },
-  })
-
   const resolvedType = input.type ?? "SALE"
   const serviceId = input.serviceId ? Number(input.serviceId) : undefined
 
@@ -151,28 +137,6 @@ export async function createTransaction(
       // failure normally through xvmApiErrorResponse.
       console.error("Failed to fetch post-sale stock count:", error)
     }
-  }
-
-  // Discord webhook (fire-and-forget - never block the response)
-  const venueSettings = parseVenueSettings(venue?.settings)
-  const webhookConfig: VenueWebhookConfig = {
-    discordWebhooks: venueSettings.discordWebhooks,
-    webhooks: venueSettings.webhooks,
-    discordWebhookUrl: venue?.discordWebhookUrl,
-  }
-
-  const webhookUrl = getWebhookUrlForType(webhookConfig, "saleLogged")
-  if (webhookUrl) {
-    const embed = formatSaleLoggedEmbed({
-      amount: amountDollars,
-      service: serviceForEmbed,
-      customerName: sanitizeDiscordContent(newTransaction.customer_name),
-      staff: { name: resolvedStaffName },
-    })
-
-    sendDiscordWebhook(webhookUrl, { embeds: [embed] }).catch((error) =>
-      console.error("Failed to send Discord webhook:", error)
-    )
   }
 
   venueEventBus.emit(xvmApiVenueId, {

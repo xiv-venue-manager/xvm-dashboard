@@ -12,30 +12,11 @@ import { VenueSettings, parseVenueSettings } from "@/lib/types/venue-settings"
 import { getValidXvmApiToken, invalidateXvmApiCredential, isXvmAuthFailure, xvmApiErrorResponse } from "@/lib/api/xvm-api-store"
 import { getVenue, updateVenue, type VenueUpdate } from "@/lib/api/xvm-api"
 
-const webhookSettingsSchema = z.object({
-  taskCreated: z.boolean().optional(),
-  taskCompleted: z.boolean().optional(),
-  partakeEvent: z.boolean().optional(),
-  saleLogged: z.boolean().optional(),
-  dailySalesSummary: z.boolean().optional(),
-  staffJoined: z.boolean().optional(),
-})
-
-const discordWebhooksSchema = z.object({
-  staff: z.string().optional().or(z.literal("")),
-  events: z.string().optional().or(z.literal("")),
-  revenue: z.string().optional().or(z.literal("")),
-})
-
 const updateSettingsSchema = z.object({
   taskVisibility: z.enum(["all", "assigned", "assigned_unassigned"]).optional(),
   salesVisibility: z.enum(["all", "own", "none"]).optional(),
   revenueVisibility: z.enum(["all", "hide", "own"]).optional(),
   eventVisibility: z.enum(["all", "published"]).optional(),
-  webhooks: webhookSettingsSchema.optional(),
-  discordWebhooks: discordWebhooksSchema.optional(),
-  // Keep for backward compatibility
-  discordWebhookUrl: z.string().url().optional().or(z.literal("")),
   // Venue type
   venueType: z
     .enum([
@@ -85,6 +66,13 @@ const updateSettingsSchema = z.object({
   roomManagerRoleIds: z.array(z.string()).optional(),
 })
 
+function servedSettings(value: unknown): Record<string, unknown> {
+  const settings: Record<string, unknown> = { ...parseVenueSettings(value) }
+  delete settings.webhooks
+  delete settings.discordWebhooks
+  return settings
+}
+
 export const GET = withRateLimit<{ params: Promise<{ venueId: string }> }>(
   async (request, context) => {
     if (!context?.params) {
@@ -116,7 +104,6 @@ export const GET = withRateLimit<{ params: Promise<{ venueId: string }> }>(
         where: { xvmApiVenueId: xvmVenueId },
         select: {
           settings: true,
-          discordWebhookUrl: true,
           venueType: true,
           froggeToken: true,
         },
@@ -127,8 +114,7 @@ export const GET = withRateLimit<{ params: Promise<{ venueId: string }> }>(
       }
 
       const responseBody: Record<string, unknown> = {
-        ...parseVenueSettings(venue.settings),
-        discordWebhookUrl: venue.discordWebhookUrl,
+        ...servedSettings(venue.settings),
         venueType: venue.venueType,
         froggeToken: venue.froggeToken,
       }
@@ -253,7 +239,6 @@ export const PUT = withRateLimit<{ params: Promise<{ venueId: string }> }>(
 
       // Extract top-level venue columns and xvm-api-owned visibility fields from validated data
       const {
-        discordWebhookUrl,
         venueType,
         taskVisibility,
         salesVisibility,
@@ -291,24 +276,19 @@ export const PUT = withRateLimit<{ params: Promise<{ venueId: string }> }>(
         ...settingsData,
       }
 
-      // Update venue settings and webhook URL
+      // Update venue settings
       const updatedVenue = await prisma.venue.update({
         where: { id: venue.id },
         data: {
           settings: newSettings as unknown as Prisma.InputJsonValue,
-          ...(discordWebhookUrl !== undefined && {
-            discordWebhookUrl: discordWebhookUrl || null,
-          }),
         },
         select: {
           settings: true,
-          discordWebhookUrl: true,
         },
       })
 
       const putResponseBody: Record<string, unknown> = {
-        ...parseVenueSettings(updatedVenue.settings),
-        discordWebhookUrl: updatedVenue.discordWebhookUrl,
+        ...servedSettings(updatedVenue.settings),
         venueType: venue.venueType,
       }
 

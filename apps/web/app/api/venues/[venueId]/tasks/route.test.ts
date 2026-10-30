@@ -5,7 +5,6 @@ const m = vi.hoisted(() => ({
   session: vi.fn(),
   token: vi.fn(),
   requireVenue: vi.fn(),
-  venueFind: vi.fn(),
   listTasks: vi.fn(),
   listPositions: vi.fn(),
   listTaskCategories: vi.fn(),
@@ -17,7 +16,9 @@ const m = vi.hoisted(() => ({
 vi.mock("next-auth", () => ({ getServerSession: m.session }))
 vi.mock("@/lib/auth", () => ({ authOptions: {} }))
 vi.mock("@/lib/middleware/with-rate-limit", () => ({ withRateLimit: (handler: unknown) => handler }))
-vi.mock("@/lib/prisma", () => ({ prisma: { venue: { findUnique: m.venueFind } } }))
+vi.mock("@/lib/prisma", () => {
+  throw new Error("must not read Prisma")
+})
 vi.mock("@/lib/api/venue-access", () => ({ requireMyVenue: m.requireVenue }))
 vi.mock("@/lib/api/xvm-api-store", () => ({
   getValidXvmApiToken: m.token,
@@ -35,12 +36,9 @@ vi.mock("@/lib/api/xvm-api", () => ({
   startTask: vi.fn(),
   cancelTask: vi.fn(),
 }))
-vi.mock("@/lib/discord-webhook", () => ({
-  sendDiscordWebhook: vi.fn(),
-  formatTaskCreatedEmbed: vi.fn(),
-  formatTaskCompletedEmbed: vi.fn(),
-  getWebhookUrlForType: vi.fn(() => null),
-}))
+vi.mock("@/lib/discord-webhook", () => {
+  throw new Error("must not send a webhook")
+})
 
 import { GET, POST } from "./route"
 import { GET as GET_ONE, POST as POST_ONE } from "./[taskId]/route"
@@ -74,7 +72,6 @@ beforeEach(() => {
   m.listPositions.mockResolvedValue([])
   m.listTaskCategories.mockResolvedValue([])
   m.listMemberships.mockResolvedValue([])
-  m.venueFind.mockResolvedValue(null)
 })
 
 describe("tasks list", () => {
@@ -92,11 +89,10 @@ describe("tasks list", () => {
     expect(m.listTasks).not.toHaveBeenCalled()
   })
 
-  it("reads the create webhook config by xvm-api venue id", async () => {
+  it("creates a task", async () => {
     m.createTask.mockResolvedValue({ ...taskRow, id: 8 })
     const res = await POST(request({ title: "Polish glasses" }), listContext)
     expect(res.status).toBe(201)
-    expect(m.venueFind).toHaveBeenCalledWith(expect.objectContaining({ where: { xvmApiVenueId: "ven_1" } }))
   })
 })
 
@@ -113,10 +109,9 @@ describe("single task", () => {
     expect(m.listTasks).not.toHaveBeenCalled()
   })
 
-  it("reads the complete webhook config by xvm-api venue id", async () => {
+  it("completes a task", async () => {
     m.completeTask.mockResolvedValue({ ...taskRow, completed_at: "2026-10-25T11:00:00Z" })
     const res = await POST_ONE(request({ action: "complete" }), oneContext("7"))
     expect(res.status).toBe(200)
-    expect(m.venueFind).toHaveBeenCalledWith(expect.objectContaining({ where: { xvmApiVenueId: "ven_1" } }))
   })
 })

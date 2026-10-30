@@ -24,7 +24,7 @@ The platform is two parts: a **web dashboard** (this repo) and a **Dalamud game-
 
 - **Multi-venue Management**: Unlimited venues from a single account
 - **Role-Based Access**: Fine-grained permissions for owners, managers, and staff
-- **Discord Integration**: Automated webhooks for events, tasks, sales, and updates
+- **Discord Integration**: Discord sign-in and a Discord bot for shifts and events
 - **Mobile-First Design**: Fully responsive on all devices
 - **Real-Time Collaboration**: Invite staff, assign tasks, coordinate in real-time
 - **Financial Tracking**: Sales, transactions, and payroll management
@@ -74,10 +74,8 @@ The platform is two parts: a **web dashboard** (this repo) and a **Dalamud game-
 
 ### Discord Integration
 
-- Separate webhooks for different notification types
-- Selective notification toggles per webhook
-- Task, event, sales, and staff notifications
-- Customizable per venue
+- Sign in with Discord
+- Staff and events are managed through the Discord bot
 
 ---
 

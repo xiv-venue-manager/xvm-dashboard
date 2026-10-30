@@ -12,8 +12,13 @@ Closes #105. xvm-api keeps one row per venue of per-server switches the bot read
 ## Not doing
 
 - Server-side check that the channel is in the venue's server. The bot only posts into a channel of the venue's own server, and the honeypot only watches that server's channels, so a foreign id does nothing.
-- Folding in the Discord Shift Bot section. It saves with the page's own Save button, not per row, and nothing on `dev` reads it (see the PR).
 - The log routes (`/discord/log-routes`). They are the notification settings #302 waits on, a separate card.
+
+## Removed in the same branch, as their own commits
+
+- The Discord Shift Bot section. Nothing on `dev` reads `settings.shiftBot`, the migration already lists it as having no home, and the shift bot is being built into xvm-bot.
+- The Frogge card, the three `frogge/*` routes, `lib/frogge-api.ts` and the token in the settings route. Frogge is being handled in xvm-api and xvm-bot. The Prisma columns, the `webhooks/frogge` stub and the credit links stay.
+- The header Save changes button. The bar that follows the user is the one to keep.
 
 ## Checks
 

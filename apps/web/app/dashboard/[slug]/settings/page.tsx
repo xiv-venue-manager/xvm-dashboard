@@ -435,14 +435,9 @@ export default function SettingsPage({ params }: { params: Promise<{ slug: strin
     <VenueLayoutClient slug={slug}>
       <div className="page-inner max-w-3xl">
         {/* Header */}
-        <div className="flex flex-col sm:flex-row sm:items-start sm:justify-between gap-4 mb-6 md:mb-8">
-          <div>
-            <VenueEyebrow slug={slug} />
-            <h1 className="page-h1">Settings</h1>
-          </div>
-          <Button onClick={handleSave} disabled={isSaving || xvmUnavailable} className="self-start shrink-0">
-            {isSaving ? "Saving…" : "Save changes"}
-          </Button>
+        <div className="mb-6 md:mb-8">
+          <VenueEyebrow slug={slug} />
+          <h1 className="page-h1">Settings</h1>
         </div>
 
         {/* Alerts */}

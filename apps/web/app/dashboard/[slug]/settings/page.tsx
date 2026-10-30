@@ -92,11 +92,6 @@ export default function SettingsPage({ params }: { params: Promise<{ slug: strin
   const [ffxivSyncing, setFfxivSyncing] = useState(false)
   const [ffxivUnlinking, setFfxivUnlinking] = useState(false)
   const [xvmApiVenueId, setXvmApiVenueId] = useState<string | null>(null)
-  const [froggeConnected, setFroggeConnected] = useState(false)
-  const [froggeCode, setFroggeCode] = useState("")
-  const [froggeConnecting, setFroggeConnecting] = useState(false)
-  const [froggeError, setFroggeError] = useState<string | null>(null)
-  const [froggeDisconnecting, setFroggeDisconnecting] = useState(false)
   const [potTaxPercent, setPotTaxPercent] = useState(0)
   const [potIncludeSalesInPot, setPotIncludeSalesInPot] = useState(false)
   const [potDefaultTipPooled, setPotDefaultTipPooled] = useState(false)
@@ -173,7 +168,6 @@ export default function SettingsPage({ params }: { params: Promise<{ slug: strin
             partakeTeamId: null,
             venueType: settingsData.venueType ?? null,
           })
-          setFroggeConnected(!!settingsData.froggeToken)
         }
 
         fetch(`/api/venues/${slug}/partake-link`)
@@ -426,40 +420,6 @@ export default function SettingsPage({ params }: { params: Promise<{ slug: strin
       setFfxivError(e instanceof Error ? e.message : "Failed to unlink")
     } finally {
       setFfxivUnlinking(false)
-    }
-  }
-
-  async function handleFroggeConnect() {
-    if (!froggeCode.trim()) return
-    setFroggeConnecting(true)
-    setFroggeError(null)
-    try {
-      const res = await fetch(`/api/venues/${venueId}/frogge/redeem`, {
-        method: "POST",
-        headers: { "Content-Type": "application/json" },
-        body: JSON.stringify({ code: froggeCode.trim() }),
-      })
-      if (!res.ok) {
-        const err = await res.json()
-        throw new Error(err.error ?? "Failed to connect")
-      }
-      setFroggeConnected(true)
-      setFroggeCode("")
-    } catch (e) {
-      setFroggeError(e instanceof Error ? e.message : "Failed to connect")
-    } finally {
-      setFroggeConnecting(false)
-    }
-  }
-
-  async function handleFroggeDisconnect() {
-    setFroggeDisconnecting(true)
-    try {
-      const res = await fetch(`/api/venues/${venueId}/frogge/disconnect`, { method: "POST" })
-      if (!res.ok) throw new Error("Failed to disconnect")
-      setFroggeConnected(false)
-    } finally {
-      setFroggeDisconnecting(false)
     }
   }
 
@@ -1124,88 +1084,6 @@ export default function SettingsPage({ params }: { params: Promise<{ slug: strin
                       className="flex-1 bg-background border-[var(--blue-015)] focus:border-[var(--blue-035)] text-sm h-9"
                     />
                   </div>
-                </div>
-              </div>
-
-              {/* xvm-api */}
-              {/* Frogge Bot */}
-              <div className="introw" style={{ flexWrap: "wrap", gap: 14 }}>
-                <span className="iconbadge ii" style={{ width: 40, height: 40 }}>
-                  <svg
-                    xmlns="http://www.w3.org/2000/svg"
-                    viewBox="0 0 24 24"
-                    fill="none"
-                    stroke="currentColor"
-                    strokeWidth="2"
-                  >
-                    <path d="M12 2L2 7l10 5 10-5-10-5z" />
-                    <path d="M2 17l10 5 10-5" />
-                    <path d="M2 12l10 5 10-5" />
-                  </svg>
-                </span>
-                <div className="iinfo">
-                  <div className="iname">Frogge Bot</div>
-                  <div className="idesc">Discord posting</div>
-                </div>
-                {froggeConnected && (
-                  <span className="status open">
-                    <span className="dot" />
-                    Connected
-                  </span>
-                )}
-                <div className="w-full pl-[54px] space-y-3">
-                  {froggeConnected ? (
-                    <>
-                      <p className="text-xs text-[var(--fg-faint)]">
-                        Connected. Use the Rooms page to post to Discord.
-                      </p>
-                      <AlertDialog>
-                        <AlertDialogTrigger asChild>
-                          <Button type="button" variant="destructive" size="sm" disabled={froggeDisconnecting}>
-                            {froggeDisconnecting ? "Disconnecting…" : "Disconnect"}
-                          </Button>
-                        </AlertDialogTrigger>
-                        <AlertDialogContent>
-                          <AlertDialogHeader>
-                            <AlertDialogTitle>Disconnect Frogge?</AlertDialogTitle>
-                            <AlertDialogDescription>Room sync and Discord posting will stop.</AlertDialogDescription>
-                          </AlertDialogHeader>
-                          <AlertDialogFooter>
-                            <AlertDialogCancel>Cancel</AlertDialogCancel>
-                            <AlertDialogAction onClick={handleFroggeDisconnect}>Disconnect</AlertDialogAction>
-                          </AlertDialogFooter>
-                        </AlertDialogContent>
-                      </AlertDialog>
-                    </>
-                  ) : (
-                    <>
-                      <div className="flex gap-2">
-                        <input
-                          type="text"
-                          placeholder="8-character code from Frogge"
-                          value={froggeCode}
-                          onChange={(e) => setFroggeCode(e.target.value)}
-                          onKeyDown={(e) => e.key === "Enter" && handleFroggeConnect()}
-                          maxLength={8}
-                          className="flex-1 rounded-[var(--radius-sm)] border border-[var(--blue-015)] bg-background px-3 py-1.5 text-sm font-mono uppercase tracking-wider focus:border-[var(--blue-035)] focus:outline-none"
-                        />
-                        <Button
-                          type="button"
-                          variant="outline-blue"
-                          size="sm"
-                          onClick={handleFroggeConnect}
-                          disabled={froggeConnecting || !froggeCode.trim()}
-                        >
-                          {froggeConnecting ? "Connecting…" : "Connect"}
-                        </Button>
-                      </div>
-                      {froggeError && <p className="text-xs text-red-400">{froggeError}</p>}
-                      <p className="text-xs text-[var(--fg-faint)]">
-                        Get a code from your Discord: <strong>/admin menu → Settings → Integrations → Connect XIV Venue Manager</strong>.
-                        Codes expire in 5 minutes.
-                      </p>
-                    </>
-                  )}
                 </div>
               </div>
             </section>

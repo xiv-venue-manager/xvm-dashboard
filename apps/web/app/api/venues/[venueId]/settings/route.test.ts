@@ -78,7 +78,7 @@ describe("venue webhook settings are retired", () => {
   })
 
   it("does not return a discordWebhookUrl from GET", async () => {
-    m.venueFind.mockResolvedValue({ settings: stored, venueType: null, froggeToken: null })
+    m.venueFind.mockResolvedValue({ settings: stored, venueType: null })
     const res = await GET(new Request("http://localhost/api") as never, context as never)
     expect(res.status).toBe(200)
     expect(await res.json()).not.toHaveProperty("discordWebhookUrl")
@@ -86,7 +86,7 @@ describe("venue webhook settings are retired", () => {
   })
 
   it("serves no stored webhook address from GET", async () => {
-    m.venueFind.mockResolvedValue({ settings: stored, venueType: null, froggeToken: null })
+    m.venueFind.mockResolvedValue({ settings: stored, venueType: null })
     const body = await (await GET(new Request("http://localhost/api") as never, context as never)).json()
     expect(body.tagline).toBe("Old")
     expect(body).not.toHaveProperty("discordWebhooks")

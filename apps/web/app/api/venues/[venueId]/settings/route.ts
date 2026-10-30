@@ -80,7 +80,6 @@ export const GET = withRateLimit<{ params: Promise<{ venueId: string }> }>(
         select: {
           settings: true,
           venueType: true,
-          froggeToken: true,
         },
       })
 
@@ -91,7 +90,6 @@ export const GET = withRateLimit<{ params: Promise<{ venueId: string }> }>(
       const responseBody: Record<string, unknown> = {
         ...servedSettings(venue.settings),
         venueType: venue.venueType,
-        froggeToken: venue.froggeToken,
       }
 
       // Visibility settings and venue type are being migrated to xvm-api - it's the

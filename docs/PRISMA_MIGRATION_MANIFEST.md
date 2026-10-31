@@ -2,7 +2,7 @@
 
 > Living document. One place that lists everything in Prisma that has to move to xvm-api in the maintenance window. Update the row when a cutover merges or a decision is made.
 >
-> Code scanned 2026-10-08 against `dev` at `e0c00438`. The scan is regex-based and counts code references only. The same day prod was also read, SELECT-only, at the owner's request, to get row counts and to check each domain's data against xvm-api's constraints. The results are in "Prod audit (2026-10-08)". Field-level parity is checked for every domain except venues, which is parked. See "What this does not tell you".
+> Refreshed 2026-10-31 against `dev` at `1caac639`: see "Status on dev (2026-10-31)", which supersedes the inventory below wherever they differ. Code scanned 2026-10-08 against `dev` at `e0c00438`. The scan is regex-based and counts code references only. The same day prod was also read, SELECT-only, at the owner's request, to get row counts and to check each domain's data against xvm-api's constraints. The results are in "Prod audit (2026-10-08)". Field-level parity is checked for every domain except venues, which is parked. See "What this does not tell you".
 
 ## The plan this serves
 
@@ -18,6 +18,73 @@ Working rules, from earlier decisions:
 - No Prisma in new code. A script reads a plain SQL export (JSON from `psql`), never the Prisma client. `apps/web/scripts/export-shouts.sql` and `apps/web/scripts/backfill-shouts-to-xvm-api.ts` (PR #134) are the pattern for the read side.
 - Data that has to keep its original dates is loaded **straight into xvm-api's Postgres**, not through the API (decision 3, option 3). The API stamps "now" on most records and has no field to say otherwise. Shouts are the exception and stay API-based, because their dates do not matter.
 - The migration has to finish before the app starts reading xvm-api, never after. Once users can re-save things, the old copy collides with the new one (xvm-api enforces one label per person on shouts, for example).
+
+## Status on dev (2026-10-31)
+
+Scanned again with the script at the end of this document, against `dev` at `1caac639`. **12 of the 41 Prisma models have any live reference, and the web app really uses 5 of them: `users`, `accounts`, `venues`, `memberships` and `xvm_api_credentials`.** The rest are the old bots' raw SQL, or false positives (below). The inventory below still carries the 2026-10-08 status column, so read this section first.
+
+What changed since 2026-10-08: the Prisma shift, event and Discord shift-embed pipeline was removed (#237), follows and the notification bell moved to xvm-api (#274, #275), and the plugin routes were removed from `dev`, leaving `app/api/plugin/credentials` and `app/api/plugin/pairing-codes`. The venue bridge is almost gone: routes resolve a venue through xvm-api's `GET /me/venues`, by xvm-api id or slug, and `requireXvmVenueId` no longer exists.
+
+### What still touches Prisma
+
+The scan's three raw-SQL hits in `apps/web` are false positives (an `import ... from "events"`, two lines of guide prose and a payroll dialog label), so the web app reaches Prisma only through the client.
+
+| Where | Prisma use | Goes with |
+|---|---|---|
+| `lib/auth.ts` and the NextAuth `PrismaAdapter` | `users` write at sign-in (`:180`), `accounts` read for the Discord grant (`:94`), the adapter's own `users`, `accounts` and `verification_tokens` | Workstream A4 |
+| `lib/api/xvm-api-store.ts` | `xvm_api_credentials`: 3 writes, 2 reads (token cache and the lazily filled `personId`) | Workstream A3 |
+| `app/api/venues/route.ts` | slug check, the bridge row written on create, and the `GET` list through `myVenueRoles` | Workstream A2 |
+| `lib/api/venue-access.ts` | `myVenueRoles` and `requireVenueRole` bridge lookups | Workstream A2 |
+| `app/api/venues/[venueId]/route.ts` | deactivate mirrors `isActive` | Workstream A2 |
+| `app/api/venues/[venueId]/settings/route.ts` | the `settings` JSON and `froggeToken` | Workstream A2 (needs the open venue settings answers) |
+| `frogge/disconnect`, `frogge/members`, `frogge/redeem`, `xvm-connect` | `venues` and `memberships` | Deleted by #311 (open) |
+| `components/timeline-feed.tsx` | type import of `MembershipRole` from `generated/prisma` | Workstream A5 |
+| `apps/eorzea-bot` (own schema, raw SQL) | `users`, `user_characters`, `venues`, `memberships`, `patron_logs`, `shifts`, `discord_members`, `discord_warn_logs` | Workstream B |
+| `apps/discord-bot` (raw SQL) | `users`, `venues`, `memberships` | Workstream B |
+
+Both bots are still services in `docker-compose.yml`, with `DATABASE_URL`. So is `xiv-stats`, whose source lives outside this repository, so what it reads is not known.
+
+The other 29 models have no code reference: `notifications`, `shout_templates`, `sessions`, `verification_tokens`, `venue_schedules`, `venue_schedule_entries`, `roles`, `membership_role_assignments`, `event_templates`, `services`, `transactions`, `tasks`, `payroll_entries`, `pot_distributions`, `venue_pot_settings`, `venue_inventory_settings`, `webhooks`, `feedback`, `api_keys`, `shift_audit_logs`, `shift_signup_embeds`, `pending_notifications`, `venue_follows`, `announcements`, `announcement_dismissals` and the four old-bot `discord_*` config tables. For the migration they are "cut over" or "dead" as the inventory describes, and each still needs its data moved or dropped. Inventory rows marked Live that no longer have web code behind them: `shifts`, `shift_signup_embeds`, `pending_notifications`, `api_keys`, `venue_inventory_settings` (now the `inventory` module toggle through xvm-api), `events`, `services`, `user_characters` (web side) and `patrons`.
+
+### Remaining work, in order
+
+**A. Finish the dashboard on `dev`.** Land the open PRs first (#308, #311, #313; #315 has merged).
+1. A1: #308, then #311, then #313. After #308 lands, #311 needs a small fix: #308's two GET tests fail there because #311 drops `froggeConnected`.
+2. A2, venue residue: build `GET /api/venues` on `myVenues` (xvm-api ids), stop writing the bridge row on create (xvm-api already enforces slug uniqueness), drop the deactivate mirror, and remove the Prisma `settings` and `froggeToken` reads. The venue settings keys without an xvm-api home (see "Waiting on Allegro") must be decided first: tagline, tags and the adult flag now exist (#202), `shiftBot` is already dropped from the UI by #311.
+3. A3, credential cache into the JWT. The blocker in "Removing the credential cache" (plugin routes needing a person token with no browser session) is gone on `dev`. The token stays server-only, read with `getToken`. The staff-removal lookup through `XvmApiCredential.personId` is replaced by the `Account` lookup described there.
+4. A4, the NextAuth adapter, following `docs/superpowers/plans/2026-10-08-nextauth-adapter-removal.md`. Its Task 1 (Discord grant from the JWT) is not shipped. The flip changes `token.id` to the Discord id and rotates the cookie name, so everyone signs in once more. Run the plan's precondition grep first. This goes after A2 and A3.
+5. A5, sweep: the `timeline-feed.tsx` type import, a lint rule banning `@/lib/prisma` outside an allowlist that shrinks to empty, and the stale docs.
+
+**B. The old bots and other readers.** Remove `apps/eorzea-bot` and `apps/discord-bot` (decided 2026-10-08) once xvm-bot covers what they do. xvm-api now has leveling (#207, #224) and account deletion (#217). Allegro decides which data carries over (decision 5): XP and levels (68 members), warns, open-venue state. Also repoint or retire `xiv-stats`, `adminer` and the xiv-admin TUI, which read the Prisma database directly. xvm-bot#33 tracks the Discord posts prod makes today that stop at the migration.
+
+**C. The data move.** Mappers exist for 14 domains (`lib/migration/*`, `scripts/map-*.ts`). What is left:
+- Confirm the loader that writes into xvm-api's Postgres exists, or build it. The mappers shape the data and this section did not find the loader.
+- Re-run the prod audit. The counts above are from 2026-10-08.
+- Check prod schema drift before the dev-to-main deploy.
+- Rehearse the whole sequence on a fresh prod copy and reconcile counts and sums.
+- Never load `pending_notifications`.
+
+**D. The plugin.** Ship the release that talks to xvm-api directly, with the announcement ahead of it. 85 people used a key in the last 30 days and all of them relink.
+
+**E. The window.** Order as in "Proposed order inside the window". Back up prod and xvm-api's database first. Rollback is redeploying the old build, because Prisma is only read during the window.
+
+**F. Teardown, after the window is verified.** In this order: delete the code and `lib/prisma.ts`, then `schema.prisma`, `generated/prisma`, `prisma.config.ts` and the `prisma generate` postinstall, then the Dockerfile and CI steps, then the compose services and `DATABASE_URL`, then the one-off `map-*` scripts. Keep the old database read-only and backed up for a set period before dropping it.
+
+### Waiting on Allegro
+
+- Frogge (decision 4): what "no impact" means, tier assignment, and the 3 venues with a `froggeToken`.
+- A home for the venue settings still without one: `openNights`, `defaultHours`, `shiftBot` and `notifications`. Or a decision to drop them.
+- Old-bot data (decision 5).
+- A path for the one person with no Discord identity and the 29 payroll payees.
+- The Discord post tracking on 7 events, and xvm-bot#33.
+- Which xvm-api tables and columns a direct load may rely on.
+
+### Not verified in this refresh
+
+- Whether `eorzea-bot`, `discord-bot` and `xiv-stats` are running in prod. They are in `docker-compose.yml`.
+- Whether the direct-to-Postgres loader exists, and where the rehearsal stands.
+- Whether any client depends on the Prisma venue id that `GET /api/venues` returns today.
+- The 10-08 prod audit and every row count in it.
 
 ## How to read the inventory
 

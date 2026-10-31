@@ -160,7 +160,10 @@ export const GET = withRateLimit(
         cacheKey,
         async () => {
           const roles = await myVenueRoles(session.user.id)
-          const rows = await prisma.venue.findMany({ where: { id: { in: [...roles.keys()] } } })
+          const rows = await prisma.venue.findMany({
+            where: { id: { in: [...roles.keys()] } },
+            select: { id: true, name: true, slug: true, dataCenter: true, world: true, xvmApiVenueId: true },
+          })
           return rows.flatMap((venue) => {
             const role = roles.get(venue.id)
             return role ? [{ ...venue, memberships: [asMembership(session.user.id, venue.id, role)] }] : []

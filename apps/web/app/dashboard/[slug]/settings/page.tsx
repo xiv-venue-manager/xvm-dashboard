@@ -9,6 +9,9 @@ import { VenueLayoutClient } from "@/components/venue-layout-client"
 import { VenueEyebrow } from "@/components/venue-eyebrow"
 import { Label } from "@/components/ui/label"
 import { Input } from "@/components/ui/input"
+import { Textarea } from "@/components/ui/textarea"
+import { Checkbox } from "@/components/ui/checkbox"
+import { Switch } from "@/components/ui/switch"
 import { GalleryManager } from "@/components/gallery-manager"
 import { FinanceCategoriesSettings } from "@/components/finance-categories-settings"
 import { BannerUpload } from "@/components/banner-upload"
@@ -38,6 +41,7 @@ import { FFXIV_DISTRICTS, addressProblem, isDistrict } from "@/lib/venue-locatio
 import { canManageVenue } from "@/lib/roles"
 
 const SETTINGS_LOAD_TIMEOUT_MS = 8000
+const NO_VENUE_TYPE = "none"
 const SAVE_OFF_MESSAGE = "Saving is off: this venue's profile couldn't be loaded from xvm-api. Reload the page to try again."
 
 export default function SettingsPage({ params }: { params: Promise<{ slug: string }> }) {
@@ -574,14 +578,14 @@ export default function SettingsPage({ params }: { params: Promise<{ slug: strin
                 </div>
                 <div className="space-y-1.5">
                   <Label htmlFor="venue-desc">Description</Label>
-                  <textarea
+                  <Textarea
                     id="venue-desc"
                     rows={3}
                     placeholder="Tell patrons what makes your venue special…"
                     value={venueDescription}
                     onChange={(e) => setVenueDescription(e.target.value)}
                     disabled={isSaving}
-                    className="w-full text-sm bg-background border border-[var(--blue-015)] focus:border-[var(--blue-035)] rounded-lg px-3 py-2 outline-none resize-y text-foreground placeholder:text-[var(--fg-faint)] transition-colors"
+                    className="resize-y"
                   />
                 </div>
               </div>
@@ -812,25 +816,28 @@ export default function SettingsPage({ params }: { params: Promise<{ slug: strin
                 </div>
                 <div className="space-y-1.5">
                   <Label htmlFor="venue-type">Venue type</Label>
-                  <select
-                    id="venue-type"
+                  <Select
                     value={settings.venueType ?? ""}
-                    onChange={(e) => setSettings({ ...settings, venueType: e.target.value || null })}
+                    onValueChange={(value) => setSettings({ ...settings, venueType: value === NO_VENUE_TYPE ? null : value })}
                     disabled={isSaving}
-                    className="w-full h-9 rounded-md border border-[var(--blue-015)] bg-background px-3 text-sm focus:border-[var(--blue-035)] focus:outline-none"
                   >
-                    <option value="">Select a type...</option>
-                    <option value="BAR_TAVERN">Bar / Tavern</option>
-                    <option value="NIGHTCLUB">Nightclub</option>
-                    <option value="LOUNGE">Lounge</option>
-                    <option value="HOST_CLUB">Host Club</option>
-                    <option value="CABARET">Cabaret</option>
-                    <option value="BATHHOUSE">Bathhouse / Spa</option>
-                    <option value="CASINO">Casino</option>
-                    <option value="STUDIO">Creative Studio</option>
-                    <option value="OTHER">Other</option>
-                    <option value="TEST_VENUE">Test Venue</option>
-                  </select>
+                    <SelectTrigger id="venue-type" className="w-full bg-background border-[var(--blue-015)] focus:border-[var(--blue-035)]">
+                      <SelectValue placeholder="Select a type..." />
+                    </SelectTrigger>
+                    <SelectContent>
+                      <SelectItem value={NO_VENUE_TYPE}>None</SelectItem>
+                      <SelectItem value="BAR_TAVERN">Bar / Tavern</SelectItem>
+                      <SelectItem value="NIGHTCLUB">Nightclub</SelectItem>
+                      <SelectItem value="LOUNGE">Lounge</SelectItem>
+                      <SelectItem value="HOST_CLUB">Host Club</SelectItem>
+                      <SelectItem value="CABARET">Cabaret</SelectItem>
+                      <SelectItem value="BATHHOUSE">Bathhouse / Spa</SelectItem>
+                      <SelectItem value="CASINO">Casino</SelectItem>
+                      <SelectItem value="STUDIO">Creative Studio</SelectItem>
+                      <SelectItem value="OTHER">Other</SelectItem>
+                      <SelectItem value="TEST_VENUE">Test Venue</SelectItem>
+                    </SelectContent>
+                  </Select>
                 </div>
                 <div className="setrow" style={{ paddingLeft: 0, paddingRight: 0, border: "none" }}>
                   <div className="sinfo">
@@ -986,18 +993,19 @@ export default function SettingsPage({ params }: { params: Promise<{ slug: strin
                       </>
                     ) : (
                       <>
-                        <select
-                          value={ffxivSelected}
-                          onChange={(e) => setFfxivSelected(e.target.value)}
-                          className="w-full rounded-[var(--radius-sm)] border border-[var(--blue-015)] bg-background px-3 py-1.5 text-sm focus:border-[var(--blue-035)] focus:outline-none"
-                        >
-                          {ffxivListings.map((l) => (
-                            <option key={l.id} value={l.id}>
-                              {l.name}
-                              {l.world ? ` (${l.world})` : ""}
-                            </option>
-                          ))}
-                        </select>
+                        <Select value={ffxivSelected} onValueChange={setFfxivSelected}>
+                          <SelectTrigger className="w-full bg-background border-[var(--blue-015)] focus:border-[var(--blue-035)]">
+                            <SelectValue />
+                          </SelectTrigger>
+                          <SelectContent>
+                            {ffxivListings.map((l) => (
+                              <SelectItem key={l.id} value={String(l.id)}>
+                                {l.name}
+                                {l.world ? ` (${l.world})` : ""}
+                              </SelectItem>
+                            ))}
+                          </SelectContent>
+                        </Select>
                         <p className="text-xs text-[var(--fg-faint)]">
                           Linking imports the listing&apos;s name, description, location, banner and hours onto your
                           venue profile.
@@ -1145,35 +1153,28 @@ export default function SettingsPage({ params }: { params: Promise<{ slug: strin
                 </div>
                 <div className="w-full pl-[54px] space-y-4">
                     <div>
-                      <label className="block text-sm font-medium mb-1">Tax percent</label>
-                      <input
+                      <Label htmlFor="pot-tax-percent" className="mb-1">
+                        Tax percent
+                      </Label>
+                      <Input
+                        id="pot-tax-percent"
                         type="number"
                         min={0}
                         max={100}
                         step="0.01"
                         value={potTaxPercent}
                         onChange={(e) => setPotTaxPercent(Number(e.target.value))}
-                        className="rounded-[var(--radius-sm)] border border-[var(--blue-015)] bg-background px-3 py-1.5 text-sm focus:border-[var(--blue-035)] focus:outline-none w-24 text-center"
+                        className="w-24 text-center"
                       />
                     </div>
-                    <label className="flex items-center gap-2 cursor-pointer">
-                      <input
-                        type="checkbox"
-                        checked={potIncludeSalesInPot}
-                        onChange={(e) => setPotIncludeSalesInPot(e.target.checked)}
-                        className="rounded"
-                      />
+                    <Label className="cursor-pointer font-normal">
+                      <Checkbox checked={potIncludeSalesInPot} onCheckedChange={(checked) => setPotIncludeSalesInPot(checked === true)} />
                       <span className="text-sm">Include regular sales in the pot (off = tips-only pot)</span>
-                    </label>
-                    <label className="flex items-center gap-2 cursor-pointer">
-                      <input
-                        type="checkbox"
-                        checked={potDefaultTipPooled}
-                        onChange={(e) => setPotDefaultTipPooled(e.target.checked)}
-                        className="rounded"
-                      />
+                    </Label>
+                    <Label className="cursor-pointer font-normal">
+                      <Checkbox checked={potDefaultTipPooled} onCheckedChange={(checked) => setPotDefaultTipPooled(checked === true)} />
                       <span className="text-sm">Default new staff to pooling their tips</span>
-                    </label>
+                    </Label>
                   </div>
               </div>
 
@@ -1208,15 +1209,10 @@ export default function SettingsPage({ params }: { params: Promise<{ slug: strin
                   <div className="iname">Bar Inventory Tracking</div>
                   <div className="idesc">Map menu items to bar stock and track inventory levels</div>
                 </div>
-                <label className="flex items-center gap-2 cursor-pointer ml-auto shrink-0">
-                  <input
-                    type="checkbox"
-                    checked={inventoryEnabled}
-                    onChange={(e) => setInventoryEnabled(e.target.checked)}
-                    className="rounded"
-                  />
+                <Label className="ml-auto shrink-0 cursor-pointer font-normal">
+                  <Switch checked={inventoryEnabled} onCheckedChange={setInventoryEnabled} />
                   <span className="text-sm">{inventoryEnabled ? "Enabled" : "Disabled"}</span>
-                </label>
+                </Label>
               </div>
             </section>
 

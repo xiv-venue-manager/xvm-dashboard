@@ -7,6 +7,7 @@ import { Input } from "@/components/ui/input"
 import { Label } from "@/components/ui/label"
 import { Textarea } from "@/components/ui/textarea"
 import { Select, SelectContent, SelectItem, SelectTrigger, SelectValue } from "@/components/ui/select"
+import { Checkbox } from "@/components/ui/checkbox"
 import { Card, CardContent, CardDescription, CardHeader, CardTitle } from "@/components/ui/card"
 import { Dialog, DialogContent, DialogDescription, DialogFooter, DialogHeader, DialogTitle } from "@/components/ui/dialog"
 import {
@@ -422,11 +423,10 @@ export default function RolesPage({ params }: { params: Promise<{ slug: string }
               </div>
               {formData.potPayoutMode === "CONTRACTOR" && (
                 <div className="flex items-center gap-2">
-                  <input
-                    type="checkbox"
+                  <Checkbox
                     id="create-contractor-shares-pot"
                     checked={formData.contractorSharesPot}
-                    onChange={(e) => setFormData({ ...formData, contractorSharesPot: e.target.checked })}
+                    onCheckedChange={(checked) => setFormData({ ...formData, contractorSharesPot: checked === true })}
                     disabled
                   />
                   <Label htmlFor="create-contractor-shares-pot">Also shares in the pot split</Label>
@@ -564,11 +564,10 @@ export default function RolesPage({ params }: { params: Promise<{ slug: string }
               </div>
               {formData.potPayoutMode === "CONTRACTOR" && (
                 <div className="flex items-center gap-2">
-                  <input
-                    type="checkbox"
+                  <Checkbox
                     id="edit-contractor-shares-pot"
                     checked={formData.contractorSharesPot}
-                    onChange={(e) => setFormData({ ...formData, contractorSharesPot: e.target.checked })}
+                    onCheckedChange={(checked) => setFormData({ ...formData, contractorSharesPot: checked === true })}
                     disabled
                   />
                   <Label htmlFor="edit-contractor-shares-pot">Also shares in the pot split</Label>

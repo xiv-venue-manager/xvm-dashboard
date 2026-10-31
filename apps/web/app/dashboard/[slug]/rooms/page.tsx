@@ -1,11 +1,9 @@
 import { getServerSession } from "next-auth"
 import { authOptions } from "@/lib/auth"
 import { redirect, notFound } from "next/navigation"
-import { prisma } from "@/lib/prisma"
-import { roleInVenue } from "@/lib/api/venue-access"
+import { resolveMyVenue } from "@/lib/api/venue-access"
 import { VenueLayout } from "@/components/venue-layout"
 import { RoomsBoard, type RoomItem, type RoomPeopleNames } from "@/components/rooms-board"
-import { RoomManagerRoles } from "@/components/room-manager-roles"
 import { getValidXvmApiToken, invalidateXvmApiCredential, isXvmAuthFailure } from "@/lib/api/xvm-api-store"
 import { listMemberships, listRooms } from "@/lib/api/xvm-api"
 
@@ -15,19 +13,16 @@ export default async function RoomsPage({ params }: { params: Promise<{ slug: st
 
   const { slug } = await params
 
-  const venue = await prisma.venue.findUnique({ where: { slug } })
-
-  const userRole = venue ? await roleInVenue(session.user.id, venue) : null
-  if (!venue || !userRole) notFound()
-
+  const venue = await resolveMyVenue(session.user.id, slug)
+  if (!venue) notFound()
+  const userRole = venue.role
 
   let rooms: RoomItem[] = []
   const names: RoomPeopleNames = { byPersonId: {}, byMembershipId: {} }
-  const notConnected = !venue.xvmApiVenueId
   const token = await getValidXvmApiToken(session.user.id)
-  if (token && venue.xvmApiVenueId) {
+  if (token) {
     try {
-      rooms = await listRooms(token, venue.xvmApiVenueId)
+      rooms = await listRooms(token, venue.id)
     } catch (err) {
       console.error("[rooms page] listRooms error:", err)
       if (isXvmAuthFailure(err)) {
@@ -36,9 +31,9 @@ export default async function RoomsPage({ params }: { params: Promise<{ slug: st
     }
   }
 
-  if (token && venue.xvmApiVenueId && rooms.length > 0) {
+  if (token && rooms.length > 0) {
     try {
-      for (const m of await listMemberships(token, venue.xvmApiVenueId)) {
+      for (const m of await listMemberships(token, venue.id)) {
         const name = m.nickname ?? m.person.display_name
         names.byPersonId[m.person.id] = name
         names.byMembershipId[m.id] = name
@@ -47,9 +42,6 @@ export default async function RoomsPage({ params }: { params: Promise<{ slug: st
       console.error("[rooms page] listMemberships error:", err)
     }
   }
-
-  const settings = (venue.settings as { roomManagerRoleIds?: string[] }) ?? {}
-  const roomManagerRoleIds = settings.roomManagerRoleIds ?? []
 
   return (
     <VenueLayout venueSlug={venue.slug} venueName={venue.name} userRole={userRole}>
@@ -69,13 +61,6 @@ export default async function RoomsPage({ params }: { params: Promise<{ slug: st
           canManage={["OWNER", "MANAGER"].includes(userRole)}
           rooms={rooms}
           names={names}
-          notConnected={notConnected}
-        />
-
-        <RoomManagerRoles
-          venueSlug={venue.slug}
-          canManage={["OWNER", "MANAGER"].includes(userRole)}
-          initialRoleIds={roomManagerRoleIds}
         />
       </div>
     </VenueLayout>

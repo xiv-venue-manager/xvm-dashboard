@@ -143,7 +143,7 @@ describe("POST /api/venues", () => {
   })
 
   it("sends the wizard's tagline, tags and adult flag with the profile", async () => {
-    await post({ ...valid, settings: { tagline: " Cocktails nightly ", tags: ["18+", "Bar"], isAdult: true, defaultHours: "10PM", openNights: "Fri" } })
+    await post({ ...valid, settings: { tagline: " Cocktails nightly ", tags: ["18+", "Bar"], isAdult: true } })
     expect(m.updateVenue).toHaveBeenCalledWith("tok", "ven_1", expect.objectContaining({
       tagline: "Cocktails nightly",
       tags: ["18+", "Bar"],

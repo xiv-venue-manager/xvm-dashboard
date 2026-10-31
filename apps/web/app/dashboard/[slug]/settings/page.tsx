@@ -787,33 +787,6 @@ export default function SettingsPage({ params }: { params: Promise<{ slug: strin
                   </div>
                 )}
                 {locationProblem && <p className="text-[0.78rem] text-[var(--destructive)]">{locationProblem}</p>}
-                <div className="grid grid-cols-1 sm:grid-cols-2 gap-4">
-                  <p className="col-span-full text-[0.72rem] text-[var(--fg-faint)] mb-2">
-                    Legacy free-text hours — use the schedule section above instead.
-                  </p>
-                  <div className="space-y-1.5">
-                    <Label htmlFor="default-hours">Default hours (ST)</Label>
-                    <Input
-                      id="default-hours"
-                      placeholder="e.g. 10PM–2AM"
-                      value={settings.defaultHours ?? ""}
-                      onChange={(e) => setSettings({ ...settings, defaultHours: e.target.value })}
-                      disabled={isSaving}
-                      className="bg-background border-[var(--blue-015)] focus:border-[var(--blue-035)]"
-                    />
-                  </div>
-                  <div className="space-y-1.5">
-                    <Label htmlFor="open-nights">Open nights</Label>
-                    <Input
-                      id="open-nights"
-                      placeholder="e.g. Fri & Sat"
-                      value={settings.openNights ?? ""}
-                      onChange={(e) => setSettings({ ...settings, openNights: e.target.value })}
-                      disabled={isSaving}
-                      className="bg-background border-[var(--blue-015)] focus:border-[var(--blue-035)]"
-                    />
-                  </div>
-                </div>
                 <div className="space-y-1.5">
                   <Label htmlFor="venue-type">Venue type</Label>
                   <Select

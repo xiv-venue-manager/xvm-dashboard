@@ -43,7 +43,7 @@ function slugify(name: string) {
 
 const STEP_META = [
   { label: "Venue basics", sub: "Tell patrons who you are. You can change all of this later in Settings." },
-  { label: "Location & hours", sub: "Where to find you in Eorzea, and when your doors are open." },
+  { label: "Location", sub: "Where to find you in Eorzea." },
   { label: "Review & create", sub: "Check your details before we create the venue." },
 ]
 
@@ -72,8 +72,6 @@ export function GetStartedWizard({ server }: { server: ConnectServer | null }) {
   const [apartment, setApartment] = useState("")
   const [housingType, setHousingType] = useState<"house" | "apartment">("house")
   const [building, setBuilding] = useState<"" | "main" | "subdivision">("")
-  const [hours, setHours] = useState("")
-  const [nights, setNights] = useState("")
   const [adult, setAdult] = useState(false)
 
   const toggleTag = (t: string) => setTags((prev) => (prev.includes(t) ? prev.filter((x) => x !== t) : [...prev, t]))
@@ -132,8 +130,6 @@ export function GetStartedWizard({ server }: { server: ConnectServer | null }) {
             settings: {
               tagline: tagline.trim() || undefined,
               tags: adult ? ["18+", ...tags.filter((t) => t !== "18+")] : tags.filter((t) => t !== "18+"),
-              defaultHours: hours.trim() || undefined,
-              openNights: nights.trim() || undefined,
               isAdult: adult,
             },
           }),
@@ -467,28 +463,6 @@ export function GetStartedWizard({ server }: { server: ConnectServer | null }) {
                     </select>
                   </div>
                 )}
-                <div className="gs-field-2">
-                  <div className="gs-field">
-                    <label>
-                      Opening hours <span style={{ color: "var(--fg-faint)", fontWeight: 400 }}>(ST)</span>
-                    </label>
-                    <input
-                      className="gs-inp"
-                      placeholder="10PM – 2AM"
-                      value={hours}
-                      onChange={(e) => setHours(e.target.value)}
-                    />
-                  </div>
-                  <div className="gs-field">
-                    <label>Open nights</label>
-                    <input
-                      className="gs-inp"
-                      placeholder="Fri &amp; Sat"
-                      value={nights}
-                      onChange={(e) => setNights(e.target.value)}
-                    />
-                  </div>
-                </div>
                 <div className="gs-toggle-row">
                   <div style={{ flex: 1 }}>
                     <div style={{ fontSize: "0.88rem" }}>Adult (18+) venue</div>
@@ -522,7 +496,6 @@ export function GetStartedWizard({ server }: { server: ConnectServer | null }) {
                         .filter(Boolean)
                         .join(" · ") || "—",
                   },
-                  { k: "Hours", v: [hours, nights].filter(Boolean).join(" · ") || "TBD" },
                   { k: "Tags", v: tags.length ? null : "None" },
                 ].map(({ k, v }) => (
                   <div key={k} className="gs-review-row">

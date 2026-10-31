@@ -4,6 +4,16 @@ import { useEffect, useState } from "react"
 import { CalendarDays, DoorOpen, ShieldAlert, type LucideIcon } from "lucide-react"
 import { toast } from "sonner"
 import { Button } from "@/components/ui/button"
+import {
+  AlertDialog,
+  AlertDialogAction,
+  AlertDialogCancel,
+  AlertDialogContent,
+  AlertDialogDescription,
+  AlertDialogFooter,
+  AlertDialogHeader,
+  AlertDialogTitle,
+} from "@/components/ui/alert-dialog"
 import { DiscordOptionPicker, useDiscordOptions } from "@/components/discord-picker"
 import { channelProblem } from "@/lib/discord-picker-state"
 import { apiFetch, ApiError } from "@/lib/api-fetch"
@@ -40,6 +50,7 @@ export function DiscordSettingsCard({ venueSlug }: { venueSlug: string }) {
   const [saved, setSaved] = useState<Values | null>(null)
   const [draft, setDraft] = useState<Partial<Record<Field, string>>>({})
   const [busy, setBusy] = useState<Field | null>(null)
+  const [arming, setArming] = useState<string | null>(null)
   const [loadFailed, setLoadFailed] = useState(false)
   const [attempt, setAttempt] = useState(0)
   const { refresh, ...channels } = useDiscordOptions(venueSlug, "channels")
@@ -138,7 +149,7 @@ export function DiscordSettingsCard({ venueSlug }: { venueSlug: string }) {
                       size="sm"
                       variant="outline-blue"
                       disabled={!changed || value === "" || busy !== null}
-                      onClick={() => write(key, value)}
+                      onClick={() => (key === "honeypotChannelId" ? setArming(value) : write(key, value))}
                     >
                       {busy === key ? "Saving..." : "Save"}
                     </Button>
@@ -154,6 +165,28 @@ export function DiscordSettingsCard({ venueSlug }: { venueSlug: string }) {
           </div>
         )
       })}
+      <AlertDialog open={arming !== null} onOpenChange={(open) => !open && setArming(null)}>
+        <AlertDialogContent>
+          <AlertDialogHeader>
+            <AlertDialogTitle>Arm the trap?</AlertDialogTitle>
+            <AlertDialogDescription>
+              Within a minute, the bot bans anyone without server powers who posts in{" "}
+              {arming !== null && (channels.options.find((o) => o.value === arming)?.label ?? `channel ${arming}`)} and
+              removes their last 15 minutes of messages. Make sure it isn&apos;t a channel people chat in.
+            </AlertDialogDescription>
+          </AlertDialogHeader>
+          <AlertDialogFooter>
+            <AlertDialogCancel>Cancel</AlertDialogCancel>
+            <AlertDialogAction
+              onClick={() => {
+                if (arming !== null) void write("honeypotChannelId", arming)
+              }}
+            >
+              Arm
+            </AlertDialogAction>
+          </AlertDialogFooter>
+        </AlertDialogContent>
+      </AlertDialog>
     </>
   )
 }

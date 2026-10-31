@@ -2,6 +2,7 @@
 
 import { useEffect, useRef, useState } from "react"
 import { useRouter } from "next/navigation"
+import { toast } from "sonner"
 import Link from "next/link"
 import { Button } from "@/components/ui/button"
 import { VenueLayoutClient } from "@/components/venue-layout-client"
@@ -67,7 +68,6 @@ export default function SettingsPage({ params }: { params: Promise<{ slug: strin
   const [isSaving, setIsSaving] = useState(false)
   const [xvmUnavailable, setXvmUnavailable] = useState(false)
   const [error, setError] = useState("")
-  const [success, setSuccess] = useState(false)
   const [isDeleting, setIsDeleting] = useState(false)
   const [venueId, setVenueId] = useState<string>("")
 
@@ -244,7 +244,6 @@ export default function SettingsPage({ params }: { params: Promise<{ slug: strin
     if (xvmUnavailable) return
     setIsSaving(true)
     setError("")
-    setSuccess(false)
 
     try {
       if (!venueId) throw new Error("Venue not loaded")
@@ -319,11 +318,10 @@ export default function SettingsPage({ params }: { params: Promise<{ slug: strin
         throw new Error(d.error || "Failed to save bar inventory settings")
       }
 
-      setSuccess(true)
+      toast.success("Settings saved.")
       setIsDirty(false)
-      setTimeout(() => setSuccess(false), 3000)
     } catch (error: unknown) {
-      setError(error instanceof Error ? error.message : "Failed to save settings")
+      toast.error(error instanceof Error ? error.message : "Failed to save settings")
     } finally {
       setIsSaving(false)
     }
@@ -447,11 +445,6 @@ export default function SettingsPage({ params }: { params: Promise<{ slug: strin
               Couldn&apos;t load this venue&apos;s profile and staff visibility from xvm-api, so saving is turned off to
               avoid overwriting them with blanks. Reload the page to try again.
             </AlertDescription>
-          </Alert>
-        )}
-        {success && (
-          <Alert className="mb-4 bg-emerald-500/10 border-emerald-500/20">
-            <AlertDescription className="text-emerald-400">Settings saved.</AlertDescription>
           </Alert>
         )}
         {error && (

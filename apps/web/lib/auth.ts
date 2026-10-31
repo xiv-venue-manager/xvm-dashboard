@@ -13,6 +13,19 @@ function discordImage(profile: unknown): string | undefined {
   return typeof url === "string" && url ? url : undefined
 }
 
+// A page load fires several session fetches at once and each finds the credential missing. Every
+// exchange revokes the one before it, so callers for the same person share the exchange that is
+// already running. The stored credential covers everything after it finishes.
+const minting = new Map<string, Promise<void>>()
+
+function mintOnce(userId: string, mint: () => Promise<void>): Promise<void> {
+  const running = minting.get(userId)
+  if (running) return running
+  const started = mint().finally(() => minting.delete(userId))
+  minting.set(userId, started)
+  return started
+}
+
 export const authOptions: NextAuthOptions = {
   // eslint-disable-next-line @typescript-eslint/no-explicit-any
   adapter: PrismaAdapter(prisma as any),
@@ -89,15 +102,16 @@ export const authOptions: NextAuthOptions = {
       // deletion (or deleted), so this session cannot continue.
       if (token.id && !isFirstDiscordSignIn && !token.deletionPending) {
         try {
-          const existing = await getValidXvmApiToken(token.id as string)
-          if (!existing) {
-            const discordAccount = await prisma.account.findFirst({
-              where: { userId: token.id as string, provider: "discord" },
+          const userId = token.id as string
+          if (!(await getValidXvmApiToken(userId))) {
+            await mintOnce(userId, async () => {
+              if (await getValidXvmApiToken(userId)) return
+              const discordAccount = await prisma.account.findFirst({ where: { userId, provider: "discord" } })
+              if (discordAccount) {
+                const issued = await exchangeToken(discordAccount.providerAccountId, (token.name as string) ?? "Unknown")
+                await upsertXvmApiCredential(userId, issued)
+              }
             })
-            if (discordAccount) {
-              const issued = await exchangeToken(discordAccount.providerAccountId, (token.name as string) ?? "Unknown")
-              await upsertXvmApiCredential(token.id as string, issued)
-            }
           }
         } catch (err) {
           if (err instanceof XvmApiError && err.status === 409) {

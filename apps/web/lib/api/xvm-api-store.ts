@@ -1,31 +1,68 @@
 import { NextResponse } from "next/server"
-import { prisma } from "@/lib/prisma"
+import { redis, ready } from "@/lib/redis"
 import type { CredentialIssued } from "@/lib/api/xvm-api"
 import { getMe, listMemberships, XvmApiError, xvmErrorMessage } from "@/lib/api/xvm-api"
 
 const REFRESH_MARGIN_MS = 24 * 60 * 60 * 1000 // 1 day
 
+interface StoredCredential {
+  token: string
+  expiresAt: number
+  personId?: number
+}
+
+// xvm-api keeps one live Dashboard credential per person and every exchange revokes the others,
+// so the token has to be one shared copy rather than one per browser. Redis holds it under its
+// own prefix, apart from "cache:", so clearing the cache does not log anyone out of xvm-api.
+// A flush only costs a re-mint on the next request. `local` is the same copy for this process
+// and is read only while Redis is unreachable.
+const key = (userId: string) => `xvm:credential:${userId}`
+const local = new Map<string, StoredCredential>()
+
+async function read(userId: string): Promise<StoredCredential | null> {
+  if (ready() && redis) {
+    try {
+      const raw = await redis.get(key(userId))
+      return raw === null ? null : (JSON.parse(raw) as StoredCredential)
+    } catch (error) {
+      console.error("[xvm-api-store] redis read failed:", error)
+    }
+  }
+  return local.get(userId) ?? null
+}
+
+async function write(userId: string, credential: StoredCredential): Promise<void> {
+  local.set(userId, credential)
+  if (!ready() || !redis) return
+  try {
+    await redis.set(key(userId), JSON.stringify(credential), "PX", Math.max(credential.expiresAt - Date.now(), 1))
+  } catch (error) {
+    console.error("[xvm-api-store] redis write failed:", error)
+  }
+}
+
 export async function upsertXvmApiCredential(userId: string, issued: CredentialIssued): Promise<void> {
   if (!issued.credential.expires_at) {
     throw new Error("xvm-api credential is missing expires_at")
   }
-  const expiresAt = new Date(issued.credential.expires_at)
-  await prisma.xvmApiCredential.upsert({
-    where: { userId },
-    create: { userId, token: issued.secret, credentialId: issued.credential.id, expiresAt },
-    update: { token: issued.secret, credentialId: issued.credential.id, expiresAt },
-  })
+  await write(userId, { token: issued.secret, expiresAt: new Date(issued.credential.expires_at).getTime() })
 }
 
 export async function getValidXvmApiToken(userId: string): Promise<string | null> {
-  const row = await prisma.xvmApiCredential.findUnique({ where: { userId } })
-  if (!row) return null
-  if (row.expiresAt.getTime() - Date.now() < REFRESH_MARGIN_MS) return null
-  return row.token
+  const stored = await read(userId)
+  if (!stored) return null
+  if (stored.expiresAt - Date.now() < REFRESH_MARGIN_MS) return null
+  return stored.token
 }
 
 export async function invalidateXvmApiCredential(userId: string): Promise<void> {
-  await prisma.xvmApiCredential.deleteMany({ where: { userId } })
+  local.delete(userId)
+  if (!ready() || !redis) return
+  try {
+    await redis.del(key(userId))
+  } catch (error) {
+    console.error("[xvm-api-store] redis delete failed:", error)
+  }
 }
 
 /**
@@ -68,13 +105,13 @@ export async function getValidXvmApiPersonId(userId: string): Promise<number | n
   const token = await getValidXvmApiToken(userId)
   if (!token) return null
 
-  const row = await prisma.xvmApiCredential.findUnique({ where: { userId }, select: { personId: true } })
-  if (row?.personId != null) return row.personId
+  const stored = await read(userId)
+  if (stored?.personId != null) return stored.personId
 
   const me = await getMe(token)
   if (!me.person) return null
 
-  await prisma.xvmApiCredential.update({ where: { userId }, data: { personId: me.person.id } })
+  if (stored) await write(userId, { ...stored, personId: me.person.id })
   return me.person.id
 }
 

@@ -212,6 +212,9 @@ export interface VenueDetail {
   logo_url: string | null
   banner_url: string | null
   venue_type: string | null
+  tagline: string | null
+  tags: string[]
+  is_adult: boolean
   data_center: string
   world: string
   district: string | null
@@ -239,6 +242,9 @@ export interface VenueUpdate {
   logo_url?: string | null
   banner_url?: string | null
   venue_type?: string | null
+  tagline?: string | null
+  tags?: string[]
+  is_adult?: boolean
   data_center?: string
   world?: string
   district?: string | null

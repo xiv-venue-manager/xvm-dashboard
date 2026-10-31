@@ -25,6 +25,11 @@ export const validators = {
     .refine(fitsInt64, "Not a valid Discord ID"),
   venueName: z.string().min(1, "Name is required").max(100, "Name too long (max 100 characters)"),
   venueDescription: z.string().max(2000, "Description too long (max 2000 characters)").optional().nullable(),
+  venueTagline: z.string().max(200, "Tagline too long (max 200 characters)"),
+  venueTags: z
+    .array(z.string().min(1).max(50, "Tag too long (max 50 characters)"))
+    .max(20, "Too many tags (max 20)")
+    .refine((tags) => new Set(tags.map((tag) => tag.toLowerCase())).size === tags.length, "Tags must be distinct"),
   venueDistrict: z.enum(FFXIV_DISTRICTS).optional().nullable(),
   venueWard: z.number().int().min(1).max(30).optional().nullable(),
   venuePlot: z.number().int().min(1).max(60).optional().nullable(),

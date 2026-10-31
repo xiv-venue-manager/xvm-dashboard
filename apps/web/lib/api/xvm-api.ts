@@ -846,6 +846,33 @@ export async function updateVenue(personToken: string, venueId: string, data: Ve
   return xvmFetch<VenueDetail>(`/venues/${venueId}`, { method: "PATCH", body: JSON.stringify(data) }, personToken)
 }
 
+// ── Discord settings API ───────────────────────────────────────
+
+export interface DiscordSettings {
+  honeypot_channel_id: string | null
+  events_channel_id: string | null
+  rooms_channel_id: string | null
+}
+
+export async function getDiscordSettings(personToken: string, venueId: string): Promise<DiscordSettings> {
+  if (!process.env.XVM_API_BASE_URL) throw new Error("XVM_API_BASE_URL is not set")
+  return xvmFetch<DiscordSettings>(`/venues/${venueId}/discord/settings`, {}, personToken)
+}
+
+/** Only the fields given change, and null clears one. */
+export async function updateDiscordSettings(
+  personToken: string,
+  venueId: string,
+  data: Partial<DiscordSettings>
+): Promise<DiscordSettings> {
+  if (!process.env.XVM_API_BASE_URL) throw new Error("XVM_API_BASE_URL is not set")
+  return xvmFetch<DiscordSettings>(
+    `/venues/${venueId}/discord/settings`,
+    { method: "PUT", body: JSON.stringify(data) },
+    personToken
+  )
+}
+
 // ── Venue Hours API ────────────────────────────────────────────
 
 export async function listHours(personToken: string, venueId: string): Promise<HoursRow[]> {

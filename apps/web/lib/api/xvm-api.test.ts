@@ -1,6 +1,6 @@
 import { describe, it, expect, vi, beforeEach } from "vitest"
 
-import { listEvents, getEvent, createEvent, createEventSeries, logPatronVisit, listPatronLogs, getPatronLogSummary, listMyAnnouncements, dismissAnnouncement, listAnnouncements, createAnnouncement, deleteAnnouncement, listShouts, createShout, deleteShout, listMyCharacters, listMyVenues, linkMyCharacter, unlinkMyCharacter, submitFeedback, listMyFeedback, listAdminFeedback, triageFeedback, getVenueFollowers, reissueInvite, reclassifyPatronLogs, getPatronPresence, materializeEvent, endEventSeries, updateEvent, publishEvent, cancelEvent, deleteEvent, type EventRow, XvmApiError, getFfxivLink, linkFfxivListing, listMyFfxivListings, syncFfxivListing, unlinkFfxivListing, type ListingLinkRow, deleteRoom, listTasks, createTask, updateTask, assignTask, startTask, completeTask, cancelTask, getPublicHoursBatch, getPublicHoursForVenues, getInvitePreview, getPublicPlatformStats, PUBLIC_HOURS_BATCH_MAX, listGiveaways, createGiveaway, updateGiveaway, deleteGiveaway, listGiveawayEntries, rollGiveaway, listRaffles, createRaffle, updateRaffle, deleteRaffle, listRaffleEntries, creditTickets, refundTickets, rollRaffle, listServiceCategories, createServiceCategory, updateServiceCategory, deleteServiceCategory, listServices, getService, createService, updateService, deleteService, grantServicePosition, revokeServicePosition, linkServiceInventory, unlinkServiceInventory, setStock, createStockMovement, listStockMovements, listFinanceTransactions, createFinanceTransaction, updateFinanceTransaction, voidFinanceTransaction, listPanels, createPanel, getPanel, updatePanel, deletePanel, addPanelOption, updatePanelOption, deletePanelOption, applyPanelTemplate, postPanel, listPanelPosts, listReactionRoleTemplates, getFinanceSummary, listShiftsOnNow, listShiftBoard, listShiftBoardChunked, joinEventShift, withdrawShift, getEventRoster, addEventPosition, removeEventPosition, addEventShift, cancelEventShift, deleteEventShift, assignEventShift, type BoardShift, type TaskRow, type PublicHours, type GiveawayRow, type RaffleRow, type ServiceCategoryRow, type ServiceRow, type StockMovementRow, type FinanceTransactionRow, type PanelRow, followVenue, listMyFollows, unfollowVenue, listMyNotifications, markNotificationsRead, getPublicEventsForIds, listPublicDirectory, getPublicEvents, getPublicVenueBySlug } from "./xvm-api"
+import { getDiscordSettings, updateDiscordSettings, listEvents, getEvent, createEvent, createEventSeries, logPatronVisit, listPatronLogs, getPatronLogSummary, listMyAnnouncements, dismissAnnouncement, listAnnouncements, createAnnouncement, deleteAnnouncement, listShouts, createShout, deleteShout, listMyCharacters, listMyVenues, linkMyCharacter, unlinkMyCharacter, submitFeedback, listMyFeedback, listAdminFeedback, triageFeedback, getVenueFollowers, reissueInvite, reclassifyPatronLogs, getPatronPresence, materializeEvent, endEventSeries, updateEvent, publishEvent, cancelEvent, deleteEvent, type EventRow, XvmApiError, getFfxivLink, linkFfxivListing, listMyFfxivListings, syncFfxivListing, unlinkFfxivListing, type ListingLinkRow, deleteRoom, listTasks, createTask, updateTask, assignTask, startTask, completeTask, cancelTask, getPublicHoursBatch, getPublicHoursForVenues, getInvitePreview, getPublicPlatformStats, PUBLIC_HOURS_BATCH_MAX, listGiveaways, createGiveaway, updateGiveaway, deleteGiveaway, listGiveawayEntries, rollGiveaway, listRaffles, createRaffle, updateRaffle, deleteRaffle, listRaffleEntries, creditTickets, refundTickets, rollRaffle, listServiceCategories, createServiceCategory, updateServiceCategory, deleteServiceCategory, listServices, getService, createService, updateService, deleteService, grantServicePosition, revokeServicePosition, linkServiceInventory, unlinkServiceInventory, setStock, createStockMovement, listStockMovements, listFinanceTransactions, createFinanceTransaction, updateFinanceTransaction, voidFinanceTransaction, listPanels, createPanel, getPanel, updatePanel, deletePanel, addPanelOption, updatePanelOption, deletePanelOption, applyPanelTemplate, postPanel, listPanelPosts, listReactionRoleTemplates, getFinanceSummary, listShiftsOnNow, listShiftBoard, listShiftBoardChunked, joinEventShift, withdrawShift, getEventRoster, addEventPosition, removeEventPosition, addEventShift, cancelEventShift, deleteEventShift, assignEventShift, type BoardShift, type TaskRow, type PublicHours, type GiveawayRow, type RaffleRow, type ServiceCategoryRow, type ServiceRow, type StockMovementRow, type FinanceTransactionRow, type PanelRow, followVenue, listMyFollows, unfollowVenue, listMyNotifications, markNotificationsRead, getPublicEventsForIds, listPublicDirectory, getPublicEvents, getPublicVenueBySlug } from "./xvm-api"
 
 function mockFetchOnce({ ok, status, body }: { ok: boolean; status: number; body: unknown }) {
   ;(fetch as ReturnType<typeof vi.fn>).mockResolvedValueOnce({
@@ -1452,5 +1452,26 @@ describe("Patron logs API", () => {
     mockFetchOnce({ ok: true, status: 200, body: presence })
     expect(await getPatronPresence("token", "venue-1")).toEqual(presence)
     expect(lastCall()[0]).toMatch(/\/venues\/venue-1\/patrons\/present$/)
+  })
+})
+
+describe("Discord settings API", () => {
+  const settings = { honeypot_channel_id: "1509616350337962024", events_channel_id: null, rooms_channel_id: null }
+
+  it("getDiscordSettings GETs the venue's switches", async () => {
+    mockFetchOnce({ ok: true, status: 200, body: settings })
+    expect(await getDiscordSettings("token", "venue-1")).toEqual(settings)
+    const [url, options] = (fetch as ReturnType<typeof vi.fn>).mock.calls[0]
+    expect(url).toMatch(/\/venues\/venue-1\/discord\/settings$/)
+    expect(options.method).toBeUndefined()
+  })
+
+  it("updateDiscordSettings PUTs only the fields given, snowflakes as strings", async () => {
+    mockFetchOnce({ ok: true, status: 200, body: settings })
+    await updateDiscordSettings("token", "venue-1", { honeypot_channel_id: "1509616350337962024", events_channel_id: null })
+    const [url, options] = (fetch as ReturnType<typeof vi.fn>).mock.calls[0]
+    expect(url).toMatch(/\/venues\/venue-1\/discord\/settings$/)
+    expect(options.method).toBe("PUT")
+    expect(options.body).toBe('{"honeypot_channel_id":"1509616350337962024","events_channel_id":null}')
   })
 })

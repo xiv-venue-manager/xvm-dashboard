@@ -38,6 +38,7 @@ import {
   AlertDialogTitle,
   AlertDialogTrigger,
 } from "@/components/ui/alert-dialog"
+import { toast } from "sonner"
 
 interface PayrollEntry {
   id: string
@@ -289,7 +290,7 @@ export default function PayrollPage() {
     } catch (error) {
       console.error("Error creating payroll entry:", error)
       const errorMessage = error instanceof Error ? error.message : "Failed to create payroll entry"
-      alert(errorMessage)
+      toast.error(errorMessage)
     } finally {
       setIsCreating(false)
     }
@@ -316,7 +317,7 @@ export default function PayrollPage() {
       fetchPayrollEntries()
     } catch (error) {
       console.error("Error updating payroll entry:", error)
-      alert("Failed to update payroll entry")
+      toast.error("Failed to update payroll entry")
     } finally {
       setUpdatingId(null)
     }
@@ -330,13 +331,13 @@ export default function PayrollPage() {
       })
       if (!response.ok) {
         const body = await response.json().catch(() => ({}))
-        alert(body.error || `Delete failed (${response.status})`)
+        toast.error(body.error || `Delete failed (${response.status})`)
         return
       }
       fetchPayrollEntries()
     } catch (error) {
       console.error("Error deleting payroll entry:", error)
-      alert("Failed to delete payroll entry")
+      toast.error("Failed to delete payroll entry")
     } finally {
       setUpdatingId(null)
     }
@@ -362,7 +363,7 @@ export default function PayrollPage() {
     } catch (error) {
       console.error("Error fetching generate preview:", error)
       const msg = error instanceof Error ? error.message : "Failed to fetch preview"
-      alert(msg)
+      toast.error(msg)
     } finally {
       setGenLoading(false)
     }
@@ -403,7 +404,7 @@ export default function PayrollPage() {
     } catch (error) {
       console.error("Error generating payroll:", error)
       const msg = error instanceof Error ? error.message : "Failed to generate payroll"
-      alert(msg)
+      toast.error(msg)
     } finally {
       setGenCreating(false)
     }
@@ -423,7 +424,7 @@ export default function PayrollPage() {
       const data = await res.json()
       setGenAllPreview(data.members)
     } catch (e) {
-      alert(e instanceof Error ? e.message : "Failed to load preview")
+      toast.error(e instanceof Error ? e.message : "Failed to load preview")
     } finally {
       setGenAllLoading(false)
     }
@@ -448,7 +449,7 @@ export default function PayrollPage() {
       setGenAllPreview(null)
       fetchPayrollEntries()
     } catch (e) {
-      alert(e instanceof Error ? e.message : "Failed to generate payroll")
+      toast.error(e instanceof Error ? e.message : "Failed to generate payroll")
     } finally {
       setGenAllCreating(false)
     }

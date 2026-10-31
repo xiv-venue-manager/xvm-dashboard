@@ -15,6 +15,7 @@ import {
   AlertDialogTitle,
   AlertDialogTrigger,
 } from "@/components/ui/alert-dialog"
+import { toast } from "sonner"
 
 interface DeleteShiftButtonProps {
   venueSlug: string
@@ -34,12 +35,12 @@ export function DeleteShiftButton({ venueSlug, shiftId, hasPayroll }: DeleteShif
       })
       if (!res.ok) {
         const body = await res.json().catch(() => ({}))
-        alert(body.error || `Delete failed (${res.status})`)
+        toast.error(body.error || `Delete failed (${res.status})`)
         return
       }
       router.refresh()
     } catch {
-      alert("Network error deleting shift.")
+      toast.error("Network error deleting shift.")
     } finally {
       setDeleting(false)
     }

@@ -44,6 +44,7 @@ import { PageLoading } from "@/components/ui/loading-spinner"
 import { ItemSearchCombobox } from "@/components/item-search-combobox"
 import { canManageVenue, isVenueOwner } from "@/lib/roles"
 import { minorUnitsToGil } from "@/lib/api/position-convert"
+import { toast } from "sonner"
 
 interface Role {
   id: number
@@ -407,7 +408,7 @@ export default function ServicesPage({ params }: { params: Promise<{ slug: strin
 
       setServices(services.filter((s) => s.id !== service.id))
     } catch (error: unknown) {
-      alert(error instanceof Error ? error.message : "Failed to delete service")
+      toast.error(error instanceof Error ? error.message : "Failed to delete service")
     }
   }
 
@@ -422,7 +423,7 @@ export default function ServicesPage({ params }: { params: Promise<{ slug: strin
       const updated = await response.json()
       setServices(services.map((s) => (s.id === updated.id ? toServiceShape(updated) : s)))
     } catch (error: unknown) {
-      alert(error instanceof Error ? error.message : "Failed to toggle service")
+      toast.error(error instanceof Error ? error.message : "Failed to toggle service")
     }
   }
 

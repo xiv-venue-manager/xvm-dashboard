@@ -6,6 +6,17 @@ import { Breadcrumb } from "@/components/breadcrumb"
 import { Button } from "@/components/ui/button"
 import { Card, CardContent, CardDescription, CardHeader, CardTitle } from "@/components/ui/card"
 import { Badge } from "@/components/ui/badge"
+import {
+  AlertDialog,
+  AlertDialogAction,
+  AlertDialogCancel,
+  AlertDialogContent,
+  AlertDialogDescription,
+  AlertDialogFooter,
+  AlertDialogHeader,
+  AlertDialogTitle,
+  AlertDialogTrigger,
+} from "@/components/ui/alert-dialog"
 import { Alert, AlertDescription } from "@/components/ui/alert"
 import { LocalTime } from "@/components/server-time"
 
@@ -58,8 +69,6 @@ export default function XvmCredentialsPage() {
   }, [success])
 
   async function revoke(id: number) {
-    if (!confirm("Revoke this credential? This cannot be undone.")) return
-
     try {
       const res = await fetch(`/api/xvm-api/credentials/${id}/revoke`, { method: "POST" })
       if (res.ok) {
@@ -140,9 +149,28 @@ export default function XvmCredentialsPage() {
                     {cred.revoked_at ? (
                       <Badge variant="destructive">Revoked</Badge>
                     ) : (
-                      <Button variant="destructive" size="sm" onClick={() => revoke(cred.id)}>
-                        Revoke
-                      </Button>
+                      <AlertDialog>
+                        <AlertDialogTrigger asChild>
+                          <Button variant="destructive" size="sm">
+                            Revoke
+                          </Button>
+                        </AlertDialogTrigger>
+                        <AlertDialogContent>
+                          <AlertDialogHeader>
+                            <AlertDialogTitle>Revoke this credential?</AlertDialogTitle>
+                            <AlertDialogDescription>This cannot be undone.</AlertDialogDescription>
+                          </AlertDialogHeader>
+                          <AlertDialogFooter>
+                            <AlertDialogCancel>Cancel</AlertDialogCancel>
+                            <AlertDialogAction
+                              onClick={() => revoke(cred.id)}
+                              className="bg-destructive text-destructive-foreground hover:bg-destructive/90"
+                            >
+                              Revoke
+                            </AlertDialogAction>
+                          </AlertDialogFooter>
+                        </AlertDialogContent>
+                      </AlertDialog>
                     )}
                   </div>
                 </div>

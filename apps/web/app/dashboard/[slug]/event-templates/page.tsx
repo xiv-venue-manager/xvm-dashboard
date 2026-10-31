@@ -33,6 +33,7 @@ import { Select, SelectContent, SelectItem, SelectTrigger, SelectValue } from "@
 import { Alert, AlertDescription } from "@/components/ui/alert"
 import { Clock, Trash2, Edit, Plus, ClipboardList } from "lucide-react"
 import { canManageVenue } from "@/lib/roles"
+import { toast } from "sonner"
 
 interface EventTemplate {
   id: string
@@ -185,7 +186,7 @@ export default function EventTemplatesPage() {
       setDeletingTemplate(null)
       fetchTemplates()
     } catch (error: unknown) {
-      alert(error instanceof Error ? error.message : "Failed to delete template")
+      toast.error(error instanceof Error ? error.message : "Failed to delete template")
     }
   }
 

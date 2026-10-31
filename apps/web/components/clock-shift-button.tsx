@@ -14,6 +14,7 @@ import {
   AlertDialogTitle,
   AlertDialogTrigger,
 } from "@/components/ui/alert-dialog"
+import { toast } from "sonner"
 
 interface ClockShiftButtonProps {
   venueSlug: string
@@ -36,12 +37,12 @@ export function ClockShiftButton({ venueSlug, shiftId, action, staffName }: Cloc
       })
       if (!res.ok) {
         const body = await res.json().catch(() => ({}))
-        alert(body.error || `Failed (${res.status})`)
+        toast.error(body.error || `Failed (${res.status})`)
         return
       }
       router.refresh()
     } catch {
-      alert("Network error.")
+      toast.error("Network error.")
     } finally {
       setLoading(false)
     }

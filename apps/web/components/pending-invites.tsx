@@ -19,6 +19,7 @@ import {
 import { Check, Copy, RefreshCw, Send, Trash2 } from "lucide-react"
 import { LocalTime } from "@/components/server-time"
 import { withReissuedLink, type PendingInviteShape } from "@/lib/pending-invites"
+import { toast } from "sonner"
 
 interface PendingInvitesProps {
   invites: PendingInviteShape[]
@@ -104,7 +105,7 @@ export function PendingInvites({ invites, slug, canManageStaff }: PendingInvites
       // Remove from local state
       setPendingInvites((prev) => prev.filter((inv) => inv.id !== inviteId))
     } catch (error: unknown) {
-      alert(error instanceof Error ? error.message : "Failed to delete invite")
+      toast.error(error instanceof Error ? error.message : "Failed to delete invite")
     } finally {
       setDeletingId(null)
     }

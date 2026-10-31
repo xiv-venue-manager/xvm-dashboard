@@ -31,6 +31,7 @@ import { Alert, AlertDescription } from "@/components/ui/alert"
 import { format } from "date-fns"
 import { PageLoading } from "@/components/ui/loading-spinner"
 import { canManageVenue } from "@/lib/roles"
+import { toast } from "sonner"
 
 // The datetime-local input below produces a naive string with no UTC offset -
 // the API rejects one on a due date field. Only the browser knows the offset
@@ -206,7 +207,7 @@ export default function TasksPage({ params }: { params: Promise<{ slug: string }
 
   const handleStatusUpdate = async (taskId: number, newStatus: Task["status"]) => {
     if (newStatus === "PENDING") {
-      alert("Reopening a completed or cancelled task isn't supported - create a new task instead.")
+      toast.error("Reopening a completed or cancelled task isn't supported - create a new task instead.")
       return
     }
 
@@ -226,7 +227,7 @@ export default function TasksPage({ params }: { params: Promise<{ slug: string }
       const updatedTask = await response.json()
       setTasks(tasks.map((t) => (t.id === updatedTask.id ? updatedTask : t)))
     } catch (error: unknown) {
-      alert(error instanceof Error ? error.message : "Failed to update task")
+      toast.error(error instanceof Error ? error.message : "Failed to update task")
     }
   }
 
@@ -243,7 +244,7 @@ export default function TasksPage({ params }: { params: Promise<{ slug: string }
 
       setTasks(tasks.filter((t) => t.id !== taskId))
     } catch (error: unknown) {
-      alert(error instanceof Error ? error.message : "Failed to delete task")
+      toast.error(error instanceof Error ? error.message : "Failed to delete task")
     }
   }
 

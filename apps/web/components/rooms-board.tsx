@@ -62,13 +62,11 @@ export function RoomsBoard({
   canManage,
   rooms,
   names,
-  notConnected,
 }: {
   venueSlug: string
   canManage: boolean
   rooms: RoomItem[]
   names: RoomPeopleNames
-  notConnected?: boolean
 }) {
   const [localRooms, setLocalRooms] = useState(rooms)
   const [pendingIds, setPendingIds] = useState<Set<number>>(new Set())
@@ -401,7 +399,7 @@ export function RoomsBoard({
             { label: "" },
           ]}
           isEmpty={localRooms.length === 0}
-          emptyMessage={notConnected ? NOT_CONNECTED_MESSAGE : "No rooms yet."}
+          emptyMessage="No rooms yet."
         >
           {localRooms.map((room) => {
             const status = statusBadge(room.status)

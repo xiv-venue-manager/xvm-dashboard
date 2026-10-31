@@ -77,6 +77,15 @@ describe("venue webhook settings are retired", () => {
     expect(m.venueUpdate.mock.calls[0][0].select).not.toHaveProperty("discordWebhookUrl")
   })
 
+  it("ignores room manager roles from an older page and stores none", async () => {
+    m.venueFind.mockResolvedValue({ id: "vn_1", settings: stored, venueType: null })
+    const res = await put({ tagline: "New", roomManagerRoleIds: ["role-1"] })
+    expect(res.status).toBe(200)
+    const data = m.venueUpdate.mock.calls[0][0].data
+    expect(data.settings.tagline).toBe("New")
+    expect(data.settings).not.toHaveProperty("roomManagerRoleIds")
+  })
+
   it("does not return a discordWebhookUrl from GET", async () => {
     m.venueFind.mockResolvedValue({ settings: stored, venueType: null })
     const res = await GET(new Request("http://localhost/api") as never, context as never)

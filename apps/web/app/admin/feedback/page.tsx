@@ -12,6 +12,7 @@ import { Textarea } from "@/components/ui/textarea"
 import { Label } from "@/components/ui/label"
 import { format } from "date-fns"
 import { PageLoading } from "@/components/ui/loading-spinner"
+import { toast } from "sonner"
 
 interface Feedback {
   id: string
@@ -84,7 +85,7 @@ export default function AdminFeedbackPage() {
 
       if (!response.ok) {
         if (response.status === 403) {
-          alert("You don't have admin access")
+          toast.error("You don't have admin access")
           router.push("/dashboard")
           return
         }
@@ -160,7 +161,7 @@ export default function AdminFeedbackPage() {
       cancelEditing()
     } catch (error) {
       console.error("Error updating feedback:", error)
-      alert("Failed to update feedback")
+      toast.error("Failed to update feedback")
     }
   }
 

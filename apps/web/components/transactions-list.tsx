@@ -26,6 +26,7 @@ import { Textarea } from "@/components/ui/textarea"
 import { Edit, Trash2 } from "lucide-react"
 import { formatLocalTime } from "@/components/server-time"
 import { minorUnitsToGil } from "@/lib/api/position-convert"
+import { toast } from "sonner"
 
 export interface Transaction {
   id: number
@@ -127,7 +128,7 @@ export function TransactionsList({ transactions, venueSlug, onTransactionsChange
       setEditingTransaction(null)
     } catch (error) {
       console.error("Error updating transaction:", error)
-      alert("Failed to update transaction")
+      toast.error("Failed to update transaction")
     } finally {
       setIsSubmitting(false)
     }
@@ -152,7 +153,7 @@ export function TransactionsList({ transactions, venueSlug, onTransactionsChange
       setDeletingTransaction(null)
     } catch (error) {
       console.error("Error voiding transaction:", error)
-      alert("Failed to void transaction")
+      toast.error("Failed to void transaction")
     }
   }
 

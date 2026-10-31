@@ -70,6 +70,23 @@ describe("signIn", () => {
     expect(m.userUpdate).toHaveBeenCalledTimes(1)
   })
 
+  it("writes the avatar Discord holds now, not the stored one the row already has", async () => {
+    await signIn({
+      user: { id: "user-1", image: "https://cdn/old.png" },
+      account,
+      profile: { image_url: "https://cdn/new.png" },
+    })
+    expect(m.userUpdate).toHaveBeenCalledWith({
+      where: { id: "user-1" },
+      data: { image: "https://cdn/new.png", discordId: "4242" },
+    })
+  })
+
+  it("leaves the stored avatar alone when the profile carries none", async () => {
+    await signIn({ user: { id: "user-1", image: "https://cdn/old.png" }, account, profile: {} })
+    expect(m.userUpdate).toHaveBeenCalledWith({ where: { id: "user-1" }, data: { discordId: "4242" } })
+  })
+
   it("refuses a sign-in carrying neither an email nor a provider account id", async () => {
     await expect(signIn({ user: {}, account: null })).resolves.toBe(false)
   })
@@ -86,6 +103,21 @@ describe("jwt", () => {
       expiresAt: 1800000000,
       scope: "identify email guilds",
     })
+  })
+
+  it("puts the current Discord avatar on the token, not the stored row's", async () => {
+    const token = await jwt({
+      token: { id: "u1" },
+      user: { id: "u1", name: "A", image: "https://cdn/old.png" },
+      account,
+      profile: { image_url: "https://cdn/new.png" },
+    })
+    expect(token.picture).toBe("https://cdn/new.png")
+  })
+
+  it("keeps the stored row's avatar on the token when the profile carries none", async () => {
+    const token = await jwt({ token: { id: "u1" }, user: { id: "u1", name: "A", image: "https://cdn/old.png" }, account })
+    expect(token.picture).toBe("https://cdn/old.png")
   })
 
   it("leaves the stored grant alone on later calls that carry no account", async () => {

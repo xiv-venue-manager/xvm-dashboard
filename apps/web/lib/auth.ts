@@ -6,6 +6,13 @@ import { exchangeToken, XvmApiError } from "@/lib/api/xvm-api"
 import { upsertXvmApiCredential, getValidXvmApiToken } from "@/lib/api/xvm-api-store"
 import { SESSION_COOKIE_NAME } from "@/lib/session-cookie"
 
+// For an existing account next-auth hands the callbacks the stored user row as `user`, so the
+// avatar Discord holds now is only on `profile`.
+function discordImage(profile: unknown): string | undefined {
+  const url = (profile as { image_url?: unknown } | undefined)?.image_url
+  return typeof url === "string" && url ? url : undefined
+}
+
 export const authOptions: NextAuthOptions = {
   // eslint-disable-next-line @typescript-eslint/no-explicit-any
   adapter: PrismaAdapter(prisma as any),
@@ -19,7 +26,7 @@ export const authOptions: NextAuthOptions = {
     }),
   ],
   callbacks: {
-    async signIn({ user, account }) {
+    async signIn({ user, account, profile }) {
       // Allow sign in if user exists or can be created
       if (!user?.email && !account?.providerAccountId) {
         return false
@@ -29,11 +36,12 @@ export const authOptions: NextAuthOptions = {
       // user.id is only present for existing users (new users get their id
       // after the adapter creates them post-callback).
       if (account?.provider === "discord" && user?.id) {
+        const image = discordImage(profile)
         prisma.user
           .update({
             where: { id: user.id },
             data: {
-              ...(user.image ? { image: user.image } : {}),
+              ...(image ? { image } : {}),
               discordId: account.providerAccountId,
             },
           })
@@ -41,7 +49,7 @@ export const authOptions: NextAuthOptions = {
       }
       return true
     },
-    async jwt({ token, user, account }) {
+    async jwt({ token, user, account, profile }) {
       // Initial sign in - user object is only available on first call
       if (user) {
         token.id = user.id
@@ -51,6 +59,8 @@ export const authOptions: NextAuthOptions = {
       }
       if (account) {
         token.provider = account.provider
+        const image = account.provider === "discord" ? discordImage(profile) : undefined
+        if (image) token.picture = image
         if (account.provider === "discord" && account.access_token) {
           token.discord = {
             accessToken: account.access_token,

@@ -6,6 +6,7 @@ import { formatLocalTime } from "@/components/server-time"
 import { DataTable } from "@/components/ui/data-table"
 import { Alert, AlertDescription } from "@/components/ui/alert"
 import { Button } from "@/components/ui/button"
+import { Input } from "@/components/ui/input"
 
 export type BannedPatron = {
   id: string
@@ -85,8 +86,6 @@ export function BanListManager({
     }
   }
 
-  const inputClass =
-    "rounded-[var(--radius-sm)] border border-[var(--blue-015)] bg-background px-3 py-1.5 text-sm focus:border-[var(--blue-035)] focus:outline-none"
 
   return (
     <div className="panel">
@@ -97,29 +96,29 @@ export function BanListManager({
           void banByName()
         }}
       >
-        <input
+        <Input
           type="text"
           value={characterName}
           onChange={(e) => setCharacterName(e.target.value)}
           placeholder="Character name"
           maxLength={40}
-          className={`${inputClass} flex-1 min-w-[10rem]`}
+          className="flex-1 min-w-[10rem]"
         />
-        <input
+        <Input
           type="text"
           value={world}
           onChange={(e) => setWorld(e.target.value)}
           placeholder="World"
           maxLength={32}
-          className={`${inputClass} w-36`}
+          className="w-36"
         />
-        <input
+        <Input
           type="text"
           value={reason}
           onChange={(e) => setReason(e.target.value)}
           placeholder="Reason"
           maxLength={500}
-          className={`${inputClass} flex-1 min-w-[10rem]`}
+          className="flex-1 min-w-[10rem]"
         />
         <Button type="submit" size="sm" disabled={isBanning || !characterName.trim() || !world.trim() || !reason.trim()}>
           Ban

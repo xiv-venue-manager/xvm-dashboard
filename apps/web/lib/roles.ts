@@ -1,4 +1,4 @@
-import type { MembershipRole } from "../generated/prisma/enums"
+export type MembershipRole = "OWNER" | "MANAGER" | "STAFF"
 
 const MANAGER_TIER: MembershipRole[] = ["OWNER", "MANAGER"]
 

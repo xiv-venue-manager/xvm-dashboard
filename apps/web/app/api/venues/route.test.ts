@@ -8,6 +8,9 @@ const m = vi.hoisted(() => ({
   createVenue: vi.fn(),
   updateVenue: vi.fn(),
   venueFindUnique: vi.fn(),
+  venueFindMany: vi.fn(),
+  getOrSet: vi.fn(),
+  roles: vi.fn(),
   venueCreate: vi.fn(),
   invalidate: vi.fn(),
   postNewVenue: vi.fn(),
@@ -17,20 +20,21 @@ const m = vi.hoisted(() => ({
 vi.mock("next-auth", () => ({ getServerSession: m.session }))
 vi.mock("@/lib/auth", () => ({ authOptions: {} }))
 vi.mock("@/lib/middleware/with-rate-limit", () => ({ withRateLimit: (handler: unknown) => handler }))
-vi.mock("@/lib/prisma", () => ({ prisma: { venue: { findUnique: m.venueFindUnique, create: m.venueCreate } } }))
+vi.mock("@/lib/prisma", () => ({ prisma: { venue: { findUnique: m.venueFindUnique, findMany: m.venueFindMany, create: m.venueCreate } } }))
 vi.mock("@/lib/redis-cache", () => ({
   invalidateCache: m.invalidate,
-  getOrSet: vi.fn(),
+  getOrSet: m.getOrSet,
   cacheKeys: { userVenues: (id: string) => `user:${id}:venues` },
   cacheTTL: { venue: 300 },
 }))
 vi.mock("@/lib/api/xvm-api-store", () => ({ getValidXvmApiToken: m.token, xvmApiErrorResponse: m.errorResponse }))
 vi.mock("@/lib/api/xvm-api", () => ({ createVenue: m.createVenue, updateVenue: m.updateVenue }))
+vi.mock("@/lib/api/venue-access", async (orig) => ({ ...(await orig<object>()), myVenueRoles: m.roles }))
 vi.mock("@/lib/discord-feed", () => ({ postNewVenue: m.postNewVenue }))
 vi.mock("@/lib/email", () => ({ sendEmail: m.sendEmail }))
 vi.mock("@/lib/email-templates", () => ({ venueWelcomeEmail: () => ({}), newVenueAlertEmail: () => ({}) }))
 
-import { POST } from "@/app/api/venues/route"
+import { GET, POST } from "@/app/api/venues/route"
 
 const valid = {
   name: "The Velvet Lotus",
@@ -178,5 +182,17 @@ describe("POST /api/venues", () => {
     await post(valid)
     expect(m.invalidate).toHaveBeenCalledWith("user:u1:venues")
     expect(m.postNewVenue).toHaveBeenCalled()
+  })
+})
+
+describe("GET /api/venues", () => {
+  it("selects only the columns the callers read, never the Frogge token or webhook URLs", async () => {
+    m.getOrSet.mockImplementation(async (_key: string, fn: () => Promise<unknown>) => fn())
+    m.roles.mockResolvedValue(new Map([["v1", "STAFF"]]))
+    m.venueFindMany.mockResolvedValue([{ id: "v1", name: "A", slug: "a", dataCenter: "Crystal", world: "Balmung" }])
+    const res = await GET(new NextRequest("http://localhost/api/venues"))
+    expect(res.status).toBe(200)
+    const { select } = m.venueFindMany.mock.calls[0][0]
+    expect(Object.keys(select).sort()).toEqual(["dataCenter", "id", "name", "slug", "world", "xvmApiVenueId"])
   })
 })

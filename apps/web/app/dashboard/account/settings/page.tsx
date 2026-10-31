@@ -17,6 +17,7 @@ import {
 } from "@/components/ui/alert-dialog"
 import { DELETION_FAILED, deletionOutcome, type DeletionOutcome } from "@/lib/account-deletion"
 import { DELETION_SIGN_IN_URL } from "@/lib/sign-in-reason"
+import { Input } from "@/components/ui/input"
 
 export default function AccountSettingsPage() {
   const { data: session } = useSession()
@@ -126,22 +127,17 @@ export default function AccountSettingsPage() {
         <div className="pbody space-y-5">
           <div>
             <label className="field-label">Display name</label>
-            <input
+            <Input
               value={displayName}
               onChange={(e) => setDisplayName(e.target.value)}
               placeholder={session?.user?.name ?? "Your name"}
-              className="w-full bg-background border border-[var(--blue-015)] rounded-[var(--radius-md)] px-[13px] py-[10px] text-[0.88rem] text-foreground outline-none focus:border-[var(--blue-035)] transition-colors"
             />
             <p className="field-hint">Shown in the user chip and dropdown.</p>
           </div>
 
           <div>
             <label className="field-label">Email</label>
-            <input
-              value={session?.user?.email ?? ""}
-              disabled
-              className="w-full bg-background border border-[var(--blue-008)] rounded-[var(--radius-md)] px-[13px] py-[10px] text-[0.88rem] text-muted-foreground outline-none opacity-60 cursor-not-allowed"
-            />
+            <Input value={session?.user?.email ?? ""} disabled />
             <p className="field-hint">Email is managed via your Discord login and cannot be changed here.</p>
           </div>
 

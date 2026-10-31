@@ -1,7 +1,7 @@
 "use client"
 
 import { useState, useEffect, useCallback, useRef } from "react"
-import type { MembershipRole } from "@/generated/prisma/client"
+import type { MembershipRole } from "@/lib/roles"
 import { formatServerTime } from "@/lib/server-time"
 import { formatLocalTime, LocalTime } from "@/components/server-time"
 import { Button } from "@/components/ui/button"

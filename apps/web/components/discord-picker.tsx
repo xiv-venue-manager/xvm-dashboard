@@ -1,6 +1,6 @@
 "use client"
 
-import { useCallback, useEffect, useRef, useState } from "react"
+import { useCallback, useEffect, useRef, useState, type ReactNode } from "react"
 import { Input } from "@/components/ui/input"
 import { cn } from "@/lib/utils"
 import {
@@ -128,6 +128,7 @@ export function DiscordOptionPicker({
   ariaLabel,
   id,
   className,
+  actions,
 }: {
   value: string
   onChange: (value: string) => void
@@ -136,6 +137,8 @@ export function DiscordOptionPicker({
   ariaLabel: string
   id?: string
   className?: string
+  /** Buttons that belong to the field, shown in its row, straight after the input or dropdown. */
+  actions?: ReactNode
 } & Omit<Loaded, "refresh"> & { onRefresh: () => void }) {
   const [manual, setManual] = useState(false)
   const unlisted = value !== "" && !options.some((option) => option.value === value)
@@ -159,6 +162,7 @@ export function DiscordOptionPicker({
             aria-label={ariaLabel}
             className={cn("w-44", className)}
           />
+          {actions}
           {canReturnToList(options, value) && (
             <button
               type="button"
@@ -200,6 +204,7 @@ export function DiscordOptionPicker({
             ))}
           </SelectContent>
         </Select>
+        {actions}
         <button type="button" onClick={onRefresh} className="text-xs text-[var(--xiv-blue)] hover:underline">
           Refresh
         </button>

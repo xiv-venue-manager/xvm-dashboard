@@ -2,18 +2,23 @@
 
 import { useEffect, useRef, useState } from "react"
 import { useRouter } from "next/navigation"
+import { toast } from "sonner"
 import Link from "next/link"
 import { Button } from "@/components/ui/button"
 import { VenueLayoutClient } from "@/components/venue-layout-client"
 import { VenueEyebrow } from "@/components/venue-eyebrow"
 import { Label } from "@/components/ui/label"
 import { Input } from "@/components/ui/input"
+import { Textarea } from "@/components/ui/textarea"
+import { Checkbox } from "@/components/ui/checkbox"
+import { Switch } from "@/components/ui/switch"
 import { GalleryManager } from "@/components/gallery-manager"
 import { FinanceCategoriesSettings } from "@/components/finance-categories-settings"
 import { BannerUpload } from "@/components/banner-upload"
 import { LogoUpload } from "@/components/logo-upload"
+import { Server } from "lucide-react"
 import { DiscordGuildConnect } from "@/components/discord-guild-connect"
-import { ChannelPicker } from "@/components/discord-picker"
+import { DiscordSettingsCard } from "@/components/discord-settings-card"
 import type { VenueImage } from "@/lib/api/xvm-api"
 import { Select, SelectContent, SelectItem, SelectTrigger, SelectValue } from "@/components/ui/select"
 import { Alert, AlertDescription } from "@/components/ui/alert"
@@ -34,9 +39,9 @@ import type { VenueSettings } from "@xiv-venue-manager/types"
 import type { ListingLinkRow, ListingSummary } from "@/lib/api/xvm-api"
 import { FFXIV_DISTRICTS, addressProblem, isDistrict } from "@/lib/venue-location"
 import { canManageVenue } from "@/lib/roles"
-import { DISCORD_BOT_INVITE_URL } from "@/lib/discord-invite"
 
 const SETTINGS_LOAD_TIMEOUT_MS = 8000
+const NO_VENUE_TYPE = "none"
 const SAVE_OFF_MESSAGE = "Saving is off: this venue's profile couldn't be loaded from xvm-api. Reload the page to try again."
 
 export default function SettingsPage({ params }: { params: Promise<{ slug: string }> }) {
@@ -67,7 +72,6 @@ export default function SettingsPage({ params }: { params: Promise<{ slug: strin
   const [isSaving, setIsSaving] = useState(false)
   const [xvmUnavailable, setXvmUnavailable] = useState(false)
   const [error, setError] = useState("")
-  const [success, setSuccess] = useState(false)
   const [isDeleting, setIsDeleting] = useState(false)
   const [venueId, setVenueId] = useState<string>("")
 
@@ -92,30 +96,10 @@ export default function SettingsPage({ params }: { params: Promise<{ slug: strin
   const [ffxivSyncing, setFfxivSyncing] = useState(false)
   const [ffxivUnlinking, setFfxivUnlinking] = useState(false)
   const [xvmApiVenueId, setXvmApiVenueId] = useState<string | null>(null)
-  const [xvmApiVenueLinkedAt, setXvmApiVenueLinkedAt] = useState<string | null>(null)
-  const [xvmConnecting, setXvmConnecting] = useState(false)
-  const [xvmConnectError, setXvmConnectError] = useState<string | null>(null)
-  const [froggeConnected, setFroggeConnected] = useState(false)
-  const [froggeCode, setFroggeCode] = useState("")
-  const [froggeConnecting, setFroggeConnecting] = useState(false)
-  const [froggeError, setFroggeError] = useState<string | null>(null)
-  const [froggeDisconnecting, setFroggeDisconnecting] = useState(false)
-  const [shiftBotEnabled, setShiftBotEnabled] = useState(false)
-  const [shiftBotChannelId, setShiftBotChannelId] = useState("")
-  const [shiftBotDaysBefore, setShiftBotDaysBefore] = useState(3)
-  const [shiftBotThumbnailUrl, setShiftBotThumbnailUrl] = useState("")
   const [potTaxPercent, setPotTaxPercent] = useState(0)
   const [potIncludeSalesInPot, setPotIncludeSalesInPot] = useState(false)
   const [potDefaultTipPooled, setPotDefaultTipPooled] = useState(false)
   const [inventoryEnabled, setInventoryEnabled] = useState(false)
-  const [shiftBotTemplates, setShiftBotTemplates] = useState<
-    Array<{
-      name: string
-      startOffsetHours: number
-      durationHours: number
-      slots: number
-    }>
-  >([])
   const [isDirty, setIsDirty] = useState(false)
   const settingsReadyRef = useRef(false)
   const partakeLoadedRef = useRef(false)
@@ -126,6 +110,15 @@ export default function SettingsPage({ params }: { params: Promise<{ slug: strin
   }, [params])
 
   // Fetch settings
+  async function loadPotSettings(id: string) {
+    const r = await fetch(`/api/venues/${id}/pot-settings`, { signal: AbortSignal.timeout(SETTINGS_LOAD_TIMEOUT_MS) })
+    if (!r.ok) return
+    const data = await r.json()
+    setPotTaxPercent(data.settings.taxPercent)
+    setPotIncludeSalesInPot(data.settings.includeSalesInPot)
+    setPotDefaultTipPooled(data.settings.defaultTipPooled)
+  }
+
   useEffect(() => {
     if (!slug) return
 
@@ -154,7 +147,6 @@ export default function SettingsPage({ params }: { params: Promise<{ slug: strin
           .then((images: VenueImage[]) => setGalleryImages(images))
           .catch(() => setGalleryImages([]))
         setXvmApiVenueId(venue.xvmApiVenueId ?? null)
-        setXvmApiVenueLinkedAt(venue.xvmApiVenueLinkedAt ?? null)
         if (venue.memberships?.[0]) {
           setUserRole(venue.memberships[0].role)
         }
@@ -180,12 +172,6 @@ export default function SettingsPage({ params }: { params: Promise<{ slug: strin
             partakeTeamId: null,
             venueType: settingsData.venueType ?? null,
           })
-          setFroggeConnected(!!settingsData.froggeToken)
-          setShiftBotEnabled(settingsData.shiftBot?.enabled ?? false)
-          setShiftBotChannelId(settingsData.shiftBot?.channelId ?? "")
-          setShiftBotDaysBefore(settingsData.shiftBot?.daysBeforeEvent ?? 3)
-          setShiftBotThumbnailUrl(settingsData.shiftBot?.thumbnailUrl ?? "")
-          setShiftBotTemplates(settingsData.shiftBot?.templates ?? [])
         }
 
         fetch(`/api/venues/${slug}/partake-link`)
@@ -247,11 +233,6 @@ export default function SettingsPage({ params }: { params: Promise<{ slug: strin
     venueApartment,
     venueBuilding,
     housingType,
-    shiftBotEnabled,
-    shiftBotChannelId,
-    shiftBotDaysBefore,
-    shiftBotThumbnailUrl,
-    shiftBotTemplates,
     potTaxPercent,
     potIncludeSalesInPot,
     potDefaultTipPooled,
@@ -267,7 +248,6 @@ export default function SettingsPage({ params }: { params: Promise<{ slug: strin
     if (xvmUnavailable) return
     setIsSaving(true)
     setError("")
-    setSuccess(false)
 
     try {
       if (!venueId) throw new Error("Venue not loaded")
@@ -296,16 +276,7 @@ export default function SettingsPage({ params }: { params: Promise<{ slug: strin
       const settingsRes = await fetch(`/api/venues/${slug}/settings`, {
         method: "PUT",
         headers: { "Content-Type": "application/json" },
-        body: JSON.stringify({
-          ...settings,
-          shiftBot: {
-            enabled: shiftBotEnabled,
-            channelId: shiftBotChannelId,
-            daysBeforeEvent: shiftBotDaysBefore,
-            templates: shiftBotTemplates,
-            thumbnailUrl: shiftBotThumbnailUrl || undefined,
-          },
-        }),
+        body: JSON.stringify(settings),
       })
       if (!settingsRes.ok) {
         const d = await settingsRes.json()
@@ -351,11 +322,10 @@ export default function SettingsPage({ params }: { params: Promise<{ slug: strin
         throw new Error(d.error || "Failed to save bar inventory settings")
       }
 
-      setSuccess(true)
+      toast.success("Settings saved.")
       setIsDirty(false)
-      setTimeout(() => setSuccess(false), 3000)
     } catch (error: unknown) {
-      setError(error instanceof Error ? error.message : "Failed to save settings")
+      toast.error(error instanceof Error ? error.message : "Failed to save settings")
     } finally {
       setIsSaving(false)
     }
@@ -455,69 +425,6 @@ export default function SettingsPage({ params }: { params: Promise<{ slug: strin
     }
   }
 
-  async function loadPotSettings(id: string) {
-    const r = await fetch(`/api/venues/${id}/pot-settings`, { signal: AbortSignal.timeout(SETTINGS_LOAD_TIMEOUT_MS) })
-    if (!r.ok) return
-    const data = await r.json()
-    setPotTaxPercent(data.settings.taxPercent)
-    setPotIncludeSalesInPot(data.settings.includeSalesInPot)
-    setPotDefaultTipPooled(data.settings.defaultTipPooled)
-  }
-
-  async function handleXvmConnect() {
-    setXvmConnecting(true)
-    setXvmConnectError(null)
-    try {
-      const res = await fetch(`/api/venues/${venueId}/xvm-connect`, { method: "POST" })
-      if (!res.ok) {
-        const err = await res.json()
-        throw new Error(err.error ?? "Failed to connect")
-      }
-      const result = await res.json()
-      setXvmApiVenueId(result.id)
-      setXvmApiVenueLinkedAt(new Date().toISOString())
-      loadPotSettings(slug).catch(() => {})
-    } catch (e) {
-      setXvmConnectError(e instanceof Error ? e.message : "Failed to connect")
-    } finally {
-      setXvmConnecting(false)
-    }
-  }
-
-  async function handleFroggeConnect() {
-    if (!froggeCode.trim()) return
-    setFroggeConnecting(true)
-    setFroggeError(null)
-    try {
-      const res = await fetch(`/api/venues/${venueId}/frogge/redeem`, {
-        method: "POST",
-        headers: { "Content-Type": "application/json" },
-        body: JSON.stringify({ code: froggeCode.trim() }),
-      })
-      if (!res.ok) {
-        const err = await res.json()
-        throw new Error(err.error ?? "Failed to connect")
-      }
-      setFroggeConnected(true)
-      setFroggeCode("")
-    } catch (e) {
-      setFroggeError(e instanceof Error ? e.message : "Failed to connect")
-    } finally {
-      setFroggeConnecting(false)
-    }
-  }
-
-  async function handleFroggeDisconnect() {
-    setFroggeDisconnecting(true)
-    try {
-      const res = await fetch(`/api/venues/${venueId}/frogge/disconnect`, { method: "POST" })
-      if (!res.ok) throw new Error("Failed to disconnect")
-      setFroggeConnected(false)
-    } finally {
-      setFroggeDisconnecting(false)
-    }
-  }
-
   if (!slug || (isLoading && !userRole) || !canManageVenue(userRole)) {
     return (
       <div className="container mx-auto p-8">
@@ -530,14 +437,9 @@ export default function SettingsPage({ params }: { params: Promise<{ slug: strin
     <VenueLayoutClient slug={slug}>
       <div className="page-inner max-w-3xl">
         {/* Header */}
-        <div className="flex flex-col sm:flex-row sm:items-start sm:justify-between gap-4 mb-6 md:mb-8">
-          <div>
-            <VenueEyebrow slug={slug} />
-            <h1 className="page-h1">Settings</h1>
-          </div>
-          <Button onClick={handleSave} disabled={isSaving || xvmUnavailable} className="self-start shrink-0">
-            {isSaving ? "Saving…" : "Save changes"}
-          </Button>
+        <div className="mb-6 md:mb-8">
+          <VenueEyebrow slug={slug} />
+          <h1 className="page-h1">Settings</h1>
         </div>
 
         {/* Alerts */}
@@ -547,11 +449,6 @@ export default function SettingsPage({ params }: { params: Promise<{ slug: strin
               Couldn&apos;t load this venue&apos;s profile and staff visibility from xvm-api, so saving is turned off to
               avoid overwriting them with blanks. Reload the page to try again.
             </AlertDescription>
-          </Alert>
-        )}
-        {success && (
-          <Alert className="mb-4 bg-emerald-500/10 border-emerald-500/20">
-            <AlertDescription className="text-emerald-400">Settings saved.</AlertDescription>
           </Alert>
         )}
         {error && (
@@ -681,14 +578,14 @@ export default function SettingsPage({ params }: { params: Promise<{ slug: strin
                 </div>
                 <div className="space-y-1.5">
                   <Label htmlFor="venue-desc">Description</Label>
-                  <textarea
+                  <Textarea
                     id="venue-desc"
                     rows={3}
                     placeholder="Tell patrons what makes your venue special…"
                     value={venueDescription}
                     onChange={(e) => setVenueDescription(e.target.value)}
                     disabled={isSaving}
-                    className="w-full text-sm bg-background border border-[var(--blue-015)] focus:border-[var(--blue-035)] rounded-lg px-3 py-2 outline-none resize-y text-foreground placeholder:text-[var(--fg-faint)] transition-colors"
+                    className="resize-y"
                   />
                 </div>
               </div>
@@ -919,25 +816,28 @@ export default function SettingsPage({ params }: { params: Promise<{ slug: strin
                 </div>
                 <div className="space-y-1.5">
                   <Label htmlFor="venue-type">Venue type</Label>
-                  <select
-                    id="venue-type"
+                  <Select
                     value={settings.venueType ?? ""}
-                    onChange={(e) => setSettings({ ...settings, venueType: e.target.value || null })}
+                    onValueChange={(value) => setSettings({ ...settings, venueType: value === NO_VENUE_TYPE ? null : value })}
                     disabled={isSaving}
-                    className="w-full h-9 rounded-md border border-[var(--blue-015)] bg-background px-3 text-sm focus:border-[var(--blue-035)] focus:outline-none"
                   >
-                    <option value="">Select a type...</option>
-                    <option value="BAR_TAVERN">Bar / Tavern</option>
-                    <option value="NIGHTCLUB">Nightclub</option>
-                    <option value="LOUNGE">Lounge</option>
-                    <option value="HOST_CLUB">Host Club</option>
-                    <option value="CABARET">Cabaret</option>
-                    <option value="BATHHOUSE">Bathhouse / Spa</option>
-                    <option value="CASINO">Casino</option>
-                    <option value="STUDIO">Creative Studio</option>
-                    <option value="OTHER">Other</option>
-                    <option value="TEST_VENUE">Test Venue</option>
-                  </select>
+                    <SelectTrigger id="venue-type" className="w-full bg-background border-[var(--blue-015)] focus:border-[var(--blue-035)]">
+                      <SelectValue placeholder="Select a type..." />
+                    </SelectTrigger>
+                    <SelectContent>
+                      <SelectItem value={NO_VENUE_TYPE}>None</SelectItem>
+                      <SelectItem value="BAR_TAVERN">Bar / Tavern</SelectItem>
+                      <SelectItem value="NIGHTCLUB">Nightclub</SelectItem>
+                      <SelectItem value="LOUNGE">Lounge</SelectItem>
+                      <SelectItem value="HOST_CLUB">Host Club</SelectItem>
+                      <SelectItem value="CABARET">Cabaret</SelectItem>
+                      <SelectItem value="BATHHOUSE">Bathhouse / Spa</SelectItem>
+                      <SelectItem value="CASINO">Casino</SelectItem>
+                      <SelectItem value="STUDIO">Creative Studio</SelectItem>
+                      <SelectItem value="OTHER">Other</SelectItem>
+                      <SelectItem value="TEST_VENUE">Test Venue</SelectItem>
+                    </SelectContent>
+                  </Select>
                 </div>
                 <div className="setrow" style={{ paddingLeft: 0, paddingRight: 0, border: "none" }}>
                   <div className="sinfo">
@@ -1024,9 +924,7 @@ export default function SettingsPage({ params }: { params: Promise<{ slug: strin
                   </span>
                 )}
                 <div className="w-full pl-[54px] space-y-3">
-                  {!xvmApiVenueId ? (
-                    <p className="text-xs text-[var(--fg-faint)]">Connect this venue to xvm-api first.</p>
-                  ) : ffxivLink ? (
+                  {ffxivLink ? (
                     <>
                       <p className="text-xs text-[var(--fg-faint)]">
                         Schedule synced every 2 hours.
@@ -1095,18 +993,19 @@ export default function SettingsPage({ params }: { params: Promise<{ slug: strin
                       </>
                     ) : (
                       <>
-                        <select
-                          value={ffxivSelected}
-                          onChange={(e) => setFfxivSelected(e.target.value)}
-                          className="w-full rounded-[var(--radius-sm)] border border-[var(--blue-015)] bg-background px-3 py-1.5 text-sm focus:border-[var(--blue-035)] focus:outline-none"
-                        >
-                          {ffxivListings.map((l) => (
-                            <option key={l.id} value={l.id}>
-                              {l.name}
-                              {l.world ? ` (${l.world})` : ""}
-                            </option>
-                          ))}
-                        </select>
+                        <Select value={ffxivSelected} onValueChange={setFfxivSelected}>
+                          <SelectTrigger className="w-full bg-background border-[var(--blue-015)] focus:border-[var(--blue-035)]">
+                            <SelectValue />
+                          </SelectTrigger>
+                          <SelectContent>
+                            {ffxivListings.map((l) => (
+                              <SelectItem key={l.id} value={String(l.id)}>
+                                {l.name}
+                                {l.world ? ` (${l.world})` : ""}
+                              </SelectItem>
+                            ))}
+                          </SelectContent>
+                        </Select>
                         <p className="text-xs text-[var(--fg-faint)]">
                           Linking imports the listing&apos;s name, description, location, banner and hours onto your
                           venue profile.
@@ -1183,383 +1082,35 @@ export default function SettingsPage({ params }: { params: Promise<{ slug: strin
                   </div>
                 </div>
               </div>
-
-              {/* xvm-api */}
-              {userRole === "OWNER" && (
-                <div className="introw" style={{ flexWrap: "wrap", gap: 14 }}>
-                  <span className="iconbadge ii" style={{ width: 40, height: 40 }}>
-                    <svg
-                      xmlns="http://www.w3.org/2000/svg"
-                      viewBox="0 0 24 24"
-                      fill="none"
-                      stroke="currentColor"
-                      strokeWidth="2"
-                    >
-                      <circle cx="12" cy="12" r="10" />
-                      <path d="M9 12l2 2 4-4" />
-                    </svg>
-                  </span>
-                  <div className="iinfo">
-                    <div className="iname">xvm-api</div>
-                    <div className="idesc">Required for Rooms and other live venue features</div>
-                  </div>
-                  {xvmApiVenueId && (
-                    <span className="status open">
-                      <span className="dot" />
-                      Connected
-                    </span>
-                  )}
-                  <div className="w-full pl-[54px] space-y-3">
-                    {xvmApiVenueId ? (
-                      <p className="text-xs text-[var(--fg-faint)]">
-                        Connected
-                        {xvmApiVenueLinkedAt && (
-                          <>
-                            {" "}
-                            on <LocalTime date={xvmApiVenueLinkedAt} />
-                          </>
-                        )}
-                        .
-                      </p>
-                    ) : (
-                      <>
-                        <Button
-                          type="button"
-                          variant="outline-blue"
-                          size="sm"
-                          onClick={handleXvmConnect}
-                          disabled={xvmConnecting}
-                        >
-                          {xvmConnecting ? "Connecting…" : "Connect to xvm-api"}
-                        </Button>
-                        {xvmConnectError && <p className="text-xs text-red-400">{xvmConnectError}</p>}
-                      </>
-                    )}
-                  </div>
-                </div>
-              )}
-
-              {/* Frogge Bot */}
-              <div className="introw" style={{ flexWrap: "wrap", gap: 14 }}>
-                <span className="iconbadge ii" style={{ width: 40, height: 40 }}>
-                  <svg
-                    xmlns="http://www.w3.org/2000/svg"
-                    viewBox="0 0 24 24"
-                    fill="none"
-                    stroke="currentColor"
-                    strokeWidth="2"
-                  >
-                    <path d="M12 2L2 7l10 5 10-5-10-5z" />
-                    <path d="M2 17l10 5 10-5" />
-                    <path d="M2 12l10 5 10-5" />
-                  </svg>
-                </span>
-                <div className="iinfo">
-                  <div className="iname">Frogge Bot</div>
-                  <div className="idesc">Discord posting</div>
-                </div>
-                {froggeConnected && (
-                  <span className="status open">
-                    <span className="dot" />
-                    Connected
-                  </span>
-                )}
-                <div className="w-full pl-[54px] space-y-3">
-                  {froggeConnected ? (
-                    <>
-                      <p className="text-xs text-[var(--fg-faint)]">
-                        Connected. Use the Rooms page to post to Discord.
-                      </p>
-                      <AlertDialog>
-                        <AlertDialogTrigger asChild>
-                          <Button type="button" variant="destructive" size="sm" disabled={froggeDisconnecting}>
-                            {froggeDisconnecting ? "Disconnecting…" : "Disconnect"}
-                          </Button>
-                        </AlertDialogTrigger>
-                        <AlertDialogContent>
-                          <AlertDialogHeader>
-                            <AlertDialogTitle>Disconnect Frogge?</AlertDialogTitle>
-                            <AlertDialogDescription>Room sync and Discord posting will stop.</AlertDialogDescription>
-                          </AlertDialogHeader>
-                          <AlertDialogFooter>
-                            <AlertDialogCancel>Cancel</AlertDialogCancel>
-                            <AlertDialogAction onClick={handleFroggeDisconnect}>Disconnect</AlertDialogAction>
-                          </AlertDialogFooter>
-                        </AlertDialogContent>
-                      </AlertDialog>
-                    </>
-                  ) : (
-                    <>
-                      <div className="flex gap-2">
-                        <input
-                          type="text"
-                          placeholder="8-character code from Frogge"
-                          value={froggeCode}
-                          onChange={(e) => setFroggeCode(e.target.value)}
-                          onKeyDown={(e) => e.key === "Enter" && handleFroggeConnect()}
-                          maxLength={8}
-                          className="flex-1 rounded-[var(--radius-sm)] border border-[var(--blue-015)] bg-background px-3 py-1.5 text-sm font-mono uppercase tracking-wider focus:border-[var(--blue-035)] focus:outline-none"
-                        />
-                        <Button
-                          type="button"
-                          variant="outline-blue"
-                          size="sm"
-                          onClick={handleFroggeConnect}
-                          disabled={froggeConnecting || !froggeCode.trim()}
-                        >
-                          {froggeConnecting ? "Connecting…" : "Connect"}
-                        </Button>
-                      </div>
-                      {froggeError && <p className="text-xs text-red-400">{froggeError}</p>}
-                      <p className="text-xs text-[var(--fg-faint)]">
-                        Get a code from your Discord: <strong>/admin menu → Settings → Integrations → Connect XIV Venue Manager</strong>.
-                        Codes expire in 5 minutes.
-                      </p>
-                    </>
-                  )}
-                </div>
-              </div>
-
-              {/* Discord */}
-              <div className="introw">
-                <span className="iconbadge ii" style={{ width: 40, height: 40 }}>
-                  <svg
-                    xmlns="http://www.w3.org/2000/svg"
-                    viewBox="0 0 24 24"
-                    fill="none"
-                    stroke="currentColor"
-                    strokeWidth="2"
-                  >
-                    <path d="M21 15a2 2 0 0 1-2 2H7l-4 4V5a2 2 0 0 1 2-2h14a2 2 0 0 1 2 2z" />
-                  </svg>
-                </span>
-                <div className="iinfo">
-                  <div className="iname">Discord</div>
-                  <div className="idesc">OAuth sign-in</div>
-                </div>
-                <span className="status open">
-                  <span className="dot" />
-                  Connected
-                </span>
-              </div>
             </section>
 
-            {/* ── Discord server ── */}
+            {/* ── Discord ── */}
             <section className="panel">
               <div className="ph">
                 <span className="pt">
                   <svg xmlns="http://www.w3.org/2000/svg" viewBox="0 0 24 24" fill="none" stroke="currentColor" strokeWidth="2">
-                    <path d="M20.84 4.61a5.5 5.5 0 0 0-7.78 0L12 5.67l-1.06-1.06a5.5 5.5 0 0 0-7.78 7.78l1.06 1.06L12 21.23l7.78-7.78 1.06-1.06a5.5 5.5 0 0 0 0-7.78z" />
+                    <path d="M21 15a2 2 0 0 1-2 2H7l-4 4V5a2 2 0 0 1 2-2h14a2 2 0 0 1 2 2z" />
                   </svg>
-                  Discord server
-                </span>
-              </div>
-              <div className="introw" style={{ flexWrap: "wrap", gap: 14 }}>
-                <div className="iinfo">
-                  <div className="iname">Connected server</div>
-                  <div className="idesc">Which Discord server this venue belongs to</div>
-                </div>
-                {userRole === "OWNER" ? (
-                  <DiscordGuildConnect venueSlug={slug} />
-                ) : (
-                  <p className="text-xs text-[var(--fg-faint)]">Only the venue owner can change this.</p>
-                )}
-              </div>
-            </section>
-
-            {/* ── Discord Shift Bot ── */}
-            <section className="panel">
-              <div className="ph">
-                <span className="pt">
-                  <svg
-                    xmlns="http://www.w3.org/2000/svg"
-                    viewBox="0 0 24 24"
-                    fill="none"
-                    stroke="currentColor"
-                    strokeWidth="2"
-                  >
-                    <path d="M17 21v-2a4 4 0 0 0-4-4H5a4 4 0 0 0-4 4v2" />
-                    <circle cx="9" cy="7" r="4" />
-                    <path d="M23 21v-2a4 4 0 0 0-3-3.87" />
-                    <path d="M16 3.13a4 4 0 0 1 0 7.75" />
-                  </svg>
-                  Discord Shift Bot
+                  Discord
                 </span>
               </div>
               <div className="introw" style={{ flexWrap: "wrap", gap: 14 }}>
                 <span className="iconbadge ii" style={{ width: 40, height: 40 }}>
-                  <svg
-                    xmlns="http://www.w3.org/2000/svg"
-                    viewBox="0 0 24 24"
-                    fill="none"
-                    stroke="currentColor"
-                    strokeWidth="2"
-                  >
-                    <path d="M17 21v-2a4 4 0 0 0-4-4H5a4 4 0 0 0-4 4v2" />
-                    <circle cx="9" cy="7" r="4" />
-                    <path d="M23 21v-2a4 4 0 0 0-3-3.87" />
-                    <path d="M16 3.13a4 4 0 0 1 0 7.75" />
-                  </svg>
+                  <Server />
                 </span>
-                <div className="iinfo">
-                  <div className="iname">Discord Shift Bot</div>
-                  <div className="idesc">Post shift signup embeds before each event</div>
+                <div className="iinfo min-w-0 flex-1">
+                  <div className="iname">Connected server</div>
+                  <div className="idesc">Which Discord server this venue belongs to</div>
                 </div>
-                <label className="flex items-center gap-2 cursor-pointer ml-auto shrink-0">
-                  <input
-                    type="checkbox"
-                    checked={shiftBotEnabled}
-                    onChange={(e) => setShiftBotEnabled(e.target.checked)}
-                    className="rounded"
-                  />
-                  <span className="text-sm">{shiftBotEnabled ? "Enabled" : "Disabled"}</span>
-                </label>
-                {shiftBotEnabled && (
-                  <div className="w-full pl-[54px] space-y-4">
-                    <div>
-                      <label className="block text-sm font-medium mb-1">Discord Channel ID</label>
-                      {venueId ? (
-                        <ChannelPicker venueId={slug} value={shiftBotChannelId} onChange={setShiftBotChannelId} className="flex-1 min-w-44" />
-                      ) : (
-                        <input
-                          type="text"
-                          value={shiftBotChannelId}
-                          onChange={(e) => setShiftBotChannelId(e.target.value)}
-                          placeholder="Right-click channel → Copy ID"
-                          className="flex-1 w-full rounded-[var(--radius-sm)] border border-[var(--blue-015)] bg-background px-3 py-1.5 text-sm focus:border-[var(--blue-035)] focus:outline-none"
-                        />
-                      )}
-                      <p className="text-xs text-[var(--fg-faint)] mt-1">
-                        Enable Developer Mode in Discord settings to copy channel IDs.{" "}
-                        <a
-                          href={DISCORD_BOT_INVITE_URL}
-                          target="_blank"
-                          rel="noopener noreferrer"
-                          className="text-[var(--xiv-blue)] hover:underline"
-                        >
-                          Invite the bot to your server →
-                        </a>
-                      </p>
-                    </div>
-
-                    <div>
-                      <label className="block text-sm font-medium mb-1">
-                        Embed Thumbnail URL <span className="text-[var(--fg-faint)] font-normal">(optional)</span>
-                      </label>
-                      <input
-                        type="url"
-                        value={shiftBotThumbnailUrl}
-                        onChange={(e) => setShiftBotThumbnailUrl(e.target.value)}
-                        placeholder="https://… — leave blank to use your Discord server icon"
-                        className="flex-1 w-full rounded-[var(--radius-sm)] border border-[var(--blue-015)] bg-background px-3 py-1.5 text-sm focus:border-[var(--blue-035)] focus:outline-none"
-                      />
-                    </div>
-
-                    <div>
-                      <label className="block text-sm font-medium mb-1">Days before event to post</label>
-                      <input
-                        type="number"
-                        min={1}
-                        max={14}
-                        value={shiftBotDaysBefore}
-                        onChange={(e) => setShiftBotDaysBefore(Number(e.target.value))}
-                        className="rounded-[var(--radius-sm)] border border-[var(--blue-015)] bg-background px-3 py-1.5 text-sm focus:border-[var(--blue-035)] focus:outline-none w-24 text-center"
-                      />
-                    </div>
-
-                    <div>
-                      <div className="flex items-center justify-between mb-2">
-                        <label className="text-sm font-medium">Shift Templates</label>
-                        <Button
-                          type="button"
-                          variant="outline-blue"
-                          size="sm"
-                          onClick={() =>
-                            setShiftBotTemplates((t) => [
-                              ...t,
-                              { name: "", startOffsetHours: 0, durationHours: 4, slots: 5 },
-                            ])
-                          }
-                        >
-                          + Add Template
-                        </Button>
-                      </div>
-                      <p className="text-xs text-[var(--fg-faint)] mb-3">
-                        Leave empty to post one shift per event matching the full event duration.
-                      </p>
-                      {shiftBotTemplates.length > 0 && (
-                        <div className="flex gap-2 items-center px-3 mb-1">
-                          <span className="flex-1 text-xs text-[var(--fg-faint)]">Name</span>
-                          <span className="w-[4.5rem] text-xs text-[var(--fg-faint)] text-center">Offset (h)</span>
-                          <span className="w-[4.5rem] text-xs text-[var(--fg-faint)] text-center">Duration (h)</span>
-                          <span className="w-[4.5rem] text-xs text-[var(--fg-faint)] text-center">Slots</span>
-                          <span className="w-5" />
-                        </div>
-                      )}
-                      <div className="space-y-3">
-                        {shiftBotTemplates.map((t, i) => (
-                          <div
-                            key={i}
-                            className="flex gap-2 items-center p-3 rounded-lg border border-[var(--blue-018)] bg-[var(--card)]"
-                          >
-                            <input
-                              type="text"
-                              value={t.name}
-                              onChange={(e) =>
-                                setShiftBotTemplates((prev) =>
-                                  prev.map((x, j) => (j === i ? { ...x, name: e.target.value } : x))
-                                )
-                              }
-                              placeholder="Shift name"
-                              className="rounded-[var(--radius-sm)] border border-[var(--blue-015)] bg-background px-3 py-1.5 text-sm focus:border-[var(--blue-035)] focus:outline-none flex-1"
-                            />
-                            <input
-                              type="number"
-                              min={0}
-                              value={t.startOffsetHours}
-                              onChange={(e) =>
-                                setShiftBotTemplates((prev) =>
-                                  prev.map((x, j) => (j === i ? { ...x, startOffsetHours: Number(e.target.value) } : x))
-                                )
-                              }
-                              className="rounded-[var(--radius-sm)] border border-[var(--blue-015)] bg-background px-2 py-1.5 text-sm focus:border-[var(--blue-035)] focus:outline-none w-[4.5rem] text-center"
-                            />
-                            <input
-                              type="number"
-                              min={1}
-                              value={t.durationHours}
-                              onChange={(e) =>
-                                setShiftBotTemplates((prev) =>
-                                  prev.map((x, j) => (j === i ? { ...x, durationHours: Number(e.target.value) } : x))
-                                )
-                              }
-                              className="rounded-[var(--radius-sm)] border border-[var(--blue-015)] bg-background px-2 py-1.5 text-sm focus:border-[var(--blue-035)] focus:outline-none w-[4.5rem] text-center"
-                            />
-                            <input
-                              type="number"
-                              min={1}
-                              value={t.slots}
-                              onChange={(e) =>
-                                setShiftBotTemplates((prev) =>
-                                  prev.map((x, j) => (j === i ? { ...x, slots: Number(e.target.value) } : x))
-                                )
-                              }
-                              className="rounded-[var(--radius-sm)] border border-[var(--blue-015)] bg-background px-2 py-1.5 text-sm focus:border-[var(--blue-035)] focus:outline-none w-[4.5rem] text-center"
-                            />
-                            <button
-                              type="button"
-                              onClick={() => setShiftBotTemplates((prev) => prev.filter((_, j) => j !== i))}
-                              className="text-[var(--fg-faint)] hover:text-red-400 text-sm px-1 transition-colors"
-                            >
-                              ✕
-                            </button>
-                          </div>
-                        ))}
-                      </div>
-                    </div>
-                  </div>
-                )}
+                <div className="ml-auto">
+                  {userRole === "OWNER" ? (
+                    <DiscordGuildConnect venueSlug={slug} />
+                  ) : (
+                    <p className="text-xs text-[var(--fg-faint)]">Only the venue owner can change this.</p>
+                  )}
+                </div>
               </div>
+              <DiscordSettingsCard venueSlug={slug} />
             </section>
 
             {/* ── Operations ── */}
@@ -1602,35 +1153,28 @@ export default function SettingsPage({ params }: { params: Promise<{ slug: strin
                 </div>
                 <div className="w-full pl-[54px] space-y-4">
                     <div>
-                      <label className="block text-sm font-medium mb-1">Tax percent</label>
-                      <input
+                      <Label htmlFor="pot-tax-percent" className="mb-1">
+                        Tax percent
+                      </Label>
+                      <Input
+                        id="pot-tax-percent"
                         type="number"
                         min={0}
                         max={100}
                         step="0.01"
                         value={potTaxPercent}
                         onChange={(e) => setPotTaxPercent(Number(e.target.value))}
-                        className="rounded-[var(--radius-sm)] border border-[var(--blue-015)] bg-background px-3 py-1.5 text-sm focus:border-[var(--blue-035)] focus:outline-none w-24 text-center"
+                        className="w-24 text-center"
                       />
                     </div>
-                    <label className="flex items-center gap-2 cursor-pointer">
-                      <input
-                        type="checkbox"
-                        checked={potIncludeSalesInPot}
-                        onChange={(e) => setPotIncludeSalesInPot(e.target.checked)}
-                        className="rounded"
-                      />
+                    <Label className="cursor-pointer font-normal">
+                      <Checkbox checked={potIncludeSalesInPot} onCheckedChange={(checked) => setPotIncludeSalesInPot(checked === true)} />
                       <span className="text-sm">Include regular sales in the pot (off = tips-only pot)</span>
-                    </label>
-                    <label className="flex items-center gap-2 cursor-pointer">
-                      <input
-                        type="checkbox"
-                        checked={potDefaultTipPooled}
-                        onChange={(e) => setPotDefaultTipPooled(e.target.checked)}
-                        className="rounded"
-                      />
+                    </Label>
+                    <Label className="cursor-pointer font-normal">
+                      <Checkbox checked={potDefaultTipPooled} onCheckedChange={(checked) => setPotDefaultTipPooled(checked === true)} />
                       <span className="text-sm">Default new staff to pooling their tips</span>
-                    </label>
+                    </Label>
                   </div>
               </div>
 
@@ -1665,15 +1209,10 @@ export default function SettingsPage({ params }: { params: Promise<{ slug: strin
                   <div className="iname">Bar Inventory Tracking</div>
                   <div className="idesc">Map menu items to bar stock and track inventory levels</div>
                 </div>
-                <label className="flex items-center gap-2 cursor-pointer ml-auto shrink-0">
-                  <input
-                    type="checkbox"
-                    checked={inventoryEnabled}
-                    onChange={(e) => setInventoryEnabled(e.target.checked)}
-                    className="rounded"
-                  />
+                <Label className="ml-auto shrink-0 cursor-pointer font-normal">
+                  <Switch checked={inventoryEnabled} onCheckedChange={setInventoryEnabled} />
                   <span className="text-sm">{inventoryEnabled ? "Enabled" : "Disabled"}</span>
-                </label>
+                </Label>
               </div>
             </section>
 

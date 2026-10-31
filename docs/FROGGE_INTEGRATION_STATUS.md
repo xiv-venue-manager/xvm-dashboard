@@ -2,6 +2,8 @@
 
 > Current state of the XIV Venue Manager ↔ FroggeBot integration as of 2026-08-21.
 
+> **Removed from the dashboard on 2026-10-30.** The settings card, the `frogge/*` routes and `lib/frogge-api.ts` are gone. Frogge is being handled in xvm-api and xvm-bot. The `froggeToken` and related columns stay in the Prisma schema until the migration, and the `webhooks/frogge` stub is still there. What follows describes the integration as it was.
+
 ---
 
 ## What's Built (Complete)

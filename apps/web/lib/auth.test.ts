@@ -25,7 +25,7 @@ vi.mock("@/lib/api/xvm-api-store", () => ({
   isXvmCredentialFresh: vi.fn(),
 }))
 
-import { authOptions } from "./auth"
+import { authOptions, refreshXvmCredential } from "./auth"
 import { exchangeToken, XvmApiError } from "@/lib/api/xvm-api"
 import { isXvmCredentialFresh } from "@/lib/api/xvm-api-store"
 import { SESSION_COOKIE_NAME } from "@/lib/session-cookie"
@@ -139,7 +139,7 @@ describe("jwt", () => {
 
   it("leaves a fresh xvm-api token alone on later calls", async () => {
     const xvm = { token: "kept", expiresAt: 999 }
-    const token = await jwt({ token: { id: "u1", name: "A", xvm } })
+    const token = await refreshXvmCredential({ id: "u1", name: "A", xvm })
     expect(token.xvm).toEqual(xvm)
     expect(exchangeToken).not.toHaveBeenCalled()
   })
@@ -147,9 +147,46 @@ describe("jwt", () => {
   it("re-mints a missing xvm-api token without marking it fresh, so a pending deletion stays pending", async () => {
     vi.mocked(isXvmCredentialFresh).mockReturnValue(false)
     m.accountFindFirst.mockResolvedValue({ providerAccountId: "4242" })
-    const token = await jwt({ token: { id: "u1", name: "A" } })
+    const token = await refreshXvmCredential({ id: "u1", name: "A" })
     expect(exchangeToken).toHaveBeenCalledWith("4242", "A")
     expect(token.xvm).toEqual({ token: "xvm-secret", expiresAt: 123 })
+  })
+
+  it("never exchanges outside a sign-in, since only the route handler can persist the cookie", async () => {
+    vi.mocked(isXvmCredentialFresh).mockReturnValue(false)
+    m.accountFindFirst.mockResolvedValue({ providerAccountId: "4242" })
+    const token = await jwt({ token: { id: "u1", name: "A" } })
+    expect(exchangeToken).not.toHaveBeenCalled()
+    expect(token.xvm).toBeUndefined()
+  })
+
+  it("shares one exchange between concurrent refreshes of the same user, since a second would revoke the first", async () => {
+    vi.mocked(isXvmCredentialFresh).mockReturnValue(false)
+    m.accountFindFirst.mockResolvedValue({ providerAccountId: "4242" })
+    const [a, b, c] = await Promise.all([
+      refreshXvmCredential({ id: "shared-1", name: "A" }),
+      refreshXvmCredential({ id: "shared-1", name: "A" }),
+      refreshXvmCredential({ id: "shared-1", name: "A" }),
+    ])
+    expect(exchangeToken).toHaveBeenCalledTimes(1)
+    expect(b.xvm).toEqual(a.xvm)
+    expect(c.xvm).toEqual(a.xvm)
+  })
+
+  it("does not share an exchange between different users", async () => {
+    vi.mocked(isXvmCredentialFresh).mockReturnValue(false)
+    m.accountFindFirst.mockResolvedValue({ providerAccountId: "4242" })
+    await Promise.all([refreshXvmCredential({ id: "other-1", name: "A" }), refreshXvmCredential({ id: "other-2", name: "B" })])
+    expect(exchangeToken).toHaveBeenCalledTimes(2)
+  })
+
+  it("lets a failed exchange be retried straight away", async () => {
+    vi.mocked(isXvmCredentialFresh).mockReturnValue(false)
+    m.accountFindFirst.mockResolvedValue({ providerAccountId: "4242" })
+    vi.mocked(exchangeToken).mockRejectedValueOnce(new XvmApiError(503, "down"))
+    await refreshXvmCredential({ id: "retry-1", name: "A" })
+    await refreshXvmCredential({ id: "retry-1", name: "A" })
+    expect(exchangeToken).toHaveBeenCalledTimes(2)
   })
 
   it("stores no grant for another provider", async () => {
@@ -168,7 +205,7 @@ describe("jwt", () => {
       vi.mocked(exchangeToken).mockRejectedValueOnce(
         new XvmApiError(409, '{"detail":"This account is scheduled for deletion. Sign in again to cancel it."}')
       )
-      const token = await jwt({ token: { id: "u1", name: "A" } })
+      const token = await refreshXvmCredential({ id: "del-409", name: "A" })
       expect(token.deletionPending).toBe(true)
       expect(console.error).not.toHaveBeenCalled()
     })
@@ -178,14 +215,14 @@ describe("jwt", () => {
       vi.mocked(exchangeToken)
         .mockRejectedValueOnce(new XvmApiError(503, "down"))
         .mockRejectedValueOnce(new Error("network"))
-      expect((await jwt({ token: { id: "u1", name: "A" } })).deletionPending).toBeUndefined()
-      expect((await jwt({ token: { id: "u1", name: "A" } })).deletionPending).toBeUndefined()
+      expect((await refreshXvmCredential({ id: "del-503", name: "A" })).deletionPending).toBeUndefined()
+      expect((await refreshXvmCredential({ id: "del-net", name: "A" })).deletionPending).toBeUndefined()
       expect(console.error).toHaveBeenCalledTimes(2)
     })
 
     it("does not try to mint a token again while the marker is set", async () => {
       refreshing()
-      const token = await jwt({ token: { id: "u1", name: "A", deletionPending: true } })
+      const token = await refreshXvmCredential({ id: "u1", name: "A", deletionPending: true })
       expect(token.deletionPending).toBe(true)
       expect(isXvmCredentialFresh).not.toHaveBeenCalled()
       expect(exchangeToken).not.toHaveBeenCalled()

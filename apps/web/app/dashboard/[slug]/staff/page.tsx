@@ -10,7 +10,7 @@ import { FormerStaff } from "@/components/former-staff"
 import { PendingInvites } from "@/components/pending-invites"
 import { StaffTable, type StaffMember } from "@/components/staff-table"
 import { VenueLayout } from "@/components/venue-layout"
-import { getValidXvmApiToken } from "@/lib/api/xvm-api-store"
+import { getValidXvmApiToken, invalidateXvmApiCredential, isXvmAuthFailure } from "@/lib/api/xvm-api-store"
 import {
   listMemberships,
   listPositions,
@@ -93,6 +93,9 @@ export default async function StaffPage({ params }: { params: Promise<{ slug: st
       pendingInvites = invites.map(toPendingInviteShape)
     } catch (err) {
       console.error("[staff page] xvm-api fetch error:", err)
+      if (isXvmAuthFailure(err)) {
+        await invalidateXvmApiCredential(session.user.id)
+      }
     }
   }
 

@@ -24,7 +24,6 @@ declare module "next-auth/jwt" {
   interface JWT {
     id: string
     deletionPending?: boolean
-    xvm?: { token: string; expiresAt: number }
     discord?: { accessToken: string; expiresAt: number | null; scope: string | null }
   }
 }

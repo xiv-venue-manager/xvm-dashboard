@@ -4,7 +4,7 @@ import { redirect, notFound } from "next/navigation"
 import { resolveMyVenue } from "@/lib/api/venue-access"
 import { VenueLayout } from "@/components/venue-layout"
 import { RoomsBoard, type RoomItem, type RoomPeopleNames } from "@/components/rooms-board"
-import { getValidXvmApiToken } from "@/lib/api/xvm-api-store"
+import { getValidXvmApiToken, invalidateXvmApiCredential, isXvmAuthFailure } from "@/lib/api/xvm-api-store"
 import { listMemberships, listRooms } from "@/lib/api/xvm-api"
 
 export default async function RoomsPage({ params }: { params: Promise<{ slug: string }> }) {
@@ -25,6 +25,9 @@ export default async function RoomsPage({ params }: { params: Promise<{ slug: st
       rooms = await listRooms(token, venue.id)
     } catch (err) {
       console.error("[rooms page] listRooms error:", err)
+      if (isXvmAuthFailure(err)) {
+        await invalidateXvmApiCredential(session.user.id)
+      }
     }
   }
 

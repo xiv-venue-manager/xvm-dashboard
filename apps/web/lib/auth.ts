@@ -1,10 +1,9 @@
 import { NextAuthOptions } from "next-auth"
-import type { JWT } from "next-auth/jwt"
 import { PrismaAdapter } from "@next-auth/prisma-adapter"
 import DiscordProvider from "next-auth/providers/discord"
 import { prisma } from "@/lib/prisma"
 import { exchangeToken, XvmApiError } from "@/lib/api/xvm-api"
-import { xvmCredentialFrom, isXvmCredentialFresh, type XvmCredential } from "@/lib/api/xvm-api-store"
+import { upsertXvmApiCredential, getValidXvmApiToken } from "@/lib/api/xvm-api-store"
 import { SESSION_COOKIE_NAME } from "@/lib/session-cookie"
 
 // For an existing account next-auth hands the callbacks the stored user row as `user`, so the
@@ -14,53 +13,17 @@ function discordImage(profile: unknown): string | undefined {
   return typeof url === "string" && url ? url : undefined
 }
 
-// Re-mint the xvm-api token when the JWT has none or it is near expiry. Only the NextAuth route
-// handler runs this (app/api/auth/[...nextauth]/route.ts), because it is the one place the
-// refreshed cookie is written back. getServerSession in a page or route handler discards the
-// cookie, and xvm-api supersedes a person's earlier credential on every exchange, so minting
-// there would revoke the token the cookie already holds.
-// Non-fatal, except a 409: xvm-api has revoked every credential for an account that is scheduled
-// for deletion (or deleted), so this session cannot continue.
-//
-// A page load fires several session fetches at once. xvm-api keeps one live Dashboard credential per
-// person, so each extra exchange would revoke the one a sibling request is about to store. Callers
-// for the same user within MINT_REUSE_MS share one exchange. It is per process, which is enough while
-// one web container serves traffic.
-const MINT_REUSE_MS = 60_000
-const recentMints = new Map<string, { at: number; credential: Promise<XvmCredential> }>()
+// A page load fires several session fetches at once and each finds the credential missing. Every
+// exchange revokes the one before it, so callers for the same person share the exchange that is
+// already running. The stored credential covers everything after it finishes.
+const minting = new Map<string, Promise<void>>()
 
-function mintOnce(userId: string, mint: () => Promise<XvmCredential>): Promise<XvmCredential> {
-  const now = Date.now()
-  for (const [id, entry] of recentMints) if (now - entry.at >= MINT_REUSE_MS) recentMints.delete(id)
-  const hit = recentMints.get(userId)
-  if (hit) return hit.credential
-  const credential = mint()
-  recentMints.set(userId, { at: now, credential })
-  credential.catch(() => recentMints.delete(userId))
-  return credential
-}
-
-export async function refreshXvmCredential(token: JWT): Promise<JWT> {
-  if (!token.id || token.deletionPending) return token
-  try {
-    if (!isXvmCredentialFresh(token.xvm)) {
-      const discordAccount = await prisma.account.findFirst({
-        where: { userId: token.id as string, provider: "discord" },
-      })
-      if (discordAccount) {
-        token.xvm = await mintOnce(token.id, async () =>
-          xvmCredentialFrom(await exchangeToken(discordAccount.providerAccountId, (token.name as string) ?? "Unknown"))
-        )
-      }
-    }
-  } catch (err) {
-    if (err instanceof XvmApiError && err.status === 409) {
-      token.deletionPending = true
-    } else {
-      console.error("xvm-api token refresh failed:", err)
-    }
-  }
-  return token
+function mintOnce(userId: string, mint: () => Promise<void>): Promise<void> {
+  const running = minting.get(userId)
+  if (running) return running
+  const started = mint().finally(() => minting.delete(userId))
+  minting.set(userId, started)
+  return started
 }
 
 export const authOptions: NextAuthOptions = {
@@ -121,15 +84,41 @@ export const authOptions: NextAuthOptions = {
       }
       // Mint an xvm-api person token on first sign-in. This is additive, not a
       // hard dependency for login, so xvm-api being down must never fail the
-      // dashboard's own sign-in. Later re-mints are refreshXvmCredential, run by the route handler.
+      // dashboard's own sign-in.
       const isFirstDiscordSignIn = Boolean(
         user && account?.provider === "discord" && account.providerAccountId
       )
       if (isFirstDiscordSignIn && account) {
         try {
-          token.xvm = xvmCredentialFrom(await exchangeToken(account.providerAccountId, user.name ?? "Unknown", true))
+          const issued = await exchangeToken(account.providerAccountId, user.name ?? "Unknown", true)
+          await upsertXvmApiCredential(user.id, issued)
         } catch (err) {
           console.error("xvm-api token exchange failed:", err)
+        }
+      }
+      // Refresh the xvm-api token on every callback invocation if it's missing
+      // or near expiry. Same non-fatal handling as above, except a 409: xvm-api
+      // has revoked every credential for an account that is scheduled for
+      // deletion (or deleted), so this session cannot continue.
+      if (token.id && !isFirstDiscordSignIn && !token.deletionPending) {
+        try {
+          const userId = token.id as string
+          if (!(await getValidXvmApiToken(userId))) {
+            await mintOnce(userId, async () => {
+              if (await getValidXvmApiToken(userId)) return
+              const discordAccount = await prisma.account.findFirst({ where: { userId, provider: "discord" } })
+              if (discordAccount) {
+                const issued = await exchangeToken(discordAccount.providerAccountId, (token.name as string) ?? "Unknown")
+                await upsertXvmApiCredential(userId, issued)
+              }
+            })
+          }
+        } catch (err) {
+          if (err instanceof XvmApiError && err.status === 409) {
+            token.deletionPending = true
+          } else {
+            console.error("xvm-api token refresh failed:", err)
+          }
         }
       }
       return token

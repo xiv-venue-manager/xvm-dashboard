@@ -1,19 +1,9 @@
 import NextAuth from "next-auth"
-import { authOptions, refreshXvmCredential } from "@/lib/auth"
+import { authOptions } from "@/lib/auth"
 import { NextRequest } from "next/server"
 import { checkLimit, getIp, buildRateLimitResponse } from "@/lib/rate-limit"
 
-const baseJwt = authOptions.callbacks!.jwt!
-const nextAuthHandler = NextAuth({
-  ...authOptions,
-  callbacks: {
-    ...authOptions.callbacks,
-    jwt: async (args) => {
-      const token = await baseJwt(args)
-      return args.user ? token : refreshXvmCredential(token)
-    },
-  },
-})
+const nextAuthHandler = NextAuth(authOptions)
 
 /**
  * Per-IP throttle on the OAuth dance. Targets the expensive paths only:

@@ -4,7 +4,7 @@ import { redirect, notFound } from "next/navigation"
 import { resolveMyVenue } from "@/lib/api/venue-access"
 import { VenueLayout } from "@/components/venue-layout"
 import { ContestsBoard } from "@/components/contests-board"
-import { getValidXvmApiToken } from "@/lib/api/xvm-api-store"
+import { getValidXvmApiToken, invalidateXvmApiCredential, isXvmAuthFailure } from "@/lib/api/xvm-api-store"
 import { listGiveaways, listRaffles, type GiveawayRow, type RaffleRow } from "@/lib/api/xvm-api"
 
 export default async function ContestsPage({ params }: { params: Promise<{ slug: string }> }) {
@@ -28,6 +28,9 @@ export default async function ContestsPage({ params }: { params: Promise<{ slug:
       ])
     } catch (err) {
       console.error("[contests page] list error:", err)
+      if (isXvmAuthFailure(err)) {
+        await invalidateXvmApiCredential(session.user.id)
+      }
     }
   }
 

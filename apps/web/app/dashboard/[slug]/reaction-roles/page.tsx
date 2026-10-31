@@ -4,7 +4,7 @@ import { redirect, notFound } from "next/navigation"
 import { resolveMyVenue } from "@/lib/api/venue-access"
 import { VenueLayout } from "@/components/venue-layout"
 import { ReactionRolePanelsBoard } from "@/components/reaction-role-panels-board"
-import { getValidXvmApiToken, invalidateXvmApiCredential, isXvmAuthFailure } from "@/lib/api/xvm-api-store"
+import { getValidXvmApiToken } from "@/lib/api/xvm-api-store"
 import { listPanels, listReactionRoleTemplates, type PanelRow, type TemplateRow } from "@/lib/api/xvm-api"
 
 export default async function ReactionRolesPage({ params }: { params: Promise<{ slug: string }> }) {
@@ -28,9 +28,6 @@ export default async function ReactionRolesPage({ params }: { params: Promise<{ 
       ])
     } catch (err) {
       console.error("[reaction-roles page] listPanels/listReactionRoleTemplates error:", err)
-      if (isXvmAuthFailure(err)) {
-        await invalidateXvmApiCredential(session.user.id)
-      }
     }
   }
 

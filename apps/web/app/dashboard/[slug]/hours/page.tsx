@@ -4,7 +4,7 @@ import { redirect, notFound } from "next/navigation"
 import { resolveMyVenue } from "@/lib/api/venue-access"
 import { VenueLayout } from "@/components/venue-layout"
 import { HoursBoard } from "@/components/hours-board"
-import { getValidXvmApiToken, invalidateXvmApiCredential, isXvmAuthFailure } from "@/lib/api/xvm-api-store"
+import { getValidXvmApiToken } from "@/lib/api/xvm-api-store"
 import { listHours, type HoursRow } from "@/lib/api/xvm-api"
 
 export default async function HoursPage({ params }: { params: Promise<{ slug: string }> }) {
@@ -27,9 +27,6 @@ export default async function HoursPage({ params }: { params: Promise<{ slug: st
     } catch (err) {
       loadFailed = true
       console.error("[hours page] listHours error:", err)
-      if (isXvmAuthFailure(err)) {
-        await invalidateXvmApiCredential(session.user.id)
-      }
     }
   } else {
     loadFailed = true

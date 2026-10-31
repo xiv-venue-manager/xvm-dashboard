@@ -4,7 +4,7 @@ import { redirect, notFound } from "next/navigation"
 import { resolveMyVenue } from "@/lib/api/venue-access"
 import { VenueLayout } from "@/components/venue-layout"
 import { AutoReactorBoard } from "@/components/auto-reactor-board"
-import { getValidXvmApiToken, invalidateXvmApiCredential, isXvmAuthFailure } from "@/lib/api/xvm-api-store"
+import { getValidXvmApiToken } from "@/lib/api/xvm-api-store"
 import { listAutoReactorRules, listModules, type AutoReactorRuleRow, type ModuleRow } from "@/lib/api/xvm-api"
 
 export default async function AutoReactorPage({ params }: { params: Promise<{ slug: string }> }) {
@@ -25,9 +25,6 @@ export default async function AutoReactorPage({ params }: { params: Promise<{ sl
       ;[rules, modules] = await Promise.all([listAutoReactorRules(token, venue.id), listModules(token, venue.id)])
     } catch (err) {
       console.error("[auto-reactor page] read error:", err)
-      if (isXvmAuthFailure(err)) {
-        await invalidateXvmApiCredential(session.user.id)
-      }
     }
   }
 

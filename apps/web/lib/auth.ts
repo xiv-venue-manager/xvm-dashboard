@@ -3,7 +3,7 @@ import { PrismaAdapter } from "@next-auth/prisma-adapter"
 import DiscordProvider from "next-auth/providers/discord"
 import { prisma } from "@/lib/prisma"
 import { exchangeToken, XvmApiError } from "@/lib/api/xvm-api"
-import { upsertXvmApiCredential, getValidXvmApiToken } from "@/lib/api/xvm-api-store"
+import { xvmCredentialFrom, isXvmCredentialFresh } from "@/lib/api/xvm-api-store"
 import { SESSION_COOKIE_NAME } from "@/lib/session-cookie"
 
 // For an existing account next-auth hands the callbacks the stored user row as `user`, so the
@@ -77,8 +77,7 @@ export const authOptions: NextAuthOptions = {
       )
       if (isFirstDiscordSignIn && account) {
         try {
-          const issued = await exchangeToken(account.providerAccountId, user.name ?? "Unknown", true)
-          await upsertXvmApiCredential(user.id, issued)
+          token.xvm = xvmCredentialFrom(await exchangeToken(account.providerAccountId, user.name ?? "Unknown", true))
         } catch (err) {
           console.error("xvm-api token exchange failed:", err)
         }
@@ -89,14 +88,14 @@ export const authOptions: NextAuthOptions = {
       // deletion (or deleted), so this session cannot continue.
       if (token.id && !isFirstDiscordSignIn && !token.deletionPending) {
         try {
-          const existing = await getValidXvmApiToken(token.id as string)
-          if (!existing) {
+          if (!isXvmCredentialFresh(token.xvm)) {
             const discordAccount = await prisma.account.findFirst({
               where: { userId: token.id as string, provider: "discord" },
             })
             if (discordAccount) {
-              const issued = await exchangeToken(discordAccount.providerAccountId, (token.name as string) ?? "Unknown")
-              await upsertXvmApiCredential(token.id as string, issued)
+              token.xvm = xvmCredentialFrom(
+                await exchangeToken(discordAccount.providerAccountId, (token.name as string) ?? "Unknown")
+              )
             }
           }
         } catch (err) {

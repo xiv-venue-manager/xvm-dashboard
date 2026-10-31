@@ -1,13 +1,11 @@
 import { describe, it, expect, vi, beforeEach } from "vitest"
 
-const { mockGetToken, mockInvalidate } = vi.hoisted(() => ({
+const { mockGetToken } = vi.hoisted(() => ({
   mockGetToken: vi.fn(),
-  mockInvalidate: vi.fn(),
 }))
 
 vi.mock("@/lib/api/xvm-api-store", () => ({
   getValidXvmApiToken: mockGetToken,
-  invalidateXvmApiCredential: mockInvalidate,
   isXvmAuthFailure: (err: unknown) => (err as { status?: number }).status === 401,
 }))
 
@@ -43,18 +41,16 @@ describe("xvmPageReader", () => {
     expect(call).toHaveBeenCalledWith("tok", "venue-1")
   })
 
-  it("returns the fallback and invalidates the credential on a 401", async () => {
+  it("returns the fallback on a 401", async () => {
     mockGetToken.mockResolvedValue("tok")
     const read = await xvmPageReader("user-1", "venue-1")
     expect(await read("t", 7, () => Promise.reject({ status: 401 }))).toBe(7)
-    expect(mockInvalidate).toHaveBeenCalledWith("user-1")
   })
 
-  it("returns the fallback without invalidating on a non-auth error", async () => {
+  it("returns the fallback on a non-auth error", async () => {
     mockGetToken.mockResolvedValue("tok")
     const read = await xvmPageReader("user-1", "venue-1")
     expect(await read("t", 7, () => Promise.reject({ status: 403 }))).toBe(7)
-    expect(mockInvalidate).not.toHaveBeenCalled()
   })
 })
 
@@ -82,10 +78,9 @@ describe("xvmPersonReader", () => {
     await read("t", "", (token: string, venueId: string) => Promise.resolve(token + venueId))
   })
 
-  it("returns the fallback and invalidates the credential on a 401", async () => {
+  it("returns the fallback on a 401", async () => {
     mockGetToken.mockResolvedValue("tok")
     const read = await xvmPersonReader("user-1")
     expect(await read("t", 7, () => Promise.reject({ status: 401 }))).toBe(7)
-    expect(mockInvalidate).toHaveBeenCalledWith("user-1")
   })
 })

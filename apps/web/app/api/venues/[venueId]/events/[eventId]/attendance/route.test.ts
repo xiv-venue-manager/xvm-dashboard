@@ -7,14 +7,12 @@ const m = vi.hoisted(() => ({
   token: vi.fn(),
   getEvent: vi.fn(),
   logs: vi.fn(),
-  invalidate: vi.fn(),
 }))
 
 vi.mock("next-auth", () => ({ getServerSession: m.session }))
 vi.mock("@/lib/auth", () => ({ authOptions: {} }))
 vi.mock("@/lib/middleware/with-rate-limit", () => ({ withRateLimit: (handler: unknown) => handler }))
 vi.mock("@/lib/api/venue-access", () => ({ requireMyVenue: m.venue }))
-vi.mock("@/lib/prisma", () => ({ prisma: { xvmApiCredential: { deleteMany: m.invalidate } } }))
 vi.mock("@/lib/api/xvm-api-store", async () => {
   const actual = await vi.importActual<typeof import("@/lib/api/xvm-api-store")>("@/lib/api/xvm-api-store")
   return { ...actual, getValidXvmApiToken: m.token }
@@ -79,11 +77,10 @@ describe("GET attendance", () => {
     expect(await res.json()).not.toEqual([])
   })
 
-  it("is 503 and drops the cached credential when xvm-api rejects it", async () => {
+  it("is 503 when xvm-api rejects the token", async () => {
     m.getEvent.mockRejectedValue(new XvmApiError(401, "expired"))
     const res = await call()
     expect(res.status).toBe(503)
-    expect(m.invalidate).toHaveBeenCalledWith({ where: { userId: "user-1" } })
   })
 
   it("returns the running count in time order, never below zero", async () => {

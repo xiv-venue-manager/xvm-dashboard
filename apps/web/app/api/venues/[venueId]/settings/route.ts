@@ -9,7 +9,7 @@ import { Prisma } from "@/generated/prisma/client"
 import { z } from "zod"
 import { withRateLimit } from "@/lib/middleware/with-rate-limit"
 import { VenueSettings, parseVenueSettings } from "@/lib/types/venue-settings"
-import { getValidXvmApiToken, invalidateXvmApiCredential, isXvmAuthFailure, xvmApiErrorResponse } from "@/lib/api/xvm-api-store"
+import { getValidXvmApiToken, xvmApiErrorResponse } from "@/lib/api/xvm-api-store"
 import { getVenue, updateVenue, type VenueUpdate } from "@/lib/api/xvm-api"
 
 const updateSettingsSchema = z.object({
@@ -143,9 +143,6 @@ export const GET = withRateLimit<{ params: Promise<{ venueId: string }> }>(
           responseBody.subdivision = detail.subdivision
           degraded = false
         } catch (err) {
-          if (isXvmAuthFailure(err)) {
-            await invalidateXvmApiCredential(session.user.id)
-          }
           console.error("[settings] getVenue error:", err)
         }
       }

@@ -21,13 +21,13 @@ vi.mock("@/lib/api/xvm-api", () => ({
   },
 }))
 vi.mock("@/lib/api/xvm-api-store", () => ({
-  upsertXvmApiCredential: vi.fn(),
-  getValidXvmApiToken: vi.fn(),
+  xvmCredentialFrom: vi.fn(() => ({ token: "xvm-secret", expiresAt: 123 })),
+  isXvmCredentialFresh: vi.fn(),
 }))
 
 import { authOptions } from "./auth"
 import { exchangeToken, XvmApiError } from "@/lib/api/xvm-api"
-import { getValidXvmApiToken } from "@/lib/api/xvm-api-store"
+import { isXvmCredentialFresh } from "@/lib/api/xvm-api-store"
 import { SESSION_COOKIE_NAME } from "@/lib/session-cookie"
 
 // next-auth v4 keeps the values passed to a provider factory under `options`, not on the
@@ -50,6 +50,7 @@ beforeEach(() => {
   vi.clearAllMocks()
   vi.spyOn(console, "error").mockImplementation(() => {})
   m.userUpdate.mockResolvedValue({})
+  vi.mocked(isXvmCredentialFresh).mockReturnValue(true)
 })
 
 describe("Discord provider", () => {
@@ -131,11 +132,24 @@ describe("jwt", () => {
     expect(exchangeToken).toHaveBeenCalledWith("4242", "A", true)
   })
 
+  it("keeps the xvm-api token on the JWT after a sign-in", async () => {
+    const token = await jwt({ token: { id: "u1" }, user: { id: "u1", name: "A" }, account })
+    expect(token.xvm).toEqual({ token: "xvm-secret", expiresAt: 123 })
+  })
+
+  it("leaves a fresh xvm-api token alone on later calls", async () => {
+    const xvm = { token: "kept", expiresAt: 999 }
+    const token = await jwt({ token: { id: "u1", name: "A", xvm } })
+    expect(token.xvm).toEqual(xvm)
+    expect(exchangeToken).not.toHaveBeenCalled()
+  })
+
   it("re-mints a missing xvm-api token without marking it fresh, so a pending deletion stays pending", async () => {
-    vi.mocked(getValidXvmApiToken).mockResolvedValue(null)
+    vi.mocked(isXvmCredentialFresh).mockReturnValue(false)
     m.accountFindFirst.mockResolvedValue({ providerAccountId: "4242" })
-    await jwt({ token: { id: "u1", name: "A" } })
+    const token = await jwt({ token: { id: "u1", name: "A" } })
     expect(exchangeToken).toHaveBeenCalledWith("4242", "A")
+    expect(token.xvm).toEqual({ token: "xvm-secret", expiresAt: 123 })
   })
 
   it("stores no grant for another provider", async () => {
@@ -145,7 +159,7 @@ describe("jwt", () => {
 
   describe("a pending deletion", () => {
     const refreshing = () => {
-      vi.mocked(getValidXvmApiToken).mockResolvedValue(null)
+      vi.mocked(isXvmCredentialFresh).mockReturnValue(false)
       m.accountFindFirst.mockResolvedValue({ providerAccountId: "4242" })
     }
 
@@ -173,7 +187,7 @@ describe("jwt", () => {
       refreshing()
       const token = await jwt({ token: { id: "u1", name: "A", deletionPending: true } })
       expect(token.deletionPending).toBe(true)
-      expect(getValidXvmApiToken).not.toHaveBeenCalled()
+      expect(isXvmCredentialFresh).not.toHaveBeenCalled()
       expect(exchangeToken).not.toHaveBeenCalled()
     })
   })

@@ -4,7 +4,7 @@ import { redirect, notFound } from "next/navigation"
 import { resolveMyVenue } from "@/lib/api/venue-access"
 import { VenueLayout } from "@/components/venue-layout"
 import { BanListManager } from "@/components/ban-list-manager"
-import { getValidXvmApiToken, invalidateXvmApiCredential, isXvmAuthFailure } from "@/lib/api/xvm-api-store"
+import { getValidXvmApiToken } from "@/lib/api/xvm-api-store"
 import { listPatrons, listMemberships, type PatronSummary, type MembershipRow } from "@/lib/api/xvm-api"
 
 export default async function BanListPage({ params }: { params: Promise<{ slug: string }> }) {
@@ -32,9 +32,6 @@ export default async function BanListPage({ params }: { params: Promise<{ slug: 
       memberships = members
     } catch (err) {
       console.error("[ban-list page] listPatrons/listMemberships error:", err)
-      if (isXvmAuthFailure(err)) {
-        await invalidateXvmApiCredential(session.user.id)
-      }
     }
   }
 

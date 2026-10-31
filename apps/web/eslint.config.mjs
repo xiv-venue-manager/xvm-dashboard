@@ -22,6 +22,37 @@ const eslintConfig = defineConfig([
     // Run via `tsx`, not `node` - needs the generated TS Prisma client, see its own header comment.
     "backfill-gallery-images.js",
   ]),
+  {
+    rules: {
+      "no-restricted-imports": [
+        "error",
+        {
+          patterns: [
+            {
+              group: ["**/lib/prisma", "**/generated/prisma", "**/generated/prisma/*"],
+              message: "Prisma is being removed. Use xvm-api. See docs/PRISMA_MIGRATION_MANIFEST.md.",
+            },
+          ],
+        },
+      ],
+    },
+  },
+  {
+    // Shrinks to empty as the Prisma cutover lands. Do not add to it.
+    files: [
+      "lib/prisma.ts",
+      "lib/auth.ts",
+      "lib/api/xvm-api-store.ts",
+      "lib/api/venue-access.ts",
+      "app/api/venues/route.ts",
+      "app/api/venues/[[]venueId]/route.ts",
+      "app/api/venues/[[]venueId]/settings/route.ts",
+      "app/api/venues/[[]venueId]/frogge/**",
+      "app/api/venues/[[]venueId]/xvm-connect/**",
+      "scripts/**",
+    ],
+    rules: { "no-restricted-imports": "off" },
+  },
 ])
 
 export default eslintConfig

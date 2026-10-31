@@ -193,6 +193,6 @@ describe("GET /api/venues", () => {
     const res = await GET(new NextRequest("http://localhost/api/venues"))
     expect(res.status).toBe(200)
     const { select } = m.venueFindMany.mock.calls[0][0]
-    expect(Object.keys(select).sort()).toEqual(["dataCenter", "id", "name", "slug", "world", "xvmApiVenueId", "xvmApiVenueLinkedAt"])
+    expect(Object.keys(select).sort()).toEqual(["dataCenter", "id", "name", "slug", "world", "xvmApiVenueId"])
   })
 })

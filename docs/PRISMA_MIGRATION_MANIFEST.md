@@ -42,6 +42,8 @@ The scan's three raw-SQL hits in `apps/web` are false positives (an `import ... 
 | `apps/eorzea-bot` (own schema, raw SQL) | `users`, `user_characters`, `venues`, `memberships`, `patron_logs`, `shifts`, `discord_members`, `discord_warn_logs` | Workstream B |
 | `apps/discord-bot` (raw SQL) | `users`, `venues`, `memberships` | Workstream B |
 
+**Discord shift signup is no longer a blocker.** It moved into xvm-bot rather than the dashboard: the seat buttons join and withdraw as the person who pressed them (`POST /venues/{venue_id}/event-shifts/{event_shift_id}/join` and `POST /venues/{venue_id}/shifts/{shift_id}/withdraw`, with the bot's `X-Actor-Discord-Id`). With the venue's `approval_required` off, joining takes the seat at once, and `lockout_minutes` stops a member leaving too close to the start. xvm-api #111 asked for this and is closed. What is left for Workstream B on shifts is the old bots' own reads (`apps/eorzea-bot`'s `myprofile` and `venue/roll`), and clock-in and clock-out in xvm-bot, tracked in xvm-bot #51 (the calls) and #52 (a `/timeclock` command).
+
 Both bots are still services in `docker-compose.yml`, with `DATABASE_URL`. So is `xiv-stats`, whose source lives outside this repository, so what it reads is not known.
 
 The other 29 models have no code reference: `notifications`, `shout_templates`, `sessions`, `verification_tokens`, `venue_schedules`, `venue_schedule_entries`, `roles`, `membership_role_assignments`, `event_templates`, `services`, `transactions`, `tasks`, `payroll_entries`, `pot_distributions`, `venue_pot_settings`, `venue_inventory_settings`, `webhooks`, `feedback`, `api_keys`, `shift_audit_logs`, `shift_signup_embeds`, `pending_notifications`, `venue_follows`, `announcements`, `announcement_dismissals` and the four old-bot `discord_*` config tables. For the migration they are "cut over" or "dead" as the inventory describes, and each still needs its data moved or dropped. Inventory rows marked Live that no longer have web code behind them: `shifts`, `shift_signup_embeds`, `pending_notifications`, `api_keys`, `venue_inventory_settings` (now the `inventory` module toggle through xvm-api), `events`, `services`, `user_characters` (web side) and `patrons`.
@@ -177,9 +179,9 @@ xvm-api also has venue fields Prisma lacks (`room`, `subdivision`, and the task,
 
 | Prisma table | Dev code | Status | xvm-api target | Notes |
 |---|---|---|---|---|
-| `shifts` | r web 24, w web 15, raw web 1, bot 3 | Live | `Shift` | The shift pipeline is split: Discord, plugin and cron paths are still Prisma while the dashboard is on xvm-api. Waiting on Allegro (no bulk cancel, no recurrence match). |
-| `shift_audit_logs` | w web 1 | Live | `ShiftAuditEntry` | Tied to the shift pipeline. |
-| `shift_signup_embeds` | r web 6, w web 6 | Live | unclear (`CustomEmbed`, `DiscordPost`?) | Used by `lib/shift-bot.ts`. Target unclear. |
+| `shifts` | none in web or discord-bot; eorzea-bot raw SQL (`myprofile`, `venue/roll`) | Cut over | `Shift` | The dashboard pipeline was removed in #237, and Discord signup moved into xvm-bot (see the note above). Only the old Aetherlink's reads remain (Workstream B), plus the export scripts. |
+| `shift_audit_logs` | none | Cut over | `ShiftAuditEntry` | Read only by the export script. |
+| `shift_signup_embeds` | none | Cut over | none (bot-owned) | `lib/shift-bot.ts` is gone. Signup moved into xvm-bot. The 13 embed links are dropped in the shifts map. |
 | `tasks` | none | Cut over | `Task`, `TaskCategory` | Move needed. Needs memberships first. |
 
 ### Notifications
@@ -187,7 +189,7 @@ xvm-api also has venue fields Prisma lacks (`room`, `subdivision`, and the task,
 | Prisma table | Dev code | Status | xvm-api target | Notes |
 |---|---|---|---|---|
 | `notifications` | none | Dead | `Notification` | The bell reads `/me/notifications` and marks read through `PATCH /me/notifications/read`; xvm-api emits the rows. |
-| `pending_notifications` | r web 4, w web 5 | Live | unclear (`BotRequest`?) | Used by the bot clock-in route, the dispatch cron and plugin shift routes. |
+| `pending_notifications` | none | Cut over | none | Its readers, the bot clock-in route, the dispatch cron and the plugin shift routes, are gone. Only `schema.prisma` names it. |
 | `webhooks` | none | Dead | `VenueLogRoute` | Webhooks are being retired (decision 2026-09-09). Routing settings that live in `Venue.settings` need a home. |
 
 ### Person-scoped

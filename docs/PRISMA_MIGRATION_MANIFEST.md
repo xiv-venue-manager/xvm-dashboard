@@ -43,7 +43,7 @@ Status of each Prisma table on `dev`:
 | `users` | r web 9, w web 2, raw web 1, bot 4, dbot 1 | Live | `Person` | A `Person` is created at first sign-in by the token exchange, keyed by Discord id, so people who sign in again need no copy. `Person` is thin (`display_name`), so the other fields map as decided on 2026-10-08, see decision 2. |
 | `accounts` | r web 2, w web 1 | Live | `PersonAccount` | Owned by next-auth's `PrismaAdapter` (`lib/auth.ts`). Stays until auth leaves the adapter, which is the long pole in the decommission notes. The plan is `docs/superpowers/plans/2026-10-08-nextauth-adapter-removal.md`: the adapter is the last link (after the plugin cutover and the credential cache), and its Task 1 (Discord grant from the JWT) ships first. Holds Discord OAuth tokens, which are not worth migrating. |
 | `sessions`, `verification_tokens` | none | Dead | none | Sessions are JWT. Confirm empty or irrelevant, then drop. |
-| `xvm_api_credentials` | r web 3, w web 3 | Live | none | A cache of the person's xvm-api token. Nothing to migrate. It cannot go before the plugin cutover: see "Removing the credential cache". |
+| `xvm_api_credentials` | r web 3, w web 3 | Live | none | A cache of the person's xvm-api token. Nothing to migrate. #317 moves it to Redis (`xvm:credential:<userId>`), which removes the table's last reader; the table can be dropped after that. See "Removing the credential cache". |
 
 ### Venues
 
@@ -200,7 +200,7 @@ What the bridge is today (`dev` at `e0c00438`, scanned 2026-10-08):
 Two more layers are on it, and nothing else can be Prisma-free while they stay:
 
 - **Identity.** The NextAuth `PrismaAdapter` owns `User` and `Account`. This is the long pole and nothing is built for it.
-- **The credential cache.** `XvmApiCredential` can move into the JWT, but only after the plugin cutover; see "Removing the credential cache".
+- **The credential cache.** `XvmApiCredential` moves to Redis, one copy per person (#317), not into the JWT; see "Removing the credential cache".
 
 Only when all three are gone can the Prisma client, `prisma generate`, `schema.prisma` and `lib/prisma.ts` be deleted.
 
@@ -209,6 +209,8 @@ Only when all three are gone can the Prisma client, `prisma generate`, `schema.p
 Once step 2 is done, a lint rule like the one planned for `prisma.membership` (#136, Task 8) can ban `prisma.venue` outside an allowlist. The allowlist shrinks as step 3 lands, so nothing new can depend on the bridge.
 
 ## Removing the credential cache
+
+> **Outcome (2026-10-31).** Option B was built (#317): one copy per person in Redis under `xvm:credential:<userId>`, with `personId` kept in the same value. Option A (JWT only) was built first and failed review. xvm-api keeps one live Dashboard credential per person and every exchange revokes the others, so a token in each browser's cookie is revoked by the next sign-in on another browser while its own cookie still looks fresh, and an account deletion leaves the other browsers signed in on a revoked token. One shared copy avoids both, as the table row did. The plugin cutover removed B's objection below: nothing outside a browser session needs a person token any more, so a Redis flush or eviction costs one re-mint on the next request. The analysis and the recommendation below are kept as the record of why.
 
 `xvm_api_credentials` caches each person's xvm-api bearer token (`token`, `credentialId`, `expiresAt`, `personId`). Everything goes through four functions in `lib/api/xvm-api-store.ts`, and `getValidXvmApiToken(userId)` is the one that matters. Earlier notes called moving it into the JWT "independent of everything else". Checked against `dev` on 2026-10-08, that is not true.
 
@@ -249,7 +251,7 @@ The staff-removal route revokes a departing member's plugin API keys by finding 
 ### Not verified
 
 - That NextAuth invokes the `jwt` callback on every session read is documented behaviour, not something I measured; I did not count database reads.
-- Whether production Redis persists across restarts, which matters only if option B is ever chosen.
+- Whether production Redis persists across restarts. `docker-compose.yml` runs it with `--save "" --appendonly no` and `--maxmemory 256mb --maxmemory-policy allkeys-lru`, so a restart or an eviction drops the credential, and each person's next request mints a new one. Harmless now that the plugin is cut over. This is the compose file, not a read of the production container.
 
 ## Prod audit (2026-10-08)
 

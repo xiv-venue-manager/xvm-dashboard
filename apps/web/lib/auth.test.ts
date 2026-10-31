@@ -138,6 +138,22 @@ describe("jwt", () => {
     expect(exchangeToken).toHaveBeenCalledWith("4242", "A")
   })
 
+  it("shares one exchange between callbacks that find the credential missing at the same time", async () => {
+    vi.mocked(getValidXvmApiToken).mockResolvedValue(null)
+    m.accountFindFirst.mockResolvedValue({ providerAccountId: "4242" })
+    vi.mocked(exchangeToken).mockImplementation(() => new Promise((resolve) => setTimeout(() => resolve({} as never), 10)))
+    await Promise.all([1, 2, 3].map(() => jwt({ token: { id: "u1", name: "A" } })))
+    expect(exchangeToken).toHaveBeenCalledTimes(1)
+  })
+
+  it("mints again on the next callback once the exchange has finished and the credential is gone", async () => {
+    vi.mocked(getValidXvmApiToken).mockResolvedValue(null)
+    m.accountFindFirst.mockResolvedValue({ providerAccountId: "4242" })
+    await jwt({ token: { id: "u1", name: "A" } })
+    await jwt({ token: { id: "u1", name: "A" } })
+    expect(exchangeToken).toHaveBeenCalledTimes(2)
+  })
+
   it("stores no grant for another provider", async () => {
     const token = await jwt({ token: { id: "u1" }, user: { id: "u1" }, account: { ...account, provider: "github" } })
     expect(token.discord).toBeUndefined()

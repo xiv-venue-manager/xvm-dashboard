@@ -42,13 +42,10 @@ const eslintConfig = defineConfig([
     files: [
       "lib/prisma.ts",
       "lib/auth.ts",
-      "lib/api/xvm-api-store.ts",
       "lib/api/venue-access.ts",
       "app/api/venues/route.ts",
       "app/api/venues/[[]venueId]/route.ts",
       "app/api/venues/[[]venueId]/settings/route.ts",
-      "app/api/venues/[[]venueId]/frogge/**",
-      "app/api/venues/[[]venueId]/xvm-connect/**",
       "scripts/**",
     ],
     rules: { "no-restricted-imports": "off" },

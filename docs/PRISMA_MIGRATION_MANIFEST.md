@@ -369,6 +369,7 @@ About 16,000 rows in all. A load takes seconds, and a rehearsal on a prod copy i
 | 8 | Timestamps | Decided | Analytics dates are kept (decision 3). Shouts and other non-analytics data may take the copy time. |
 | 9 | Feedback and announcements | Decided | Drop old announcements. Keep feedback: the 17 open items stay live, the real completed ones are archived, about 10 test or message items are dropped. |
 | 10 | Field parity | Done except venues | See the per-domain notes. Venues are parked. |
+| 11 | Pot `enabled` flag | Decided (Allegro suggested, 2026-11-01 confirmed) | xvm-api has no venue-level pot flag. What drives the pot is each position's `pot_payout_mode` (`standard`, `pot`, `contractor`), and generating a pot is gated only by the event (not cancelled, ended, no live distribution), not by any venue switch. So a venue's pot-on state is derived from having a `pot` position, and the Prisma flag is not stored. The mapper already collects such venues in `potEnabledVenues`. Still to check before the load: that each of the 3 prod venues with the pot on has a pot position. Module toggles (`VenueModuleModel`, names `rooms` through `auto_reactor`, no `pot`) are listed and set by routes, but nothing in xvm-api reads `enabled`, so no toggle is enforced today. |
 
 ### Per-domain notes
 
@@ -431,7 +432,6 @@ Rollback idea, unreviewed: Prisma is only read during the window, so rolling bac
 
 ### Waiting on Allegro
 
-- How the pot `enabled` flag is switched on. Allegro recommends deriving it from positions (`pot_payout_mode` of `pot`) instead of storing it. Check first whether any of the 3 venues with the pot on has no pot position. Whether the per-venue module toggles are enforced anywhere is still open: `VenueModuleModel` exists, and nothing that enforces a toggle has been traced.
 - Frogge (decision 4) and the old-bot data (decision 5).
 - Whether a no-Discord person path should exist. One prod person has no Discord identity and 29 payroll payees are placeholder people, and nothing in xvm-api issues a pairing code for them automatically.
 - What to do with the Discord post tracking on 7 events (`discordMessageId` and related columns).

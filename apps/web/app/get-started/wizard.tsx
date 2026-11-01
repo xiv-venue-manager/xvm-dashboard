@@ -43,7 +43,7 @@ function slugify(name: string) {
 
 const STEP_META = [
   { label: "Venue basics", sub: "Tell patrons who you are. You can change all of this later in Settings." },
-  { label: "Location & hours", sub: "Where to find you in Eorzea, and when your doors are open." },
+  { label: "Location", sub: "Where to find you in Eorzea." },
   { label: "Review & create", sub: "Check your details before we create the venue." },
 ]
 
@@ -72,8 +72,6 @@ export function GetStartedWizard({ server }: { server: ConnectServer | null }) {
   const [apartment, setApartment] = useState("")
   const [housingType, setHousingType] = useState<"house" | "apartment">("house")
   const [building, setBuilding] = useState<"" | "main" | "subdivision">("")
-  const [hours, setHours] = useState("")
-  const [nights, setNights] = useState("")
   const [adult, setAdult] = useState(false)
 
   const toggleTag = (t: string) => setTags((prev) => (prev.includes(t) ? prev.filter((x) => x !== t) : [...prev, t]))
@@ -115,28 +113,27 @@ export function GetStartedWizard({ server }: { server: ConnectServer | null }) {
       const slug = slugify(name)
       let created = ""
       try {
+        const body = {
+          name: name.trim(),
+          slug,
+          description: tagline.trim() || null,
+          dataCenter: dc,
+          world,
+          district: district || null,
+          ward: ward ? parseInt(ward, 10) : null,
+          plot: housingType === "house" && plot ? parseInt(plot, 10) : null,
+          apartment: housingType === "apartment" && apartment ? parseInt(apartment, 10) : null,
+          subdivision: housingType === "apartment" && building ? building === "subdivision" : null,
+          settings: {
+            tagline: tagline.trim() || undefined,
+            tags: adult ? ["18+", ...tags.filter((t) => t !== "18+")] : tags.filter((t) => t !== "18+"),
+            isAdult: adult,
+          },
+        }
         const res = await fetch("/api/venues", {
           method: "POST",
           headers: { "Content-Type": "application/json" },
-          body: JSON.stringify({
-            name: name.trim(),
-            slug,
-            description: tagline.trim() || null,
-            dataCenter: dc,
-            world,
-            district: district || null,
-            ward: ward ? parseInt(ward, 10) : null,
-            plot: housingType === "house" && plot ? parseInt(plot, 10) : null,
-            apartment: housingType === "apartment" && apartment ? parseInt(apartment, 10) : null,
-            subdivision: housingType === "apartment" && building ? building === "subdivision" : null,
-            settings: {
-              tagline: tagline.trim() || undefined,
-              tags: adult ? ["18+", ...tags.filter((t) => t !== "18+")] : tags.filter((t) => t !== "18+"),
-              defaultHours: hours.trim() || undefined,
-              openNights: nights.trim() || undefined,
-              isAdult: adult,
-            },
-          }),
+          body: JSON.stringify(body),
         })
         if (!res.ok) {
           const d = await res.json()
@@ -146,18 +143,7 @@ export function GetStartedWizard({ server }: { server: ConnectServer | null }) {
             const res2 = await fetch("/api/venues", {
               method: "POST",
               headers: { "Content-Type": "application/json" },
-              body: JSON.stringify({
-                name: name.trim(),
-                slug: slugRetry,
-                description: tagline.trim() || null,
-                dataCenter: dc,
-                world,
-                district: district || null,
-                ward: ward ? parseInt(ward, 10) : null,
-                plot: housingType === "house" && plot ? parseInt(plot, 10) : null,
-                apartment: housingType === "apartment" && apartment ? parseInt(apartment, 10) : null,
-                subdivision: housingType === "apartment" && building ? building === "subdivision" : null,
-              }),
+              body: JSON.stringify({ ...body, slug: slugRetry }),
             })
             if (!res2.ok) {
               const d2 = await res2.json()
@@ -315,6 +301,7 @@ export function GetStartedWizard({ server }: { server: ConnectServer | null }) {
                     className="gs-inp"
                     placeholder="A dockside tavern for wayward souls"
                     value={tagline}
+                    maxLength={200}
                     onChange={(e) => setTagline(e.target.value)}
                   />
                 </div>
@@ -467,28 +454,6 @@ export function GetStartedWizard({ server }: { server: ConnectServer | null }) {
                     </select>
                   </div>
                 )}
-                <div className="gs-field-2">
-                  <div className="gs-field">
-                    <label>
-                      Opening hours <span style={{ color: "var(--fg-faint)", fontWeight: 400 }}>(ST)</span>
-                    </label>
-                    <input
-                      className="gs-inp"
-                      placeholder="10PM – 2AM"
-                      value={hours}
-                      onChange={(e) => setHours(e.target.value)}
-                    />
-                  </div>
-                  <div className="gs-field">
-                    <label>Open nights</label>
-                    <input
-                      className="gs-inp"
-                      placeholder="Fri &amp; Sat"
-                      value={nights}
-                      onChange={(e) => setNights(e.target.value)}
-                    />
-                  </div>
-                </div>
                 <div className="gs-toggle-row">
                   <div style={{ flex: 1 }}>
                     <div style={{ fontSize: "0.88rem" }}>Adult (18+) venue</div>
@@ -522,7 +487,6 @@ export function GetStartedWizard({ server }: { server: ConnectServer | null }) {
                         .filter(Boolean)
                         .join(" · ") || "—",
                   },
-                  { k: "Hours", v: [hours, nights].filter(Boolean).join(" · ") || "TBD" },
                   { k: "Tags", v: tags.length ? null : "None" },
                 ].map(({ k, v }) => (
                   <div key={k} className="gs-review-row">

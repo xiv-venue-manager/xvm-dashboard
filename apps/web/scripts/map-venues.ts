@@ -3,8 +3,8 @@
  * Reads JSON files and never touches Prisma or xvm-api. Run map-people.ts and map-venue-timezones.ts
  * first: a link only names a person it loaded, and every venue takes the timezone that file proposes.
  *
- * Settings xvm-api has no home for (open nights, default hours, the shift bot
- * and notification settings) come out in `leftovers`, so nothing is lost while that question is open.
+ * Settings xvm-api has no home for (the shift bot and notification settings) come out in `leftovers`, so nothing is lost
+ * while that question is open. Open nights and default hours are dropped, by decision.
  * Test venues (venue type TEST_VENUE) are left out, by decision. Pass --include-test-venues to keep them.
  *
  * Usage (from apps/web):

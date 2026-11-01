@@ -146,6 +146,29 @@ describe("POST /api/venues", () => {
     })
   })
 
+  it("sends the wizard's tagline, tags and adult flag with the profile", async () => {
+    await post({ ...valid, settings: { tagline: " Cocktails nightly ", tags: ["18+", "Bar"], isAdult: true } })
+    expect(m.updateVenue).toHaveBeenCalledWith("tok", "ven_1", expect.objectContaining({
+      tagline: "Cocktails nightly",
+      tags: ["18+", "Bar"],
+      is_adult: true,
+    }))
+  })
+
+  it("sends none of them when the wizard left them blank", async () => {
+    await post({ ...valid, settings: { tagline: "  ", tags: [], isAdult: false } })
+    const [, , update] = m.updateVenue.mock.calls[0]
+    expect(update).not.toHaveProperty("tagline")
+    expect(update).not.toHaveProperty("tags")
+    expect(update).not.toHaveProperty("is_adult")
+  })
+
+  it("rejects invalid tags before creating anything", async () => {
+    const res = await post({ ...valid, settings: { tags: ["Bar", "bar"] } })
+    expect(res.status).toBe(400)
+    expect(m.createVenue).not.toHaveBeenCalled()
+  })
+
   it("maps the dashboard's apartment number to xvm-api's room, never to its apartment", async () => {
     await post({ ...valid, plot: undefined, apartment: 3, subdivision: false })
     const [, , update] = m.updateVenue.mock.calls[0]

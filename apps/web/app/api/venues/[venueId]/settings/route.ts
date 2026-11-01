@@ -3,10 +3,10 @@ import { getServerSession } from "next-auth"
 import { authOptions } from "@/lib/auth"
 import { prisma } from "@/lib/prisma"
 import { requireMyVenueRole } from "@/lib/api/venue-access"
-import { Prisma } from "@/generated/prisma/client"
 import { z } from "zod"
 import { withRateLimit } from "@/lib/middleware/with-rate-limit"
-import { VenueSettings, parseVenueSettings } from "@/lib/types/venue-settings"
+import { validators } from "@/lib/validation"
+import { parseVenueSettings } from "@/lib/types/venue-settings"
 import { getValidXvmApiToken, invalidateXvmApiCredential, isXvmAuthFailure, xvmApiErrorResponse } from "@/lib/api/xvm-api-store"
 import { getVenue, updateVenue, type VenueUpdate } from "@/lib/api/xvm-api"
 
@@ -31,11 +31,9 @@ const updateSettingsSchema = z.object({
     ])
     .nullable()
     .optional(),
-  // Venue profile extras stored in settings JSON
-  tagline: z.string().max(200).optional(),
-  tags: z.array(z.string().max(50)).max(20).optional(),
-  defaultHours: z.string().max(100).optional(),
-  openNights: z.string().max(100).optional(),
+  // Venue profile extras
+  tagline: validators.venueTagline.optional(),
+  tags: validators.venueTags.optional(),
   isAdult: z.boolean().optional(),
 })
 
@@ -90,7 +88,7 @@ export const GET = withRateLimit<{ params: Promise<{ venueId: string }> }>(
         venueType: venue.venueType,
       }
 
-      // Visibility settings and venue type are being migrated to xvm-api - it's the
+      // Visibility settings, venue type, tagline, tags and the adult flag are being migrated to xvm-api - it's the
       // source of truth for connected venues, Prisma's copy is a stale leftover for
       // unconnected ones. On any failure to reach xvm-api, omit these keys entirely
       // (rather than silently serving the stale Prisma copy as current) and flag it,
@@ -105,6 +103,9 @@ export const GET = withRateLimit<{ params: Promise<{ venueId: string }> }>(
           responseBody.revenueVisibility = detail.revenue_visibility
           responseBody.eventVisibility = detail.event_visibility
           responseBody.venueType = detail.venue_type
+          responseBody.tagline = detail.tagline ?? ""
+          responseBody.tags = detail.tags
+          responseBody.isAdult = detail.is_adult
           responseBody.name = detail.name
           responseBody.description = detail.description
           responseBody.bannerUrl = detail.banner_url
@@ -128,6 +129,9 @@ export const GET = withRateLimit<{ params: Promise<{ venueId: string }> }>(
         delete responseBody.revenueVisibility
         delete responseBody.eventVisibility
         delete responseBody.venueType
+        delete responseBody.tagline
+        delete responseBody.tags
+        delete responseBody.isAdult
         delete responseBody.name
         delete responseBody.description
         delete responseBody.bannerUrl
@@ -190,16 +194,6 @@ export const PUT = withRateLimit<{ params: Promise<{ venueId: string }> }>(
         return NextResponse.json({ error: "Only venue owners can update settings" }, { status: 403 })
       }
 
-      // Get current settings
-      const venue = await prisma.venue.findUnique({
-        where: { xvmApiVenueId: xvmVenueId },
-        select: { id: true, settings: true, venueType: true },
-      })
-
-      if (!venue) {
-        return NextResponse.json({ error: "Venue not found" }, { status: 404 })
-      }
-
       // Extract top-level venue columns and xvm-api-owned visibility fields from validated data
       const {
         venueType,
@@ -207,17 +201,21 @@ export const PUT = withRateLimit<{ params: Promise<{ venueId: string }> }>(
         salesVisibility,
         revenueVisibility,
         eventVisibility,
-        ...settingsData
+        tagline,
+        tags,
+        isAdult,
       } = validatedData
 
-      // Visibility settings and venue type are being migrated to xvm-api - it owns these
-      // now, Prisma's settings JSON/column stop receiving updates to them for connected venues.
+      // xvm-api owns every setting this route saves. Nothing is written to Prisma's settings JSON any more.
       const xvmUpdate: VenueUpdate = {}
       if (taskVisibility !== undefined) xvmUpdate.task_visibility = taskVisibility
       if (salesVisibility !== undefined) xvmUpdate.sales_visibility = salesVisibility
       if (revenueVisibility !== undefined) xvmUpdate.revenue_visibility = revenueVisibility
       if (eventVisibility !== undefined) xvmUpdate.event_visibility = eventVisibility
       if (venueType !== undefined) xvmUpdate.venue_type = venueType
+      if (tagline !== undefined) xvmUpdate.tagline = tagline.trim() || null
+      if (tags !== undefined) xvmUpdate.tags = tags
+      if (isAdult !== undefined) xvmUpdate.is_adult = isAdult
 
       let xvmVenueDetail = null
       if (Object.keys(xvmUpdate).length > 0) {
@@ -232,45 +230,16 @@ export const PUT = withRateLimit<{ params: Promise<{ venueId: string }> }>(
         }
       }
 
-      // Merge new settings with existing settings (type-safe)
-      const currentSettings = parseVenueSettings(venue.settings)
-      const newSettings: VenueSettings = {
-        ...currentSettings,
-        ...settingsData,
-      }
-
-      // Update venue settings
-      const updatedVenue = await prisma.venue.update({
-        where: { id: venue.id },
-        data: {
-          settings: newSettings as unknown as Prisma.InputJsonValue,
-        },
-        select: {
-          settings: true,
-        },
-      })
-
-      const putResponseBody: Record<string, unknown> = {
-        ...servedSettings(updatedVenue.settings),
-        venueType: venue.venueType,
-      }
-
-      // xvm-api owns these for connected venues. parseVenueSettings above still spreads
-      // in the frozen legacy values sitting in Prisma's settings JSON - delete them
-      // outright rather than risk serving stale data as current, unless this PUT gave
-      // us fresh values to overwrite them with.
+      const putResponseBody: Record<string, unknown> = {}
       if (xvmVenueDetail) {
         putResponseBody.taskVisibility = xvmVenueDetail.task_visibility
         putResponseBody.salesVisibility = xvmVenueDetail.sales_visibility
         putResponseBody.revenueVisibility = xvmVenueDetail.revenue_visibility
         putResponseBody.eventVisibility = xvmVenueDetail.event_visibility
         putResponseBody.venueType = xvmVenueDetail.venue_type
-      } else {
-        delete putResponseBody.taskVisibility
-        delete putResponseBody.salesVisibility
-        delete putResponseBody.revenueVisibility
-        delete putResponseBody.eventVisibility
-        delete putResponseBody.venueType
+        putResponseBody.tagline = xvmVenueDetail.tagline ?? ""
+        putResponseBody.tags = xvmVenueDetail.tags
+        putResponseBody.isAdult = xvmVenueDetail.is_adult
       }
 
       return NextResponse.json(putResponseBody)

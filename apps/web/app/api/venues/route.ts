@@ -25,6 +25,13 @@ const venueSchema = z.object({
   plot: validators.venuePlot,
   apartment: validators.venueApartment,
   subdivision: validators.venueSubdivision,
+  settings: z
+    .object({
+      tagline: validators.venueTagline.optional(),
+      tags: validators.venueTags.optional(),
+      isAdult: z.boolean().optional(),
+    })
+    .optional(),
 })
 
 export const POST = withRateLimit(
@@ -76,6 +83,11 @@ export const POST = withRateLimit(
         profile.room = validatedData.apartment
         profile.subdivision = validatedData.subdivision
       }
+
+      const extras = validatedData.settings
+      if (extras?.tagline?.trim()) profile.tagline = extras.tagline.trim()
+      if (extras?.tags?.length) profile.tags = extras.tags
+      if (extras?.isAdult) profile.is_adult = true
 
       let profileSaved = true
       if (Object.keys(profile).length > 0) {

@@ -66,9 +66,6 @@ export interface VenueSettings {
   /** Venue profile extras not stored as DB fields */
   tagline?: string
   tags?: string[]
-  /** Location & hours */
-  defaultHours?: string // e.g. "10PM–2AM"
-  openNights?: string // e.g. "Fri & Sat"
   isAdult?: boolean // 18+ venue
   /** Discord shift bot configuration */
   shiftBot?: ShiftBotSettings

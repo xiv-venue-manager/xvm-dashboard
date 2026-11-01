@@ -126,9 +126,9 @@ describe("links, images and leftovers", () => {
     )
   })
 
-  it("keeps the settings xvm-api has no home for, so nothing is lost", () => {
-    const r = run([venue({ settings: { taskVisibility: "all", salesVisibility: "all", revenueVisibility: "all", eventVisibility: "all", openNights: ["fri"], webhooks: {}, discoverySources: [] } })])
-    expect(r.leftovers).toEqual([{ venue_key: "v1", settings: { openNights: ["fri"] } }])
+  it("keeps the settings xvm-api has no home for, but drops open nights and default hours by decision", () => {
+    const r = run([venue({ settings: { taskVisibility: "all", salesVisibility: "all", revenueVisibility: "all", eventVisibility: "all", shiftBot: { enabled: true }, openNights: "Fri", defaultHours: "10PM", webhooks: {}, discoverySources: [] } })])
+    expect(r.leftovers).toEqual([{ venue_key: "v1", settings: { shiftBot: { enabled: true } } }])
   })
 
   it("carries the tagline, tags and adult flag into the venue row", () => {

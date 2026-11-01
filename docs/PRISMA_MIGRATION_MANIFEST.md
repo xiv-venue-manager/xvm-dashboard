@@ -319,6 +319,25 @@ The staff-removal route revokes a departing member's plugin API keys by finding 
 - That NextAuth invokes the `jwt` callback on every session read is documented behaviour, not something I measured; I did not count database reads.
 - Whether production Redis persists across restarts. `docker-compose.yml` runs it with `--save "" --appendonly no` and `--maxmemory 256mb --maxmemory-policy allkeys-lru`, so a restart or an eviction drops the credential, and each person's next request mints a new one. Harmless now that the plugin is cut over. This is the compose file, not a read of the production container.
 
+## Deploy-time and teardown items
+
+Things the cutover PRs say must happen at the `dev` to `main` deploy or in the final teardown, gathered here so they are not only in PR bodies. State as of 2026-10-25, checked against `dev`.
+
+At the deploy, not before:
+
+- **Discord Interactions Endpoint URL.** It is one setting on the Discord application, shared by dev and prod. #237 deleted the route behind it, but prod's shift buttons keep working from `main`, so clear it in the deploy window, not earlier.
+- **`CRON_SECRET` stays in the environment.** `app/api/diag/sentry-test` still reads it, so do not prune it with the cron variables.
+- **The legacy shift bot (`apps/eorzea-bot`)** is not deployed on dev and is deleted from the server after the merge (decided 2026-10-25). Its dead `/webhook/event-live` and `/webhook/shift-xp` listeners go with it.
+- **Follows backfill runs with or before the deploy** (#274). 88 of the 89 follows load. Run after, existing follows disappear from the UI while the Prisma rows stay safe.
+- **Shouts backfill** (`backfill-shouts-to-xvm-api.ts`, #134) runs in the window, before the app starts reading xvm-api.
+- **xvm-api#215.** Check prod's `venue_payroll_settings` for `auto_close_after_hours` above 168. A value above about 17.7M hours would stop the auto-close sweep for every venue.
+
+In the final teardown (take a backup first, as for any prod schema change):
+
+- Prisma models with no callers left after #237: `shiftSignupEmbed`, `pendingNotification` and `event`.
+- `discord_open_venues` (8 rows) and its web `DiscordOpenVenue` model, plus the `region:*` rows in `discord_tracked_messages`.
+- The Frogge columns on `Venue`, after the 3 connected venues are confirmed (see "Frogge").
+
 ## Prod audit (2026-10-08)
 
 ### What was done
@@ -386,7 +405,7 @@ Each entry gives what loads, how the fields map, and what is fixed or dropped on
 
 **Persons.** Every user who has a membership, character, payroll entry or other reference gets a `Person` with a `discord` account row. Two special cases: 29 distinct manual payroll payees (below) and one user with no Discord identity (below) get a `Person` with no Discord account.
 
-**Venues (parked).** 69 in prod, 63 migrate (the 2 ownerless empty ones and the 4 test venues are skipped). Name, slug, description, logo, banner, address, data centre, world, active flag and the four visibility settings map to `VenueModel`. 320 gallery images over 42 venues (all plain URLs) become `VenueImage`. `partakeTeamId` (7 venues) and `ffxivVenueId` (5) become `VenueExternalLink` rows (providers `Partake` and `FFXIVVenues`). The legacy `location` column restates district, ward and plot and is dropped. All 69 venues have timezone `UTC` while their events carry real zones (Edmonton 205, UTC 168, Los Angeles 38, New York 27, Berlin 23, Riyadh 20); proposed rule: venue timezone is its most common event timezone, else UTC. `venueType` has 10 values plus 22 null (4 are `TEST_VENUE`; skip or migrate is open). `settings` JSON keys with **no xvm-api home**: `openNights` (22), `defaultHours` (20), `shiftBot` (21) and `notifications` (9). The three that now have xvm-api homes are `tagline` (11 venues), `tags` (17) and `isAdult` (21), moved by #318. The hours, nights, shift-bot and notification keys are dropped by decision and stay in Prisma's JSON until teardown. `notifications` held four toggles (`newFollower`, `dailySummary`, `eventRsvp`, `lowStaffCoverage`) that nothing read. `discoverySources` (one venue has data) is dropped. The webhook flags (26) and `discordWebhooks` (19) are retiring.
+**Venues (parked).** 69 in prod, 63 migrate (the 2 ownerless empty ones and the 4 test venues are skipped). Name, slug, description, logo, banner, address, data centre, world, active flag and the four visibility settings map to `VenueModel`. 320 gallery images over 42 venues (all plain URLs) become `VenueImage`. `partakeTeamId` (7 venues) and `ffxivVenueId` (5) become `VenueExternalLink` rows (providers `Partake` and `FFXIVVenues`). The legacy `location` column restates district, ward and plot and is dropped. All 69 venues have timezone `UTC` while their events carry real zones (Edmonton 205, UTC 168, Los Angeles 38, New York 27, Berlin 23, Riyadh 20); proposed rule: venue timezone is its most common event timezone, else UTC. `venueType` has 10 values plus 22 null (4 are `TEST_VENUE`; skip or migrate is open). `settings` JSON keys with **no xvm-api home**: `openNights` (22), `defaultHours` (20), `shiftBot` (21) and `notifications` (9). The three that now have xvm-api homes are `tagline` (11 venues), `tags` (17) and `isAdult` (21), moved by #318. The hours, nights, shift-bot and notification keys are dropped by decision and stay in Prisma's JSON until teardown. `notifications` held four toggles (`newFollower`, `dailySummary`, `eventRsvp`, `lowStaffCoverage`) that nothing read. `discoverySources` (one venue has data) is dropped. The webhook flags (26) and `discordWebhooks` (19) are retiring. Address data, read again on 2026-10-12 (`venues.sql`, read-only, at the owner's request, nothing written to disk): the 63 venues that have an address all use one of the five district names exactly as xvm-api spells them, no venue has an apartment (`apartment` is null on every row, plots run 1 to 58 and wards 1 to 30 with no sentinel values), and 6 venues have no address at all (district, ward and plot all null, all six with content), so #187 would prompt 6 owners once. The subdivision question for apartments and the in-game spelling of districts do not arise for prod data.
 
 **Positions and memberships.** `roles` (228) become positions: hex colour to integer, `potPayoutMode` to `standard`/`pot`/`contractor`, hourly rate to minor units (47 have one). No role has any permissions, so no capabilities are needed. 60 roles are unused defaults and still load. `memberships`: 216 active (76 owners, 23 managers, 117 staff) become memberships with one open employment period starting at `hireDate`. The 32 pending invites (11 manager, 21 staff) have no user, have all expired, and are dropped. One membership hourly rate (500 gil, the owner's own test account at Velvet Rift) has no home and is dropped. Custom role and additional role assignments become `membership_positions`. No inactive members, no temporary roles, no duplicates.
 

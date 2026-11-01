@@ -2,7 +2,6 @@ import { NextRequest, NextResponse } from "next/server"
 import { getServerSession } from "next-auth"
 import { z } from "zod"
 import { authOptions } from "@/lib/auth"
-import { prisma } from "@/lib/prisma"
 import { withRateLimit } from "@/lib/middleware/with-rate-limit"
 import { invalidateCache, cacheKeys } from "@/lib/redis-cache"
 import { validators } from "@/lib/validation"
@@ -126,8 +125,6 @@ export const DELETE = withRateLimit(
       } catch (err) {
         return xvmApiErrorResponse(err, session.user.id, "[venue delete] xvm-api deactivate error")
       }
-
-      await prisma.venue.updateMany({ where: { xvmApiVenueId: access.venue.id }, data: { isActive: false } })
 
       await Promise.all([
         invalidateCache(cacheKeys.userVenues(session.user.id)),

@@ -79,7 +79,7 @@ The other 29 models have no code reference: `notifications`, `shout_templates`, 
 
 ### Not verified in this refresh
 
-- Whether `xiv-stats` reads Prisma. Checked 2026-11-01: prod runs `eorzea-bot`, `xiv-stats` and `ehnotwitchbot` (all up 4 weeks) and no `discord-bot` container, so `discord-bot` is not live.
+- Checked 2026-11-01: prod runs `eorzea-bot`, `xiv-stats` and `ehnotwitchbot` (all up 4 weeks) and no `discord-bot` container, so `discord-bot` is not live. `xiv-stats` (source at `/home/server/xiv-stats` on the server, a 99-line `server.js`, not in this repository) does read the Prisma database directly: read-only counts of `users`, `venues`, `events`, active `events`, `transactions`, `memberships`, `roles`, `services` and `tasks`, served as JSON to the homepage widget with an API key, plus unresolved GlitchTip issues. After the migration those counts stop moving. xvm-api's `/public/stats` covers only active venues and their published events, so repointing covers 2 of the 9 numbers; the rest would need admin reads or be dropped. Its `server.js` also holds a hardcoded fallback database connection string, with the database password, and a default API key; the compose file sets `DATABASE_URL`, so the fallback is not used, but it should be removed.
 - Whether any loader's output matches prod. The prototype has only run on synthetic data, and the rehearsal on a prod copy has not happened.
 - Whether any client depends on the Prisma venue id that `GET /api/venues` returns today.
 - The 10-08 prod audit and every row count in it.

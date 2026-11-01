@@ -43,7 +43,6 @@ const eslintConfig = defineConfig([
       "lib/prisma.ts",
       "lib/auth.ts",
       "lib/api/venue-access.ts",
-      "app/api/venues/route.ts",
       "app/api/venues/[[]venueId]/route.ts",
       "scripts/**",
     ],

@@ -272,7 +272,7 @@ export default function SettingsPage({ params }: { params: Promise<{ slug: strin
         throw new Error(d.error || "Failed to save venue profile")
       }
 
-      // Save settings JSON (tagline, tags, hours, permissions etc.)
+      // Venue profile extras
       const settingsRes = await fetch(`/api/venues/${slug}/settings`, {
         method: "PUT",
         headers: { "Content-Type": "application/json" },
@@ -540,7 +540,7 @@ export default function SettingsPage({ params }: { params: Promise<{ slug: strin
                         if ((e.key === "Enter" || e.key === ",") && tagInput.trim()) {
                           e.preventDefault()
                           const newTag = tagInput.trim().replace(/,$/, "")
-                          if (newTag && !(settings.tags ?? []).includes(newTag)) {
+                          if (newTag && !(settings.tags ?? []).some((t) => t.toLowerCase() === newTag.toLowerCase())) {
                             setSettings({ ...settings, tags: [...(settings.tags ?? []), newTag] })
                           }
                           setTagInput("")

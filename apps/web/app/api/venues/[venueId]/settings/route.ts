@@ -31,7 +31,7 @@ const updateSettingsSchema = z.object({
     ])
     .nullable()
     .optional(),
-  // Venue profile extras. tagline, tags and isAdult live in xvm-api; the rest are stored in settings JSON
+  // Venue profile extras
   tagline: validators.venueTagline.optional(),
   tags: validators.venueTags.optional(),
   isAdult: z.boolean().optional(),

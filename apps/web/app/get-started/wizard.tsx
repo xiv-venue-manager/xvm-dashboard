@@ -113,26 +113,27 @@ export function GetStartedWizard({ server }: { server: ConnectServer | null }) {
       const slug = slugify(name)
       let created = ""
       try {
+        const body = {
+          name: name.trim(),
+          slug,
+          description: tagline.trim() || null,
+          dataCenter: dc,
+          world,
+          district: district || null,
+          ward: ward ? parseInt(ward, 10) : null,
+          plot: housingType === "house" && plot ? parseInt(plot, 10) : null,
+          apartment: housingType === "apartment" && apartment ? parseInt(apartment, 10) : null,
+          subdivision: housingType === "apartment" && building ? building === "subdivision" : null,
+          settings: {
+            tagline: tagline.trim() || undefined,
+            tags: adult ? ["18+", ...tags.filter((t) => t !== "18+")] : tags.filter((t) => t !== "18+"),
+            isAdult: adult,
+          },
+        }
         const res = await fetch("/api/venues", {
           method: "POST",
           headers: { "Content-Type": "application/json" },
-          body: JSON.stringify({
-            name: name.trim(),
-            slug,
-            description: tagline.trim() || null,
-            dataCenter: dc,
-            world,
-            district: district || null,
-            ward: ward ? parseInt(ward, 10) : null,
-            plot: housingType === "house" && plot ? parseInt(plot, 10) : null,
-            apartment: housingType === "apartment" && apartment ? parseInt(apartment, 10) : null,
-            subdivision: housingType === "apartment" && building ? building === "subdivision" : null,
-            settings: {
-              tagline: tagline.trim() || undefined,
-              tags: adult ? ["18+", ...tags.filter((t) => t !== "18+")] : tags.filter((t) => t !== "18+"),
-              isAdult: adult,
-            },
-          }),
+          body: JSON.stringify(body),
         })
         if (!res.ok) {
           const d = await res.json()
@@ -142,18 +143,7 @@ export function GetStartedWizard({ server }: { server: ConnectServer | null }) {
             const res2 = await fetch("/api/venues", {
               method: "POST",
               headers: { "Content-Type": "application/json" },
-              body: JSON.stringify({
-                name: name.trim(),
-                slug: slugRetry,
-                description: tagline.trim() || null,
-                dataCenter: dc,
-                world,
-                district: district || null,
-                ward: ward ? parseInt(ward, 10) : null,
-                plot: housingType === "house" && plot ? parseInt(plot, 10) : null,
-                apartment: housingType === "apartment" && apartment ? parseInt(apartment, 10) : null,
-                subdivision: housingType === "apartment" && building ? building === "subdivision" : null,
-              }),
+              body: JSON.stringify({ ...body, slug: slugRetry }),
             })
             if (!res2.ok) {
               const d2 = await res2.json()
@@ -311,6 +301,7 @@ export function GetStartedWizard({ server }: { server: ConnectServer | null }) {
                     className="gs-inp"
                     placeholder="A dockside tavern for wayward souls"
                     value={tagline}
+                    maxLength={200}
                     onChange={(e) => setTagline(e.target.value)}
                   />
                 </div>

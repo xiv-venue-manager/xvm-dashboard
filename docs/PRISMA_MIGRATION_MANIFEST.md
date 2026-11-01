@@ -23,7 +23,7 @@ Working rules, from earlier decisions:
 
 Scanned again with the script at the end of this document, against `dev` at `f023c796`. **12 of the 41 Prisma models have any live reference, and the web app really uses 4 of them: `users`, `accounts`, `venues` and `xvm_api_credentials`.** The rest are the old bots' raw SQL, or false positives (below). The inventory below still carries the 2026-10-08 status column, so read this section first.
 
-What changed since 2026-10-08: the Prisma shift, event and Discord shift-embed pipeline was removed (#237), follows and the notification bell moved to xvm-api (#274, #275), and the plugin routes were removed from `dev`, leaving `app/api/plugin/credentials` and `app/api/plugin/pairing-codes`. The venue bridge is almost gone: routes resolve a venue through xvm-api's `GET /me/venues`, by xvm-api id or slug, and `requireXvmVenueId` no longer exists. The Frogge integration and the shift-bot settings were removed from the dashboard (#311), and a lint rule now bans new Prisma imports outside a shrinking allowlist (#316).
+What changed since 2026-10-08: the Prisma shift, event and Discord shift-embed pipeline was removed (#237), follows and the notification bell moved to xvm-api (#274, #275), and the plugin routes were removed from `dev`, leaving `app/api/plugin/credentials` and `app/api/plugin/pairing-codes`. The venue bridge is almost gone: routes resolve a venue through xvm-api's `GET /me/venues`, by xvm-api id or slug, and `requireXvmVenueId` no longer exists. The Frogge integration and the shift-bot settings were removed from the dashboard (#311), a lint rule now bans new Prisma imports outside a shrinking allowlist (#316), the credential cache moved to Redis (#317), and the venue tagline, tags and adult flag now read and write xvm-api while the free-text hours and open nights were dropped (#318).
 
 ### What still touches Prisma
 
@@ -32,11 +32,11 @@ The scan's three raw-SQL hits in `apps/web` are false positives (an `import ... 
 | Where | Prisma use | Goes with |
 |---|---|---|
 | `lib/auth.ts` and the NextAuth `PrismaAdapter` | `users` write at sign-in (`:180`), `accounts` read for the Discord grant (`:94`), the adapter's own `users`, `accounts` and `verification_tokens` | Workstream A4 |
-| `lib/api/xvm-api-store.ts` | `xvm_api_credentials`: 3 writes, 2 reads (token cache and the lazily filled `personId`) | Workstream A3 (#317 moves it to Redis) |
-| `app/api/venues/route.ts` | slug check, the bridge row written on create, and the `GET` list through `myVenueRoles` | Workstream A2 |
+| `lib/api/xvm-api-store.ts` | `xvm_api_credentials`: 3 writes, 2 reads (token cache and the lazily filled `personId`) | Workstream A3 (#317 moved it to Redis; the table is now unread) |
+| `app/api/venues/route.ts` | slug check and the bridge row written on create. The `GET` list moves to `myVenues` in #319 | Workstream A2 |
 | `lib/api/venue-access.ts` | `myVenueRoles` and `requireVenueRole` bridge lookups | Workstream A2 |
 | `app/api/venues/[venueId]/route.ts` | deactivate mirrors `isActive` | Workstream A2 |
-| `app/api/venues/[venueId]/settings/route.ts` | the `settings` JSON and `venueType` | Workstream A2 (needs the open venue settings answers) |
+| `app/api/venues/[venueId]/settings/route.ts` | the `settings` JSON and `venueType`. Nothing is served from the JSON any more, so the read can go | Workstream A2 |
 | `apps/eorzea-bot` (own schema, raw SQL) | `users`, `user_characters`, `venues`, `memberships`, `patron_logs`, `shifts`, `discord_members`, `discord_warn_logs` | Workstream B |
 | `apps/discord-bot` (raw SQL) | `users`, `venues`, `memberships` | Workstream B |
 
@@ -48,12 +48,12 @@ The other 29 models have no code reference: `notifications`, `shout_templates`, 
 
 ### Remaining work, in order
 
-**A. Finish the dashboard on `dev`.** #311, #313, #315 and #316 have merged. Open: #308 and #317.
-1. A1: #308 is the one left. After #311 dropped the Frogge token, it is only the `GET /api/venues` select (`id`, `name`, `slug`, `dataCenter`, `world`, `xvmApiVenueId`), waiting on Allegro's re-review.
-2. A2, venue residue: build `GET /api/venues` on `myVenues` (xvm-api ids), stop writing the bridge row on create (xvm-api already enforces slug uniqueness), drop the deactivate mirror, and remove the Prisma `settings` read. The venue settings keys without an xvm-api home (see "Waiting on Allegro") must be decided first: tagline, tags and the adult flag now exist (#202), `shiftBot` is already dropped from the UI by #311.
-3. A3, the credential cache moves from `xvm_api_credentials` to Redis (#317, open). A first version kept the token in the session JWT and failed review: xvm-api keeps one live Dashboard credential per person and every exchange revokes the others, so a second browser revoked the first one's token while its cookie still looked fresh, and an account deletion left other browsers signed in on a revoked token. One shared copy per person in Redis (`xvm:credential:<userId>`, which also carries `personId`) avoids both, as the table row did. The plugin objection to Redis in "Removing the credential cache" is gone on `dev`.
+**A. Finish the dashboard on `dev`.** #308, #311, #313, #315, #316, #317 and #318 have merged. Open: #319 and #320.
+1. A1: done. #308 narrowed the `GET /api/venues` select, and #319 replaces that select with `myVenues`.
+2. A2, venue residue. Done: tagline, tags and the adult flag read and write xvm-api, and the free-text hours and open nights are gone (#318). Open: `GET /api/venues` on `myVenues` (#319) and dropping `notifications` from the mapper's leftovers (#320). That key is dead: nothing reads or writes it, and 9 of 74 prod venues hold four unused toggles. Still to do: stop writing the bridge row on create (xvm-api already enforces slug uniqueness, but check that the wizard's slug-collision retry still sees a message containing "slug"), drop the deactivate mirror, remove the settings route's Prisma read, and delete `myVenueRoles`, `roleInVenue`, `requireVenueRole` and `asMembership`. The bridge row write and the mirror wait on one decision: `apps/eorzea-bot` and `apps/discord-bot` read the Prisma `venues` table with raw SQL, so venues created or deactivated after the change would be wrong in them until they are retired (B).
+3. A3: done (#317, merged 2026-10-31). The person's token is one shared copy in Redis (`xvm:credential:<userId>`, which also carries `personId`). A first version kept it in the session JWT and failed review: xvm-api keeps one live Dashboard credential per person and every exchange revokes the others. See "Removing the credential cache".
 4. A4, the NextAuth adapter, following `docs/superpowers/plans/2026-10-08-nextauth-adapter-removal.md`. Its Task 1 (Discord grant from the JWT) is not shipped. The flip changes `token.id` to the Discord id and rotates the cookie name, so everyone signs in once more. Run the plan's precondition grep first. This goes after A2 and A3.
-5. A5, sweep: the lint rule banning `@/lib/prisma` outside an allowlist that shrinks to empty is in (#316) and the `timeline-feed.tsx` type import is gone (`lib/roles.ts`). What is left is emptying the allowlist as A2 to A4 land, and the stale docs. Two allowlist entries, `frogge/**` and `xvm-connect/**`, point at routes #311 deleted and can go now.
+5. A5, sweep: the lint rule banning `@/lib/prisma` outside an allowlist that shrinks to empty is in (#316) and the `timeline-feed.tsx` type import is gone (`lib/roles.ts`). What is left is emptying the allowlist as A2 to A4 land, and the stale docs. The `frogge/**` and `xvm-connect/**` entries are already gone. Six entries remain, plus `scripts/**` (three scripts still import Prisma): `lib/prisma.ts`, `lib/auth.ts`, `lib/api/venue-access.ts` and the three `app/api/venues` routes. None can go before A2 and A4 land.
 
 **B. The old bots and other readers.** Remove `apps/eorzea-bot` and `apps/discord-bot` (decided 2026-10-08) once xvm-bot covers what they do. xvm-api now has leveling (#207, #224) and account deletion (#217). Allegro decides which data carries over (decision 5): XP and levels (68 members), warns, open-venue state. Also repoint or retire `xiv-stats`, `adminer` and the xiv-admin TUI, which read the Prisma database directly. xvm-bot#33 tracks the Discord posts prod makes today that stop at the migration.
 
@@ -73,7 +73,6 @@ The other 29 models have no code reference: `notifications`, `shout_templates`, 
 ### Waiting on Allegro
 
 - Frogge (decision 4): what "no impact" means, tier assignment, and the 3 venues with a `froggeToken`.
-- A home for the venue settings still without one: `openNights`, `defaultHours` and `notifications`. Or a decision to drop them. (`shiftBot` is dropped: #311 removed it from the UI.)
 - Old-bot data (decision 5).
 - A path for the one person with no Discord identity and the 29 payroll payees.
 - The Discord post tracking on 7 events, and xvm-bot#33.
@@ -110,7 +109,7 @@ Status of each Prisma table on `dev`:
 | `users` | r web 9, w web 2, raw web 1, bot 4, dbot 1 | Live | `Person` | A `Person` is created at first sign-in by the token exchange, keyed by Discord id, so people who sign in again need no copy. `Person` is thin (`display_name`), so the other fields map as decided on 2026-10-08, see decision 2. |
 | `accounts` | r web 2, w web 1 | Live | `PersonAccount` | Owned by next-auth's `PrismaAdapter` (`lib/auth.ts`). Stays until auth leaves the adapter, which is the long pole in the decommission notes. The plan is `docs/superpowers/plans/2026-10-08-nextauth-adapter-removal.md`: the adapter is the last link (after the plugin cutover and the credential cache), and its Task 1 (Discord grant from the JWT) ships first. Holds Discord OAuth tokens, which are not worth migrating. |
 | `sessions`, `verification_tokens` | none | Dead | none | Sessions are JWT. Confirm empty or irrelevant, then drop. |
-| `xvm_api_credentials` | r web 3, w web 3 | Live | none | A cache of the person's xvm-api token. Nothing to migrate. #317 moves it to Redis (`xvm:credential:<userId>`), which removes the table's last reader; the table can be dropped after that. See "Removing the credential cache". |
+| `xvm_api_credentials` | r web 3, w web 3 | Live | none | A cache of the person's xvm-api token. Nothing to migrate. #317 moved it to Redis (`xvm:credential:<userId>`), which removed the table's last reader; the table can be dropped. See "Removing the credential cache". |
 
 ### Venues
 
@@ -377,7 +376,7 @@ Each entry gives what loads, how the fields map, and what is fixed or dropped on
 
 **Persons.** Every user who has a membership, character, payroll entry or other reference gets a `Person` with a `discord` account row. Two special cases: 29 distinct manual payroll payees (below) and one user with no Discord identity (below) get a `Person` with no Discord account.
 
-**Venues (parked).** 69 in prod, 63 migrate (the 2 ownerless empty ones and the 4 test venues are skipped). Name, slug, description, logo, banner, address, data centre, world, active flag and the four visibility settings map to `VenueModel`. 320 gallery images over 42 venues (all plain URLs) become `VenueImage`. `partakeTeamId` (7 venues) and `ffxivVenueId` (5) become `VenueExternalLink` rows (providers `Partake` and `FFXIVVenues`). The legacy `location` column restates district, ward and plot and is dropped. All 69 venues have timezone `UTC` while their events carry real zones (Edmonton 205, UTC 168, Los Angeles 38, New York 27, Berlin 23, Riyadh 20); proposed rule: venue timezone is its most common event timezone, else UTC. `venueType` has 10 values plus 22 null (4 are `TEST_VENUE`; skip or migrate is open). `settings` JSON keys with **no xvm-api home**: `tagline` (11 venues), `tags` (17), `isAdult` (21), `openNights` (22), `defaultHours` (20), `shiftBot` (21), `notifications` (9). `discoverySources` (one venue has data) is dropped. The webhook flags (26) and `discordWebhooks` (19) are retiring.
+**Venues (parked).** 69 in prod, 63 migrate (the 2 ownerless empty ones and the 4 test venues are skipped). Name, slug, description, logo, banner, address, data centre, world, active flag and the four visibility settings map to `VenueModel`. 320 gallery images over 42 venues (all plain URLs) become `VenueImage`. `partakeTeamId` (7 venues) and `ffxivVenueId` (5) become `VenueExternalLink` rows (providers `Partake` and `FFXIVVenues`). The legacy `location` column restates district, ward and plot and is dropped. All 69 venues have timezone `UTC` while their events carry real zones (Edmonton 205, UTC 168, Los Angeles 38, New York 27, Berlin 23, Riyadh 20); proposed rule: venue timezone is its most common event timezone, else UTC. `venueType` has 10 values plus 22 null (4 are `TEST_VENUE`; skip or migrate is open). `settings` JSON keys with **no xvm-api home**: `openNights` (22), `defaultHours` (20), `shiftBot` (21) and `notifications` (9). The three that now have xvm-api homes are `tagline` (11 venues), `tags` (17) and `isAdult` (21), moved by #318. The hours, nights, shift-bot and notification keys are dropped by decision and stay in Prisma's JSON until teardown. `notifications` held four toggles (`newFollower`, `dailySummary`, `eventRsvp`, `lowStaffCoverage`) that nothing read. `discoverySources` (one venue has data) is dropped. The webhook flags (26) and `discordWebhooks` (19) are retiring.
 
 **Positions and memberships.** `roles` (228) become positions: hex colour to integer, `potPayoutMode` to `standard`/`pot`/`contractor`, hourly rate to minor units (47 have one). No role has any permissions, so no capabilities are needed. 60 roles are unused defaults and still load. `memberships`: 216 active (76 owners, 23 managers, 117 staff) become memberships with one open employment period starting at `hireDate`. The 32 pending invites (11 manager, 21 staff) have no user, have all expired, and are dropped. One membership hourly rate (500 gil, the owner's own test account at Velvet Rift) has no home and is dropped. Custom role and additional role assignments become `membership_positions`. No inactive members, no temporary roles, no duplicates.
 
@@ -432,7 +431,6 @@ Rollback idea, unreviewed: Prisma is only read during the window, so rolling bac
 
 ### Waiting on Allegro
 
-- A home for the venue settings listed under Venues: tagline, tags, adult flag, open nights, default hours, the shift-bot settings and the notification toggles.
 - How the pot `enabled` flag is switched on. Allegro recommends deriving it from positions (`pot_payout_mode` of `pot`) instead of storing it. Check first whether any of the 3 venues with the pot on has no pot position. Whether the per-venue module toggles are enforced anywhere is still open: `VenueModuleModel` exists, and nothing that enforces a toggle has been traced.
 - Frogge (decision 4) and the old-bot data (decision 5).
 - Whether a no-Discord person path should exist. One prod person has no Discord identity and 29 payroll payees are placeholder people, and nothing in xvm-api issues a pairing code for them automatically.

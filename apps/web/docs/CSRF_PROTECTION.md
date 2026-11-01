@@ -20,7 +20,7 @@ NextAuth automatically generates a cryptographically secure CSRF token for each 
 
 ```
 __Host-next-auth.csrf-token (CSRF token)
-__Secure-next-auth.session-token (Session)
+__Secure-xvm.session-token (Session)
 __Secure-next-auth.callback-url (Callback URL)
 ```
 
@@ -40,7 +40,7 @@ The `__Secure-` prefix ensures:
 
 ```
 next-auth.csrf-token
-next-auth.session-token
+xvm.session-token
 next-auth.callback-url
 ```
 
@@ -198,7 +198,7 @@ To verify CSRF cookies are properly set:
 1. Open DevTools → Application → Cookies
 2. Look for these cookies on `xivvenuemanager.com`:
    - `__Host-next-auth.csrf-token`
-   - `__Secure-next-auth.session-token`
+   - `__Secure-xvm.session-token`
    - `__Secure-next-auth.callback-url`
 
 3. Verify cookie attributes:

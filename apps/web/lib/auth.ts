@@ -1,10 +1,9 @@
 import { NextAuthOptions } from "next-auth"
-import { PrismaAdapter } from "@next-auth/prisma-adapter"
 import DiscordProvider from "next-auth/providers/discord"
-import { prisma } from "@/lib/prisma"
 import { exchangeToken, XvmApiError } from "@/lib/api/xvm-api"
 import { upsertXvmApiCredential, getValidXvmApiToken } from "@/lib/api/xvm-api-store"
-import { SESSION_COOKIE_NAME } from "@/lib/session-cookie"
+import { SESSION_COOKIE_NAME, SESSION_COOKIE_SECURE } from "@/lib/session-cookie"
+import { SNOWFLAKE_PATTERN } from "@/lib/validation"
 
 // For an existing account next-auth hands the callbacks the stored user row as `user`, so the
 // avatar Discord holds now is only on `profile`.
@@ -27,8 +26,6 @@ function mintOnce(userId: string, mint: () => Promise<void>): Promise<void> {
 }
 
 export const authOptions: NextAuthOptions = {
-  // eslint-disable-next-line @typescript-eslint/no-explicit-any
-  adapter: PrismaAdapter(prisma as any),
   providers: [
     DiscordProvider({
       clientId: process.env.DISCORD_CLIENT_ID!,
@@ -39,38 +36,18 @@ export const authOptions: NextAuthOptions = {
     }),
   ],
   callbacks: {
-    async signIn({ user, account, profile }) {
-      // Allow sign in if user exists or can be created
-      if (!user?.email && !account?.providerAccountId) {
-        return false
-      }
-      // Refresh Discord avatar on every sign-in. PrismaAdapter only stores
-      // image at account creation, so avatars go stale when users change them.
-      // user.id is only present for existing users (new users get their id
-      // after the adapter creates them post-callback).
-      if (account?.provider === "discord" && user?.id) {
-        const image = discordImage(profile)
-        prisma.user
-          .update({
-            where: { id: user.id },
-            data: {
-              ...(image ? { image } : {}),
-              discordId: account.providerAccountId,
-            },
-          })
-          .catch(() => {})
-      }
-      return true
+    async signIn({ account }) {
+      return Boolean(account?.providerAccountId)
     },
     async jwt({ token, user, account, profile }) {
       // Initial sign in - user object is only available on first call
       if (user) {
-        token.id = user.id
         token.email = user.email
         token.name = user.name
         token.picture = user.image
       }
       if (account) {
+        token.id = account.providerAccountId
         token.provider = account.provider
         const image = account.provider === "discord" ? discordImage(profile) : undefined
         if (image) token.picture = image
@@ -91,7 +68,7 @@ export const authOptions: NextAuthOptions = {
       if (isFirstDiscordSignIn && account) {
         try {
           const issued = await exchangeToken(account.providerAccountId, user.name ?? "Unknown", true)
-          await upsertXvmApiCredential(user.id, issued)
+          await upsertXvmApiCredential(account.providerAccountId, issued)
         } catch (err) {
           console.error("xvm-api token exchange failed:", err)
         }
@@ -100,17 +77,14 @@ export const authOptions: NextAuthOptions = {
       // or near expiry. Same non-fatal handling as above, except a 409: xvm-api
       // has revoked every credential for an account that is scheduled for
       // deletion (or deleted), so this session cannot continue.
-      if (token.id && !isFirstDiscordSignIn && !token.deletionPending) {
+      if (SNOWFLAKE_PATTERN.test(token.id ?? "") && !isFirstDiscordSignIn && !token.deletionPending) {
         try {
           const userId = token.id as string
           if (!(await getValidXvmApiToken(userId))) {
             await mintOnce(userId, async () => {
               if (await getValidXvmApiToken(userId)) return
-              const discordAccount = await prisma.account.findFirst({ where: { userId, provider: "discord" } })
-              if (discordAccount) {
-                const issued = await exchangeToken(discordAccount.providerAccountId, (token.name as string) ?? "Unknown")
-                await upsertXvmApiCredential(userId, issued)
-              }
+              const issued = await exchangeToken(userId, (token.name as string) ?? "Unknown")
+              await upsertXvmApiCredential(userId, issued)
             })
           }
         } catch (err) {
@@ -157,21 +131,18 @@ export const authOptions: NextAuthOptions = {
     updateAge: 24 * 60 * 60,
   },
   // Scope session cookie to parent domain so subdomains (shout.xivvenuemanager.com) can read it
-  cookies:
-    process.env.NODE_ENV === "production"
-      ? {
-          sessionToken: {
-            name: SESSION_COOKIE_NAME,
-            options: {
-              httpOnly: true,
-              sameSite: "lax" as const,
-              path: "/",
-              domain: ".xivvenuemanager.com",
-              secure: true,
-            },
-          },
-        }
-      : undefined,
+  cookies: {
+    sessionToken: {
+      name: SESSION_COOKIE_NAME,
+      options: {
+        httpOnly: true,
+        sameSite: "lax" as const,
+        path: "/",
+        secure: SESSION_COOKIE_SECURE,
+        ...(SESSION_COOKIE_SECURE ? { domain: ".xivvenuemanager.com" } : {}),
+      },
+    },
+  },
   // Trust the host header (important for proxies like Vercel)
   // @ts-expect-error - trustHost is valid in NextAuth v4 but might be missing in type definitions
   trustHost: true,
@@ -184,18 +155,6 @@ export const authOptions: NextAuthOptions = {
     },
     async signOut() {
       console.log("NextAuth signOut event")
-    },
-    async createUser(message) {
-      console.log("NextAuth createUser event:", message.user?.id)
-    },
-    async linkAccount(message) {
-      console.log("NextAuth linkAccount event:", message.account?.provider)
-      if (message.account.provider === "discord") {
-        await prisma.user.update({
-          where: { id: message.user.id },
-          data: { discordId: message.account.providerAccountId },
-        })
-      }
     },
     async session() {
       // Don't log session events in production to reduce noise

@@ -8,9 +8,8 @@ const m = vi.hoisted(() => ({
   createVenue: vi.fn(),
   updateVenue: vi.fn(),
   venueFindUnique: vi.fn(),
-  venueFindMany: vi.fn(),
   getOrSet: vi.fn(),
-  roles: vi.fn(),
+  venues: vi.fn(),
   venueCreate: vi.fn(),
   invalidate: vi.fn(),
   postNewVenue: vi.fn(),
@@ -20,7 +19,7 @@ const m = vi.hoisted(() => ({
 vi.mock("next-auth", () => ({ getServerSession: m.session }))
 vi.mock("@/lib/auth", () => ({ authOptions: {} }))
 vi.mock("@/lib/middleware/with-rate-limit", () => ({ withRateLimit: (handler: unknown) => handler }))
-vi.mock("@/lib/prisma", () => ({ prisma: { venue: { findUnique: m.venueFindUnique, findMany: m.venueFindMany, create: m.venueCreate } } }))
+vi.mock("@/lib/prisma", () => ({ prisma: { venue: { findUnique: m.venueFindUnique, create: m.venueCreate } } }))
 vi.mock("@/lib/redis-cache", () => ({
   invalidateCache: m.invalidate,
   getOrSet: m.getOrSet,
@@ -29,7 +28,7 @@ vi.mock("@/lib/redis-cache", () => ({
 }))
 vi.mock("@/lib/api/xvm-api-store", () => ({ getValidXvmApiToken: m.token, xvmApiErrorResponse: m.errorResponse }))
 vi.mock("@/lib/api/xvm-api", () => ({ createVenue: m.createVenue, updateVenue: m.updateVenue }))
-vi.mock("@/lib/api/venue-access", async (orig) => ({ ...(await orig<object>()), myVenueRoles: m.roles }))
+vi.mock("@/lib/api/venue-access", async (orig) => ({ ...(await orig<object>()), myVenues: m.venues }))
 vi.mock("@/lib/discord-feed", () => ({ postNewVenue: m.postNewVenue }))
 vi.mock("@/lib/email", () => ({ sendEmail: m.sendEmail }))
 vi.mock("@/lib/email-templates", () => ({ venueWelcomeEmail: () => ({}), newVenueAlertEmail: () => ({}) }))
@@ -209,13 +208,24 @@ describe("POST /api/venues", () => {
 })
 
 describe("GET /api/venues", () => {
-  it("selects only the columns the callers read, never the Frogge token or webhook URLs", async () => {
+  it("lists the caller's xvm-api venues with their role, and reads nothing from Prisma", async () => {
     m.getOrSet.mockImplementation(async (_key: string, fn: () => Promise<unknown>) => fn())
-    m.roles.mockResolvedValue(new Map([["v1", "STAFF"]]))
-    m.venueFindMany.mockResolvedValue([{ id: "v1", name: "A", slug: "a", dataCenter: "Crystal", world: "Balmung" }])
+    m.venues.mockResolvedValue([
+      { id: "ven_1", name: "A", slug: "a", dataCenter: "Crystal", world: "Balmung", timezone: "UTC", role: "STAFF" },
+    ])
     const res = await GET(new NextRequest("http://localhost/api/venues"))
     expect(res.status).toBe(200)
-    const { select } = m.venueFindMany.mock.calls[0][0]
-    expect(Object.keys(select).sort()).toEqual(["dataCenter", "id", "name", "slug", "world", "xvmApiVenueId"])
+    expect(await res.json()).toEqual([
+      {
+        id: "ven_1",
+        name: "A",
+        slug: "a",
+        dataCenter: "Crystal",
+        world: "Balmung",
+        xvmApiVenueId: "ven_1",
+        memberships: [{ userId: "u1", venueId: "ven_1", role: "STAFF", status: "active" }],
+      },
+    ])
+    expect(m.venues).toHaveBeenCalledWith("u1")
   })
 })

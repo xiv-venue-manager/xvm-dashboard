@@ -58,13 +58,13 @@ The other 29 models have no code reference: `notifications`, `shout_templates`, 
 **B. The old bots and other readers.** Remove `apps/eorzea-bot` and `apps/discord-bot` (decided 2026-10-08) once xvm-bot covers what they do. xvm-api now has leveling (#207, #224) and account deletion (#217). Allegro decides which data carries over (decision 5): XP and levels (68 members), warns, open-venue state. Also repoint or retire `xiv-stats`, `adminer` and the xiv-admin TUI, which read the Prisma database directly. xvm-bot#33 tracks the Discord posts prod makes today that stop at the migration.
 
 **C. The data move.** Mappers exist for 14 domains (`lib/migration/*`, `scripts/map-*.ts`). What is left:
-- The loader exists but is not shared: built 2026-10-31 on a local xvm-api branch (`feat/legacy-loader`, unpushed). It reads the mapped files, resolves the `*_key` references, writes into xvm-api's tables in one transaction with original dates, and reconciles counts and sums. It has run on synthetic data through the real mappers into an Alembic-built Postgres, and the result read back through the API. It has not run on a prod copy. Per-event attendance and revenue totals, venue `leftovers` and the pot-enabled flag have no xvm-api column, so it reports them and does not load them. xvm-api is Allegro's repo, so where it lives is undecided.
+- There is no agreed loader yet. A prototype exists on a local xvm-api branch (`feat/legacy-loader`, one commit, about 900 lines, worktree `~/xvm-api-loader`, unpushed). It has only run on synthetic data. Whether to build the load that way, and where it lives, are open, and xvm-api is Allegro's repo. As built it reads the mapped files, resolves the `*_key` references, writes into xvm-api's tables in one transaction with original dates, and reconciles counts and sums. Per-event attendance and revenue totals, venue `leftovers` and the pot-enabled flag have no xvm-api column, so it reports them and does not load them.
 - Re-run the prod audit. The counts above are from 2026-10-08.
 - Check prod schema drift before the dev-to-main deploy.
 - Rehearse the whole sequence on a fresh prod copy and reconcile counts and sums.
 - Never load `pending_notifications`.
 
-**D. The plugin.** Ship the release that talks to xvm-api directly, with the announcement ahead of it. 85 people used a key in the last 30 days and all of them relink.
+**D. The plugin.** xvm-api is not public yet (`api.xivvenuemanager.com` does not answer; the pairing plan's DNS, tunnel and public-route tasks are not done), and every relink exchanges its code there, so that comes first. Then ship the release that talks to xvm-api directly, with the announcement ahead of it. 85 people used a key in the last 30 days and all of them relink.
 
 **E. The window.** Order as in "Proposed order inside the window". Back up prod and xvm-api's database first. Rollback is redeploying the old build, because Prisma is only read during the window.
 
@@ -76,12 +76,12 @@ The other 29 models have no code reference: `notifications`, `shout_templates`, 
 - Old-bot data (decision 5).
 - A path for the one person with no Discord identity and the 29 payroll payees.
 - The Discord post tracking on 7 events, and xvm-bot#33.
-- Which xvm-api tables and columns a direct load may rely on.
+- Which xvm-api tables and columns a direct load may rely on, and whether the load is built as the prototype is.
 
 ### Not verified in this refresh
 
 - Whether `xiv-stats` reads Prisma. Checked 2026-11-01: prod runs `eorzea-bot`, `xiv-stats` and `ehnotwitchbot` (all up 4 weeks) and no `discord-bot` container, so `discord-bot` is not live.
-- Whether the loader's output matches prod. It has only run on synthetic data, and the rehearsal on a prod copy has not happened.
+- Whether any loader's output matches prod. The prototype has only run on synthetic data, and the rehearsal on a prod copy has not happened.
 - Whether any client depends on the Prisma venue id that `GET /api/venues` returns today.
 - The 10-08 prod audit and every row count in it.
 

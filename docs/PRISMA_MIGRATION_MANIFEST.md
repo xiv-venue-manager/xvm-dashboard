@@ -74,7 +74,7 @@ The other 29 models have no code reference: `notifications`, `shout_templates`, 
 
 - Frogge (decision 4): what "no impact" means, tier assignment, and the 3 venues with a `froggeToken`.
 - Old-bot data (decision 5).
-- A path for the one person with no Discord identity and the 29 payroll payees.
+- What to do with the 29 payroll payees, who are placeholder people with no Discord identity and so cannot be mapped the same way.
 - The Discord post tracking on 7 events, and xvm-bot#33.
 - Which xvm-api tables and columns a direct load may rely on, and whether the load is built as the prototype is.
 
@@ -403,7 +403,7 @@ Each entry gives what loads, how the fields map, and what is fixed or dropped on
 
 **Schedules.** 28 entries over 15 venues are the only structured hours for three venues (After Effect, Cream Nightclub, The Black Dahlia). The five venues that sync from ffxivvenues.com repopulate through xvm-api's `ffxivvenues` hours source, so their 5 raw synced payloads are dropped and the 8 entries that belong to them are not carried. About 20 manual entries are loaded as `venue_hours` with recurrence rules (default, not yet confirmed by the owner).
 
-**The user with no Discord identity.** One staff member (at The Final Act) does not sign in to the dashboard and does not want Discord; their user row and plugin key were made by hand. They cannot use the normal relink, because pairing codes are created by a signed-in person or by the bot acting for a Discord user. Plan: the load creates their `Person` from the manual row, and an operator issues one pairing code for them. Allegro to confirm, and to say whether a no-Discord path should exist at all.
+**The user with no Discord identity.** Decided 2026-11-01 by the owner: Discord is required from now on, so there is no no-Discord path. The one affected staff member (at The Final Act; user `ibummelz`, created 2026-06-25, one membership, one character, owns no venue, no `accounts` row; their user row and plugin key were made by hand) is mapped to a normal `Person` with a `discord` account row, using their Discord user id, which the owner will fetch. They then relink like everyone else. Earlier notes said they did not want Discord; the owner is aware of that.
 
 ### Changes already made to prod
 
@@ -433,7 +433,7 @@ Rollback idea, unreviewed: Prisma is only read during the window, so rolling bac
 ### Waiting on Allegro
 
 - Frogge (decision 4) and the old-bot data (decision 5).
-- Whether a no-Discord person path should exist. One prod person has no Discord identity and 29 payroll payees are placeholder people, and nothing in xvm-api issues a pairing code for them automatically.
+- What to do with the 29 payroll payees, who are placeholder people with no Discord identity. The one staff member with none is settled: Discord is required, and the owner supplies their id.
 - What to do with the Discord post tracking on 7 events (`discordMessageId` and related columns).
 - Which xvm-api tables and columns a direct load may rely on.
 

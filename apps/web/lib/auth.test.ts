@@ -1,14 +1,5 @@
 import { describe, it, expect, vi, beforeEach } from "vitest"
 
-const m = vi.hoisted(() => ({
-  userUpdate: vi.fn(),
-  accountFindFirst: vi.fn(),
-}))
-
-vi.mock("@/lib/prisma", () => ({
-  prisma: { user: { update: m.userUpdate }, account: { findFirst: m.accountFindFirst } },
-}))
-vi.mock("@next-auth/prisma-adapter", () => ({ PrismaAdapter: () => ({}) }))
 vi.mock("@/lib/api/xvm-api", () => ({
   exchangeToken: vi.fn(),
   XvmApiError: class XvmApiError extends Error {
@@ -27,7 +18,7 @@ vi.mock("@/lib/api/xvm-api-store", () => ({
 
 import { authOptions } from "./auth"
 import { exchangeToken, XvmApiError } from "@/lib/api/xvm-api"
-import { getValidXvmApiToken } from "@/lib/api/xvm-api-store"
+import { getValidXvmApiToken, upsertXvmApiCredential } from "@/lib/api/xvm-api-store"
 import { SESSION_COOKIE_NAME } from "@/lib/session-cookie"
 
 // next-auth v4 keeps the values passed to a provider factory under `options`, not on the
@@ -49,7 +40,6 @@ const signIn = (args: any) => (authOptions.callbacks!.signIn as any)(args)
 beforeEach(() => {
   vi.clearAllMocks()
   vi.spyOn(console, "error").mockImplementation(() => {})
-  m.userUpdate.mockResolvedValue({})
 })
 
 describe("Discord provider", () => {
@@ -64,37 +54,31 @@ describe("Discord provider", () => {
   })
 })
 
+describe("adapter", () => {
+  it("is not set, so signing in creates no Prisma row", () => {
+    expect(authOptions.adapter).toBeUndefined()
+  })
+})
+
 describe("signIn", () => {
-  it("lets a Discord sign-in through without writing the grant anywhere", async () => {
-    await expect(signIn({ user: { id: "user-1", image: "https://cdn/a.png" }, account })).resolves.toBe(true)
-    expect(m.userUpdate).toHaveBeenCalledTimes(1)
+  it("lets a Discord sign-in through", async () => {
+    await expect(signIn({ user: { id: "4242" }, account })).resolves.toBe(true)
   })
 
-  it("writes the avatar Discord holds now, not the stored one the row already has", async () => {
-    await signIn({
-      user: { id: "user-1", image: "https://cdn/old.png" },
-      account,
-      profile: { image_url: "https://cdn/new.png" },
-    })
-    expect(m.userUpdate).toHaveBeenCalledWith({
-      where: { id: "user-1" },
-      data: { image: "https://cdn/new.png", discordId: "4242" },
-    })
-  })
-
-  it("leaves the stored avatar alone when the profile carries none", async () => {
-    await signIn({ user: { id: "user-1", image: "https://cdn/old.png" }, account, profile: {} })
-    expect(m.userUpdate).toHaveBeenCalledWith({ where: { id: "user-1" }, data: { discordId: "4242" } })
-  })
-
-  it("refuses a sign-in carrying neither an email nor a provider account id", async () => {
-    await expect(signIn({ user: {}, account: null })).resolves.toBe(false)
+  it("refuses a sign-in with no provider account id, even if it carries an email", async () => {
+    await expect(signIn({ user: { email: "a@example.test" }, account: null })).resolves.toBe(false)
+    await expect(signIn({ user: {}, account: { ...account, providerAccountId: "" } })).resolves.toBe(false)
   })
 })
 
 describe("jwt", () => {
   // eslint-disable-next-line @typescript-eslint/no-explicit-any
   const jwt = (args: any) => (authOptions.callbacks!.jwt as any)(args)
+
+  it("keys the token on the Discord id, not on anything the provider calls the user", async () => {
+    const token = await jwt({ token: {}, user: { id: "something-else", name: "A" }, account })
+    expect(token.id).toBe("4242")
+  })
 
   it("puts the renewed Discord grant on the token at every sign-in", async () => {
     const token = await jwt({ token: { id: "u1" }, user: { id: "u1", name: "A" }, account })
@@ -131,27 +115,35 @@ describe("jwt", () => {
     expect(exchangeToken).toHaveBeenCalledWith("4242", "A", true)
   })
 
+  it("stores the credential under the Discord id, the key every later request reads it by", async () => {
+    await jwt({ token: {}, user: { id: "4242", name: "A" }, account })
+    expect(upsertXvmApiCredential).toHaveBeenCalledWith("4242", undefined)
+  })
+
   it("re-mints a missing xvm-api token without marking it fresh, so a pending deletion stays pending", async () => {
     vi.mocked(getValidXvmApiToken).mockResolvedValue(null)
-    m.accountFindFirst.mockResolvedValue({ providerAccountId: "4242" })
-    await jwt({ token: { id: "u1", name: "A" } })
+    await jwt({ token: { id: "4242", name: "A" } })
     expect(exchangeToken).toHaveBeenCalledWith("4242", "A")
   })
 
   it("shares one exchange between callbacks that find the credential missing at the same time", async () => {
     vi.mocked(getValidXvmApiToken).mockResolvedValue(null)
-    m.accountFindFirst.mockResolvedValue({ providerAccountId: "4242" })
     vi.mocked(exchangeToken).mockImplementation(() => new Promise((resolve) => setTimeout(() => resolve({} as never), 10)))
-    await Promise.all([1, 2, 3].map(() => jwt({ token: { id: "u1", name: "A" } })))
+    await Promise.all([1, 2, 3].map(() => jwt({ token: { id: "4242", name: "A" } })))
     expect(exchangeToken).toHaveBeenCalledTimes(1)
   })
 
   it("mints again on the next callback once the exchange has finished and the credential is gone", async () => {
     vi.mocked(getValidXvmApiToken).mockResolvedValue(null)
-    m.accountFindFirst.mockResolvedValue({ providerAccountId: "4242" })
-    await jwt({ token: { id: "u1", name: "A" } })
-    await jwt({ token: { id: "u1", name: "A" } })
+    await jwt({ token: { id: "4242", name: "A" } })
+    await jwt({ token: { id: "4242", name: "A" } })
     expect(exchangeToken).toHaveBeenCalledTimes(2)
+  })
+
+  it("does not mint for a session whose id is not a Discord id, such as one issued before the adapter went", async () => {
+    vi.mocked(getValidXvmApiToken).mockResolvedValue(null)
+    await jwt({ token: { id: "clx0old0cuid0000", name: "A" } })
+    expect(exchangeToken).not.toHaveBeenCalled()
   })
 
   it("stores no grant for another provider", async () => {
@@ -162,15 +154,14 @@ describe("jwt", () => {
   describe("a pending deletion", () => {
     const refreshing = () => {
       vi.mocked(getValidXvmApiToken).mockResolvedValue(null)
-      m.accountFindFirst.mockResolvedValue({ providerAccountId: "4242" })
-    }
+      }
 
     it("marks the token when the refresh exchange is refused with a 409", async () => {
       refreshing()
       vi.mocked(exchangeToken).mockRejectedValueOnce(
         new XvmApiError(409, '{"detail":"This account is scheduled for deletion. Sign in again to cancel it."}')
       )
-      const token = await jwt({ token: { id: "u1", name: "A" } })
+      const token = await jwt({ token: { id: "4242", name: "A" } })
       expect(token.deletionPending).toBe(true)
       expect(console.error).not.toHaveBeenCalled()
     })
@@ -180,14 +171,14 @@ describe("jwt", () => {
       vi.mocked(exchangeToken)
         .mockRejectedValueOnce(new XvmApiError(503, "down"))
         .mockRejectedValueOnce(new Error("network"))
-      expect((await jwt({ token: { id: "u1", name: "A" } })).deletionPending).toBeUndefined()
-      expect((await jwt({ token: { id: "u1", name: "A" } })).deletionPending).toBeUndefined()
+      expect((await jwt({ token: { id: "4242", name: "A" } })).deletionPending).toBeUndefined()
+      expect((await jwt({ token: { id: "4242", name: "A" } })).deletionPending).toBeUndefined()
       expect(console.error).toHaveBeenCalledTimes(2)
     })
 
     it("does not try to mint a token again while the marker is set", async () => {
       refreshing()
-      const token = await jwt({ token: { id: "u1", name: "A", deletionPending: true } })
+      const token = await jwt({ token: { id: "4242", name: "A", deletionPending: true } })
       expect(token.deletionPending).toBe(true)
       expect(getValidXvmApiToken).not.toHaveBeenCalled()
       expect(exchangeToken).not.toHaveBeenCalled()
@@ -229,21 +220,12 @@ describe("redirect", () => {
 
 describe("session cookie", () => {
   it("uses the shared cookie name that the readers pass to getToken", () => {
-    expect(SESSION_COOKIE_NAME).toMatch(/next-auth\.session-token$/)
-  })
-})
-
-describe("linkAccount event", () => {
-  // eslint-disable-next-line @typescript-eslint/no-explicit-any
-  const linkAccount = (args: any) => (authOptions.events!.linkAccount as any)(args)
-
-  it("stores the Discord id on the user row, which exists by now even for a first sign-in", async () => {
-    await linkAccount({ user: { id: "user-1" }, account })
-    expect(m.userUpdate).toHaveBeenCalledWith({ where: { id: "user-1" }, data: { discordId: "4242" } })
+    expect(authOptions.cookies?.sessionToken?.name).toBe(SESSION_COOKIE_NAME)
   })
 
-  it("leaves the user row alone for another provider", async () => {
-    await linkAccount({ user: { id: "user-1" }, account: { ...account, provider: "github" } })
-    expect(m.userUpdate).not.toHaveBeenCalled()
+  it("is not an extension of the old name, which next-auth would match by prefix and merge with", () => {
+    expect(SESSION_COOKIE_NAME.startsWith("next-auth.session-token")).toBe(false)
+    expect(SESSION_COOKIE_NAME.startsWith("__Secure-next-auth.session-token")).toBe(false)
+    expect("next-auth.session-token".startsWith(SESSION_COOKIE_NAME)).toBe(false)
   })
 })

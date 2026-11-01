@@ -12,7 +12,7 @@ import { sendEmail } from "@/lib/email"
 import { venueWelcomeEmail, newVenueAlertEmail } from "@/lib/email-templates"
 import { postNewVenue } from "@/lib/discord-feed"
 import { addressProblem } from "@/lib/venue-location"
-import { asMembership, myVenueRoles, VenueAccessUnavailable } from "@/lib/api/venue-access"
+import { asMembership, myVenues, VenueAccessUnavailable } from "@/lib/api/venue-access"
 
 const venueSchema = z.object({
   name: validators.venueName,
@@ -159,15 +159,16 @@ export const GET = withRateLimit(
       const venues = await getOrSet(
         cacheKey,
         async () => {
-          const roles = await myVenueRoles(session.user.id)
-          const rows = await prisma.venue.findMany({
-            where: { id: { in: [...roles.keys()] } },
-            select: { id: true, name: true, slug: true, dataCenter: true, world: true, xvmApiVenueId: true },
-          })
-          return rows.flatMap((venue) => {
-            const role = roles.get(venue.id)
-            return role ? [{ ...venue, memberships: [asMembership(session.user.id, venue.id, role)] }] : []
-          })
+          const venues = await myVenues(session.user.id)
+          return venues.map(({ id, name, slug, dataCenter, world, role }) => ({
+            id,
+            name,
+            slug,
+            dataCenter,
+            world,
+            xvmApiVenueId: id,
+            memberships: [asMembership(session.user.id, id, role)],
+          }))
         },
         cacheTTL.venue
       )

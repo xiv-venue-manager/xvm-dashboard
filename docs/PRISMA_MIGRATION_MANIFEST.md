@@ -59,8 +59,7 @@ The other 29 models have no code reference: `notifications`, `shout_templates`, 
 
 **C. The data move.** Mappers exist for 14 domains (`lib/migration/*`, `scripts/map-*.ts`). What is left:
 - There is no agreed loader yet. A prototype exists on a local xvm-api branch (`feat/legacy-loader`, one commit, about 900 lines, worktree `~/xvm-api-loader`, unpushed). It has only run on synthetic data. Whether to build the load that way, and where it lives, are open, and xvm-api is Allegro's repo. As built it reads the mapped files, resolves the `*_key` references, writes into xvm-api's tables in one transaction with original dates, and reconciles counts and sums. Per-event attendance and revenue totals, venue `leftovers` and the pot-enabled flag have no xvm-api column, so it reports them and does not load them.
-- Re-run the prod audit. The counts above are from 2026-10-08.
-- Check prod schema drift before the dev-to-main deploy.
+- Prod counts and schema drift were re-read on 2026-11-01 (see "Prod re-check (2026-11-01)"). The constraint checks against xvm-api are still the 2026-10-08 ones and have to be repeated on the rehearsal copy.
 - Rehearse the whole sequence on a fresh prod copy and reconcile counts and sums.
 - Never load `pending_notifications`.
 
@@ -82,7 +81,7 @@ The other 29 models have no code reference: `notifications`, `shout_templates`, 
 - Checked 2026-11-01: prod runs `eorzea-bot`, `xiv-stats` and `ehnotwitchbot` (all up 4 weeks) and no `discord-bot` container, so `discord-bot` is not live. `xiv-stats` (source at `/home/server/xiv-stats` on the server, a 99-line `server.js`, not in this repository) does read the Prisma database directly: read-only counts of `users`, `venues`, `events`, active `events`, `transactions`, `memberships`, `roles`, `services` and `tasks`, served as JSON to the homepage widget with an API key, plus unresolved GlitchTip issues. After the migration those counts stop moving. xvm-api's `/public/stats` covers only active venues and their published events, so repointing covers 2 of the 9 numbers; the rest would need admin reads or be dropped. Its `server.js` also holds a hardcoded fallback database connection string, with the database password, and a default API key; the compose file sets `DATABASE_URL`, so the fallback is not used, and it was removed on 2026-11-01: `server.js` now reads both from the environment and exits at startup if either is missing, and the service was rebuilt and checked (`/stats` and `/glitchtip` answer 200 with the key, 401 without it, and the old default key is refused). No older image was left after the rebuild. The database password itself is unchanged, and rotating it is the owner's call.
 - Whether any loader's output matches prod. The prototype has only run on synthetic data, and the rehearsal on a prod copy has not happened.
 - Whether any client depends on the Prisma venue id that `GET /api/venues` returns today.
-- The 10-08 prod audit and every row count in it.
+- The 10-08 prod audit's constraint findings. Counts and schema drift were re-read on 2026-11-01, the field-by-field checks were not.
 
 ## How to read the inventory
 
@@ -352,7 +351,15 @@ Prod's schema is **older than `dev`'s**. For example, `venues` has no `xvmApiVen
 | `venue_follows` | 89 | | |
 | `membership_role_assignments` | 78 | | |
 
-About 16,000 rows in all. A load takes seconds, and a rehearsal on a prod copy is cheap. The window is mostly verification.
+About 16,000 rows in all on 2026-10-08 (21,829 on 2026-11-01, see below). A load takes seconds, and a rehearsal on a prod copy is cheap. The window is mostly verification.
+
+### Prod re-check (2026-11-01)
+
+Read-only again (`BEGIN READ ONLY` then `ROLLBACK`, exact `count(*)` per table and `information_schema.columns`), at the owner's request. Nothing on prod changed.
+
+**Counts.** 45 tables, 21,829 rows. Every table in the 10-08 list is still there. The five empty ones are `device_tokens`, `discord_guild_config`, `pot_distributions`, `verification_tokens` and `webhooks`. Growth since 10-08 (old to new): `patron_logs` 9,695 to 12,273, `pending_notifications` 2,212 to 2,488 (never loaded), `shifts` 1,026 to 1,219, `events` 534 to 667, `shift_audit_logs` 887 to 1,006, `patrons` 760 to 838, `payroll_entries` 303 to 332, `users` 254 to 277, `accounts` 252 to 275, `venues` 69 to 74, `discord_members` 68 to 84, `api_keys` 146 to 164, `memberships` 248 to 263, `user_characters` 137 to 156, `transactions` 114 to 124. Only `venue_follows` fell, 89 to 88. The field-by-field constraint checks were not repeated, so the new rows are unchecked against xvm-api's limits.
+
+**Schema drift against `dev`'s `schema.prisma`: unchanged since 2026-10-09.** Prod has and `dev` drops: `patrons.isVip`, `vipSetAt`, `vipSetById` and `venues.location`. `dev` expects and prod lacks: `venues.xvmApiVenueId`, `xvmApiVenueLinkedAt`, `xvmApiVenueLinkedBy`, `services.xvmApiServiceId` and the table `xvm_api_credentials`. Prod-only tables: `rooms`, `device_tokens`, `notification_preferences`, `refresh_tokens`, and `_RoleToService` (Prisma's implicit join table). The `dev` schema has not moved, so the SQL in #177 (`docs/deploy/*.sql`) still applies.
 
 ### Decisions
 

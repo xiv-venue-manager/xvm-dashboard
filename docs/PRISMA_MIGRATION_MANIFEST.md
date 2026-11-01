@@ -74,7 +74,6 @@ The other 29 models have no code reference: `notifications`, `shout_templates`, 
 
 - Frogge (decision 4): what "no impact" means, tier assignment, and the 3 venues with a `froggeToken`.
 - Old-bot data (decision 5).
-- What to do with the 29 payroll payees, who are placeholder people with no Discord identity and so cannot be mapped the same way.
 - The Discord post tracking on 7 events, and xvm-bot#33.
 - Which xvm-api tables and columns a direct load may rely on, and whether the load is built as the prototype is.
 
@@ -389,7 +388,7 @@ Each entry gives what loads, how the fields map, and what is fixed or dropped on
 
 **Transactions.** 114 over 11 venues, 110 sales and 4 tips, all positive whole gil. `created_at` and `posted_at` both take the original date, status `posted`, the staff member becomes `membership_id` and `recorded_by_person_id`, the service name is copied in. No xvm-api change.
 
-**Payroll.** 303 entries over 7 venues. Gil to minor units (31 rows had fractions); hours to whole minutes, rounded (152 rows), with the stored total kept unchanged. Two things need handling: 35 manual entries (33 fixed, 2 hourly) have a typed name and no membership, while xvm-api requires a person, so each of the 29 distinct names becomes a placeholder `Person` (no account, no membership) and typos are merged afterwards with xvm-api's person-merge service; and 86 entries have a period that starts and ends at the same instant, which xvm-api rejects, so `period_end` is set to `period_start` plus one day. The 2 paid hourly entries with a total of 0 are dropped, so 301 of 303 load. No pot distributions exist.
+**Payroll.** 303 entries over 7 venues. Gil to minor units (31 rows had fractions); hours to whole minutes, rounded (152 rows), with the stored total kept unchanged. Two things need handling: 35 manual entries (33 fixed, 2 hourly) have a typed name and no membership, while xvm-api requires a person, so each distinct name becomes a placeholder `Person` (no account, no membership), after the export merges the obvious duplicates; the 35 entries are all paid, from 2026-01-09 to 2026-07-18 over two venues (`n` 31, `dreamsong` 4), about 51.9M gil. Decided 2026-11-01: Discord is required for anyone who signs in, but these payees never do, so they stay placeholders (xvm-api's `PayrollEntryModel.person_id` is NOT NULL and `membership_id` is optional; a placeholder can be folded into a real account later with the person-merge service). Export merges: `auroa storm` into `aurora storm`, `dj jay sylverhart` into `jay sylverhart`, `djay kk` into `dj kk`, which takes the 29 names to 26. `ehno cure` (one hourly entry, 2M gil, venue `n`) is the owner and maps to the owner's real account (user `ehnocure`), not a placeholder. `dr event`, `dr prize pool` and `strip dr pool` are prize pools or event payouts, not people; they load as placeholders named for what they are, so the venue's payout history stays right; and 86 entries have a period that starts and ends at the same instant, which xvm-api rejects, so `period_end` is set to `period_start` plus one day. The 2 paid hourly entries with a total of 0 are dropped, so 301 of 303 load. No pot distributions exist.
 
 **Patron logs and patrons.** 9695 logs over 14 venues and 760 patrons over 8. `ENTER` becomes `enter`, `LEAVE` and `EXIT` become `leave`. 921 logs (2026-04-17 to 2026-07-29) have `countChange` 0, which would make xvm-api's entries, exits and peak occupancy read zero for that period; they get +1 or -1. Of those, 11 nameless rows carry nothing and are dropped, so 9684 load. Six patrons were unbanned but still have a ban date, and xvm-api treats any ban date as banned, so `banned_at`, the reason and the banning person are cleared on unbanned patrons. One patron is actually banned.
 
@@ -433,7 +432,6 @@ Rollback idea, unreviewed: Prisma is only read during the window, so rolling bac
 ### Waiting on Allegro
 
 - Frogge (decision 4) and the old-bot data (decision 5).
-- What to do with the 29 payroll payees, who are placeholder people with no Discord identity. The one staff member with none is settled: Discord is required, and the owner supplies their id.
 - What to do with the Discord post tracking on 7 events (`discordMessageId` and related columns).
 - Which xvm-api tables and columns a direct load may rely on.
 

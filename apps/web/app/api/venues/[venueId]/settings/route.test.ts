@@ -3,8 +3,6 @@ import { describe, it, expect, vi, beforeEach } from "vitest"
 const m = vi.hoisted(() => ({
   session: vi.fn(),
   role: vi.fn(),
-  venueFind: vi.fn(),
-  venueUpdate: vi.fn(),
   token: vi.fn(),
   getVenue: vi.fn(),
   updateVenue: vi.fn(),
@@ -13,7 +11,6 @@ const m = vi.hoisted(() => ({
 vi.mock("next-auth", () => ({ getServerSession: m.session }))
 vi.mock("@/lib/auth", () => ({ authOptions: {} }))
 vi.mock("@/lib/middleware/with-rate-limit", () => ({ withRateLimit: (handler: unknown) => handler }))
-vi.mock("@/lib/prisma", () => ({ prisma: { venue: { findUnique: m.venueFind, update: m.venueUpdate } } }))
 vi.mock("@/lib/api/venue-access", () => ({ requireMyVenueRole: m.role }))
 vi.mock("@/lib/api/xvm-api", () => ({ getVenue: m.getVenue, updateVenue: m.updateVenue }))
 vi.mock("@/lib/api/xvm-api-store", () => ({
@@ -24,7 +21,6 @@ vi.mock("@/lib/api/xvm-api-store", () => ({
 }))
 
 import { GET, PUT } from "./route"
-import { getDefaultVenueSettings } from "@/lib/types/venue-settings"
 
 const context = { params: Promise.resolve({ venueId: "vn_1" }) }
 const get = () => GET(new Request("http://localhost/api") as never, context as never)
@@ -47,19 +43,16 @@ beforeEach(() => {
   vi.spyOn(console, "error").mockImplementation(() => {})
   m.session.mockResolvedValue({ user: { id: "user-1" } })
   m.role.mockResolvedValue({ ok: true, venue: { id: "xv-1", role: "OWNER" } })
-  m.venueFind.mockResolvedValue({ id: "vn_1", settings: {}, venueType: null })
   m.token.mockResolvedValue("tok")
   m.getVenue.mockResolvedValue(detail)
   m.updateVenue.mockResolvedValue(detail)
 })
 
 describe("PUT /api/venues/[venueId]/settings", () => {
-  it("saves to xvm-api and writes nothing to Prisma", async () => {
+  it("saves to xvm-api", async () => {
     const res = await put({ tagline: "Cocktails nightly" })
     expect(res.status).toBe(200)
     expect(m.updateVenue).toHaveBeenCalledWith("tok", "xv-1", { tagline: "Cocktails nightly" })
-    expect(m.venueUpdate).not.toHaveBeenCalled()
-    expect(m.venueFind).not.toHaveBeenCalled()
   })
 
   it("resolves the venue through the person's xvm-api venues", async () => {
@@ -97,7 +90,6 @@ describe("PUT /api/venues/[venueId]/settings", () => {
     })
     expect(res.status).toBe(200)
     expect(m.updateVenue).toHaveBeenCalledWith("tok", "xv-1", { tagline: "Cocktails nightly" })
-    expect(m.venueUpdate).not.toHaveBeenCalled()
     const body = await res.json()
     for (const key of ["defaultHours", "openNights", "webhooks", "discordWebhooks", "discordWebhookUrl", "roomManagerRoleIds"]) {
       expect(body).not.toHaveProperty(key)
@@ -129,20 +121,7 @@ describe("PUT /api/venues/[venueId]/settings", () => {
 })
 
 describe("GET /api/venues/[venueId]/settings", () => {
-  const stored = {
-    ...getDefaultVenueSettings(),
-    tagline: "Stale",
-    tags: ["Old"],
-    isAdult: false,
-    webhooks: { saleLogged: true },
-    discordWebhooks: { staff: "https://discord.com/api/webhooks/1/a", events: "", revenue: "" },
-  }
-
-  beforeEach(() => {
-    m.venueFind.mockResolvedValue({ settings: stored, venueType: null })
-  })
-
-  it("serves xvm-api's tagline, tags and adult flag over the stale ones in Prisma's JSON", async () => {
+  it("serves xvm-api's tagline, tags and adult flag", async () => {
     const body = await (await get()).json()
     expect(body.tagline).toBe("Cocktails nightly")
     expect(body.tags).toEqual(["Bar", "Music"])
@@ -154,31 +133,19 @@ describe("GET /api/venues/[venueId]/settings", () => {
     expect((await (await get()).json()).tagline).toBe("")
   })
 
-  it("omits all three when xvm-api cannot be reached, rather than serving the stale copy", async () => {
+  it("omits every xvm-api setting and flags it when xvm-api cannot be reached", async () => {
     m.token.mockResolvedValue(null)
     const body = await (await get()).json()
-    expect(body).not.toHaveProperty("tagline")
-    expect(body).not.toHaveProperty("tags")
-    expect(body).not.toHaveProperty("isAdult")
+    expect(body).toEqual({ visibilityDegraded: true })
   })
 
-  it("does not return a discordWebhookUrl", async () => {
-    const res = await get()
-    expect(res.status).toBe(200)
-    expect(await res.json()).not.toHaveProperty("discordWebhookUrl")
-    expect(m.venueFind.mock.calls[0][0].select).not.toHaveProperty("discordWebhookUrl")
-  })
-
-  it("serves no stored webhook address", async () => {
+  it("serves no webhook address", async () => {
     const body = await (await get()).json()
-    expect(body).not.toHaveProperty("discordWebhooks")
-    expect(body).not.toHaveProperty("webhooks")
+    for (const key of ["discordWebhookUrl", "discordWebhooks", "webhooks"]) expect(body).not.toHaveProperty(key)
   })
 
-  it("looks the settings row up by the xvm-api venue id, and is 404 without one", async () => {
+  it("resolves the venue through the person's xvm-api venues and reads that venue's detail", async () => {
     await get()
-    expect(m.venueFind).toHaveBeenCalledWith(expect.objectContaining({ where: { xvmApiVenueId: "xv-1" } }))
-    m.venueFind.mockResolvedValue(null)
-    expect((await get()).status).toBe(404)
+    expect(m.getVenue).toHaveBeenCalledWith("tok", "xv-1")
   })
 })

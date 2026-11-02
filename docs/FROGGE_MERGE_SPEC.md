@@ -1,8 +1,8 @@
 # Frogge merge spec
 
-Status: draft, not agreed with Allegro. Nothing here has been run. It describes how Frogge's data joins the Prisma data in xvm-api, so the two are merged where they describe the same venue or person, and loaded as new where they do not.
+Status: draft. Scope decided by Ehno on 2026-11-02: this is a platform merge, so all of Frogge's data comes across, including the servers that match none of our venues, which become venues. Not yet agreed with Allegro. Nothing here has been run. It describes how Frogge's data joins the Prisma data in xvm-api, so the two are merged where they describe the same venue or person, and loaded as new where they do not.
 
-Read this with `docs/MIGRATION_EXPORTS.md` (the Prisma side, which is built and rehearsed) and `docs/PRISMA_MIGRATION_MANIFEST.md` (the decisions). Frogge is folding into XVM and its venues carry across. Scope is not settled; section 7 lists what each choice changes.
+Read this with `docs/MIGRATION_EXPORTS.md` (the Prisma side, which is built and rehearsed) and `docs/PRISMA_MIGRATION_MANIFEST.md` (the decisions). Frogge is folding into XVM and all of its servers carry across. What remains to decide is the order and which individual features are worth carrying (section 7), and what each new venue needs (section 7, new venues).
 
 ## 1. What this covers
 
@@ -10,8 +10,8 @@ Frogge's data is organised by Discord server (`guild_id`), not by venue. About 9
 
 Two jobs:
 
-1. **Merge** the staffing data for servers that already exist as one of our venues.
-2. **Load everything that does not match.** This is not a later pass. For most Frogge servers it is all there is. The question is not whether to load it but which of it matters enough to carry; section 7 proposes a priority order.
+1. **Merge** the staffing data for the servers that already exist as one of our venues.
+2. **Load everything that does not match.** Every other server becomes a new venue and all of its data loads. This is not a later pass: for most Frogge servers it is all there is. What is open is the order and which individual features matter enough to carry; section 7 proposes a priority order.
 
 ## 2. Sources and access
 
@@ -26,7 +26,7 @@ Row data is keyed by Discord ids. Exports are kept in a scratch directory, never
 
 | Thing | Match on | If it matches | If it does not |
 |---|---|---|---|
-| Venue | A hand-checked list (the venue match review, section 6). `v2_venues.xvm_venue_id` and our `froggeVenueId` give 3 of 5; the other 2 are by name | Frogge's guild is attached to our venue | Group 2 servers get a new venue; the rest are not venues |
+| Venue | A hand-checked list (the venue match review, section 6). `v2_venues.xvm_venue_id` and our `froggeVenueId` give 3 of 5; the other 2 are by name | Frogge's guild is attached to our venue | A new venue is created for it (section 7) |
 | Person | Discord id against `person_accounts` (provider `discord`) | Reuse our person. Their display name stays ours | New person, named from Frogge's `staff_members.name` |
 | Membership | person + venue | Merge (section 5) | New membership |
 | Position | venue + name, case-insensitive | Merge | New position |
@@ -74,20 +74,37 @@ Like the venue timezone review, each automatic decision is written to a file tha
 | File | Holds |
 |---|---|
 | `frogge-venue-match.json` | Each server, the venue it matched, and how (id or name). The one hand-edited input |
+| `frogge-new-venues.json` | Every venue to be created: name, slug, timezone, suggested world and data centre, suggested owner. Each one is confirmed by a person |
 | `frogge-people-review.json` | People matched by Discord id, with both display names, so a wrong match shows |
 | `frogge-merge-conflicts.json` | Anything section 5 sends to a human |
 | `frogge-dropped.json` | Rows left out and why: no membership, out of scope, no home |
 
 ## 7. Everything else Frogge holds
 
-Scope groups, from the 2026-11-01 inventory of 34 servers with real data:
+Every server comes across. Scope groups, from the 2026-11-01 inventory of 34 servers with real data, say how each arrives:
 
-| Group | Servers | What it brings | Needs |
-|---|---|---|---|
-| 1. Overlap with ours | 5 | The merge in section 5, plus any leveling, VIP, streams, rooms | Nothing new |
-| 2. New staffing venues | 7 | A new venue, its staff, positions, events | An owner for each, and a timezone |
-| 3. Leveling only | 4 | Leveling members and settings | A venue to hang them on, or a decision to drop |
-| 4. Utility only | about 15 | Reaction roles, sticky messages, one stream | Probably not venues. Decide whether they carry across at all |
+| Group | Servers | How it arrives |
+|---|---|---|
+| 1. Overlap with ours | 5 | The merge in section 5, plus any leveling, VIP, streams and rooms as new |
+| 2. New staffing venues | 7 | A new venue with its staff, positions, events and the features below |
+| 3. Leveling only | 4 | A new venue with its leveling members and settings |
+| 4. Utility only | about 15 | A new venue with its reaction roles, sticky messages and streams |
+| No data | about 58 | Decision 14: a venue now, or created when the server first installs xvm-bot |
+
+### What a new venue needs
+
+xvm-api requires these on every venue. Frogge holds some of them.
+
+| xvm-api field | Frogge source | Gap |
+|---|---|---|
+| `name` | `guilds.name` | Untrusted text (one is a script tag). Strip and escape. Truncate to 100 characters |
+| `slug` (unique) | made from the name | A suffix on collision. Reviewed |
+| `timezone` | `guild_configurations.timezone` (required for every configured guild) | Alias names such as `US/Eastern` map to IANA names (decision 10) |
+| `data_center`, `world` (both required) | none at the venue level. Frogge has a `world` only on characters (`profile_characters`, `verification_records`) | Decision 13. Options: look it up on ffxivvenues.com where `v2_venues.ffxivvenues_id` is set (3 venues), suggest the most common world among the server's staff characters, or store a placeholder for the owner to correct |
+| owner (a membership with tier `owner`) | none. Frogge has no venue owner. Candidates: `admin_users` (30), `plugin_user_guilds` (25) | Decision 2. A venue needs an owner, and the Prisma load skipped ownerless venues for that reason |
+| description, logo, banner, address | none | Left empty |
+
+The suggestions for the last three rows go into `frogge-new-venues.json` (section 6), one entry per new venue, and a person confirms each one before the load.
 
 ### What to migrate, in priority order (proposal)
 
@@ -104,12 +121,7 @@ Two things to know about priority 2. The Discord messages Frogge posted for reac
 
 ### Servers that are not venues
 
-In xvm-api these features belong to a venue (`venue_id`). A Frogge server that is not one of our venues has nowhere to put its data unless it becomes one. That affects scope groups 3 and 4, and possibly some of group 2:
-
-- **Make each one a venue,** marked as a community server if xvm-api has a way to say so. Everything loads. This is the simplest way to lose nothing.
-- **Drop the ones that only have utility features.** Reaction roles and stickies on a server with no staff or events may not be worth a venue.
-
-This is decision 11 below.
+In xvm-api these features belong to a venue (`venue_id`), so a Frogge server that is not one of ours becomes one. Decided: all of them do. A server that only runs utility features (reaction roles, stickies) still becomes a venue so its data loads. If xvm-api has a way to mark a venue as a community server, use it.
 
 ## 8. Gaps and drops
 
@@ -122,9 +134,9 @@ Unverified: VIP rows. `vip_members` is current state and `vip_memberships` is hi
 ## 9. Order of operations
 
 1. Prisma load, as rehearsed. Staffing, events, finance and the rest of `MIGRATION_EXPORTS.md`.
-2. Frogge staffing merge for group 1, then group 2.
+2. Frogge staffing merge for group 1.
 3. Review files read and resolved. The load of a group does not run with unresolved conflicts.
-4. Priority 2, then priority 3, for the servers in scope.
+4. Create the new venues from the reviewed `frogge-new-venues.json`, then load their staffing, then priority 2 and 3 for every server.
 
 The Frogge mappers read the Prisma mapped files and emit extra rows in the same list shapes, plus a short list of amendments (the earlier start date). The loader stays a single pass and the whole thing can be rehearsed the same way.
 
@@ -150,8 +162,8 @@ The Prisma rehearsal checks apply unchanged: every list loaded, counts and money
 
 | # | Decision | Who |
 |---|---|---|
-| 1 | Which servers come across (groups 1 to 4) | Ehno and Allegro |
-| 2 | An owner and a timezone for each new venue in group 2 | Ehno, then the owners confirm |
+| 1 | Which servers come across | Decided 2026-11-02: all of them (Ehno). Allegro to agree |
+| 2 | An owner for each new venue. Frogge stores none. Candidates are `admin_users` and `plugin_user_guilds`; the rest are assigned by hand | Ehno and Allegro, then the owners confirm |
 | 3 | Does xvm-bot reuse Frogge's Discord app, and what happens to the paying premium server | Allegro |
 | 4 | The tier for a person only Frogge knows: `staff` for everyone, or use the weak hints (14 admin users, 5 plugin manager flags) to make some managers | Ehno |
 | 5 | How closed Frogge employment periods are carried: as history, or only the open period | Ehno |
@@ -160,5 +172,7 @@ The Prisma rehearsal checks apply unchanged: every list loaded, counts and money
 | 8 | How a Frogge signup becomes a shift: it has no timestamp, so `claimed_at` and `approved_at` need a value | Ehno, then Allegro |
 | 9 | Opening hours carried as they are, and positions carried across | Allegro |
 | 10 | Timezone aliases: `US/Eastern` and similar to IANA names | Ehno |
-| 11 | A server that is not one of our venues: make it a venue so its data loads, or drop it | Ehno and Allegro |
-| 12 | The priority list in section 7: which of priorities 2 and 3 are worth carrying | Ehno |
+| 11 | A server that is not one of our venues becomes a venue so its data loads | Decided 2026-11-02 (Ehno) |
+| 12 | The priority list in section 7: the order, and which individual features are not worth carrying | Ehno |
+| 13 | `data_center` and `world` for a new venue, which xvm-api requires and Frogge does not store: look it up, suggest it from staff characters, or use a placeholder the owner corrects | Ehno |
+| 14 | The servers with no data: create a venue for each now, or only when the server first installs xvm-bot | Ehno and Allegro |

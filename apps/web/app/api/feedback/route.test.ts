@@ -10,7 +10,6 @@ const m = vi.hoisted(() => ({
 
 vi.mock("next-auth", () => ({ getServerSession: m.session }))
 vi.mock("@/lib/auth", () => ({ authOptions: {} }))
-vi.mock("@/lib/prisma", () => ({ prisma: {} }))
 vi.mock("@/lib/middleware/with-rate-limit", () => ({ withRateLimit: (handler: unknown) => handler }))
 vi.mock("@/lib/discord-webhook", async (importOriginal) => ({
   ...(await importOriginal<typeof import("@/lib/discord-webhook")>()),

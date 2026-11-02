@@ -23,8 +23,7 @@ export function intToPriority(value: number): TaskPriorityLabel {
   return label
 }
 
-// Find-or-create by case-insensitive name, same idempotency pattern
-// migrate-positions.ts uses for Role/Position name matching. A 409 from
+// Find-or-create by case-insensitive name. A 409 from
 // createTaskCategory means another request created it first between our
 // list and create calls - refetch and use the now-existing one rather than
 // treating it as a real error.

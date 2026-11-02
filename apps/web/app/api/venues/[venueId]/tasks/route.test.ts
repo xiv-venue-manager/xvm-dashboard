@@ -16,9 +16,6 @@ const m = vi.hoisted(() => ({
 vi.mock("next-auth", () => ({ getServerSession: m.session }))
 vi.mock("@/lib/auth", () => ({ authOptions: {} }))
 vi.mock("@/lib/middleware/with-rate-limit", () => ({ withRateLimit: (handler: unknown) => handler }))
-vi.mock("@/lib/prisma", () => {
-  throw new Error("must not read Prisma")
-})
 vi.mock("@/lib/api/venue-access", () => ({ requireMyVenue: m.requireVenue }))
 vi.mock("@/lib/api/xvm-api-store", () => ({
   getValidXvmApiToken: m.token,

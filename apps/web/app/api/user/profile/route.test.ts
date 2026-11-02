@@ -10,9 +10,6 @@ const m = vi.hoisted(() => ({
 
 vi.mock("next-auth", () => ({ getServerSession: m.session }))
 vi.mock("@/lib/auth", () => ({ authOptions: {} }))
-vi.mock("@/lib/prisma", () => {
-  throw new Error("the profile route must not read Prisma")
-})
 vi.mock("@/lib/api/xvm-api", () => ({ getMe: m.getMe, updateMyDisplayName: m.patchName }))
 vi.mock("@/lib/api/xvm-api-store", () => ({
   getValidXvmApiToken: m.token,

@@ -11,7 +11,7 @@ Frogge's data is organised by Discord server (`guild_id`), not by venue. About 9
 Two jobs:
 
 1. **Merge** the staffing data for servers that already exist as one of our venues.
-2. **Load as new** everything else that is in scope, creating venues where a server has none.
+2. **Load everything that does not match.** This is not a later pass. For most Frogge servers it is all there is. The question is not whether to load it but which of it matters enough to carry; section 7 proposes a priority order.
 
 ## 2. Sources and access
 
@@ -89,7 +89,27 @@ Scope groups, from the 2026-11-01 inventory of 34 servers with real data:
 | 3. Leveling only | 4 | Leveling members and settings | A venue to hang them on, or a decision to drop |
 | 4. Utility only | about 15 | Reaction roles, sticky messages, one stream | Probably not venues. Decide whether they carry across at all |
 
-Features with a home in xvm-api and no Prisma counterpart: leveling (the Frogge curve is `5L^2 + 50L`, identical to xvm-api's default; 4 guilds have members, 71 of 75 servers have the default settings switched off), VIP (8 tiers, 16 members, 17 memberships), verification, profile characters (15), forms, reaction roles, sticky messages, giveaways and raffles, streams, rooms, embeds, message templates. These load as new for the servers in scope, in later passes after staffing.
+### What to migrate, in priority order (proposal)
+
+Row counts are Frogge's, from the 2026-11-01 profile, before scope is applied. Every feature below has a table in xvm-api. The priorities are a proposal for Ehno and Allegro to change.
+
+| Priority | What | Frogge rows | If skipped |
+|---|---|---|---|
+| 1. Staff and events | `staff_members` 99, `staff_employment_periods` 98, `positions` 74, `staff_member_positions` 80, `events` 36, `event_positions` 220, `event_shifts` 198, `event_signups` 98, venue links 3 | about 900 | Staff history and hire dates are lost, and so are upcoming shifts |
+| 2. Live community features | VIP (`vip_tiers` 8, `vip_perks` 20, `vip_members` 16, `vip_memberships` 17); leveling (`leveling_members` 64, in the 4 servers that use it); reaction roles (`reaction_role_panels` 66, `reaction_role_options` 330, templates 7); forms (6 forms, 26 questions, 41 responses); sticky messages 10; tracked streams 17; rooms 4; message templates 23; welcome posts 85; guild configuration 91 | about 830 | Members lose perks, XP and roles, and managers rebuild forms and panels by hand |
+| 3. Keep if cheap | profile characters 15 (and 3 images); verification records (51 of 440 are verified, so load those only); giveaways 2 and raffles 5 with their entries; custom embeds; quote board settings 53; audit log settings 90; event templates 7 | about 240 | Little of value is lost |
+| Drop | Section 8 | | |
+
+Two things to know about priority 2. The Discord messages Frogge posted for reaction role panels, welcomes and stickies cannot be edited by another bot, so loading their configuration only helps if xvm-bot posts them again. VIP expiry needs care (section 8).
+
+### Servers that are not venues
+
+In xvm-api these features belong to a venue (`venue_id`). A Frogge server that is not one of our venues has nowhere to put its data unless it becomes one. That affects scope groups 3 and 4, and possibly some of group 2:
+
+- **Make each one a venue,** marked as a community server if xvm-api has a way to say so. Everything loads. This is the simplest way to lose nothing.
+- **Drop the ones that only have utility features.** Reaction roles and stickies on a server with no staff or events may not be worth a venue.
+
+This is decision 11 below.
 
 ## 8. Gaps and drops
 
@@ -104,7 +124,7 @@ Unverified: VIP rows. `vip_members` is current state and `vip_memberships` is hi
 1. Prisma load, as rehearsed. Staffing, events, finance and the rest of `MIGRATION_EXPORTS.md`.
 2. Frogge staffing merge for group 1, then group 2.
 3. Review files read and resolved. The load of a group does not run with unresolved conflicts.
-4. Later passes: leveling, VIP, forms, reaction roles, streams, rooms for the servers in scope.
+4. Priority 2, then priority 3, for the servers in scope.
 
 The Frogge mappers read the Prisma mapped files and emit extra rows in the same list shapes, plus a short list of amendments (the earlier start date). The loader stays a single pass and the whole thing can be rehearsed the same way.
 
@@ -140,3 +160,5 @@ The Prisma rehearsal checks apply unchanged: every list loaded, counts and money
 | 8 | How a Frogge signup becomes a shift: it has no timestamp, so `claimed_at` and `approved_at` need a value | Ehno, then Allegro |
 | 9 | Opening hours carried as they are, and positions carried across | Allegro |
 | 10 | Timezone aliases: `US/Eastern` and similar to IANA names | Ehno |
+| 11 | A server that is not one of our venues: make it a venue so its data loads, or drop it | Ehno and Allegro |
+| 12 | The priority list in section 7: which of priorities 2 and 3 are worth carrying | Ehno |

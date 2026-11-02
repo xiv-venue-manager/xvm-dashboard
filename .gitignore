@@ -49,7 +49,6 @@ next-env.d.ts
 apps/web/AGENTS.md
 apps/web/CLAUDE.md
 
-/app/generated/prisma
 
 # Local backups (from in-place edits)
 *.bak
@@ -94,5 +93,3 @@ docs/superpowers/brainstorm/
 .superpowers/
 docker/minio/data/
 docs/superpowers/templates/architecture-notes-template.html
-apps/web/backfill-venue-profile.progress.json
-apps/web/backfill-gallery-images.progress.json

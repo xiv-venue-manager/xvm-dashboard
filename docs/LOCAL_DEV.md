@@ -32,17 +32,6 @@ pnpm install
 cd apps/web && pnpm dev
 ```
 
-If the schema changed, push it first. The Prisma CLI does not pick up
-Next.js's `.env.local` auto-load, so pass the env file explicitly:
-
-```bash
-# from repo root
-npx dotenv-cli -e apps/web/.env.local -- pnpm db:push
-
-# or, from apps/web
-npx dotenv-cli -e .env.local -- pnpm db:push
-```
-
 Sign in at `http://localhost:3000/auth/signin` with Discord. Create/reuse a
 disposable local venue for testing — this is a throwaway local DB, not
 prod, so no special naming convention is required (unlike the
@@ -82,9 +71,6 @@ docker compose -f docker-compose.local.yml down
 sudo rm -rf docker/postgres-local/data  # postgres's official image runs as root, so the dir is root-owned
 docker compose -f docker-compose.local.yml up -d
 ```
-
-Then re-run `pnpm db:push` (with `dotenv-cli` as above) to rebuild the
-schema.
 
 ## xvm-api (dashboard token exchange)
 

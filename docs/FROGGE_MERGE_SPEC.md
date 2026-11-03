@@ -99,7 +99,7 @@ xvm-api requires these on every venue. Frogge holds some of them.
 |---|---|---|
 | `name` | `guilds.name` | Untrusted text (one is a script tag). Strip and escape. Truncate to 100 characters |
 | `slug` (unique) | made from the name | A suffix on collision. Reviewed |
-| `timezone` | `guild_configurations.timezone` (required for every configured guild) | Alias names such as `US/Eastern` map to IANA names (decision 10) |
+| `timezone` | `guild_configurations.timezone` (required for every configured guild) | Alias names such as `US/Eastern` map to IANA names (decision 10). 11 of the 27 venues are on `UTC`, which looks like Frogge's unset default. They load as `UTC`, and owners are told to check it with the world and data centre |
 | `data_center`, `world` (both required) | none at the venue level. Frogge has a `world` only on characters (`profile_characters`, `verification_records`) | Decision 13: default `Aether` and `Adamantoise` for every new venue. Owners are told to check it after the migration |
 | owner (a membership with tier `owner`) | none in Frogge's database. The Discord server owner, from `GET /guilds/{id}` with the bot's token | Decision 2. Looked up on 2026-11-03 for the 34 servers with data: 27 resolved and 7 returned 404 because the bot is no longer in them. An owner who is not yet a person gets a placeholder that links on first sign-in |
 | description, logo, banner, address | none | Left empty |
@@ -142,7 +142,7 @@ Decided with Allegro on 2026-11-03:
 
 - Skipped for now: `require_staffing_qualification`, `staff_role_id`, `staff_application_form_id`, `rooms_require_staff_membership`. They can be added if there is demand.
 - Allegro adds `event_start_reminder_minutes` and `greeting_channel_id` to xvm-api herself. The loader maps both once her field names exist.
-- `accent_color` is skipped unless Ehno says otherwise. There is no venue-wide setting for it, and Allegro called it extra.
+- `accent_color` is skipped for now (Ehno, 2026-11-03). There is no venue-wide setting for it, and Allegro called it extra.
 - Member verification (`require_captcha`, both Lodestone flags, `change_name`, `verified_role_id`) is not loaded, because Allegro is building the flow. Frogge is shutting down, so these values and the 440 `verification_records` (51 verified) go into a retained export before it does, so they can be loaded later.
 - Premium is dead. `guild_subscriptions` is not loaded, and the hand-granted rows carry nothing.
 
@@ -187,12 +187,12 @@ Answered by Allegro on 2026-11-03 unless it says otherwise.
 | 2 | An owner for each new venue | The Discord server owner, looked up with a read-only call to Discord (section 7). 27 of the 34 servers with data resolved |
 | 3 | Does xvm-bot reuse Frogge's Discord app, and what happens to the paying premium server | Yes, xvm-bot uses Frogge's token and is renamed later. Premium is dead, so there is no paying server |
 | 4 | The tier for a person only Frogge knows | Staff becomes `staff`, `admin_users` become `manager`, the server owner becomes `owner` |
-| 5 | How closed Frogge employment periods are carried | As history (section 5). Ehno's default, not yet confirmed |
+| 5 | How closed Frogge employment periods are carried | As history (section 5). Confirmed by Ehno on 2026-11-03 |
 | 6 | The event match window and what happens to an unmatched Frogge event | Two hours, ours kept, an unmatched Frogge event loads as new |
 | 7 | A signup by someone with no membership | Dropped and reported |
 | 8 | How a Frogge signup becomes a shift | The load time is the claim time. Upcoming events matter most |
 | 9 | Opening hours and positions | Carried if they map cleanly. On any friction, skip them |
-| 10 | Timezone aliases | `US/Eastern` and similar map to IANA names (section 4). Ehno's default |
+| 10 | Timezone aliases | `US/Eastern`, `US/Central`, `US/Mountain`, `US/Pacific` and `US/Alaska` map to their IANA names (section 4). Confirmed by Ehno on 2026-11-03 |
 | 11 | A server that is not one of our venues becomes a venue | Yes, for servers with data that the bot can see (section 7) |
 | 12 | The priority list in section 7 | Fine as proposed |
 | 13 | `data_center` and `world` for a new venue | Default `Aether` and `Adamantoise`. Owners are told to check after the migration |

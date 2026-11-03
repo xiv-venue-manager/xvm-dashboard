@@ -125,7 +125,18 @@ In xvm-api these features belong to a venue (`venue_id`), so a Frogge server tha
 
 ## 8. Gaps and drops
 
-No home in xvm-api, so reported and not loaded: staff birthday and notes, the event `details` JSON, event template positions, address and image, `guild_subscriptions`, `autorole_rules`, tournaments, several `guild_configurations` flags.
+No home in xvm-api, so reported and not loaded: staff birthday and notes, the event `details` JSON, event template positions, address and image, `guild_subscriptions`, `autorole_rules`, tournaments, and these `guild_configurations` columns (checked against xvm-api and xvm-bot on dev, 2026-11-03):
+
+- `accent_color`: xvm-api has per-feature colours (audit log events, embeds, contests, forms, leveling) and no venue-wide one.
+- `require_captcha`, `require_lodestone_proof`, `require_lodestone_verification`, `change_name`, `verified_role_id`: neither xvm-api nor xvm-bot has a member-verification flow. xvm-api has character verification for linking only. Captcha is on for all 11 venue-like servers, the Lodestone flag varies, and 51 of 440 verification records are verified. Whether xvm-bot gets such a flow is a rebuild-or-drop question for Allegro, and the default is drop.
+- `staff_role_id`: no single staff-role setting. Positions carry their own Discord role, which probably covers it. Set on 7 of the 11.
+- `staff_application_form_id`: forms exist, but nothing marks one as the staff application.
+- `rooms_require_staff_membership`: no equivalent.
+- `event_start_reminder_minutes` and `greeting_channel_id`: xvm-api defines the message types (`event.channel_reminder`, `greeting.channel`, `greeting.dm`) but has no setting for the timing or the channel, and no feature that posts a greeting on join.
+
+These columns probably have a home and are to be confirmed when the mapper is written: `timezone` (aliases map to IANA names), `honeypot_channel_id`, `vip_warning_threshold_days` (the VIP warning days), `timeclock_auto_close_hours`, `timeclock_payout_rounding`, `event_lockout_minutes`, `require_staffing_qualification` (shifts `qualification_required`) and `profile_approval_required`. `log_channel_id` is one channel in Frogge, while xvm-api routes logs per event, so it has to be spread across the event routes.
+
+`timeclock_finance_enabled` and `auto_reactor_enabled` are false on every venue-like server, so there is nothing to carry.
 
 Dropped on purpose: `finance_transaction_templates` (the same 10 defaults for every server), `activity_logs` (3,095 rows, mostly config-edit noise), plugin tokens and pairing codes (everyone relinks), interaction and command usage, queues, `dashboard_whitelisted_users`. The card tables are empty and `card_game_enabled` is false everywhere.
 

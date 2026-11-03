@@ -141,7 +141,7 @@ These columns probably have a home and are to be confirmed when the mapper is wr
 Decided with Allegro on 2026-11-03:
 
 - Skipped for now: `require_staffing_qualification`, `staff_role_id`, `staff_application_form_id`, `rooms_require_staff_membership`. They can be added if there is demand.
-- Allegro adds `event_start_reminder_minutes` and `greeting_channel_id` to xvm-api herself. The loader maps both once her field names exist.
+- Allegro added both to xvm-api in #235 (merged 2026-11-03). `event_start_reminder_minutes` loads into `venue_shift_settings.start_reminder_minutes`, one value that covers the shift reminder and the event channel ping, as it did in Frogge. `greeting_channel_id` loads into `venue_discord_settings.greeting_channel_id`. Both are stored only, nothing sends from them yet.
 - `accent_color` is skipped for now (Ehno, 2026-11-03). There is no venue-wide setting for it, and Allegro called it extra.
 - Member verification (`require_captcha`, both Lodestone flags, `change_name`, `verified_role_id`) is not loaded, because Allegro is building the flow. Frogge is shutting down, so these values and the 440 `verification_records` (51 verified) go into a retained export before it does, so they can be loaded later.
 - Premium is dead. `guild_subscriptions` is not loaded, and the hand-granted rows carry nothing.

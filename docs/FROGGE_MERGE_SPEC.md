@@ -121,7 +121,7 @@ Two things to know about priority 2. xvm-bot reuses Frogge's Discord app (decisi
 
 ### Servers that are not venues
 
-In xvm-api these features belong to a venue (`venue_id`), so a Frogge server that is not one of ours becomes one. Decided: every server with data that the bot can still see does (27 of the 34). A server that only runs utility features (reaction roles, stickies) still becomes a venue so its data loads. The about 58 servers with no data are not converted (decision 14). The 7 servers with data that the bot is no longer in are treated the same way, unless Allegro wants Missy Lounge, the largest of them, re-invited. That has not been asked. If xvm-api has a way to mark a venue as a community server, use it.
+In xvm-api these features belong to a venue (`venue_id`), so a Frogge server that is not one of ours becomes one. Decided: every server with data that the bot can still see does (27 of the 34). A server that only runs utility features (reaction roles, stickies) still becomes a venue so its data loads. The about 58 servers with no data are not converted (decision 14). The 7 servers with data that the bot is no longer in are skipped too, Missy Lounge included (Allegro, 2026-11-03). If xvm-api has a way to mark a venue as a community server, use it.
 
 ## 8. Gaps and drops
 
@@ -198,4 +198,4 @@ Answered by Allegro on 2026-11-03 unless it says otherwise.
 | 13 | `data_center` and `world` for a new venue | Default `Aether` and `Adamantoise`. Owners are told to check after the migration |
 | 14 | The servers with no data | Not converted. Allegro posts an announcement that they need to make a venue |
 
-Still open: whether Missy Lounge, the largest of the 7 servers the bot is no longer in, is re-invited and loaded (section 7), and the Frogge VM exports for the retained verification data (section 8).
+Still open: the Frogge VM exports for the retained verification data (section 8).

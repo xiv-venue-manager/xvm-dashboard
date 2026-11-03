@@ -46,7 +46,7 @@ ro < scripts/export/characters.sql > characters.json
 npx tsx scripts/map-characters.ts characters.json people-mapped.json characters-mapped.json
 
 ro < scripts/export/shifts.sql     > shifts.json
-npx tsx scripts/map-shifts.ts shifts.json people-mapped.json positions-mapped.json events-mapped.json events.json shifts-mapped.json
+npx tsx scripts/map-shifts.ts shifts.json people-mapped.json positions-mapped.json events-mapped.json shifts-mapped.json
 
 ro < scripts/export/finance.sql    > finance.json
 npx tsx scripts/map-finance.ts finance.json people-mapped.json positions-mapped.json events-mapped.json services-mapped.json finance-mapped.json
@@ -81,7 +81,7 @@ Dependencies, so a PR can be reviewed alone:
 | people | characters, positions, events, follows and feedback |
 | people, positions | services, tasks and rooms |
 | people, events | patrons and patron logs |
-| people, positions, events (and the raw events export) | shifts |
+| people, positions, events | shifts |
 | people, positions, events, services | transactions and payroll |
 | people, venue timezones | venues |
 

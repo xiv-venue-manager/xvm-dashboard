@@ -10,9 +10,6 @@ const m = vi.hoisted(() => ({
 
 vi.mock("next-auth", () => ({ getServerSession: m.session }))
 vi.mock("@/lib/auth", () => ({ authOptions: {} }))
-vi.mock("@/lib/prisma", () => {
-  throw new Error("must not read Prisma")
-})
 vi.mock("@/lib/discord-webhook", () => {
   throw new Error("must not send a webhook")
 })

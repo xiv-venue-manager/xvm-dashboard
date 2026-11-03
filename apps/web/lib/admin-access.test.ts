@@ -9,9 +9,6 @@ const m = vi.hoisted(() => ({
 
 vi.mock("next-auth", () => ({ getServerSession: m.session }))
 vi.mock("@/lib/auth", () => ({ authOptions: {} }))
-vi.mock("@/lib/prisma", () => {
-  throw new Error("the admin gate must not read Prisma")
-})
 vi.mock("@/lib/api/xvm-api", () => ({ getMe: m.getMe }))
 vi.mock("@/lib/api/xvm-api-store", () => ({
   getValidXvmApiToken: m.token,

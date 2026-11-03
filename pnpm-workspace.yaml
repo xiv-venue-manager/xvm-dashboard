@@ -49,8 +49,8 @@ overrides:
 auditConfig:
   ignoreCves:
     # brace-expansion / fast-uri, 2026-08-05: only reachable through
-    # @sentry/nextjs's own bundler/webpack-plugin chain and Prisma CLI's
-    # dev-mode tooling (@prisma/dev>@prisma/streams-local) - both DoS-class
+    # @sentry/nextjs's own bundler/webpack-plugin chain and eorzea-bot's
+    # Prisma config chain - both DoS-class
     # (glob/URI parsing complexity), neither ever fed attacker-controlled
     # input in production. No fix available that doesn't force an
     # incompatible major version on transitive deps several levels deep.
@@ -58,6 +58,3 @@ auditConfig:
     - GHSA-3jxr-9vmj-r5cp
     - GHSA-mh99-v99m-4gvg
     - GHSA-rgw5-rvv9-x895
-    - GHSA-v2hh-gcrm-f6hx
-    - GHSA-7p8r-x3mc-p8w7
-    - GHSA-4c8g-83qw-93j6

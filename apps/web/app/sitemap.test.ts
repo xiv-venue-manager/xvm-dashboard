@@ -3,9 +3,6 @@ import { describe, it, expect, vi, beforeEach } from "vitest"
 const m = vi.hoisted(() => ({ directory: vi.fn() }))
 
 vi.mock("@/lib/api/xvm-api", () => ({ listPublicDirectory: m.directory }))
-vi.mock("@/lib/prisma", () => {
-  throw new Error("the sitemap must not read Prisma")
-})
 vi.mock("./discover/[dc]/page", () => ({ DATA_CENTRES: [{ slug: "aether", name: "Aether" }] }))
 
 import sitemap from "./sitemap"

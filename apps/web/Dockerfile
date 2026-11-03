@@ -26,7 +26,6 @@ COPY pnpm-workspace.yaml package.json .npmrc ./
 COPY apps/web ./apps/web
 COPY packages/types ./packages/types
 WORKDIR /app/apps/web
-RUN npx prisma generate
 # SENTRY_AUTH_TOKEN is a secret (grants release-write access) — mounted for
 # this RUN only via BuildKit secrets, never baked into an ARG/ENV layer
 # (those persist in `docker history`, unlike the two NEXT_PUBLIC_* values
@@ -47,8 +46,6 @@ COPY --from=builder /app/apps/web/.next/standalone ./
 # Overlay static assets and public at the paths server.js expects
 COPY --from=builder --chown=nextjs:nodejs /app/apps/web/.next/static ./apps/web/.next/static
 COPY --from=builder --chown=nextjs:nodejs /app/apps/web/public ./apps/web/public
-# Prisma schema for runtime queries
-COPY --from=builder /app/apps/web/prisma ./apps/web/prisma
 
 # Next.js disk-lru-cache needs a writable cache dir at runtime
 RUN mkdir -p ./apps/web/.next/cache \

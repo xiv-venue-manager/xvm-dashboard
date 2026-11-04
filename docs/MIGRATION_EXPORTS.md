@@ -14,7 +14,7 @@ Each domain has three parts:
 | Mapper | `apps/web/lib/migration/<domain>.ts` | A pure function from the export to the rows xvm-api needs. No Prisma, no network, tested |
 | Runner | `apps/web/scripts/map-<domain>.ts` | Reads the export and the earlier mapped files, writes the mapped JSON, prints counts and skip reasons |
 
-**It does not load anything.** Nothing here writes to xvm-api or to Prisma. The loader is a separate piece: `src/api/scripts/legacy_load` on the xvm-api branch `feat/legacy-loader`, not pushed yet. It writes 33 xvm-api tables, the ones in its `specs.py`, in one transaction, and fails on a mapped field it does not know, so a mapper change that outruns it is caught. Which tables a direct load may rely on is settled by that list. All 33 exist on dev, and the loader's own tests pass against dev's migrations.
+**It does not load anything.** Nothing here writes to xvm-api or to Prisma. The loader is a separate piece: `src/api/scripts/legacy_load` on the xvm-api branch `feat/legacy-loader`. It writes 32 xvm-api tables, the ones in its `specs.py`, in one transaction, and fails on a mapped field it does not know, so a mapper change that outruns it is caught. Which tables a direct load may rely on is settled by that list. All 32 exist on dev, and the loader's own tests pass against dev's migrations.
 
 Every row is keyed by its Prisma id, so the loader can assign real xvm-api ids and then rewrite the keys. Two keys are built, not copied: a manual payroll payee is `payee:<name folded to lower case>`, and a category is `<venue id>|<name folded to lower case>`.
 
@@ -173,7 +173,7 @@ Each is a counted warning, not a silent change.
 | Allegro | Should a no-Discord person path exist |
 | Allegro | Where the venue settings listed in the manifest live. #176 keeps them in `leftovers` meanwhile |
 | Allegro | Where the loader lives: in xvm-api, so her CI runs its tests on every migration, or as a local branch that goes stale |
-| Allegro | Plugin route: decided that the plugin calls xvm-api directly, and the plugin is repointed. xvm-api has no clock-in time window and the product rule is no early limit, so the 30 minutes early and 60 late window is dropped. Frogge remains. The inventory routes exist, but whether the plugin's link and restock flows fit them is unchecked. Prod xvm-api is not deployed yet. It is not part of the export layer |
+| Allegro | Plugin route: decided that the plugin calls xvm-api directly, and the plugin is repointed. xvm-api has no early clock-in limit, by the product rule, and refuses a clock-in 30 minutes after the shift's end (`MISSED_GRACE`), so the dashboard's window (30 minutes early, 60 late) is dropped. Frogge remains. The inventory routes exist, but whether the plugin's link and restock flows fit them is unchecked. Prod xvm-api is not deployed yet. It is not part of the export layer |
 
 ## Safety when running it
 

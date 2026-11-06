@@ -41,7 +41,6 @@ const eslintConfig = defineConfig([
     // Shrinks to empty as the Prisma cutover lands. Do not add to it.
     files: [
       "lib/prisma.ts",
-      "lib/auth.ts",
       "scripts/**",
     ],
     rules: { "no-restricted-imports": "off" },

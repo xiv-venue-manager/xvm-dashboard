@@ -104,7 +104,7 @@ export default function PrivacyPage() {
             <p>
               We use one first-party cookie (
               <code className="font-mono text-xs bg-[var(--blue-010)] text-[var(--xiv-blue)] px-1.5 py-0.5 rounded">
-                next-auth.session-token
+                xvm.session-token
               </code>
               ) to keep you signed in. No advertising or tracking cookies are used.
             </p>

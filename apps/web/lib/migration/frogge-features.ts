@@ -81,7 +81,8 @@ export interface FeatureResult {
 const MESSAGE_RULE = "discord.message"
 const VOICE_RULE = "discord.voice"
 const REPEATABILITY: Record<string, string> = { one_time: "once" }
-const END_REASON: Record<string, string> = { removed: "revoked" }
+const REPEATABILITIES = new Set(["once", "weekly", "monthly", "unlimited"])
+const endReason = (reason: string) => (reason.startsWith("removed") ? "revoked" : reason)
 const MAX_NAME = 100
 
 const clean = (value: string | null | undefined) => (value ?? "").trim().replace(/\s+/g, " ")
@@ -215,13 +216,18 @@ export function mapFroggeFeatures(source: FroggeFeatureExport, ctx: FeatureConte
       drop("VIP perk", String(perk.id), "its tier was not migrated")
       continue
     }
+    const repeatability = REPEATABILITY[perk.repeatability] ?? perk.repeatability
+    if (!REPEATABILITIES.has(repeatability)) {
+      drop("VIP perk", String(perk.id), `xvm-api has no repeatability ${perk.repeatability}, and listing the tier's perks would fail on it`)
+      continue
+    }
     const order = perkOrder.get(perk.tier_id) ?? 0
     perkOrder.set(perk.tier_id, order + 1)
     features.vipPerks.push({
       tier_key: key,
       name: perk.text,
       description: perk.description,
-      repeatability: REPEATABILITY[perk.repeatability] ?? perk.repeatability,
+      repeatability,
       sort_order: order,
     })
     bump("VIP perks")
@@ -247,7 +253,7 @@ export function mapFroggeFeatures(source: FroggeFeatureExport, ctx: FeatureConte
     const venueKey = venueOf(row.guild_id, "VIP membership", row.id)
     if (!venueKey) return
     let endedAt = row.ended_at
-    let reason = row.ended_reason ? (END_REASON[row.ended_reason] ?? row.ended_reason) : null
+    let reason = row.ended_reason ? endReason(row.ended_reason) : null
     if (!endedAt && row.expires_at && ms(row.expires_at) <= now) {
       endedAt = row.expires_at
       reason = "expired"

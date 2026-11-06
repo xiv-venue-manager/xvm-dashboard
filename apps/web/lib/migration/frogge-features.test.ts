@@ -140,6 +140,20 @@ describe("vip", () => {
     ])
   })
 
+  it("drops a perk whose repeatability xvm-api has no value for", () => {
+    const r = run({
+      vip_tiers: [tier],
+      vip_perks: [
+        { id: 1, guild_id: G, tier_id: 4, text: "Seat", description: null, repeatability: "renewable" },
+        { id: 2, guild_id: G, tier_id: 4, text: "Drink", description: null, repeatability: "weekly" },
+      ],
+    })
+    expect(r.features.vipPerks.map((p) => p.name)).toEqual(["Drink"])
+    expect(r.report.dropped).toEqual([
+      { what: "VIP perk", id: "1", reason: "xvm-api has no repeatability renewable, and listing the tier's perks would fail on it" },
+    ])
+  })
+
   it("merges the open history row with the current record", () => {
     const r = run({ vip_tiers: [tier], vip_memberships: [history], vip_members: [member] })
     expect(r.features.vipMemberships).toEqual([
@@ -164,6 +178,13 @@ describe("vip", () => {
     const r = run({ vip_tiers: [tier], vip_memberships: [history], vip_members: [{ ...member, expires_at: "2026-10-01T00:00:00.000Z" }] })
     expect(r.features.vipMemberships[0]).toMatchObject({ ended_at: "2026-10-01T00:00:00.000Z", ended_reason: "expired" })
     expect(r.report.counts["open VIP memberships closed at their expiry"]).toBe(1)
+  })
+
+  it("turns any reason that starts with removed into revoked", () => {
+    const r = run({
+      vip_memberships: [{ ...history, ended_at: "2026-09-10T00:00:00.000Z", ended_reason: "removed (plugin)" }],
+    })
+    expect(r.features.vipMemberships[0]).toMatchObject({ ended_reason: "revoked" })
   })
 
   it("keeps an ended row's reason, with removed becoming revoked", () => {

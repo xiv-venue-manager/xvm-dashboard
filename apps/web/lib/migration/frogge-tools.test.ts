@@ -309,7 +309,8 @@ describe("character profiles", () => {
       about_me: "hello",
       clan: null,
     })
-    expect(r.report.counts["profile images not carried"]).toBe(1)
+    expect(r.tools.profiles[0]).toMatchObject({ thumbnail_source: "https://cdn/t.png", main_image_source: null })
+    expect(r.report.counts["profile images to copy"]).toBe(1)
   })
 
   it("leaves a draft unsubmitted, and a pending one submitted and unreviewed", () => {

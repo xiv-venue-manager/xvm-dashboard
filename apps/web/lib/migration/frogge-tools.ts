@@ -618,7 +618,9 @@ export function mapFroggeTools(source: FroggeToolsExport, ctx: ToolsContext, bas
       if (trimmed.length > limit) bump("profile fields cut to fit")
       text[field] = trimmed ? trimmed.slice(0, limit) : null
     }
-    imagesNotCarried("profile", [profile.thumbnail_url, profile.main_image_url])
+    const thumbnailSource = profile.thumbnail_url?.trim() || null
+    const mainImageSource = profile.main_image_url?.trim() || null
+    bump("profile images to copy", Number(thumbnailSource !== null) + Number(mainImageSource !== null))
     tools.profiles.push({
       venue_key: venueKey,
       person_key: personKey,
@@ -629,6 +631,8 @@ export function mapFroggeTools(source: FroggeToolsExport, ctx: ToolsContext, bas
       reviewed_by_person_key: reviewedAt && profile.reviewed_by ? personFor(profile.reviewed_by) : null,
       rejection_reason: status === "rejected" ? (clean(profile.rejection_reason).slice(0, 500) || "Rejected on Frogge") : null,
       color: profile.color,
+      thumbnail_source: thumbnailSource,
+      main_image_source: mainImageSource,
       ...text,
     })
     bump("character profiles")

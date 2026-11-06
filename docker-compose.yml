@@ -240,6 +240,23 @@ services:
     profiles:
       - dev
 
+  xvm-api:
+    build:
+      context: /home/server/xvm-api
+    container_name: xvm-api
+    ports:
+      - "8002:8000"
+    env_file:
+      - /home/server/xvm-api/.env.prod
+    depends_on:
+      postgres:
+        condition: service_healthy
+    restart: unless-stopped
+    networks:
+      - app-network
+    profiles:
+      - prod
+
   maintenance-page:
     image: nginx:alpine
     container_name: maintenance-page

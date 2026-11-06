@@ -362,4 +362,37 @@ describe("character profiles", () => {
     const r = run({ profile_characters: [{ ...profile, approval_status: "rejected", rejection_reason: null }] })
     expect(r.tools.profiles[0]).toMatchObject({ reviewed_at: "2026-08-02T00:00:00.000Z", rejection_reason: "Rejected on Frogge" })
   })
+
+  it("hands a profile's gallery images to the copy step in order, keyed to the profile", () => {
+    const r = run({
+      profile_characters: [profile],
+      profile_additional_images: [
+        { id: 2, guild_id: G, character_id: 1, image_url: " https://bucket/profile-characters/b.png ", caption: " Second  look ", sort_order: 1 },
+        { id: 1, guild_id: G, character_id: 1, image_url: "https://bucket/profile-characters/a.png", caption: null, sort_order: 0 },
+      ],
+    })
+    expect(r.tools.profileImages).toEqual([
+      { venue_key: "venue-a", person_key: "frogge:p:42", character_name: "Aria Vale", image_source: "https://bucket/profile-characters/a.png", caption: null, sort_order: 0 },
+      { venue_key: "venue-a", person_key: "frogge:p:42", character_name: "Aria Vale", image_source: "https://bucket/profile-characters/b.png", caption: "Second look", sort_order: 1 },
+    ])
+    expect(r.report.counts["profile gallery images to copy"]).toBe(2)
+  })
+
+  it("drops a gallery image whose profile was not migrated, one with no URL, and any past three", () => {
+    const image = (id: number, over = {}) => ({ id, guild_id: G, character_id: 1, image_url: `https://bucket/${id}.png`, caption: null, sort_order: id, ...over })
+    const r = run({
+      profile_characters: [profile],
+      profile_additional_images: [image(1), image(2), image(3), image(4), image(5, { image_url: "  " }), image(6, { character_id: 99 })],
+    })
+    expect(r.tools.profileImages.map((i) => i.sort_order)).toEqual([0, 1, 2])
+    expect(r.report.dropped.map((d) => [d.id, d.reason])).toEqual([
+      ["4", "xvm-api keeps at most 3 extra images on a profile"],
+      ["5", "no image URL"],
+      ["6", "its profile was not migrated"],
+    ])
+  })
+
+  it("maps a profile export that has no gallery list", () => {
+    expect(run({ profile_characters: [profile] }).tools.profileImages).toEqual([])
+  })
 })

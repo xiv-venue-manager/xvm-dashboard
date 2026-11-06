@@ -338,6 +338,7 @@ export function mapFroggeStaffing(source: FroggeExport, ctx: FroggeContext, base
       event_type: "OTHER",
       description: event.description?.trim() || null,
       location: address ? address.slice(0, MAX_LOCATION) : null,
+      image_url: event.image_url?.trim() || null,
       starts_at: iso(start),
       ends_at: iso(end),
       published_at: ctx.now,

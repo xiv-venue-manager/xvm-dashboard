@@ -53,7 +53,7 @@ const source = (): FroggeExport => ({
   staff_member_positions: [{ id: 1, guild_id: "g2", staff_member_id: 2, position_id: 2 }],
   events: [
     { id: 1, guild_id: "g1", name: "Same night", description: null, start_at: "2026-11-07T02:30:00.000Z", end_at: "2026-11-07T05:00:00.000Z", image_url: null, address: null },
-    { id: 2, guild_id: "g2", name: "New night", description: " Come by ", start_at: "2026-11-14T20:00:00.000Z", end_at: null, image_url: null, address: " 1  Goblet " },
+    { id: 2, guild_id: "g2", name: "New night", description: " Come by ", start_at: "2026-11-14T20:00:00.000Z", end_at: null, image_url: " https://img/new.png ", address: " 1  Goblet " },
   ],
   event_positions: [
     { id: 1, guild_id: "g1", event_id: 1, position_id: 1 },
@@ -163,7 +163,7 @@ describe("mapFroggeStaffing events and shifts", () => {
 
   it("creates a new event with a three hour default end, a trimmed location and a publish time", () => {
     const event = (run().files.events.events as Record<string, unknown>[]).find((e) => e.key === "frogge:e:2")
-    expect(event).toMatchObject({ title: "New night", location: "1 Goblet", description: "Come by", ends_at: "2026-11-14T23:00:00.000Z", published_at: NOW })
+    expect(event).toMatchObject({ title: "New night", location: "1 Goblet", image_url: "https://img/new.png", description: "Come by", ends_at: "2026-11-14T23:00:00.000Z", published_at: NOW })
   })
 
   it("turns a signup into a claimed and approved shift at the load time", () => {

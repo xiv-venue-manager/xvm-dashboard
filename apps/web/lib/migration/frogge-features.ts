@@ -5,7 +5,9 @@ export interface FroggeFeatureExport {
     guild_id: string
     vip_warning_threshold_days: number | null
     event_start_reminder_minutes?: number | null
+    event_lockout_minutes?: number | null
     greeting_channel_id?: string | null
+    honeypot_channel_id?: string | null
   }[]
   reaction_role_panels: {
     id: number
@@ -90,7 +92,7 @@ const VOICE_RULE = "discord.voice"
 const REPEATABILITY: Record<string, string> = { one_time: "once" }
 const END_REASON: Record<string, string> = { removed: "revoked" }
 const MAX_NAME = 100
-const MAX_START_REMINDER_MINUTES = 7 * 24 * 60
+const MAX_SHIFT_SETTING_MINUTES = 7 * 24 * 60
 
 const clean = (value: string | null | undefined) => (value ?? "").trim().replace(/\s+/g, " ")
 const ms = (iso: string) => new Date(iso).getTime()
@@ -343,21 +345,28 @@ export function mapFroggeFeatures(source: FroggeFeatureExport, ctx: FeatureConte
     bump("VIP settings")
   }
 
+  const minutesOf = (value: number | null | undefined, what: string, guildId: string) => {
+    if (value === null || value === undefined) return null
+    if (Number.isInteger(value) && value >= 1 && value <= MAX_SHIFT_SETTING_MINUTES) return value
+    drop(what, guildId, `${value} minutes is outside what xvm-api accepts (1 to ${MAX_SHIFT_SETTING_MINUTES})`)
+    return null
+  }
   for (const config of source.guild_configurations) {
     const venueKey = ctx.venueKeyByGuild[config.guild_id]
     if (!venueKey) continue
-    const minutes = config.event_start_reminder_minutes ?? null
-    if (minutes !== null) {
-      if (Number.isInteger(minutes) && minutes >= 1 && minutes <= MAX_START_REMINDER_MINUTES) {
-        features.shiftSettings.push({ venue_key: venueKey, start_reminder_minutes: minutes })
-        bump("start reminder lead times")
-      } else {
-        drop("start reminder lead time", config.guild_id, `${minutes} minutes is outside what xvm-api accepts (1 to ${MAX_START_REMINDER_MINUTES})`)
-      }
+    const reminder = minutesOf(config.event_start_reminder_minutes, "start reminder lead time", config.guild_id)
+    const lockout = minutesOf(config.event_lockout_minutes, "event lockout", config.guild_id)
+    if (reminder !== null || lockout !== null) {
+      features.shiftSettings.push({ venue_key: venueKey, start_reminder_minutes: reminder, lockout_minutes: lockout })
+      if (reminder !== null) bump("start reminder lead times")
+      if (lockout !== null) bump("event lockouts")
     }
-    if (config.greeting_channel_id) {
-      features.discordSettings.push({ venue_key: venueKey, greeting_channel_id: config.greeting_channel_id })
-      bump("greeting channels")
+    const greeting = config.greeting_channel_id || null
+    const honeypot = config.honeypot_channel_id || null
+    if (greeting !== null || honeypot !== null) {
+      features.discordSettings.push({ venue_key: venueKey, greeting_channel_id: greeting, honeypot_channel_id: honeypot })
+      if (greeting !== null) bump("greeting channels")
+      if (honeypot !== null) bump("honeypot channels")
     }
   }
 

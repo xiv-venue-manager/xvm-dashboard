@@ -210,33 +210,52 @@ describe("vip", () => {
 })
 
 describe("guild settings", () => {
-  const config = { guild_id: G, vip_warning_threshold_days: 3, event_start_reminder_minutes: 120, greeting_channel_id: "1090332741872132239" }
+  const config = {
+    guild_id: G,
+    vip_warning_threshold_days: 3,
+    event_start_reminder_minutes: 120,
+    event_lockout_minutes: 240,
+    greeting_channel_id: "1090332741872132239",
+    honeypot_channel_id: "1090332741872132240",
+  }
 
-  it("carries a server's start reminder lead time and greeting channel to the venue", () => {
+  it("carries a server's lead times and channels to the venue, one row each", () => {
     const r = run({ guild_configurations: [config] })
-    expect(r.features.shiftSettings).toEqual([{ venue_key: "venue-a", start_reminder_minutes: 120 }])
-    expect(r.features.discordSettings).toEqual([{ venue_key: "venue-a", greeting_channel_id: "1090332741872132239" }])
-    expect(r.report.counts["start reminder lead times"]).toBe(1)
-    expect(r.report.counts["greeting channels"]).toBe(1)
+    expect(r.features.shiftSettings).toEqual([{ venue_key: "venue-a", start_reminder_minutes: 120, lockout_minutes: 240 }])
+    expect(r.features.discordSettings).toEqual([
+      { venue_key: "venue-a", greeting_channel_id: "1090332741872132239", honeypot_channel_id: "1090332741872132240" },
+    ])
+    for (const name of ["start reminder lead times", "event lockouts", "greeting channels", "honeypot channels"]) {
+      expect(r.report.counts[name]).toBe(1)
+    }
   })
 
-  it("writes nothing for a server with neither set", () => {
-    const r = run({ guild_configurations: [{ ...config, event_start_reminder_minutes: null, greeting_channel_id: null }] })
+  it("writes a row with only what the server has set", () => {
+    const r = run({
+      guild_configurations: [{ ...config, event_start_reminder_minutes: null, event_lockout_minutes: 15, greeting_channel_id: null }],
+    })
+    expect(r.features.shiftSettings).toEqual([{ venue_key: "venue-a", start_reminder_minutes: null, lockout_minutes: 15 }])
+    expect(r.features.discordSettings).toEqual([{ venue_key: "venue-a", greeting_channel_id: null, honeypot_channel_id: "1090332741872132240" }])
+  })
+
+  it("writes nothing for a server with none of them set", () => {
+    const none = { ...config, event_start_reminder_minutes: null, event_lockout_minutes: null, greeting_channel_id: null, honeypot_channel_id: null }
+    const r = run({ guild_configurations: [none] })
     expect(r.features.shiftSettings).toEqual([])
     expect(r.features.discordSettings).toEqual([])
   })
 
-  it("drops a lead time xvm-api would refuse, and ignores a server that is not a venue", () => {
+  it("drops a number of minutes xvm-api would refuse, and ignores a server that is not a venue", () => {
     const r = run({
       guild_configurations: [
-        { ...config, event_start_reminder_minutes: 0 },
+        { ...config, event_start_reminder_minutes: 0, event_lockout_minutes: 10081 },
         { ...config, guild_id: "999" },
-        { ...config, guild_id: "888", event_start_reminder_minutes: null, greeting_channel_id: null },
       ],
     })
     expect(r.features.shiftSettings).toEqual([])
     expect(r.report.dropped).toEqual([
       { what: "start reminder lead time", id: G, reason: "0 minutes is outside what xvm-api accepts (1 to 10080)" },
+      { what: "event lockout", id: G, reason: "10081 minutes is outside what xvm-api accepts (1 to 10080)" },
     ])
     expect(r.features.discordSettings).toHaveLength(1)
   })

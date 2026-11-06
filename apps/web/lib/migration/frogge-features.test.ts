@@ -7,6 +7,7 @@ const ctx = { venueKeyByGuild: { [G]: "venue-a" }, now: NOW }
 const base = (): PeopleFile => ({ people: [], discordAccounts: [] })
 const empty = (): FroggeFeatureExport => ({
   guild_configurations: [],
+  audit_log_settings: [],
   reaction_role_panels: [],
   reaction_role_options: [],
   leveling_settings: [],
@@ -206,5 +207,108 @@ describe("vip", () => {
       ],
     })
     expect(r.features.vipSettings).toEqual([{ venue_key: "venue-a", warning_days: 3 }])
+  })
+})
+
+describe("guild settings", () => {
+  const config = {
+    guild_id: G,
+    vip_warning_threshold_days: 3,
+    event_start_reminder_minutes: 120,
+    event_lockout_minutes: 240,
+    greeting_channel_id: "1090332741872132239",
+    honeypot_channel_id: "1090332741872132240",
+  }
+
+  it("carries a server's lead times and channels to the venue, one row each", () => {
+    const r = run({ guild_configurations: [config] })
+    expect(r.features.shiftSettings).toEqual([{ venue_key: "venue-a", start_reminder_minutes: 120, lockout_minutes: 240 }])
+    expect(r.features.discordSettings).toEqual([
+      { venue_key: "venue-a", greeting_channel_id: "1090332741872132239", honeypot_channel_id: "1090332741872132240" },
+    ])
+    for (const name of ["start reminder lead times", "event lockouts", "greeting channels", "honeypot channels"]) {
+      expect(r.report.counts[name]).toBe(1)
+    }
+  })
+
+  it("writes a row with only what the server has set", () => {
+    const r = run({
+      guild_configurations: [{ ...config, event_start_reminder_minutes: null, event_lockout_minutes: 15, greeting_channel_id: null }],
+    })
+    expect(r.features.shiftSettings).toEqual([{ venue_key: "venue-a", start_reminder_minutes: null, lockout_minutes: 15 }])
+    expect(r.features.discordSettings).toEqual([{ venue_key: "venue-a", greeting_channel_id: null, honeypot_channel_id: "1090332741872132240" }])
+  })
+
+  it("writes nothing for a server with none of them set", () => {
+    const none = { ...config, event_start_reminder_minutes: null, event_lockout_minutes: null, greeting_channel_id: null, honeypot_channel_id: null }
+    const r = run({ guild_configurations: [none] })
+    expect(r.features.shiftSettings).toEqual([])
+    expect(r.features.discordSettings).toEqual([])
+  })
+
+  it("drops a number of minutes xvm-api would refuse, and ignores a server that is not a venue", () => {
+    const r = run({
+      guild_configurations: [
+        { ...config, event_start_reminder_minutes: 0, event_lockout_minutes: 10081 },
+        { ...config, guild_id: "999" },
+      ],
+    })
+    expect(r.features.shiftSettings).toEqual([])
+    expect(r.report.dropped).toEqual([
+      { what: "start reminder lead time", id: G, reason: "0 minutes is outside what xvm-api accepts (1 to 10080)" },
+      { what: "event lockout", id: G, reason: "10081 minutes is outside what xvm-api accepts (1 to 10080)" },
+    ])
+    expect(r.features.discordSettings).toHaveLength(1)
+  })
+})
+
+describe("audit log settings", () => {
+  const audit = { guild_id: G, channel_id: "1373894502929928203" }
+
+  it("writes the channel, and a row for each event that is on or has a colour", () => {
+    const r = run({
+      audit_log_settings: [
+        { ...audit, log_message_deleted: true, color_message_deleted: 3107663, log_member_name_changed: true, color_voice_left: 15902298 },
+      ],
+    })
+    expect(r.features.auditLogSettings).toEqual([{ venue_key: "venue-a", channel_id: "1373894502929928203" }])
+    expect(r.features.auditLogEvents).toEqual([
+      { venue_key: "venue-a", event_key: "message.deleted", enabled: true, color: 3107663 },
+      { venue_key: "venue-a", event_key: "member.name_changed", enabled: true, color: null },
+      { venue_key: "venue-a", event_key: "voice.left", enabled: false, color: 15902298 },
+    ])
+    expect(r.report.counts["audit log channels"]).toBe(1)
+    expect(r.report.counts["audit log events"]).toBe(3)
+  })
+
+  it("names every event the way xvm-api does", () => {
+    const everything = Object.fromEntries(
+      [
+        "message_deleted", "message_edited", "member_joined", "member_left", "member_name_changed", "member_avatar_changed",
+        "member_banned", "member_unbanned", "member_timed_out", "member_timeout_removed", "channel_created", "channel_updated",
+        "channel_deleted", "role_created", "role_updated", "role_deleted", "server_updated", "emoji_updated", "voice_joined",
+        "voice_moved", "voice_left",
+      ].map((e) => [`log_${e}`, true]),
+    )
+    const r = run({ audit_log_settings: [{ ...audit, ...everything }] })
+    expect(r.features.auditLogEvents.map((e) => e.event_key)).toEqual([
+      "message.deleted", "message.edited", "member.joined", "member.left", "member.name_changed", "member.avatar_changed",
+      "member.banned", "member.unbanned", "member.timed_out", "member.timeout_removed", "channel.created", "channel.updated",
+      "channel.deleted", "role.created", "role.updated", "role.deleted", "server.updated", "emoji.updated", "voice.joined",
+      "voice.moved", "voice.left",
+    ])
+  })
+
+  it("skips a server with nothing set, keeps events when there is no channel, and ignores a server that is not a venue", () => {
+    const r = run({
+      audit_log_settings: [
+        { guild_id: G, channel_id: null },
+        { guild_id: "999", channel_id: "5", log_member_joined: true },
+      ],
+    })
+    expect(r.features.auditLogSettings).toEqual([])
+    expect(r.features.auditLogEvents).toEqual([])
+    const quiet = run({ audit_log_settings: [{ guild_id: G, channel_id: null, log_member_left: true }] })
+    expect(quiet.features.auditLogEvents).toHaveLength(1)
   })
 })

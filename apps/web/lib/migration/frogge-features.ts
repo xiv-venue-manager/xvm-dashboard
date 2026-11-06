@@ -1,7 +1,27 @@
 type Row = Record<string, unknown>
 
+const AUDIT_EVENTS = [
+  "message_deleted", "message_edited",
+  "member_joined", "member_left", "member_name_changed", "member_avatar_changed",
+  "member_banned", "member_unbanned", "member_timed_out", "member_timeout_removed",
+  "channel_created", "channel_updated", "channel_deleted",
+  "role_created", "role_updated", "role_deleted",
+  "server_updated", "emoji_updated",
+  "voice_joined", "voice_moved", "voice_left",
+] as const
+type AuditEvent = (typeof AUDIT_EVENTS)[number]
+
 export interface FroggeFeatureExport {
-  guild_configurations: { guild_id: string; vip_warning_threshold_days: number | null }[]
+  guild_configurations: {
+    guild_id: string
+    vip_warning_threshold_days: number | null
+    event_start_reminder_minutes?: number | null
+    event_lockout_minutes?: number | null
+    greeting_channel_id?: string | null
+    honeypot_channel_id?: string | null
+  }[]
+  audit_log_settings: ({ guild_id: string; channel_id: string | null } & Partial<Record<`log_${AuditEvent}`, boolean>> &
+    Partial<Record<`color_${AuditEvent}`, number | null>>)[]
   reaction_role_panels: {
     id: number
     guild_id: string
@@ -64,6 +84,10 @@ export interface FeatureFile {
   vipPerks: Row[]
   vipMemberships: Row[]
   vipSettings: Row[]
+  shiftSettings: Row[]
+  discordSettings: Row[]
+  auditLogSettings: Row[]
+  auditLogEvents: Row[]
 }
 
 export interface FeatureReport {
@@ -83,6 +107,7 @@ const VOICE_RULE = "discord.voice"
 const REPEATABILITY: Record<string, string> = { one_time: "once" }
 const END_REASON: Record<string, string> = { removed: "revoked" }
 const MAX_NAME = 100
+const MAX_SHIFT_SETTING_MINUTES = 7 * 24 * 60
 
 const clean = (value: string | null | undefined) => (value ?? "").trim().replace(/\s+/g, " ")
 const ms = (iso: string) => new Date(iso).getTime()
@@ -100,6 +125,10 @@ export function mapFroggeFeatures(source: FroggeFeatureExport, ctx: FeatureConte
     vipPerks: [],
     vipMemberships: [],
     vipSettings: [],
+    shiftSettings: [],
+    discordSettings: [],
+    auditLogSettings: [],
+    auditLogEvents: [],
   }
   const report: FeatureReport = { counts: {}, dropped: [], notes: [] }
   const bump = (name: string, by = 1) => (report.counts[name] = (report.counts[name] ?? 0) + by)
@@ -331,6 +360,47 @@ export function mapFroggeFeatures(source: FroggeFeatureExport, ctx: FeatureConte
     if (!venueKey || !vipVenues.has(config.guild_id)) continue
     features.vipSettings.push({ venue_key: venueKey, warning_days: config.vip_warning_threshold_days })
     bump("VIP settings")
+  }
+
+  const minutesOf = (value: number | null | undefined, what: string, guildId: string) => {
+    if (value === null || value === undefined) return null
+    if (Number.isInteger(value) && value >= 1 && value <= MAX_SHIFT_SETTING_MINUTES) return value
+    drop(what, guildId, `${value} minutes is outside what xvm-api accepts (1 to ${MAX_SHIFT_SETTING_MINUTES})`)
+    return null
+  }
+  for (const config of source.guild_configurations) {
+    const venueKey = ctx.venueKeyByGuild[config.guild_id]
+    if (!venueKey) continue
+    const reminder = minutesOf(config.event_start_reminder_minutes, "start reminder lead time", config.guild_id)
+    const lockout = minutesOf(config.event_lockout_minutes, "event lockout", config.guild_id)
+    if (reminder !== null || lockout !== null) {
+      features.shiftSettings.push({ venue_key: venueKey, start_reminder_minutes: reminder, lockout_minutes: lockout })
+      if (reminder !== null) bump("start reminder lead times")
+      if (lockout !== null) bump("event lockouts")
+    }
+    const greeting = config.greeting_channel_id || null
+    const honeypot = config.honeypot_channel_id || null
+    if (greeting !== null || honeypot !== null) {
+      features.discordSettings.push({ venue_key: venueKey, greeting_channel_id: greeting, honeypot_channel_id: honeypot })
+      if (greeting !== null) bump("greeting channels")
+      if (honeypot !== null) bump("honeypot channels")
+    }
+  }
+
+  for (const audit of source.audit_log_settings) {
+    const venueKey = ctx.venueKeyByGuild[audit.guild_id]
+    if (!venueKey) continue
+    if (audit.channel_id) {
+      features.auditLogSettings.push({ venue_key: venueKey, channel_id: audit.channel_id })
+      bump("audit log channels")
+    }
+    for (const event of AUDIT_EVENTS) {
+      const enabled = audit[`log_${event}`] === true
+      const color = audit[`color_${event}`] ?? null
+      if (!enabled && color === null) continue
+      features.auditLogEvents.push({ venue_key: venueKey, event_key: event.replace("_", "."), enabled, color })
+      bump("audit log events")
+    }
   }
 
   report.notes.push("reaction role templates are not carried: xvm-api seeds the same platform templates")

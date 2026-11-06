@@ -130,6 +130,21 @@ export interface FroggeToolsExport {
     data: { description?: string | null; default_start_time_minutes?: number | null; duration_minutes?: number | null } & Record<string, unknown>
   }[]
   message_templates: { id: number; guild_id: string; template_type: string; title: string | null; description: string | null; is_active: boolean }[]
+  profile_characters: ({
+    id: number
+    guild_id: string
+    discord_user_id: string
+    character_name: string | null
+    is_primary: boolean
+    approval_status: string
+    submitted_at: string | null
+    reviewed_at: string | null
+    reviewed_by: string | null
+    rejection_reason: string | null
+    color: number | null
+    thumbnail_url: string | null
+    main_image_url: string | null
+  } & Partial<Record<ProfileTextField, string | null>>)[]
   rooms: {
     id: number
     guild_id: string
@@ -163,6 +178,7 @@ export interface ToolsFile {
   autoReactorRules: Row[]
   eventTemplates: Row[]
   messageTemplates: Row[]
+  profiles: Row[]
   rooms: Row[]
 }
 
@@ -192,6 +208,33 @@ const TEMPLATE_TYPES: Record<string, string> = {
 const GREETING_TYPES = new Set(["greeting.channel", "greeting.dm"])
 const venuePlaceholder = (text: string | null, type: string) => (text !== null && GREETING_TYPES.has(type) ? text.replaceAll("{guild}", "{venue}") : text)
 const MAX_NAME = 100
+const PROFILE_NAME_LENGTH = 60
+const PROFILE_TEXT_LIMITS = {
+  jobs: 80,
+  rates: 250,
+  world: 50,
+  data_center: 32,
+  gender: 32,
+  gender_custom: 50,
+  pronouns: 200,
+  pronouns_custom: 50,
+  race: 32,
+  race_custom: 50,
+  clan: 32,
+  clan_custom: 50,
+  orientation: 32,
+  orientation_custom: 50,
+  height: 50,
+  age: 30,
+  pairing_code: 30,
+  pairing_code_type: 32,
+  pairing_code_type_custom: 50,
+  likes: 500,
+  dislikes: 500,
+  personality: 300,
+  about_me: 3000,
+} as const
+type ProfileTextField = keyof typeof PROFILE_TEXT_LIMITS
 
 const clean = (value: string | null | undefined) => (value ?? "").trim().replace(/\s+/g, " ")
 const inOrder = <T extends { id: number }>(rows: T[]) => [...rows].sort((a, b) => a.id - b.id)
@@ -214,6 +257,7 @@ export function mapFroggeTools(source: FroggeToolsExport, ctx: ToolsContext, bas
     autoReactorRules: [],
     eventTemplates: [],
     messageTemplates: [],
+    profiles: [],
     rooms: [],
   }
   const report: ToolsReport = { counts: {}, dropped: [], notes: [] }
@@ -538,6 +582,56 @@ export function mapFroggeTools(source: FroggeToolsExport, ctx: ToolsContext, bas
       is_active: template.is_active,
     })
     bump("message templates")
+  }
+
+  const profileNames = new Set<string>()
+  const profilePrimaries = new Set<string>()
+  for (const profile of inOrder(source.profile_characters)) {
+    const venueKey = venueOf(profile.guild_id, "character profile", String(profile.id))
+    if (!venueKey) continue
+    const name = clean(profile.character_name).slice(0, PROFILE_NAME_LENGTH)
+    if (!name) {
+      drop("character profile", String(profile.id), "no character name")
+      continue
+    }
+    const personKey = personFor(profile.discord_user_id)
+    const slot = `${venueKey}|${personKey}`
+    if (profileNames.has(`${slot}|${name.toLowerCase()}`)) {
+      drop("character profile", String(profile.id), "same character name as an earlier profile of this person at the venue, ignoring case")
+      continue
+    }
+    const status = profile.approval_status
+    if (status !== "draft" && status !== "pending_approval" && status !== "approved" && status !== "rejected") {
+      drop("character profile", String(profile.id), `no xvm-api status for ${status}`)
+      continue
+    }
+    profileNames.add(`${slot}|${name.toLowerCase()}`)
+    const submittedAt = status === "draft" ? null : (profile.submitted_at ?? ctx.now)
+    const reviewedAt = status === "approved" || status === "rejected" ? (profile.reviewed_at ?? submittedAt) : null
+    const isPrimary = profile.is_primary && !profilePrimaries.has(slot)
+    if (isPrimary) profilePrimaries.add(slot)
+    else if (profile.is_primary) bump("extra primary profiles made ordinary")
+    const text: Record<string, string | null> = {}
+    for (const [field, limit] of Object.entries(PROFILE_TEXT_LIMITS)) {
+      const value = (profile as Record<string, unknown>)[field]
+      const trimmed = typeof value === "string" ? value.trim() : ""
+      if (trimmed.length > limit) bump("profile fields cut to fit")
+      text[field] = trimmed ? trimmed.slice(0, limit) : null
+    }
+    imagesNotCarried("profile", [profile.thumbnail_url, profile.main_image_url])
+    tools.profiles.push({
+      venue_key: venueKey,
+      person_key: personKey,
+      character_name: name,
+      is_primary: isPrimary,
+      submitted_at: submittedAt,
+      reviewed_at: reviewedAt,
+      reviewed_by_person_key: reviewedAt && profile.reviewed_by ? personFor(profile.reviewed_by) : null,
+      rejection_reason: status === "rejected" ? (clean(profile.rejection_reason).slice(0, 500) || "Rejected on Frogge") : null,
+      color: profile.color,
+      ...text,
+    })
+    bump("character profiles")
   }
 
   for (const room of inOrder(source.rooms)) {

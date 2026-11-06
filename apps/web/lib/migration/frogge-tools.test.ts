@@ -22,6 +22,7 @@ const empty = (): FroggeToolsExport => ({
   auto_reactor_rules: [],
   event_templates: [],
   message_templates: [],
+  profile_characters: [],
   rooms: [],
 })
 const run = (over: Partial<FroggeToolsExport>) => mapFroggeTools({ ...empty(), ...over }, ctx, base())
@@ -270,5 +271,94 @@ describe("the rest", () => {
     const r = run({ rooms: [{ id: 1, guild_id: G, room_number: 2, name: "Suite", description: "d", owner_id: "5", locked: true, disabled: false }] })
     expect(r.tools.rooms).toEqual([{ venue_key: "venue-a", name: "Suite", notes: "d", room_number: 2, locked: true, disabled: false }])
     expect(r.report.counts["room owners not carried"]).toBe(1)
+  })
+})
+
+describe("character profiles", () => {
+  const profile = {
+    id: 1,
+    guild_id: G,
+    discord_user_id: "42",
+    character_name: " Aria  Vale ",
+    is_primary: true,
+    approval_status: "approved",
+    submitted_at: "2026-08-01T00:00:00.000Z",
+    reviewed_at: "2026-08-02T00:00:00.000Z",
+    reviewed_by: "77",
+    rejection_reason: null,
+    color: 255,
+    thumbnail_url: "https://cdn/t.png",
+    main_image_url: null,
+    race: "viera",
+    about_me: "  hello  ",
+  }
+
+  it("maps an approved profile with its review, text trimmed and the unset fields null", () => {
+    const r = run({ profile_characters: [profile] })
+    expect(r.tools.profiles).toHaveLength(1)
+    expect(r.tools.profiles[0]).toMatchObject({
+      venue_key: "venue-a",
+      person_key: "frogge:p:42",
+      character_name: "Aria Vale",
+      is_primary: true,
+      submitted_at: "2026-08-01T00:00:00.000Z",
+      reviewed_at: "2026-08-02T00:00:00.000Z",
+      reviewed_by_person_key: "frogge:p:77",
+      rejection_reason: null,
+      race: "viera",
+      about_me: "hello",
+      clan: null,
+    })
+    expect(r.report.counts["profile images not carried"]).toBe(1)
+  })
+
+  it("leaves a draft unsubmitted, and a pending one submitted and unreviewed", () => {
+    const r = run({
+      profile_characters: [
+        { ...profile, id: 1, character_name: "Draft", approval_status: "draft", submitted_at: null, reviewed_at: null, is_primary: false },
+        { ...profile, id: 2, character_name: "Pending", approval_status: "pending_approval", reviewed_at: null, reviewed_by: null, is_primary: false },
+      ],
+    })
+    expect(r.tools.profiles.map((p) => [p.character_name, p.submitted_at, p.reviewed_at])).toEqual([
+      ["Draft", null, null],
+      ["Pending", "2026-08-01T00:00:00.000Z", null],
+    ])
+  })
+
+  it("keeps one primary per person at a venue and drops a repeated character name", () => {
+    const r = run({
+      profile_characters: [
+        { ...profile, id: 1, character_name: "Aria" },
+        { ...profile, id: 2, character_name: "Brin" },
+        { ...profile, id: 3, character_name: "aria", is_primary: false },
+      ],
+    })
+    expect(r.tools.profiles.map((p) => [p.character_name, p.is_primary])).toEqual([
+      ["Aria", true],
+      ["Brin", false],
+    ])
+    expect(r.report.counts["extra primary profiles made ordinary"]).toBe(1)
+    expect(r.report.dropped).toEqual([
+      { what: "character profile", id: "3", reason: "same character name as an earlier profile of this person at the venue, ignoring case" },
+    ])
+  })
+
+  it("drops a nameless profile and one with a status xvm-api has no value for, and cuts an over-long field", () => {
+    const r = run({
+      profile_characters: [
+        { ...profile, id: 1, character_name: "  " },
+        { ...profile, id: 2, character_name: "Odd", approval_status: "archived" },
+        { ...profile, id: 3, character_name: "Long", about_me: "x".repeat(3001) },
+      ],
+    })
+    expect(r.tools.profiles).toHaveLength(1)
+    expect((r.tools.profiles[0].about_me as string).length).toBe(3000)
+    expect(r.report.counts["profile fields cut to fit"]).toBe(1)
+    expect(r.report.dropped.map((d) => d.id)).toEqual(["1", "2"])
+  })
+
+  it("gives a rejected profile a reason when Frogge has none", () => {
+    const r = run({ profile_characters: [{ ...profile, approval_status: "rejected", rejection_reason: null }] })
+    expect(r.tools.profiles[0]).toMatchObject({ reviewed_at: "2026-08-02T00:00:00.000Z", rejection_reason: "Rejected on Frogge" })
   })
 })

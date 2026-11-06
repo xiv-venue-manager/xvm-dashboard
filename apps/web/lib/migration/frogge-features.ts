@@ -1,5 +1,16 @@
 type Row = Record<string, unknown>
 
+const AUDIT_EVENTS = [
+  "message_deleted", "message_edited",
+  "member_joined", "member_left", "member_name_changed", "member_avatar_changed",
+  "member_banned", "member_unbanned", "member_timed_out", "member_timeout_removed",
+  "channel_created", "channel_updated", "channel_deleted",
+  "role_created", "role_updated", "role_deleted",
+  "server_updated", "emoji_updated",
+  "voice_joined", "voice_moved", "voice_left",
+] as const
+type AuditEvent = (typeof AUDIT_EVENTS)[number]
+
 export interface FroggeFeatureExport {
   guild_configurations: {
     guild_id: string
@@ -9,6 +20,8 @@ export interface FroggeFeatureExport {
     greeting_channel_id?: string | null
     honeypot_channel_id?: string | null
   }[]
+  audit_log_settings: ({ guild_id: string; channel_id: string | null } & Partial<Record<`log_${AuditEvent}`, boolean>> &
+    Partial<Record<`color_${AuditEvent}`, number | null>>)[]
   reaction_role_panels: {
     id: number
     guild_id: string
@@ -73,6 +86,8 @@ export interface FeatureFile {
   vipSettings: Row[]
   shiftSettings: Row[]
   discordSettings: Row[]
+  auditLogSettings: Row[]
+  auditLogEvents: Row[]
 }
 
 export interface FeatureReport {
@@ -112,6 +127,8 @@ export function mapFroggeFeatures(source: FroggeFeatureExport, ctx: FeatureConte
     vipSettings: [],
     shiftSettings: [],
     discordSettings: [],
+    auditLogSettings: [],
+    auditLogEvents: [],
   }
   const report: FeatureReport = { counts: {}, dropped: [], notes: [] }
   const bump = (name: string, by = 1) => (report.counts[name] = (report.counts[name] ?? 0) + by)
@@ -367,6 +384,22 @@ export function mapFroggeFeatures(source: FroggeFeatureExport, ctx: FeatureConte
       features.discordSettings.push({ venue_key: venueKey, greeting_channel_id: greeting, honeypot_channel_id: honeypot })
       if (greeting !== null) bump("greeting channels")
       if (honeypot !== null) bump("honeypot channels")
+    }
+  }
+
+  for (const audit of source.audit_log_settings) {
+    const venueKey = ctx.venueKeyByGuild[audit.guild_id]
+    if (!venueKey) continue
+    if (audit.channel_id) {
+      features.auditLogSettings.push({ venue_key: venueKey, channel_id: audit.channel_id })
+      bump("audit log channels")
+    }
+    for (const event of AUDIT_EVENTS) {
+      const enabled = audit[`log_${event}`] === true
+      const color = audit[`color_${event}`] ?? null
+      if (!enabled && color === null) continue
+      features.auditLogEvents.push({ venue_key: venueKey, event_key: event.replace("_", "."), enabled, color })
+      bump("audit log events")
     }
   }
 

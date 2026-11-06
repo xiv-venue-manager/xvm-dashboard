@@ -130,6 +130,7 @@ export interface FroggeToolsExport {
     data: { description?: string | null; default_start_time_minutes?: number | null; duration_minutes?: number | null } & Record<string, unknown>
   }[]
   message_templates: { id: number; guild_id: string; template_type: string; title: string | null; description: string | null; is_active: boolean }[]
+  profile_additional_images?: { id: number; guild_id: string; character_id: number; image_url: string; caption: string | null; sort_order: number }[]
   profile_characters: ({
     id: number
     guild_id: string
@@ -179,6 +180,7 @@ export interface ToolsFile {
   eventTemplates: Row[]
   messageTemplates: Row[]
   profiles: Row[]
+  profileImages: Row[]
   rooms: Row[]
 }
 
@@ -209,6 +211,8 @@ const GREETING_TYPES = new Set(["greeting.channel", "greeting.dm"])
 const venuePlaceholder = (text: string | null, type: string) => (text !== null && GREETING_TYPES.has(type) ? text.replaceAll("{guild}", "{venue}") : text)
 const MAX_NAME = 100
 const PROFILE_NAME_LENGTH = 60
+const PROFILE_CAPTION_LENGTH = 50
+const MAX_PROFILE_GALLERY_IMAGES = 3
 const PROFILE_TEXT_LIMITS = {
   jobs: 80,
   rates: 250,
@@ -258,6 +262,7 @@ export function mapFroggeTools(source: FroggeToolsExport, ctx: ToolsContext, bas
     eventTemplates: [],
     messageTemplates: [],
     profiles: [],
+    profileImages: [],
     rooms: [],
   }
   const report: ToolsReport = { counts: {}, dropped: [], notes: [] }
@@ -586,6 +591,7 @@ export function mapFroggeTools(source: FroggeToolsExport, ctx: ToolsContext, bas
 
   const profileNames = new Set<string>()
   const profilePrimaries = new Set<string>()
+  const profileById = new Map<number, { venue_key: string; person_key: string; character_name: string }>()
   for (const profile of inOrder(source.profile_characters)) {
     const venueKey = venueOf(profile.guild_id, "character profile", String(profile.id))
     if (!venueKey) continue
@@ -635,7 +641,36 @@ export function mapFroggeTools(source: FroggeToolsExport, ctx: ToolsContext, bas
       main_image_source: mainImageSource,
       ...text,
     })
+    profileById.set(profile.id, { venue_key: venueKey, person_key: personKey, character_name: name })
     bump("character profiles")
+  }
+
+  const galleryCount = new Map<number, number>()
+  const gallery = [...(source.profile_additional_images ?? [])].sort((a, b) => a.sort_order - b.sort_order || a.id - b.id)
+  for (const image of gallery) {
+    const profile = profileById.get(image.character_id)
+    const url = image.image_url?.trim()
+    if (!profile) {
+      drop("profile gallery image", String(image.id), "its profile was not migrated")
+      continue
+    }
+    if (!url) {
+      drop("profile gallery image", String(image.id), "no image URL")
+      continue
+    }
+    const taken = galleryCount.get(image.character_id) ?? 0
+    if (taken >= MAX_PROFILE_GALLERY_IMAGES) {
+      drop("profile gallery image", String(image.id), `xvm-api keeps at most ${MAX_PROFILE_GALLERY_IMAGES} extra images on a profile`)
+      continue
+    }
+    galleryCount.set(image.character_id, taken + 1)
+    tools.profileImages.push({
+      ...profile,
+      image_source: url,
+      caption: clean(image.caption).slice(0, PROFILE_CAPTION_LENGTH) || null,
+      sort_order: taken,
+    })
+    bump("profile gallery images to copy")
   }
 
   for (const room of inOrder(source.rooms)) {

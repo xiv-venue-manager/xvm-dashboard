@@ -13,7 +13,7 @@ const LOAD_ARRAYS: Record<string, string[]> = {
   positions: ["positions", "memberships", "membershipPositions"],
   services: ["categories", "services", "servicePositions", "inventories"],
   events: ["rules", "events", "totals"],
-  shifts: ["rules", "shifts", "audits"],
+  shifts: ["shifts", "audits"],
   finance: ["transactions", "payroll"],
   patrons: ["patrons", "logs"],
   "follows-feedback": ["follows", "feedback"],

@@ -102,6 +102,22 @@ describe("giveaways and raffles", () => {
     expect(r.tools.giveaways[0]).toMatchObject({ created_by_person_key: "frogge:p:42", rolled_by_person_key: "frogge:p:77" })
   })
 
+  it("notes an ended giveaway that was never rolled, since xvm-api would draw it", () => {
+    const r = run({ giveaways: [{ ...giveaway, end_at: "2026-11-03T12:00:00.000Z", rolled_at: null, rolled_by: null, winner_ids: [] }] })
+    expect(r.report.notes).toContain("giveaway 1 ended 2026-11-03T12:00:00.000Z and was never rolled, so xvm-api draws it on its first tick and posts the winners")
+  })
+
+  it("does not note a giveaway that is rolled or has not ended", () => {
+    const r = run({
+      giveaways: [
+        { ...giveaway, id: 1, end_at: "2026-11-03T12:00:00.000Z" },
+        { ...giveaway, id: 2, end_at: "2026-11-05T12:00:00.000Z", rolled_at: null, rolled_by: null, winner_ids: [] },
+        { ...giveaway, id: 3, end_at: null, rolled_at: null, rolled_by: null, winner_ids: [] },
+      ],
+    })
+    expect(r.report.notes.filter((n) => n.startsWith("giveaway "))).toEqual([])
+  })
+
   it("reports a winner who has no entry", () => {
     const r = run({ giveaways: [giveaway] })
     expect(r.report.dropped).toEqual([{ what: "giveaway winner", id: "1:42", reason: "the winner has no entry row" }])

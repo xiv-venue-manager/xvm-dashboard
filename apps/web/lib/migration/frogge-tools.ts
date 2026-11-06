@@ -333,6 +333,9 @@ export function mapFroggeTools(source: FroggeToolsExport, ctx: ToolsContext, bas
       rolled_by_person_key: giveaway.rolled_by ? personFor(giveaway.rolled_by) : null,
     })
     bump("giveaways")
+    if (giveaway.rolled_at === null && giveaway.end_at !== null && Date.parse(giveaway.end_at) < Date.parse(ctx.now)) {
+      report.notes.push(`giveaway ${giveaway.id} ended ${giveaway.end_at} and was never rolled, so xvm-api draws it on its first tick and posts the winners`)
+    }
   }
   const entered = new Map<number, Set<string>>()
   for (const entry of inOrder(source.giveaway_entries)) {

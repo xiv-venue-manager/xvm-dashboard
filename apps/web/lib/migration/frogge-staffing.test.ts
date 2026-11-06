@@ -128,6 +128,45 @@ describe("mapFroggeStaffing people and tiers", () => {
     expect(result.report.startDateAmendments).toEqual([{ membership_key: "m-two", from: "2026-02-01T00:00:00.000Z", to: "2026-01-24T00:00:00.000Z" }])
   })
 
+  it("makes an admin who is not Frogge staff a manager", () => {
+    const src = source()
+    src.admin_users.push({ guild_id: "g2", discord_user_id: "450" })
+    const result = run(src)
+    const tiers = Object.fromEntries(memberships(result).map((m) => [m.person_key, m.tier]))
+    expect(tiers["frogge:p:450"]).toBe("manager")
+    expect(result.report.placeholderPeople).toContain("450")
+  })
+
+  it("leaves an admin whose server is not being loaded to the report, and never changes our tier", () => {
+    const src = source()
+    src.admin_users.push({ guild_id: "g9", discord_user_id: "100" }, { guild_id: "g1", discord_user_id: "200" })
+    const result = run(src)
+    expect(result.report.dropped).toContainEqual({ what: "admin user", id: "g9:100", reason: "its server is not being loaded" })
+    expect(memberships(result).find((m) => m.key === "m-two")?.tier).toBe("staff")
+  })
+
+  it("keeps the start of the current period and reports a closed one that ended before ours began", () => {
+    const src = source()
+    src.employment_periods.push({ id: 9, guild_id: "g1", staff_member_id: 1, started_at: "2025-01-01T00:00:00.000Z", ended_at: "2025-03-01T00:00:00.000Z", ended_reason: "quit" })
+    const result = run(src)
+    expect(memberships(result).find((m) => m.key === "m-two")?.employment_period).toEqual({ started_at: "2026-01-24T00:00:00.000Z", ended_at: null })
+    expect(result.report.dropped).toContainEqual({
+      what: "employment period",
+      id: "9",
+      reason: "it ended before ours began; the loader takes one period per membership",
+    })
+  })
+
+  it("loads a new member's open period whatever order the periods are listed in, and reports the others", () => {
+    const src = source()
+    src.employment_periods.push({ id: 8, guild_id: "g2", staff_member_id: 2, started_at: "2025-01-01T00:00:00.000Z", ended_at: "2025-03-01T00:00:00.000Z", ended_reason: null })
+    const result = run(src)
+    expect(memberships(result).find((m) => m.person_key === "frogge:p:300")?.employment_period).toEqual({ started_at: "2026-03-01T00:00:00.000Z", ended_at: null })
+    expect(result.report.dropped.filter((d) => d.what === "employment period")).toEqual([
+      { what: "employment period", id: "8", reason: "it is not the current one; the loader takes one period per membership" },
+    ])
+  })
+
   it("names an owner who is not Frogge staff with a placeholder and reports it", () => {
     const result = run()
     expect(result.files.people.people.find((p) => p.key === "frogge:p:500")?.display_name).toBe("Discord user 500")
@@ -136,6 +175,13 @@ describe("mapFroggeStaffing people and tiers", () => {
 })
 
 describe("mapFroggeStaffing positions", () => {
+  it("keeps our Discord role when the position already has one", () => {
+    const files = base()
+    ;(files.positions.positions[0] as Record<string, unknown>).discord_role_id = "111"
+    const result = run(source(), ctx(), files)
+    expect((result.files.positions.positions[0] as Record<string, unknown>).discord_role_id).toBe("111")
+  })
+
   it("matches a position by name, keeps ours, and fills the rate and role only where ours is empty", () => {
     const result = run()
     const positions = result.files.positions.positions as Record<string, unknown>[]
@@ -161,6 +207,15 @@ describe("mapFroggeStaffing events and shifts", () => {
     expect((result.files.shifts.event_positions as Record<string, unknown>[]).find((p) => p.event_key === "e-ours")).toMatchObject({ position_key: "pos-ours" })
   })
 
+  it("does not match one Frogge event to another", () => {
+    const src = source()
+    src.events.push({ id: 3, guild_id: "g2", name: "Late show", description: null, start_at: "2026-11-14T21:00:00.000Z", end_at: null, image_url: null, address: null })
+    const result = run(src)
+    const created = (result.files.events.events as Record<string, unknown>[]).filter((e) => String(e.key).startsWith("frogge:e:"))
+    expect(created.map((e) => e.key)).toEqual(["frogge:e:2", "frogge:e:3"])
+    expect(result.report.counts["events matched to ours"]).toBe(1)
+  })
+
   it("creates a new event with a three hour default end, a trimmed location and a publish time", () => {
     const event = (run().files.events.events as Record<string, unknown>[]).find((e) => e.key === "frogge:e:2")
     expect(event).toMatchObject({ title: "New night", location: "1 Goblet", image_url: "https://img/new.png", description: "Come by", ends_at: "2026-11-14T23:00:00.000Z", published_at: NOW })
@@ -170,6 +225,16 @@ describe("mapFroggeStaffing events and shifts", () => {
     const shifts = run().files.shifts.shifts as Record<string, unknown>[]
     expect(shifts).toHaveLength(1)
     expect(shifts[0]).toMatchObject({ key: "frogge:s:1", membership_key: "frogge:m:2", position_key: "frogge:pos:2", claimed_at: NOW, approved_at: NOW, actual_start: null })
+  })
+
+  it("gives a signup to one of our members who is not in Frogge's staff list", () => {
+    const src = source()
+    src.event_shifts.push({ id: 2, guild_id: "g1", event_position_id: 1, capacity: 1, start_at: "2026-11-07T02:30:00.000Z", end_at: null })
+    src.event_signups.push({ id: 3, guild_id: "g1", event_shift_id: 2, discord_user_id: "100" })
+    const result = run(src)
+    const shift = (result.files.shifts.shifts as Record<string, unknown>[]).find((s) => s.key === "frogge:s:3")
+    expect(shift?.membership_key).toBe("m-owner")
+    expect(result.report.dropped.some((d) => d.what === "signup" && d.id === "3")).toBe(false)
   })
 
   it("drops a signup from someone with no membership at the venue and says why", () => {

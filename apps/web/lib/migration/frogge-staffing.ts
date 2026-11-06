@@ -194,17 +194,27 @@ export function mapFroggeStaffing(source: FroggeExport, ctx: FroggeContext, base
   const adminKeys = new Set(source.admin_users.map((a) => `${a.guild_id}:${a.discord_user_id}`))
   const membershipByPersonVenue = new Map<string, Row>()
   for (const m of files.positions.memberships) membershipByPersonVenue.set(`${str(m, "venue_key")}|${str(m, "person_key")}`, m)
-  const periodByMember = new Map<number, { started_at: string | null; ended_at: string | null }>()
-  for (const p of source.employment_periods) periodByMember.set(p.staff_member_id, { started_at: p.started_at, ended_at: p.ended_at })
+  type Period = { id: number; started_at: string | null; ended_at: string | null }
+  const periodsByMember = new Map<number, Period[]>()
+  for (const p of source.employment_periods) {
+    periodsByMember.set(p.staff_member_id, [...(periodsByMember.get(p.staff_member_id) ?? []), { id: p.id, started_at: p.started_at, ended_at: p.ended_at }])
+  }
+  const notCarried = (period: Period, why: string) =>
+    drop("employment period", String(period.id), `${why}; the loader takes one period per membership`)
+  const latest = (periods: Period[]) => {
+    const open = periods.filter((p) => p.ended_at === null)
+    const pool = open.length > 0 ? open : periods
+    const when = (p: Period) => ms((open.length > 0 ? p.started_at : p.ended_at) ?? "1970-01-01T00:00:00.000Z")
+    return pool.reduce<Period | null>((best, p) => (best === null || when(p) > when(best) ? p : best), null)
+  }
 
   const membershipKeyByStaffMember = new Map<number, string>()
-  const membershipKeyByGuildDiscord = new Map<string, string>()
   const ensureMembership = (
     guildId: string,
     discordId: string,
     name: string | null,
     tier: string,
-    period: { started_at: string | null; ended_at: string | null } | null,
+    periods: Period[],
     sourceId: string,
   ) => {
     const venueKey = venueKeyByGuild.get(guildId)
@@ -214,12 +224,23 @@ export function mapFroggeStaffing(source: FroggeExport, ctx: FroggeContext, base
     const existing = membershipByPersonVenue.get(slot)
     if (existing) {
       const ours = existing.employment_period as { started_at: string; ended_at: string | null } | null
-      if (ours && period?.started_at && ms(period.started_at) < ms(ours.started_at)) {
-        report.startDateAmendments.push({ membership_key: str(existing, "key"), from: ours.started_at, to: period.started_at })
-        ours.started_at = period.started_at
+      if (ours) {
+        const oursStart = ms(ours.started_at)
+        for (const period of periods) {
+          if (period.ended_at !== null && ms(period.ended_at) < oursStart) {
+            notCarried(period, "it ended before ours began")
+            continue
+          }
+          if (period.started_at && ms(period.started_at) < ms(ours.started_at)) {
+            report.startDateAmendments.push({ membership_key: str(existing, "key"), from: ours.started_at, to: period.started_at })
+            ours.started_at = period.started_at
+          }
+        }
       }
       return str(existing, "key")
     }
+    const period = latest(periods)
+    for (const other of periods) if (other !== period) notCarried(other, "it is not the current one")
     const key = `frogge:m:${sourceId}`
     const row: Row = {
       key,
@@ -237,16 +258,23 @@ export function mapFroggeStaffing(source: FroggeExport, ctx: FroggeContext, base
     return key
   }
 
+  const tierFor = (guildId: string, discordId: string, fallback: string) =>
+    ctx.owners[guildId] === discordId && !ctx.venueMatch[guildId] ? "owner" : adminKeys.has(`${guildId}:${discordId}`) ? "manager" : fallback
+
   for (const member of source.staff_members) {
-    const owner = ctx.owners[member.guild_id] === member.discord_user_id && !ctx.venueMatch[member.guild_id]
-    const tier = owner ? "owner" : adminKeys.has(`${member.guild_id}:${member.discord_user_id}`) ? "manager" : "staff"
-    const key = ensureMembership(member.guild_id, member.discord_user_id, member.name, tier, periodByMember.get(member.id) ?? null, String(member.id))
+    const tier = tierFor(member.guild_id, member.discord_user_id, "staff")
+    const key = ensureMembership(member.guild_id, member.discord_user_id, member.name, tier, periodsByMember.get(member.id) ?? [], String(member.id))
     if (!key) {
       drop("staff member", String(member.id), "its server is not being loaded")
       continue
     }
     membershipKeyByStaffMember.set(member.id, key)
-    membershipKeyByGuildDiscord.set(`${member.guild_id}:${member.discord_user_id}`, key)
+  }
+
+  for (const admin of source.admin_users) {
+    const tier = tierFor(admin.guild_id, admin.discord_user_id, "manager")
+    const key = ensureMembership(admin.guild_id, admin.discord_user_id, null, tier, [], `admin:${admin.guild_id}:${admin.discord_user_id}`)
+    if (!key) drop("admin user", `${admin.guild_id}:${admin.discord_user_id}`, "its server is not being loaded")
   }
 
   for (const guild of source.guilds) {
@@ -256,8 +284,7 @@ export function mapFroggeStaffing(source: FroggeExport, ctx: FroggeContext, base
       drop("venue owner", guild.guild_id, "no Discord owner was looked up for this server")
       continue
     }
-    const key = ensureMembership(guild.guild_id, ownerId, null, "owner", null, `owner:${guild.guild_id}`)
-    if (key) membershipKeyByGuildDiscord.set(`${guild.guild_id}:${ownerId}`, key)
+    ensureMembership(guild.guild_id, ownerId, null, "owner", [], `owner:${guild.guild_id}`)
   }
 
   const positionKeyById = new Map<number, string>()
@@ -274,7 +301,7 @@ export function mapFroggeStaffing(source: FroggeExport, ctx: FroggeContext, base
     const existing = existingPositions.get(`${venueKey}|${fold(name)}`)
     if (existing) {
       if (existing.hourly_rate_minor == null && rate !== null) existing.hourly_rate_minor = rate
-      if (position.role_id) existing.discord_role_id = position.role_id
+      if (position.role_id) existing.discord_role_id ??= position.role_id
       positionKeyById.set(position.id, str(existing, "key"))
       continue
     }
@@ -311,6 +338,7 @@ export function mapFroggeStaffing(source: FroggeExport, ctx: FroggeContext, base
   }
 
   const eventKeyById = new Map<number, { key: string; venueKey: string }>()
+  const ourEvents = [...files.events.events]
   for (const event of source.events) {
     const venueKey = venueKeyByGuild.get(event.guild_id)
     if (!venueKey) {
@@ -318,7 +346,7 @@ export function mapFroggeStaffing(source: FroggeExport, ctx: FroggeContext, base
       continue
     }
     const start = ms(event.start_at)
-    const twin = files.events.events.find(
+    const twin = ourEvents.find(
       (e) => str(e, "venue_key") === venueKey && !e.cancelled_at && Math.abs(ms(str(e, "starts_at")) - start) <= MATCH_WINDOW_MS,
     )
     if (twin) {
@@ -407,7 +435,8 @@ export function mapFroggeStaffing(source: FroggeExport, ctx: FroggeContext, base
       drop("signup", String(signup.id), "its event shift is not being loaded")
       continue
     }
-    const membershipKey = membershipKeyByGuildDiscord.get(`${signup.guild_id}:${signup.discord_user_id}`)
+    const personKey = personByDiscord.get(signup.discord_user_id)
+    const membershipKey = personKey ? (membershipByPersonVenue.get(`${es.venueKey}|${personKey}`)?.key as string | undefined) : undefined
     if (!membershipKey) {
       drop("signup", String(signup.id), "the person has no membership at this venue")
       continue

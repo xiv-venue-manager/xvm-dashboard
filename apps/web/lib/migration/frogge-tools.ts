@@ -186,7 +186,11 @@ const TEMPLATE_TYPES: Record<string, string> = {
   event_channel_start_reminder: "event.channel_reminder",
   channel_greeting: "greeting.channel",
   dm_greeting: "greeting.dm",
+  giveaway_winner: "giveaway.winner",
+  raffle_winner: "raffle.winner",
 }
+const GREETING_TYPES = new Set(["greeting.channel", "greeting.dm"])
+const venuePlaceholder = (text: string | null, type: string) => (text !== null && GREETING_TYPES.has(type) ? text.replaceAll("{guild}", "{venue}") : text)
 const MAX_NAME = 100
 
 const clean = (value: string | null | undefined) => (value ?? "").trim().replace(/\s+/g, " ")
@@ -529,8 +533,8 @@ export function mapFroggeTools(source: FroggeToolsExport, ctx: ToolsContext, bas
     tools.messageTemplates.push({
       venue_key: venueKey,
       template_type: type,
-      title: template.title,
-      description: template.description,
+      title: venuePlaceholder(template.title, type),
+      description: venuePlaceholder(template.description, type),
       is_active: template.is_active,
     })
     bump("message templates")

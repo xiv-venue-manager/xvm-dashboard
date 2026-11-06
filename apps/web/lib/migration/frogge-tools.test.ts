@@ -159,6 +159,32 @@ describe("templates", () => {
     expect(r.report.dropped).toHaveLength(1)
   })
 
+  it("carries the winner message types", () => {
+    const r = run({
+      message_templates: [
+        { id: 1, guild_id: G, template_type: "giveaway_winner", title: "Won", description: "{user}", is_active: true },
+        { id: 2, guild_id: G, template_type: "raffle_winner", title: "Won", description: "{user}", is_active: false },
+      ],
+    })
+    expect(r.tools.messageTemplates.map((t) => t.template_type)).toEqual(["giveaway.winner", "raffle.winner"])
+    expect(r.report.dropped).toEqual([])
+  })
+
+  it("calls the server {venue} in a greeting's title and description, and nowhere else", () => {
+    const r = run({
+      message_templates: [
+        { id: 1, guild_id: G, template_type: "channel_greeting", title: "Welcome to {guild}", description: "{member}, {guild} and {guild}", is_active: true },
+        { id: 2, guild_id: G, template_type: "dm_greeting", title: null, description: "Hi from {guild}", is_active: true },
+        { id: 3, guild_id: G, template_type: "vip_welcome", title: null, description: "{guild}", is_active: true },
+      ],
+    })
+    expect(r.tools.messageTemplates.map((t) => [t.title, t.description])).toEqual([
+      ["Welcome to {venue}", "{member}, {venue} and {venue}"],
+      [null, "Hi from {venue}"],
+      [null, "{guild}"],
+    ])
+  })
+
   it("builds an event template from its data blob", () => {
     const r = run({
       event_templates: [

@@ -41,10 +41,6 @@ const eslintConfig = defineConfig([
     // Shrinks to empty as the Prisma cutover lands. Do not add to it.
     files: [
       "lib/prisma.ts",
-      "lib/api/venue-access.ts",
-      "app/api/venues/route.ts",
-      "app/api/venues/[[]venueId]/route.ts",
-      "app/api/venues/[[]venueId]/settings/route.ts",
       "scripts/**",
     ],
     rules: { "no-restricted-imports": "off" },

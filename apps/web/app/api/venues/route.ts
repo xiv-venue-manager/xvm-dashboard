@@ -1,7 +1,6 @@
 import { NextRequest, NextResponse } from "next/server"
 import { getServerSession } from "next-auth"
 import { authOptions } from "@/lib/auth"
-import { prisma } from "@/lib/prisma"
 import { z } from "zod"
 import { withRateLimit } from "@/lib/middleware/with-rate-limit"
 import { validators } from "@/lib/validation"
@@ -12,7 +11,7 @@ import { sendEmail } from "@/lib/email"
 import { venueWelcomeEmail, newVenueAlertEmail } from "@/lib/email-templates"
 import { postNewVenue } from "@/lib/discord-feed"
 import { addressProblem } from "@/lib/venue-location"
-import { asMembership, myVenueRoles, VenueAccessUnavailable } from "@/lib/api/venue-access"
+import { asMembership, myVenues, VenueAccessUnavailable } from "@/lib/api/venue-access"
 
 const venueSchema = z.object({
   name: validators.venueName,
@@ -47,14 +46,6 @@ export const POST = withRateLimit(
 
       const addressError = addressProblem(validatedData)
       if (addressError) return NextResponse.json({ error: addressError }, { status: 400 })
-
-      const existingVenue = await prisma.venue.findUnique({
-        where: { slug: validatedData.slug },
-      })
-
-      if (existingVenue) {
-        return NextResponse.json({ error: "A venue with this slug already exists" }, { status: 400 })
-      }
 
       const userId = session.user.id
       const token = await getValidXvmApiToken(userId)
@@ -99,30 +90,19 @@ export const POST = withRateLimit(
         }
       }
 
-      const venue = await prisma.venue
-        .create({
-          data: {
-            name: validatedData.name,
-            slug: validatedData.slug,
-            description: validatedData.description,
-            dataCenter: validatedData.dataCenter,
-            world: validatedData.world,
-            district: validatedData.district ?? null,
-            ward: validatedData.ward ?? null,
-            plot: validatedData.plot ?? null,
-            apartment: validatedData.apartment ?? null,
-            ownerId: userId,
-            xvmApiVenueId: created.id,
-            xvmApiVenueLinkedAt: new Date(),
-            xvmApiVenueLinkedBy: userId,
-          },
-        })
-        .catch((err: unknown) => {
-          console.error(`[venue create] bridge row failed; orphaned xvm-api venue ${created.id}:`, err)
-          throw err
-        })
-
       await invalidateCache(cacheKeys.userVenues(userId))
+
+      const venue = {
+        id: created.id,
+        xvmApiVenueId: created.id,
+        name: created.name,
+        slug: created.slug,
+        dataCenter: created.data_center,
+        world: created.world,
+        district: validatedData.district ?? null,
+        ward: validatedData.ward ?? null,
+        plot: validatedData.plot ?? null,
+      }
 
       postNewVenue(venue)
 
@@ -171,15 +151,16 @@ export const GET = withRateLimit(
       const venues = await getOrSet(
         cacheKey,
         async () => {
-          const roles = await myVenueRoles(session.user.id)
-          const rows = await prisma.venue.findMany({
-            where: { id: { in: [...roles.keys()] } },
-            select: { id: true, name: true, slug: true, dataCenter: true, world: true, xvmApiVenueId: true },
-          })
-          return rows.flatMap((venue) => {
-            const role = roles.get(venue.id)
-            return role ? [{ ...venue, memberships: [asMembership(session.user.id, venue.id, role)] }] : []
-          })
+          const venues = await myVenues(session.user.id)
+          return venues.map(({ id, name, slug, dataCenter, world, role }) => ({
+            id,
+            name,
+            slug,
+            dataCenter,
+            world,
+            xvmApiVenueId: id,
+            memberships: [asMembership(session.user.id, id, role)],
+          }))
         },
         cacheTTL.venue
       )

@@ -89,19 +89,9 @@ describe("jwt", () => {
     })
   })
 
-  it("puts the current Discord avatar on the token, not the stored row's", async () => {
-    const token = await jwt({
-      token: { id: "u1" },
-      user: { id: "u1", name: "A", image: "https://cdn/old.png" },
-      account,
-      profile: { image_url: "https://cdn/new.png" },
-    })
+  it("puts the Discord avatar on the token", async () => {
+    const token = await jwt({ token: { id: "u1" }, user: { id: "u1", name: "A", image: "https://cdn/new.png" }, account })
     expect(token.picture).toBe("https://cdn/new.png")
-  })
-
-  it("keeps the stored row's avatar on the token when the profile carries none", async () => {
-    const token = await jwt({ token: { id: "u1" }, user: { id: "u1", name: "A", image: "https://cdn/old.png" }, account })
-    expect(token.picture).toBe("https://cdn/old.png")
   })
 
   it("leaves the stored grant alone on later calls that carry no account", async () => {

@@ -5,13 +5,6 @@ import { upsertXvmApiCredential, getValidXvmApiToken } from "@/lib/api/xvm-api-s
 import { SESSION_COOKIE_NAME, SESSION_COOKIE_SECURE } from "@/lib/session-cookie"
 import { SNOWFLAKE_PATTERN } from "@/lib/validation"
 
-// For an existing account next-auth hands the callbacks the stored user row as `user`, so the
-// avatar Discord holds now is only on `profile`.
-function discordImage(profile: unknown): string | undefined {
-  const url = (profile as { image_url?: unknown } | undefined)?.image_url
-  return typeof url === "string" && url ? url : undefined
-}
-
 // A page load fires several session fetches at once and each finds the credential missing. Every
 // exchange revokes the one before it, so callers for the same person share the exchange that is
 // already running. The stored credential covers everything after it finishes.
@@ -39,7 +32,7 @@ export const authOptions: NextAuthOptions = {
     async signIn({ account }) {
       return Boolean(account?.providerAccountId)
     },
-    async jwt({ token, user, account, profile }) {
+    async jwt({ token, user, account }) {
       // Initial sign in - user object is only available on first call
       if (user) {
         token.email = user.email
@@ -49,8 +42,6 @@ export const authOptions: NextAuthOptions = {
       if (account) {
         token.id = account.providerAccountId
         token.provider = account.provider
-        const image = account.provider === "discord" ? discordImage(profile) : undefined
-        if (image) token.picture = image
         if (account.provider === "discord" && account.access_token) {
           token.discord = {
             accessToken: account.access_token,

@@ -1,7 +1,12 @@
 type Row = Record<string, unknown>
 
 export interface FroggeFeatureExport {
-  guild_configurations: { guild_id: string; vip_warning_threshold_days: number | null }[]
+  guild_configurations: {
+    guild_id: string
+    vip_warning_threshold_days: number | null
+    event_start_reminder_minutes?: number | null
+    greeting_channel_id?: string | null
+  }[]
   reaction_role_panels: {
     id: number
     guild_id: string
@@ -64,6 +69,8 @@ export interface FeatureFile {
   vipPerks: Row[]
   vipMemberships: Row[]
   vipSettings: Row[]
+  shiftSettings: Row[]
+  discordSettings: Row[]
 }
 
 export interface FeatureReport {
@@ -83,6 +90,7 @@ const VOICE_RULE = "discord.voice"
 const REPEATABILITY: Record<string, string> = { one_time: "once" }
 const END_REASON: Record<string, string> = { removed: "revoked" }
 const MAX_NAME = 100
+const MAX_START_REMINDER_MINUTES = 7 * 24 * 60
 
 const clean = (value: string | null | undefined) => (value ?? "").trim().replace(/\s+/g, " ")
 const ms = (iso: string) => new Date(iso).getTime()
@@ -100,6 +108,8 @@ export function mapFroggeFeatures(source: FroggeFeatureExport, ctx: FeatureConte
     vipPerks: [],
     vipMemberships: [],
     vipSettings: [],
+    shiftSettings: [],
+    discordSettings: [],
   }
   const report: FeatureReport = { counts: {}, dropped: [], notes: [] }
   const bump = (name: string, by = 1) => (report.counts[name] = (report.counts[name] ?? 0) + by)
@@ -331,6 +341,24 @@ export function mapFroggeFeatures(source: FroggeFeatureExport, ctx: FeatureConte
     if (!venueKey || !vipVenues.has(config.guild_id)) continue
     features.vipSettings.push({ venue_key: venueKey, warning_days: config.vip_warning_threshold_days })
     bump("VIP settings")
+  }
+
+  for (const config of source.guild_configurations) {
+    const venueKey = ctx.venueKeyByGuild[config.guild_id]
+    if (!venueKey) continue
+    const minutes = config.event_start_reminder_minutes ?? null
+    if (minutes !== null) {
+      if (Number.isInteger(minutes) && minutes >= 1 && minutes <= MAX_START_REMINDER_MINUTES) {
+        features.shiftSettings.push({ venue_key: venueKey, start_reminder_minutes: minutes })
+        bump("start reminder lead times")
+      } else {
+        drop("start reminder lead time", config.guild_id, `${minutes} minutes is outside what xvm-api accepts (1 to ${MAX_START_REMINDER_MINUTES})`)
+      }
+    }
+    if (config.greeting_channel_id) {
+      features.discordSettings.push({ venue_key: venueKey, greeting_channel_id: config.greeting_channel_id })
+      bump("greeting channels")
+    }
   }
 
   report.notes.push("reaction role templates are not carried: xvm-api seeds the same platform templates")

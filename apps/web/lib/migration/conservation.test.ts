@@ -178,7 +178,10 @@ describe("prod to export", () => {
   it("fails a table that should be empty but has rows, and flags unconfirmed drops without failing", () => {
     const grown = counts({ webhooks: 2 })
     expect(problemsOf(grown, exportsFor(grown))).toEqual([expect.stringMatching(/webhooks.*expected empty/)])
+    const original = TABLES.discord_open_venues
+    TABLES.discord_open_venues = { kind: "not_migrated", decision: "default", confirmed: false }
     const lines = checkTables(c, exportsFor(c))
+    TABLES.discord_open_venues = original
     expect(lines.find((l) => l.table === "discord_open_venues")?.status).toBe("to confirm")
     expect(lines.find((l) => l.table === "api_keys")?.status).toBe("not migrated")
   })

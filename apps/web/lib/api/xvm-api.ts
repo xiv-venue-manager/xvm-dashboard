@@ -2291,7 +2291,7 @@ export async function listPatronLogs(
 }
 
 export interface PatronLogSummary {
-  event_id: number
+  event_id: number | null
   attendance: number
   entries: number
   exits: number

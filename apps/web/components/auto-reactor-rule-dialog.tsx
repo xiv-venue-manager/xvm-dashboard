@@ -141,7 +141,7 @@ export function AutoReactorRuleDialog({ venueId, rule, onSaved, onClose }: AutoR
               <Label>Author has role</Label>
               <ClearButton label="Any role" visible={roleId !== ""} onClick={() => setRoleId("")} />
             </div>
-            <RolePicker venueId={venueId} value={roleId} onChange={setRoleId} disabled={submitting} />
+            <RolePicker venueId={venueId} value={roleId} onChange={setRoleId} disabled={submitting} grants={false} />
           </div>
 
           {isDraft && (

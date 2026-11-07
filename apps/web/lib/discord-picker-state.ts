@@ -5,6 +5,8 @@ export interface DiscordOption {
   color?: number
   /** Why this option is unsafe to pick, if it is. Rendered, never hidden. */
   note?: string | null
+  /** Set when the bot cannot give this role out. Only a picker whose role the bot grants acts on it. */
+  hierarchy?: string | null
 }
 
 /** Why the list is not available, and whether trying again could help. */
@@ -70,8 +72,10 @@ export function channelProblem(
  * unrelated field on the same form silently rewrites the role. `discord-rest.ts:183` is the same
  * reasoning behind `filterAssignableRoles`'s `alwaysInclude`.
  */
-export function offeredRoles(options: DiscordOption[], value: string): DiscordOption[] {
-  return options.filter((option) => !option.note || option.value === value)
+export function offeredRoles(options: DiscordOption[], value: string, grants = true): DiscordOption[] {
+  return options.filter(
+    (option) => option.value === value || (!option.note && !(grants && option.hierarchy))
+  )
 }
 
 /**

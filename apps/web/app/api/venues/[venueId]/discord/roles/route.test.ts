@@ -136,18 +136,19 @@ describe("GET discord/roles", () => {
       ],
     })
     const body = await (await call()).json()
-    expect(body.roles.map((r: { name: string; unsafeReason: string | null }) => [r.name, r.unsafeReason === null])).toEqual([
+    expect(body.roles.map((r: { name: string; hierarchyReason: string | null }) => [r.name, r.hierarchyReason === null])).toEqual([
       ["Below", true],
       ["Level", false],
       ["Above", false],
     ])
-    expect(body.roles[2].unsafeReason).toMatch(/bot's highest role/)
+    expect(body.roles[2].hierarchyReason).toMatch(/bot's highest role/)
+    expect(body.roles.every((r: { unsafeReason: string | null }) => r.unsafeReason === null)).toBe(true)
   })
 
   it("marks nothing as above the bot when its position cannot be read", async () => {
     m.botPosition.mockResolvedValue(null)
     m.fetchDiscord.mockResolvedValue({ ok: true, data: [role({ position: 99 })] })
-    expect((await (await call()).json()).roles[0].unsafeReason).toBeNull()
+    expect((await (await call()).json()).roles[0].hierarchyReason).toBeNull()
   })
 
   it("asks Discord for the bot's position again on refresh=1, and caches it", async () => {

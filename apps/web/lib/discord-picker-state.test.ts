@@ -72,6 +72,26 @@ describe("offeredRoles", () => {
     expect(offeredRoles(roles, "2").map((r) => r.label)).toEqual(["Bartender", "Admin"])
   })
 
+  it("drops a role above the bot only when the bot hands the role out", () => {
+    const roles = [
+      role({ value: "1", label: "Below" }),
+      role({ value: "2", label: "Above", hierarchy: "it's at or above the bot's highest role" }),
+    ]
+    expect(offeredRoles(roles, "").map((r) => r.label)).toEqual(["Below"])
+    expect(offeredRoles(roles, "", true).map((r) => r.label)).toEqual(["Below"])
+    expect(offeredRoles(roles, "", false).map((r) => r.label)).toEqual(["Below", "Above"])
+  })
+
+  it("still drops an Administrator role when the bot only matches on it", () => {
+    const roles = [role({ value: "2", label: "Admin", note: "it has Administrator permission" })]
+    expect(offeredRoles(roles, "", false)).toEqual([])
+  })
+
+  it("keeps a role above the bot that this row already holds", () => {
+    const roles = [role({ value: "2", label: "Above", hierarchy: "it's at or above the bot's highest role" })]
+    expect(offeredRoles(roles, "2").map((r) => r.label)).toEqual(["Above"])
+  })
+
   it("keeps a safe role whose note is absent rather than null", () => {
     expect(offeredRoles([{ value: "1", label: "Bartender" }], "")).toHaveLength(1)
   })

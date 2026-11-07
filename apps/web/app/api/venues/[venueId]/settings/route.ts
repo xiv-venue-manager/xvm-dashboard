@@ -1,12 +1,10 @@
 import { NextResponse } from "next/server"
 import { getServerSession } from "next-auth"
 import { authOptions } from "@/lib/auth"
-import { prisma } from "@/lib/prisma"
 import { requireMyVenueRole } from "@/lib/api/venue-access"
 import { z } from "zod"
 import { withRateLimit } from "@/lib/middleware/with-rate-limit"
 import { validators } from "@/lib/validation"
-import { parseVenueSettings } from "@/lib/types/venue-settings"
 import { getValidXvmApiToken, invalidateXvmApiCredential, isXvmAuthFailure, xvmApiErrorResponse } from "@/lib/api/xvm-api-store"
 import { getVenue, updateVenue, type VenueUpdate } from "@/lib/api/xvm-api"
 
@@ -37,13 +35,6 @@ const updateSettingsSchema = z.object({
   isAdult: z.boolean().optional(),
 })
 
-function servedSettings(value: unknown): Record<string, unknown> {
-  const settings: Record<string, unknown> = { ...parseVenueSettings(value) }
-  delete settings.webhooks
-  delete settings.discordWebhooks
-  return settings
-}
-
 export const GET = withRateLimit<{ params: Promise<{ venueId: string }> }>(
   async (request, context) => {
     if (!context?.params) {
@@ -70,29 +61,9 @@ export const GET = withRateLimit<{ params: Promise<{ venueId: string }> }>(
       if (!access.ok) return access.response
       const xvmVenueId = access.venue.id
 
-      // Get venue settings
-      const venue = await prisma.venue.findUnique({
-        where: { xvmApiVenueId: xvmVenueId },
-        select: {
-          settings: true,
-          venueType: true,
-        },
-      })
-
-      if (!venue) {
-        return NextResponse.json({ error: "Venue not found" }, { status: 404 })
-      }
-
-      const responseBody: Record<string, unknown> = {
-        ...servedSettings(venue.settings),
-        venueType: venue.venueType,
-      }
-
-      // Visibility settings, venue type, tagline, tags and the adult flag are being migrated to xvm-api - it's the
-      // source of truth for connected venues, Prisma's copy is a stale leftover for
-      // unconnected ones. On any failure to reach xvm-api, omit these keys entirely
-      // (rather than silently serving the stale Prisma copy as current) and flag it,
+      // xvm-api owns every setting served here. On any failure to reach it, serve none of them and flag it,
       // so a page applying this response doesn't snap its controls back to wrong values.
+      const responseBody: Record<string, unknown> = {}
       const token = await getValidXvmApiToken(session.user.id)
       let degraded = true
       if (token) {
@@ -123,26 +94,7 @@ export const GET = withRateLimit<{ params: Promise<{ venueId: string }> }>(
           console.error("[settings] getVenue error:", err)
         }
       }
-      if (degraded) {
-        delete responseBody.taskVisibility
-        delete responseBody.salesVisibility
-        delete responseBody.revenueVisibility
-        delete responseBody.eventVisibility
-        delete responseBody.venueType
-        delete responseBody.tagline
-        delete responseBody.tags
-        delete responseBody.isAdult
-        delete responseBody.name
-        delete responseBody.description
-        delete responseBody.bannerUrl
-        delete responseBody.logoUrl
-        delete responseBody.district
-        delete responseBody.ward
-        delete responseBody.plot
-        delete responseBody.apartment
-        delete responseBody.subdivision
-        responseBody.visibilityDegraded = true
-      }
+      if (degraded) responseBody.visibilityDegraded = true
 
       return NextResponse.json(responseBody)
     } catch (error) {

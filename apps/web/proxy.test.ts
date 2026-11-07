@@ -29,6 +29,15 @@ describe("proxy", () => {
     expect(signInCallbackUrl(location.search, location.origin)).toBe("/admin/feedback?report=7")
   })
 
+  it("lets a page load venue images that came from ffxivvenues.com", async () => {
+    m.getToken.mockResolvedValue({ id: "user-1" })
+
+    const res = await proxy(new NextRequest(deepLink))
+
+    const imgSrc = res.headers.get("content-security-policy")!.split("; ").find((d) => d.startsWith("img-src"))!
+    expect(imgSrc).toContain("https://images.ffxivvenues.com")
+  })
+
   it("lets a signed-in request through", async () => {
     m.getToken.mockResolvedValue({ id: "user-1" })
 

@@ -14,7 +14,7 @@ Each domain has three parts:
 | Mapper | `apps/web/lib/migration/<domain>.ts` | A pure function from the export to the rows xvm-api needs. No Prisma, no network, tested |
 | Runner | `apps/web/scripts/map-<domain>.ts` | Reads the export and the earlier mapped files, writes the mapped JSON, prints counts and skip reasons |
 
-**It does not load anything.** Nothing here writes to xvm-api or to Prisma. The loader is a separate piece, and it waits on Allegro saying which xvm-api tables a direct load may rely on.
+**It does not load anything.** Nothing here writes to xvm-api or to Prisma. The loader is a separate piece: `src/api/scripts/legacy_load` on the xvm-api branch `feat/legacy-loader`. It writes 32 xvm-api tables, the ones in its `specs.py`, in one transaction, and fails on a mapped field it does not know, so a mapper change that outruns it is caught. Which tables a direct load may rely on is settled by that list. All 32 exist on dev, and the loader's own tests pass against dev's migrations.
 
 Every row is keyed by its Prisma id, so the loader can assign real xvm-api ids and then rewrite the keys. Two keys are built, not copied: a manual payroll payee is `payee:<name folded to lower case>`, and a category is `<venue id>|<name folded to lower case>`.
 
@@ -46,7 +46,7 @@ ro < scripts/export/characters.sql > characters.json
 npx tsx scripts/map-characters.ts characters.json people-mapped.json characters-mapped.json
 
 ro < scripts/export/shifts.sql     > shifts.json
-npx tsx scripts/map-shifts.ts shifts.json people-mapped.json positions-mapped.json events-mapped.json events.json shifts-mapped.json
+npx tsx scripts/map-shifts.ts shifts.json people-mapped.json positions-mapped.json events-mapped.json shifts-mapped.json
 
 ro < scripts/export/finance.sql    > finance.json
 npx tsx scripts/map-finance.ts finance.json people-mapped.json positions-mapped.json events-mapped.json services-mapped.json finance-mapped.json
@@ -81,7 +81,7 @@ Dependencies, so a PR can be reviewed alone:
 | people | characters, positions, events, follows and feedback |
 | people, positions | services, tasks and rooms |
 | people, events | patrons and patron logs |
-| people, positions, events (and the raw events export) | shifts |
+| people, positions, events | shifts |
 | people, positions, events, services | transactions and payroll |
 | people, venue timezones | venues |
 
@@ -128,7 +128,7 @@ Read-only, 2026-10-09. These are the numbers a rehearsal run should land on, giv
 | Tasks | 27 | 27 | 0 | 10 venues, 16 categories |
 | Rooms | 22 | 22 | 0 | 6 venues |
 | Opening hours | 28 | 20 | 8 | the 8 belong to the 5 venues synced from ffxivvenues.com |
-| Pot settings | 18 | 4 rows | 14 all default | 3 venues have the pot on |
+| Pot settings | 18 | 4 rows | 14 all default | 3 venues have the pot on, carried as `pot_enabled` on their row (xvm-api#233) |
 | Inventory settings | 18 | 5 module toggles | 13 off | |
 | Venue timezones | 69 venues | 69 proposed | 0 | 22 one zone, 6 mixed, 41 none (UTC), 6 suspect (mostly UTC events) |
 | Venues | 69 | **63** | 2 ownerless and empty, 4 test venues | 13 external links (7 Partake, 6 ffxivvenues.com), 42 gallery images over 8 venues, 28 venues with settings that have no home |
@@ -170,11 +170,10 @@ Each is a counted warning, not a silent change.
 
 | Who | Question |
 |---|---|
-| Allegro | Which xvm-api tables a direct load may rely on |
-| Allegro | The pot `enabled` flag has no home: a column, a `pot` module, or derive it from positions that pay from the pot. Allegro recommends deriving it; check first whether any of the 3 venues with the pot on has no pot position |
 | Allegro | Should a no-Discord person path exist |
 | Allegro | Where the venue settings listed in the manifest live. #176 keeps them in `leftovers` meanwhile |
-| Allegro | Plugin route: decided that the plugin calls xvm-api directly. That needs xvm-api to cover what only the dashboard does today: the clock-in window (30 minutes early, 60 late), Frogge, and inventory linking. It is not part of the export layer |
+| Allegro | Where the loader lives: in xvm-api, so her CI runs its tests on every migration, or as a local branch that goes stale |
+| Allegro | Plugin route: decided that the plugin calls xvm-api directly, and the plugin is repointed. xvm-api has no early clock-in limit, by the product rule, and refuses a clock-in 30 minutes after the shift's end (`MISSED_GRACE`), so the dashboard's window (30 minutes early, 60 late) is dropped. Frogge remains. The inventory routes exist, but whether the plugin's link and restock flows fit them is unchecked. Prod xvm-api is not deployed yet. It is not part of the export layer |
 
 ## Safety when running it
 

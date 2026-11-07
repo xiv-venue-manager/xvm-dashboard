@@ -100,7 +100,7 @@ const VOCABULARY = {
   revenueVisibility: ["all", "hide", "own"],
   eventVisibility: ["all", "published"],
 } as const
-const NO_HOME = ["shiftBot", "notifications"] as const
+const NO_HOME = ["shiftBot"] as const
 const MAX_NAME = 100
 const MAX_SHORT = 32
 const MAX_URL = 500

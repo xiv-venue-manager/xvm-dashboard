@@ -17,7 +17,7 @@ import { Textarea } from "@/components/ui/textarea"
 import { Switch } from "@/components/ui/switch"
 import { DateTimePicker } from "@/components/ui/date-time-picker"
 import { toast } from "sonner"
-import { apiFetch, ApiError } from "@/lib/api-fetch"
+import { ApiError, apiRoute } from "@/lib/api-fetch"
 import type { GiveawayRow, RaffleRow } from "@/lib/api/xvm-api"
 
 type ContestType = "giveaway" | "raffle"
@@ -69,7 +69,8 @@ export function ContestFormDialog({ venueId, trigger, onCreated }: ContestFormDi
     setSubmitting(true)
     try {
       if (type === "giveaway") {
-        const giveaway = await apiFetch<GiveawayRow>(`/api/venues/${venueId}/contests/giveaways`, {
+        const giveaway = await apiRoute<GiveawayRow>("/api/venues/[venueId]/contests/giveaways", {
+          params: { venueId },
           method: "POST",
           headers: { "Content-Type": "application/json" },
           body: JSON.stringify({
@@ -95,7 +96,8 @@ export function ContestFormDialog({ venueId, trigger, onCreated }: ContestFormDi
           setSubmitting(false)
           return
         }
-        const raffle = await apiFetch<RaffleRow>(`/api/venues/${venueId}/contests/raffles`, {
+        const raffle = await apiRoute<RaffleRow>("/api/venues/[venueId]/contests/raffles", {
+          params: { venueId },
           method: "POST",
           headers: { "Content-Type": "application/json" },
           body: JSON.stringify({

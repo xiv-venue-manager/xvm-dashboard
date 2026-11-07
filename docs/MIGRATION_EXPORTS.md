@@ -182,6 +182,28 @@ Each is a counted warning, not a silent change.
 - The export files hold names, Discord ids, emails and feedback text. Keep them in a scratch directory and delete them when done.
 - Each mapper has its own tests (`pnpm exec vitest run lib/migration`). A mapped run that skips or warns more than the table above is worth a look before anything loads.
 
+## Conservation report
+
+`scripts/conservation.ts` accounts for every row from prod to the loader's input and exits 1 if any row is lost without a recorded reason. Run it in the rehearsal and again in the window, after `prepare-load.ts`.
+
+```bash
+# a fifteenth export, read-only: every table's row count. Take one before the other exports and, on a live database, one after.
+psql "$DATABASE_URL" -At -f scripts/export/table-counts.sql > table-counts.json
+npx tsx scripts/conservation.ts --counts table-counts.json --exports <export dir> --mapped <mapped dir> \
+  [--counts-after table-counts-after.json] [--accepted accepted.json]
+```
+
+Inside the maintenance window nothing writes, so one counts file is enough and the counts must match exactly. On a live database the export can land between two counts, so pass `--counts-after` and a count inside that range is accepted.
+
+What it checks, in order:
+
+1. **Prod to export.** Every table in prod is classified in `TABLES` (`lib/migration/conservation.ts`) as exported, nested in another export, folded into one, filtered, deliberately not migrated (with the decision), handled by another script, or expected empty. An exported table's row count must equal its export array. A table that is not in `TABLES` fails, so a new prod table cannot appear without a decision. A table marked "to confirm" is listed and does not fail.
+2. **Export to mapped.** For the nine arrays whose mappers account for every input row (characters, patrons, patron logs, transactions, payroll, follows, feedback, tasks, rooms) the report requires input = output + skipped. A row that is neither mapped nor skipped fails. A mapper creating extra rows is reported, not failed.
+3. **Skipped rows.** Every `skip(...)` reason is classified in `SKIP_RULES` as `decided`, `duplicate` or `data`. Decided and duplicate skips are listed. A `data` skip is a real row lost to bad data and fails until a person has looked and put a most-allowed count in `accepted.json`, for example `{ "finance:bad-amount": 2 }`, so a later run that loses more than was reviewed fails again. A test reads every `skip(...)` in `lib/migration` and fails on a reason that is not classified.
+4. **prepare-load.** Rows dropped because their venue was left out are listed. Rows dropped because their parent was skipped fail unless accepted, as `{ "events.totals:cascade": 0 }`.
+
+It does not see the loader's own drops (a row whose parent did not load). Read the loader's dry-run report for those; making the loader write a machine-readable report would close the gap.
+
 ## The rehearsal
 
 The full rehearsal comes once every slice, the venues slice and the loader exist: load a copy of prod into a real xvm-api, then reconcile counts per venue and per person, and the sums above (transactions, payroll, entries and exits) against the source. Per-slice runs, like the table above, are checks along the way and not the sign-off.

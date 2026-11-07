@@ -8,7 +8,7 @@ export interface PrepareReport {
   clearedPayrollLinks: number
 }
 
-const LOAD_ARRAYS: Record<string, string[]> = {
+export const LOAD_ARRAYS: Record<string, string[]> = {
   venues: ["venues", "externalLinks", "images"],
   positions: ["positions", "memberships", "membershipPositions"],
   services: ["categories", "services", "servicePositions", "inventories"],

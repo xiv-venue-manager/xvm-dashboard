@@ -70,6 +70,7 @@ The person and any displaced holder are locked in id order. Repeating a proof ch
 
 - A proof is a snapshot. If a user later removes or unverifies a character at XIV Auth, we are not told. Running the flow again refreshes it.
 - Existing characters stay self-declared until their owners verify. There is no data migration.
+- A verified character renamed into a name that someone else has self-declared is a `conflict`, not a transfer. The unverified holder of the name is not displaced. Add displacement later if it happens in practice.
 
 ## Rollout
 

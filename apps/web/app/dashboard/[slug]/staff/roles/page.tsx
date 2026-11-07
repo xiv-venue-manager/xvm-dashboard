@@ -142,7 +142,7 @@ export default function RolesPage({ params }: { params: Promise<{ slug: string }
 
       if (!response.ok) {
         const data = await response.json()
-        throw new Error(data.error || "Failed to create role")
+        throw new Error(data.message ?? data.error ?? "Failed to create role")
       }
 
       const newRole = await response.json()
@@ -186,7 +186,7 @@ export default function RolesPage({ params }: { params: Promise<{ slug: string }
 
       if (!response.ok) {
         const data = await response.json()
-        throw new Error(data.error || "Failed to update role")
+        throw new Error(data.message ?? data.error ?? "Failed to update role")
       }
 
       const updatedRole = await response.json()

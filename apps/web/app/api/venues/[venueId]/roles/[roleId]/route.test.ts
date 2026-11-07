@@ -56,9 +56,10 @@ const put = (body: unknown) =>
   PUT(new Request("http://localhost/api", { method: "PUT", body: JSON.stringify(body) }) as never, context as never)
 
 describe("PUT /api/venues/[venueId]/roles/[roleId]", () => {
-  it("passes the role the position already holds, so re-saving an unsafe one is not refused", async () => {
+  it("does not ask Discord again when the role is the one the position already holds", async () => {
     expect((await put({ name: "Bartender", discordRoleId: HELD })).status).toBe(200)
-    expect(m.role).toHaveBeenCalledWith("user-1", "my-venue", HELD, HELD)
+    expect(m.role).not.toHaveBeenCalled()
+    expect(m.update).toHaveBeenCalledWith("tok", "xv-1", 5, expect.objectContaining({ discord_role_id: HELD }))
   })
 
   it("checks a newly picked role against the server and sends it on", async () => {

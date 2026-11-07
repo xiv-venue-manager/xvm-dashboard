@@ -18,14 +18,14 @@ export function describeXivAuthResult(search: string): XivAuthNotice | null {
       const conflicts = count("conflicts")
       const total = verified + transferred
       if (total === 0) {
-        return { tone: "error", message: `None could be verified. ${conflicts} ${conflicts === 1 ? "is" : "are"} already verified on another account.` }
+        return { tone: "error", message: `None could be verified. ${conflicts} ${conflicts === 1 ? "is" : "are"} held by another account, or share a name with one.` }
       }
       const parts = [`Verified ${plural(total, "character", "characters")}.`]
       if (transferred > 0) {
         parts.push(`${transferred} ${transferred === 1 ? "was" : "were"} taken over from an account that had linked ${transferred === 1 ? "it" : "them"} without proof.`)
       }
       if (conflicts > 0) {
-        parts.push(`${conflicts} could not be verified because ${conflicts === 1 ? "it is" : "they are"} already verified on another account.`)
+        parts.push(`${conflicts} could not be verified because ${conflicts === 1 ? "it is" : "they are"} held by another account, or share${conflicts === 1 ? "s" : ""} a name with one.`)
       }
       return { tone: "success", message: parts.join(" ") }
     }

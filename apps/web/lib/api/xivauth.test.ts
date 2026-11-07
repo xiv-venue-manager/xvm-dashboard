@@ -133,7 +133,8 @@ describe("toVerifiedCharacters", () => {
       { ...character, lodestone_id: "-5" },
       { ...character, name: "x".repeat(33) },
       { ...character, home_world: 7 },
-      { ...character, persistent_key: "k".repeat(129) },
+      { ...character, persistent_key: "k".repeat(65) },
+      { ...character, verified_at: null },
       null,
     ]
     expect(toVerifiedCharacters(odd as never)).toEqual([])

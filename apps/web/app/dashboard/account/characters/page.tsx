@@ -258,7 +258,7 @@ export default function CharactersPage() {
                         Primary
                       </Badge>
                     )}
-                    {c.verifiedVia === "xivauth" ? (
+                    {["xivauth", "lodestone", "oauth"].includes(c.verifiedVia ?? "") ? (
                       <Badge variant="outline" className="border-sky-500/40 text-sky-300">
                         Verified
                       </Badge>

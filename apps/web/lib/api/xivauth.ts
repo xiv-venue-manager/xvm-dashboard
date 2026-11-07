@@ -9,7 +9,7 @@ export const FLOW_COOKIE = "xivauth_flow"
 export const FLOW_COOKIE_MAX_AGE_SECONDS = 600
 const MAX_CHARACTERS = 100
 const MAX_TEXT_LENGTH = 32
-const MAX_KEY_LENGTH = 128
+const MAX_KEY_LENGTH = 64
 
 export class XivAuthError extends Error {}
 
@@ -70,6 +70,7 @@ export async function exchangeCode(config: XivAuthConfig, code: string, verifier
   const res = await fetch(XIVAUTH_TOKEN_URL, {
     method: "POST",
     headers: { "Content-Type": "application/x-www-form-urlencoded" },
+    signal: AbortSignal.timeout(10_000),
     body: new URLSearchParams({
       grant_type: "authorization_code",
       code,
@@ -90,6 +91,7 @@ export async function exchangeCode(config: XivAuthConfig, code: string, verifier
 export async function fetchSharedCharacters(accessToken: string): Promise<XivAuthCharacter[]> {
   const res = await fetch(XIVAUTH_CHARACTERS_URL, {
     headers: { Authorization: `Bearer ${accessToken}`, Accept: "application/json" },
+    signal: AbortSignal.timeout(10_000),
   })
   if (!res.ok) throw new XivAuthError(`characters request failed: ${res.status}`)
   const body: unknown = await res.json().catch(() => null)
@@ -105,7 +107,7 @@ export function toVerifiedCharacters(list: XivAuthCharacter[]): VerifiedCharacte
     .flatMap((c) => {
       if (!c || typeof c.lodestone_id !== "string" || !/^\d{1,15}$/.test(c.lodestone_id)) return []
       const lodestoneId = Number(c.lodestone_id)
-      if (lodestoneId < 1 || !isText(c.persistent_key, MAX_KEY_LENGTH) || !isText(c.name) || !isText(c.home_world)) return []
+      if (lodestoneId < 1 || !isText(c.verified_at, 64) || !isText(c.persistent_key, MAX_KEY_LENGTH) || !isText(c.name) || !isText(c.home_world)) return []
       return [{ lodestone_id: lodestoneId, xivauth_key: c.persistent_key, character_name: c.name, world: c.home_world }]
     })
     .slice(0, MAX_CHARACTERS)

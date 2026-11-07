@@ -21,7 +21,7 @@ describe("describeXivAuthResult", () => {
   it("is an error when nothing could be verified", () => {
     expect(describeXivAuthResult("?xivauth=done&verified=0&transferred=0&conflicts=2")).toEqual({
       tone: "error",
-      message: "None could be verified. 2 are already verified on another account.",
+      message: "None could be verified. 2 are held by another account, or share a name with one.",
     })
   })
 

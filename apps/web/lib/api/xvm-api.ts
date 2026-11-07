@@ -2468,7 +2468,6 @@ export interface GiveawayCreate {
   name?: string | null
   description?: string | null
   prize?: string | null
-  thumbnail_url?: string | null
   color?: number | null
   emoji?: string | null
   end_at?: string | null
@@ -2480,7 +2479,6 @@ export interface GiveawayUpdate {
   name?: string | null
   description?: string | null
   prize?: string | null
-  thumbnail_url?: string | null
   color?: number | null
   emoji?: string | null
   end_at?: string | null

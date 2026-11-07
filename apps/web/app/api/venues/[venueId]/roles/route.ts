@@ -8,12 +8,14 @@ import { getValidXvmApiToken, xvmApiErrorResponse } from "@/lib/api/xvm-api-stor
 import { listPositions, createPosition, type PositionRow } from "@/lib/api/xvm-api"
 import { hexColorToInt, intColorToHex, gilToMinorUnits, minorUnitsToGil } from "@/lib/api/position-convert"
 import { validators } from "@/lib/validation"
+import { requireRoleInGuild } from "@/lib/api/venue-guild"
 
 const createRoleSchema = z.object({
   name: validators.roleName,
   responsibilities: validators.roleDescription,
   color: z.string().optional(),
   hourlyRate: z.number().positive().nullable().optional(),
+  discordRoleId: validators.snowflake.nullable().optional(),
 })
 
 // Matches the shape staff/roles/page.tsx already expects, so the page needs
@@ -27,6 +29,7 @@ function toRoleShape(position: PositionRow) {
     hourlyRate: minorUnitsToGil(position.hourly_rate_minor),
     potPayoutMode: position.pot_payout_mode,
     contractorSharesPot: position.contractor_shares_pot,
+    discordRoleId: position.discord_role_id,
     permissions: null,
     _count: { memberships: position.member_ids.length },
   }
@@ -101,12 +104,18 @@ export const POST = withRateLimit<{ params: Promise<{ venueId: string }> }>(
       return NextResponse.json({ error: "Invalid color format" }, { status: 400 })
     }
 
+    if (data.discordRoleId) {
+      const check = await requireRoleInGuild(session.user.id, venueId, data.discordRoleId)
+      if (!check.ok) return check.response
+    }
+
     try {
       const position = await createPosition(token, lookup.venue.id, {
         name: data.name,
         color,
         responsibilities: data.responsibilities ?? null,
         hourly_rate_minor: gilToMinorUnits(data.hourlyRate ?? null),
+        discord_role_id: data.discordRoleId ?? null,
       })
       return NextResponse.json(toRoleShape(position), { status: 201 })
     } catch (err) {

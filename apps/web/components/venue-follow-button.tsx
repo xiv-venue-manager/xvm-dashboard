@@ -4,7 +4,7 @@ import { useState } from "react"
 import { Button } from "@/components/ui/button"
 import { Heart } from "lucide-react"
 import { toast } from "sonner"
-import { apiFetch, ApiError } from "@/lib/api-fetch"
+import { ApiError, apiRoute } from "@/lib/api-fetch"
 
 interface VenueFollowButtonProps {
   venueId: string
@@ -26,9 +26,7 @@ export function VenueFollowButton({
   const toggle = async () => {
     setLoading(true)
     try {
-      await apiFetch(`/api/venues/${venueId}/follow`, {
-        method: following ? "DELETE" : "POST",
-      })
+      await apiRoute("/api/venues/[venueId]/follow", { params: { venueId }, method: following ? "DELETE" : "POST" })
       setFollowing(!following)
       setCount((c) => (following ? c - 1 : c + 1))
     } catch (e) {

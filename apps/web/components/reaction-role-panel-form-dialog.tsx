@@ -18,7 +18,7 @@ import { Label } from "@/components/ui/label"
 import { Textarea } from "@/components/ui/textarea"
 import { Select, SelectContent, SelectItem, SelectTrigger, SelectValue } from "@/components/ui/select"
 import { toast } from "sonner"
-import { apiFetch, ApiError } from "@/lib/api-fetch"
+import { ApiError, apiRoute } from "@/lib/api-fetch"
 import { addInOrder, draftProblem, type DraftOption } from "@/lib/reaction-role-option-draft"
 import type { PanelRow, ReactionRoleOptionRow } from "@/lib/api/xvm-api"
 
@@ -68,7 +68,8 @@ export function ReactionRolePanelFormDialog({
   }
 
   function postOption(panelId: number, option: DraftOption) {
-    return apiFetch<ReactionRoleOptionRow>(`/api/venues/${venueId}/reaction-role-panels/${panelId}/options`, {
+    return apiRoute<ReactionRoleOptionRow>("/api/venues/[venueId]/reaction-role-panels/[panelId]/options", {
+      params: { venueId, panelId },
       method: "POST",
       headers: { "Content-Type": "application/json" },
       body: JSON.stringify({
@@ -96,7 +97,8 @@ export function ReactionRolePanelFormDialog({
       }
 
       if (savedPanelId) {
-        const updated = await apiFetch<PanelRow>(`/api/venues/${venueId}/reaction-role-panels/${savedPanelId}`, {
+        const updated = await apiRoute<PanelRow>("/api/venues/[venueId]/reaction-role-panels/[panelId]", {
+          params: { venueId, panelId: savedPanelId },
           method: "PATCH",
           headers: { "Content-Type": "application/json" },
           body: JSON.stringify(body),
@@ -105,7 +107,8 @@ export function ReactionRolePanelFormDialog({
         toast.success(isEdit ? "Panel updated." : "Panel saved.")
         setOpen(false)
       } else {
-        const created = await apiFetch<PanelRow>(`/api/venues/${venueId}/reaction-role-panels`, {
+        const created = await apiRoute<PanelRow>("/api/venues/[venueId]/reaction-role-panels", {
+          params: { venueId },
           method: "POST",
           headers: { "Content-Type": "application/json" },
           body: JSON.stringify(body),
@@ -179,7 +182,8 @@ export function ReactionRolePanelFormDialog({
     if (!savedPanelId || optionBusy) return
     setOptionBusy(true)
     try {
-      await apiFetch(`/api/venues/${venueId}/reaction-role-panels/${savedPanelId}/options/${optionId}`, {
+      await apiRoute("/api/venues/[venueId]/reaction-role-panels/[panelId]/options/[optionId]", {
+        params: { venueId, panelId: savedPanelId, optionId },
         method: "DELETE",
       })
       setOptions((prev) => prev.filter((o) => o.id !== optionId))

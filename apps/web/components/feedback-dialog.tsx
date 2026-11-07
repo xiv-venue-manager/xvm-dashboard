@@ -19,7 +19,7 @@ import { Textarea } from "@/components/ui/textarea"
 import { Select, SelectContent, SelectItem, SelectTrigger, SelectValue } from "@/components/ui/select"
 import { MessageSquare, Check } from "lucide-react"
 import { toast } from "sonner"
-import { apiFetch, ApiError } from "@/lib/api-fetch"
+import { ApiError, apiRoute } from "@/lib/api-fetch"
 
 export function FeedbackDialog({ iconOnlyBelowLg = false }: { iconOnlyBelowLg?: boolean }) {
   const { data: session } = useSession()
@@ -42,7 +42,7 @@ export function FeedbackDialog({ iconOnlyBelowLg = false }: { iconOnlyBelowLg?: 
     setIsSubmitting(true)
 
     try {
-      await apiFetch("/api/feedback", {
+      await apiRoute("/api/feedback", {
         method: "POST",
         headers: {
           "Content-Type": "application/json",

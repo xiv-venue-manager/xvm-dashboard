@@ -4,7 +4,7 @@ import { useRef, useState, useCallback, useEffect } from "react"
 import { ImageIcon, Trash2, Upload } from "lucide-react"
 import { toast } from "sonner"
 import { Button } from "@/components/ui/button"
-import { apiFetch, ApiError } from "@/lib/api-fetch"
+import { ApiError, apiFetch, apiRoute } from "@/lib/api-fetch"
 
 const CONTAINER_W = 320
 const CONTAINER_H = 220
@@ -177,7 +177,7 @@ export function LogoUpload({ venueSlug, initialUrl, galleryImages, onUpdate }: L
         canvas.toBlob((b) => (b ? resolve(b) : reject(new Error("Canvas export failed"))), "image/jpeg", 0.9)
       )
 
-      const { uploadUrl, storedUrl } = await apiFetch<{ uploadUrl: string; storedUrl: string }>("/api/upload", {
+      const { uploadUrl, storedUrl } = await apiRoute<{ uploadUrl: string; storedUrl: string }>("/api/upload", {
         method: "POST",
         headers: { "Content-Type": "application/json" },
         body: JSON.stringify({ filename: "logo.jpg", contentType: "image/jpeg", size: blob.size }),
@@ -185,7 +185,8 @@ export function LogoUpload({ venueSlug, initialUrl, galleryImages, onUpdate }: L
 
       await apiFetch(uploadUrl, { method: "PUT", body: blob, headers: { "Content-Type": "image/jpeg" } })
 
-      await apiFetch(`/api/venues/${venueSlug}`, {
+      await apiRoute("/api/venues/[venueId]", {
+        params: { venueId: venueSlug },
         method: "PATCH",
         headers: { "Content-Type": "application/json" },
         body: JSON.stringify({ logoUrl: storedUrl }),
@@ -206,7 +207,8 @@ export function LogoUpload({ venueSlug, initialUrl, galleryImages, onUpdate }: L
     if (removing) return
     setRemoving(true)
     try {
-      await apiFetch(`/api/venues/${venueSlug}`, {
+      await apiRoute("/api/venues/[venueId]", {
+        params: { venueId: venueSlug },
         method: "PATCH",
         headers: { "Content-Type": "application/json" },
         body: JSON.stringify({ logoUrl: null }),

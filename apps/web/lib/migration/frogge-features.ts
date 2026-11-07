@@ -1,13 +1,27 @@
 type Row = Record<string, unknown>
 
 const AUDIT_EVENTS = [
-  "message_deleted", "message_edited",
-  "member_joined", "member_left", "member_name_changed", "member_avatar_changed",
-  "member_banned", "member_unbanned", "member_timed_out", "member_timeout_removed",
-  "channel_created", "channel_updated", "channel_deleted",
-  "role_created", "role_updated", "role_deleted",
-  "server_updated", "emoji_updated",
-  "voice_joined", "voice_moved", "voice_left",
+  "message_deleted",
+  "message_edited",
+  "member_joined",
+  "member_left",
+  "member_name_changed",
+  "member_avatar_changed",
+  "member_banned",
+  "member_unbanned",
+  "member_timed_out",
+  "member_timeout_removed",
+  "channel_created",
+  "channel_updated",
+  "channel_deleted",
+  "role_created",
+  "role_updated",
+  "role_deleted",
+  "server_updated",
+  "emoji_updated",
+  "voice_joined",
+  "voice_moved",
+  "voice_left",
 ] as const
 type AuditEvent = (typeof AUDIT_EVENTS)[number]
 
@@ -19,6 +33,9 @@ export interface FroggeFeatureExport {
     event_lockout_minutes?: number | null
     greeting_channel_id?: string | null
     honeypot_channel_id?: string | null
+    staff_role_id?: string | null
+    profile_approval_required?: boolean | null
+    require_staffing_qualification?: boolean | null
   }[]
   audit_log_settings: ({ guild_id: string; channel_id: string | null } & Partial<Record<`log_${AuditEvent}`, boolean>> &
     Partial<Record<`color_${AuditEvent}`, number | null>>)[]
@@ -31,7 +48,14 @@ export interface FroggeFeatureExport {
     color: number | null
     message_type: string
   }[]
-  reaction_role_options: { id: number; guild_id: string; panel_id: number; role_id: string; label: string | null; emoji: string | null }[]
+  reaction_role_options: {
+    id: number
+    guild_id: string
+    panel_id: number
+    role_id: string
+    label: string | null
+    emoji: string | null
+  }[]
   leveling_settings: {
     guild_id: string
     enabled: boolean
@@ -46,8 +70,22 @@ export interface FroggeFeatureExport {
   }[]
   leveling_members: { guild_id: string; discord_user_id: string; total_xp: number }[]
   leveling_role_rewards: { id: number; guild_id: string; level: number; role_id: string }[]
-  vip_tiers: { id: number; guild_id: string; name: string; cost: number; role_id: string | null; color: number | null }[]
-  vip_perks: { id: number; guild_id: string; tier_id: number; text: string; description: string | null; repeatability: string }[]
+  vip_tiers: {
+    id: number
+    guild_id: string
+    name: string
+    cost: number
+    role_id: string | null
+    color: number | null
+  }[]
+  vip_perks: {
+    id: number
+    guild_id: string
+    tier_id: number
+    text: string
+    description: string | null
+    repeatability: string
+  }[]
   vip_memberships: {
     id: number
     guild_id: string
@@ -60,11 +98,20 @@ export interface FroggeFeatureExport {
     warn_sent: boolean
     expire_sent: boolean
   }[]
-  vip_members: { id: number; guild_id: string; discord_user_id: string; tier_id: number; expires_at: string | null; name: string | null; notes: string | null }[]
+  vip_members: {
+    id: number
+    guild_id: string
+    discord_user_id: string
+    tier_id: number
+    expires_at: string | null
+    name: string | null
+    notes: string | null
+  }[]
 }
 
 export interface FeatureContext {
   venueKeyByGuild: Record<string, string>
+  createdVenues?: ReadonlySet<string>
   now: string
 }
 
@@ -135,13 +182,20 @@ export function mapFroggeFeatures(source: FroggeFeatureExport, ctx: FeatureConte
   const drop = (what: string, id: string, reason: string) => report.dropped.push({ what, id, reason })
 
   const personByDiscord = new Map<string, string>()
-  for (const account of people.discordAccounts) personByDiscord.set(account.external_id as string, account.person_key as string)
+  for (const account of people.discordAccounts)
+    personByDiscord.set(account.external_id as string, account.person_key as string)
   const personFor = (discordId: string, name: string | null) => {
     const known = personByDiscord.get(discordId)
     if (known) return known
     const key = `frogge:p:${discordId}`
     const display = clean(name).slice(0, MAX_NAME)
-    people.people.push({ key, kind: "user", display_name: display || `Discord user ${discordId}`, is_platform_admin: false, created_at: ctx.now })
+    people.people.push({
+      key,
+      kind: "user",
+      display_name: display || `Discord user ${discordId}`,
+      is_platform_admin: false,
+      created_at: ctx.now,
+    })
     people.discordAccounts.push({ person_key: key, provider: "discord", external_id: discordId })
     personByDiscord.set(discordId, key)
     bump("people created")
@@ -182,7 +236,13 @@ export function mapFroggeFeatures(source: FroggeFeatureExport, ctx: FeatureConte
     }
     const order = optionCount.get(option.panel_id) ?? 0
     optionCount.set(option.panel_id, order + 1)
-    features.reactionRoleOptions.push({ panel_key: key, role_id: option.role_id, label: option.label, emoji: option.emoji, sort_order: order })
+    features.reactionRoleOptions.push({
+      panel_key: key,
+      role_id: option.role_id,
+      label: option.label,
+      emoji: option.emoji,
+      sort_order: order,
+    })
     bump("reaction role options")
   }
 
@@ -205,7 +265,13 @@ export function mapFroggeFeatures(source: FroggeFeatureExport, ctx: FeatureConte
         cooldown_seconds: settings.message_cooldown_seconds,
         enabled: settings.enabled,
       },
-      { venue_key: venueKey, source_key: VOICE_RULE, xp_amount: settings.voice_xp_per_minute, cooldown_seconds: 0, enabled: settings.enabled },
+      {
+        venue_key: venueKey,
+        source_key: VOICE_RULE,
+        xp_amount: settings.voice_xp_per_minute,
+        cooldown_seconds: 0,
+        enabled: settings.enabled,
+      }
     )
     bump("leveling settings")
     bump("leveling rules", 2)
@@ -213,13 +279,22 @@ export function mapFroggeFeatures(source: FroggeFeatureExport, ctx: FeatureConte
   for (const member of source.leveling_members) {
     const venueKey = venueOf(member.guild_id, "leveling member", member.discord_user_id)
     if (!venueKey) continue
-    features.levelingMembers.push({ venue_key: venueKey, person_key: personFor(member.discord_user_id, null), total_xp: member.total_xp })
+    features.levelingMembers.push({
+      venue_key: venueKey,
+      person_key: personFor(member.discord_user_id, null),
+      total_xp: member.total_xp,
+    })
     bump("leveling members")
   }
   for (const reward of inOrder(source.leveling_role_rewards)) {
     const venueKey = venueOf(reward.guild_id, "leveling role reward", String(reward.id))
     if (!venueKey) continue
-    features.levelingTiers.push({ venue_key: venueKey, name: `Level ${reward.level}`, min_level: reward.level, discord_role_id: reward.role_id })
+    features.levelingTiers.push({
+      venue_key: venueKey,
+      name: `Level ${reward.level}`,
+      min_level: reward.level,
+      discord_role_id: reward.role_id,
+    })
     bump("leveling tiers")
   }
 
@@ -236,7 +311,15 @@ export function mapFroggeFeatures(source: FroggeFeatureExport, ctx: FeatureConte
     tierKey.set(tier.id, key)
     tierName.set(tier.id, tier.name)
     vipVenues.add(tier.guild_id)
-    features.vipTiers.push({ key, venue_key: venueKey, name: tier.name, cost: tier.cost, color: tier.color, discord_role_id: tier.role_id, sort_order: order })
+    features.vipTiers.push({
+      key,
+      venue_key: venueKey,
+      name: tier.name,
+      cost: tier.cost,
+      color: tier.color,
+      discord_role_id: tier.role_id,
+      sort_order: order,
+    })
     bump("VIP tiers")
   }
   const perkOrder = new Map<number, number>()
@@ -311,7 +394,7 @@ export function mapFroggeFeatures(source: FroggeFeatureExport, ctx: FeatureConte
   }
 
   const currentBySlot = new Map<string, FroggeFeatureExport["vip_members"][number]>(
-    source.vip_members.map((m) => [`${m.guild_id}|${m.discord_user_id}`, m]),
+    source.vip_members.map((m) => [`${m.guild_id}|${m.discord_user_id}`, m])
   )
   const matched = new Set<string>()
   for (const history of inOrder(source.vip_memberships)) {
@@ -373,18 +456,46 @@ export function mapFroggeFeatures(source: FroggeFeatureExport, ctx: FeatureConte
     if (!venueKey) continue
     const reminder = minutesOf(config.event_start_reminder_minutes, "start reminder lead time", config.guild_id)
     const lockout = minutesOf(config.event_lockout_minutes, "event lockout", config.guild_id)
-    if (reminder !== null || lockout !== null) {
-      features.shiftSettings.push({ venue_key: venueKey, start_reminder_minutes: reminder, lockout_minutes: lockout })
+    const created = ctx.createdVenues?.has(venueKey) ?? false
+    if (reminder !== null || lockout !== null || created) {
+      features.shiftSettings.push({
+        venue_key: venueKey,
+        start_reminder_minutes: reminder,
+        lockout_minutes: lockout,
+        ...(created && { approval_required: false }),
+      })
       if (reminder !== null) bump("start reminder lead times")
       if (lockout !== null) bump("event lockouts")
+      if (created) bump("shift approval turned off")
     }
     const greeting = config.greeting_channel_id || null
     const honeypot = config.honeypot_channel_id || null
-    if (greeting !== null || honeypot !== null) {
-      features.discordSettings.push({ venue_key: venueKey, greeting_channel_id: greeting, honeypot_channel_id: honeypot })
+    const staffRole = config.staff_role_id || null
+    if (greeting !== null || honeypot !== null || staffRole !== null) {
+      features.discordSettings.push({
+        venue_key: venueKey,
+        greeting_channel_id: greeting,
+        honeypot_channel_id: honeypot,
+        ...(staffRole !== null && { staff_role_id: staffRole }),
+      })
       if (greeting !== null) bump("greeting channels")
       if (honeypot !== null) bump("honeypot channels")
+      if (staffRole !== null) bump("staff roles")
     }
+  }
+
+  const loadedConfigs = source.guild_configurations.filter((c) => ctx.venueKeyByGuild[c.guild_id])
+  const profileApprovalOff = loadedConfigs.filter((c) => c.profile_approval_required === false).length
+  if (profileApprovalOff > 0) {
+    report.notes.push(
+      `${profileApprovalOff} ${profileApprovalOff === 1 ? "server turned" : "servers turned"} off profile approval, which xvm-api's profile settings do not carry yet`
+    )
+  }
+  const qualificationOn = loadedConfigs.filter((c) => c.require_staffing_qualification === true).length
+  if (qualificationOn > 0) {
+    report.notes.push(
+      `${qualificationOn} ${qualificationOn === 1 ? "server required" : "servers required"} a staffing qualification, which is not carried`
+    )
   }
 
   for (const audit of source.audit_log_settings) {

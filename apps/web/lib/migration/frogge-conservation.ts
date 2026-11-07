@@ -118,6 +118,13 @@ export const FROGGE_RELATIONS: FroggeRelation[] = [
   { array: "event_templates", file: "features", mode: "equal", carried: [o("eventTemplates")] },
   { array: "message_templates", file: "features", mode: "equal", carried: [o("messageTemplates")] },
   { array: "profile_characters", file: "features", mode: "equal", carried: [o("profiles")] },
+  {
+    array: "profile_additional_images",
+    file: "features",
+    mode: "merged",
+    carried: [o("profileImages")],
+    note: "a gallery image with a blank address or a character that did not load is left out",
+  },
   { array: "rooms", file: "features", mode: "equal", carried: [o("rooms")] },
   {
     array: "event_recurrence_rules",
@@ -148,6 +155,200 @@ export const FROGGE_NOT_CARRIED: FroggeNotCarried[] = [
   { array: "employment_periods", file: "staffing", decision: "become hire dates and end dates on the memberships" },
   { array: "v2_venues", file: "staffing", decision: "a hint for matching servers to venues, not data" },
 ]
+
+export type FroggeTableSpec =
+  | { kind: "exported"; array: string }
+  | { kind: "retained"; note: string }
+  | { kind: "not_carried"; decision: string }
+  | { kind: "expect_empty" }
+  | { kind: "undecided"; note: string }
+  | { kind: "ignored" }
+
+const notCarried = (decision: string): FroggeTableSpec => ({ kind: "not_carried", decision })
+
+// Every table in Frogge's schema (107 at 2026-11-01). A table not listed here fails the run, so a new one has to be decided.
+export const FROGGE_TABLES: Record<string, FroggeTableSpec> = {
+  activity_logs: notCarried("mostly config-edit noise, dropped (fold-in decision 2026-11-01)"),
+  admin_roles: { kind: "undecided", note: "1 row of role ids that make a member an admin, maybe a tier hint" },
+  admin_users: { kind: "exported", array: "admin_users" },
+  alembic_version: { kind: "ignored" },
+  audit_log_settings: { kind: "exported", array: "audit_log_settings" },
+  auto_reactor_rules: { kind: "exported", array: "auto_reactor_rules" },
+  autorole_rules: notCarried("no xvm-api home, dropped (fold-in decision)"),
+  card_booster_slots: { kind: "expect_empty" },
+  card_breakdown_rarities: { kind: "expect_empty" },
+  card_collections: { kind: "expect_empty" },
+  card_crafting_recipes: { kind: "expect_empty" },
+  card_daily_reward_tiers: { kind: "expect_empty" },
+  card_economy_configs: notCarried("tuning for the card game, which has no xvm-api home"),
+  card_ownerships: { kind: "expect_empty" },
+  card_rarity_stat_bands: { kind: "expect_empty" },
+  card_rarity_weights: { kind: "expect_empty" },
+  card_series: { kind: "expect_empty" },
+  cards: { kind: "expect_empty" },
+  command_usages: notCarried("usage statistics, dropped (fold-in decision)"),
+  custom_embed_fields: { kind: "exported", array: "custom_embed_fields" },
+  custom_embed_post_requests: { kind: "expect_empty" },
+  custom_embed_posts: { kind: "exported", array: "custom_embed_posts" },
+  custom_embeds: { kind: "exported", array: "custom_embeds" },
+  dashboard_whitelisted_users: notCarried("access list for Frogge's own dashboard, which retires"),
+  entity_post_refreshes: { kind: "expect_empty" },
+  event_positions: { kind: "exported", array: "event_positions" },
+  event_post_requests: { kind: "expect_empty" },
+  event_posts: notCarried(
+    "posted Discord messages stay where they are, the bot token carries over (Allegro 2026-11-03)"
+  ),
+  event_recurrence_rules: { kind: "exported", array: "event_recurrence_rules" },
+  event_shifts: { kind: "exported", array: "event_shifts" },
+  event_signups: { kind: "exported", array: "event_signups" },
+  event_templates: { kind: "exported", array: "event_templates" },
+  events: { kind: "exported", array: "events" },
+  finance_transaction_templates: notCarried(
+    "seeded defaults, the same 10 rows for every server, dropped (fold-in decision)"
+  ),
+  finance_transactions: { kind: "undecided", note: "1 real finance row at 2026-11-01 that no export carries" },
+  finance_trigger_bindings: { kind: "expect_empty" },
+  form_questions: { kind: "exported", array: "form_questions" },
+  form_responses: { kind: "exported", array: "form_responses" },
+  forms: { kind: "exported", array: "forms" },
+  giveaway_entries: { kind: "exported", array: "giveaway_entries" },
+  giveaway_post_requests: { kind: "expect_empty" },
+  giveaways: { kind: "exported", array: "giveaways" },
+  glyph_messages: { kind: "exported", array: "glyph_messages" },
+  guild_configurations: { kind: "exported", array: "guild_configurations" },
+  guild_subscriptions: notCarried("premium: xvm-api has no tiers, Allegro: nothing carries across (2026-11-03)"),
+  guild_welcome_posts: notCarried(
+    "posted Discord messages stay where they are, the bot token carries over (Allegro 2026-11-03)"
+  ),
+  guilds: { kind: "exported", array: "guilds" },
+  interaction_usages: notCarried("usage statistics, dropped (fold-in decision)"),
+  leveling_members: { kind: "exported", array: "leveling_members" },
+  leveling_role_rewards: { kind: "exported", array: "leveling_role_rewards" },
+  leveling_settings: { kind: "exported", array: "leveling_settings" },
+  leveling_voice_sessions: { kind: "expect_empty" },
+  message_template_components: { kind: "expect_empty" },
+  message_templates: { kind: "exported", array: "message_templates" },
+  pending_event_post_refreshes: { kind: "expect_empty" },
+  pending_giveaway_finalizations: { kind: "expect_empty" },
+  pending_raffle_finalizations: { kind: "expect_empty" },
+  pending_vip_role_syncs: { kind: "expect_empty" },
+  plugin_pairing_codes: notCarried("plugin users relink through the dashboard (plugin relink decision)"),
+  plugin_tokens: notCarried("plugin users relink through the dashboard (plugin relink decision)"),
+  plugin_user_guilds: notCarried("plugin sync state, plugin users relink through the dashboard"),
+  positions: { kind: "exported", array: "positions" },
+  profile_additional_images: { kind: "exported", array: "profile_additional_images" },
+  profile_characters: { kind: "exported", array: "profile_characters" },
+  profile_post_requests: { kind: "expect_empty" },
+  profile_posts: notCarried(
+    "posted Discord messages stay where they are, the bot token carries over (Allegro 2026-11-03)"
+  ),
+  quote_board_settings: { kind: "exported", array: "quote_board_settings" },
+  quotes: { kind: "expect_empty" },
+  raffle_entries: { kind: "exported", array: "raffle_entries" },
+  raffle_post_requests: { kind: "expect_empty" },
+  raffles: { kind: "exported", array: "raffles" },
+  reaction_role_options: { kind: "exported", array: "reaction_role_options" },
+  reaction_role_panel_post_requests: { kind: "expect_empty" },
+  reaction_role_panel_posts: { kind: "exported", array: "reaction_role_panel_posts" },
+  reaction_role_panels: { kind: "exported", array: "reaction_role_panels" },
+  reaction_role_template_options: { kind: "exported", array: "reaction_role_template_options" },
+  reaction_role_templates: { kind: "exported", array: "reaction_role_templates" },
+  room_images: { kind: "expect_empty" },
+  room_post_requests: { kind: "expect_empty" },
+  rooms: { kind: "exported", array: "rooms" },
+  staff_employment_periods: { kind: "exported", array: "employment_periods" },
+  staff_member_positions: { kind: "exported", array: "staff_member_positions" },
+  staff_members: { kind: "exported", array: "staff_members" },
+  sticky_message_post_requests: { kind: "expect_empty" },
+  sticky_messages: { kind: "exported", array: "sticky_messages" },
+  stream_alert_notifications: { kind: "expect_empty" },
+  time_clock_entries: { kind: "expect_empty" },
+  tournament_entrants: { kind: "expect_empty" },
+  tournament_matches: { kind: "expect_empty" },
+  tournament_post_requests: { kind: "expect_empty" },
+  tournaments: notCarried("no xvm-api home, dropped (fold-in decision)"),
+  tracked_streams: { kind: "exported", array: "tracked_streams" },
+  v2_reservations: { kind: "expect_empty" },
+  v2_room_images: { kind: "expect_empty" },
+  v2_rooms: { kind: "expect_empty" },
+  v2_venues: { kind: "exported", array: "v2_venues" },
+  venue_links: {
+    kind: "undecided",
+    note: "4 FFXIV Venues links (id, channel, message, snapshot): xvm-api syncs hours from ffxivvenues.com, nothing decided about these",
+  },
+  venue_refresh_requests: { kind: "expect_empty" },
+  verification_records: {
+    kind: "retained",
+    note: "frogge-verification.json, kept until Allegro builds the verification schema (decided 2026-11-03)",
+  },
+  verification_role_relations: notCarried("Allegro 2026-11-03: skip the role relations"),
+  vip_display_posts: { kind: "exported", array: "vip_display_posts" },
+  vip_members: { kind: "exported", array: "vip_members" },
+  vip_memberships: { kind: "exported", array: "vip_memberships" },
+  vip_perk_redemptions: { kind: "expect_empty" },
+  vip_perks: { kind: "exported", array: "vip_perks" },
+  vip_tiers: { kind: "exported", array: "vip_tiers" },
+  webhook_deliveries: notCarried("a delivery log, nothing to carry"),
+}
+
+export interface FroggeCounts {
+  tables: Record<string, number>
+}
+
+export function checkFroggeTables(
+  counts: FroggeCounts,
+  exports: FroggeInputs["exports"]
+): { lines: FroggeLine[]; problems: string[] } {
+  const lines: FroggeLine[] = []
+  const problems: string[] = []
+  const exportedRows = (array: string) => {
+    for (const file of [exports.staffing, exports.features]) {
+      const rows = file?.[array]
+      if (Array.isArray(rows)) return rows.length
+    }
+    return undefined
+  }
+  for (const [table, rows] of Object.entries(counts.tables).sort(([a], [b]) => a.localeCompare(b))) {
+    const spec = FROGGE_TABLES[table]
+    if (!spec) {
+      problems.push(`${table}: a Frogge table nobody has decided (${rows} rows)`)
+      continue
+    }
+    switch (spec.kind) {
+      case "exported": {
+        const exported = exportedRows(spec.array)
+        if (exported === undefined)
+          problems.push(`${table}: ${rows} rows in Frogge and ${spec.array} is not in the export`)
+        else if (exported > rows)
+          problems.push(`${table}: ${exported} rows exported out of ${rows} in Frogge, more than exist`)
+        lines.push({
+          array: table,
+          status: "carried",
+          rowsIn: rows,
+          rowsOut: exported ?? null,
+          lost: 0,
+          detail: "servers that are not loaded are left out",
+        })
+        break
+      }
+      case "retained":
+        lines.push({ array: table, status: "not carried", rowsIn: rows, rowsOut: null, lost: 0, detail: spec.note })
+        break
+      case "not_carried":
+        lines.push({ array: table, status: "not carried", rowsIn: rows, rowsOut: null, lost: 0, detail: spec.decision })
+        break
+      case "expect_empty":
+        if (rows > 0) problems.push(`${table}: expected empty and has ${rows} rows`)
+        break
+      case "undecided":
+        if (rows > 0) problems.push(`${table}: ${rows} rows and no decision yet (${spec.note})`)
+        break
+      case "ignored":
+        break
+    }
+  }
+  return { lines, problems }
+}
 
 export interface FroggeInputs {
   exports: { staffing?: Record<string, unknown>; features?: Record<string, unknown> }

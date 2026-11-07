@@ -8,7 +8,7 @@
 
 **Tech Stack:** Next.js (App Router; read `node_modules/next/dist/docs/` before relying on any API, per `apps/web/AGENTS.md`), React, Tailwind with the XIV tokens, zod, vitest, next-auth.
 
-**Depends on:** `docs/superpowers/plans/2026-10-29-team-page-xvm-api.md`. Tasks 1-5 here are built against mocked `fetch` and need no running API. Task 6's live check needs the xvm-api `feat/team-page` branch running locally (see `docs/LOCAL_DEV.md`, section "xvm-api").
+**Depends on:** `docs/superpowers/plans/2026-10-29-team-page-xvm-api.md` in the xvm-api repo. Tasks 1-5 here are built against mocked `fetch` and need no running API. Task 6's live check needs the xvm-api `feat/team-page` branch running locally (see `docs/LOCAL_DEV.md`, section "xvm-api").
 
 **Spec:** `docs/superpowers/specs/2026-10-29-meet-the-team-design.md`.
 

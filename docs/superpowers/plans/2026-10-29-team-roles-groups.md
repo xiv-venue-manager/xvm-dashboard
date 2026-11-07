@@ -6,7 +6,7 @@
 
 **Spec (source of truth):** `docs/superpowers/specs/2026-10-29-meet-the-team-design.md`, section "Roles and groups" and the endpoint table. Read it first.
 
-**Builds on, does not redo:** `2026-10-29-team-page-xvm-api.md` and `2026-10-29-team-page-dashboard.md`. Both are already implemented and committed on branch `feat/team-page` in `~/xvm-api-team` and `~/xvm-dashboard-team`. This plan changes that code. Nothing is pushed, so the `team_members` migration is rewritten in place.
+**Builds on, does not redo:** `2026-10-29-team-page-xvm-api.md` (in the xvm-api repo) and `2026-10-29-team-page-dashboard.md`. Both are already implemented and committed on branch `feat/team-page` in `~/xvm-api-team` and `~/xvm-dashboard-team`. This plan changes that code. Nothing is pushed, so the `team_members` migration is rewritten in place.
 
 **Style of this plan:** each task states exact behaviour, files and the tests that must exist, and leaves the code to the implementer, who must read the surrounding code first and follow its conventions. Where a shape matters it is written out.
 

@@ -54,6 +54,21 @@ export const FROGGE_RELATIONS: FroggeRelation[] = [
     dropWhat: "signup",
   },
   {
+    array: "finance_transactions",
+    file: "staffing",
+    mode: "equal",
+    carried: [t("staffing-report", "finance transactions")],
+    dropWhat: "finance transaction",
+  },
+  {
+    array: "venue_links",
+    file: "staffing",
+    mode: "equal",
+    carried: [t("staffing-report", "FFXIV Venues links")],
+    dropWhat: "venue link",
+    note: "the channel, message and snapshot are posted-message state and are not carried",
+  },
+  {
     array: "positions",
     file: "staffing",
     mode: "merged",
@@ -274,10 +289,7 @@ export const FROGGE_TABLES: Record<string, FroggeTableSpec> = {
   v2_room_images: { kind: "expect_empty" },
   v2_rooms: { kind: "expect_empty" },
   v2_venues: { kind: "exported", array: "v2_venues" },
-  venue_links: {
-    kind: "undecided",
-    note: "4 FFXIV Venues links (id, channel, message, snapshot): xvm-api syncs hours from ffxivvenues.com, nothing decided about these",
-  },
+  venue_links: { kind: "exported", array: "venue_links" },
   venue_refresh_requests: { kind: "expect_empty" },
   verification_records: {
     kind: "retained",

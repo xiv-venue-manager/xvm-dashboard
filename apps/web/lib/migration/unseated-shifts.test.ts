@@ -48,11 +48,28 @@ describe("unseatedShifts", () => {
       shift({ id: "open", membershipId: null, status: "OPEN" }),
       shift({ id: "loaded", parentShiftId: "p" }),
     ]
-    const out = unseatedShifts({ ...base, shifts, skippedShiftKeys: new Set(["a", "b", "past", "cancelled", "open"]) })
+    const skipped = ["a", "b", "past", "cancelled", "open"].map((key) => ({
+      key,
+      reason: "not worked, and no event or position to seat it on",
+    }))
+    const out = unseatedShifts({ ...base, shifts, skipped })
     expect(out).toHaveLength(1)
     expect(out[0]).toMatchObject({ venue: "The Venue", shiftCount: 2 })
     expect(out[0].series).toHaveLength(1)
     expect(out[0].series[0]).toMatchObject({ member: "Ann", role: "Host", recurrenceRule: "FREQ=WEEKLY" })
     expect(renderUnseatedShifts(out)).toContain("2 shifts, 1 venues")
+  })
+
+  it("leaves out a shift that was skipped for another reason, such as an unloaded membership", () => {
+    const shifts = [
+      shift({ id: "a" }),
+      shift({ id: "b", scheduledStart: "2026-11-11T02:00:00Z", scheduledEnd: "2026-11-11T04:00:00Z" }),
+    ]
+    const skipped = [
+      { key: "a", reason: "not worked, and no event or position to seat it on" },
+      { key: "b", reason: "membership was not loaded" },
+    ]
+    const out = unseatedShifts({ ...base, shifts, skipped })
+    expect(out.reduce((n, v) => n + v.shiftCount, 0)).toBe(1)
   })
 })

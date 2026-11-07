@@ -84,6 +84,9 @@ export const TABLES: Record<string, Disposition> = {
   pot_distributions: empty("empty in prod, the finance mapper drops pot links because none are loaded"),
   verification_tokens: empty("empty in prod"),
   webhooks: empty("empty in prod, webhooks are retired"),
+  xvm_api_credentials: dropped(
+    "a cache of the person's xvm-api token; #317 moved the token to Redis, so the table is unread and not migrated"
+  ),
   _prisma_migrations: { kind: "ignored", note: "Prisma's own bookkeeping" },
 }
 
@@ -354,6 +357,7 @@ export interface PrepareLine {
   mapped: number
   prepared: number
   venueLeftOut: number
+  venueDataSkipped: number
   cascade: number
 }
 
@@ -362,6 +366,10 @@ export function checkPrepare(mapped: MappedFiles, prepared: MappedFiles): { line
   const problems: string[] = []
   const venues = prepared.venues?.venues
   const allowed = new Set(Array.isArray(venues) ? (venues as Row[]).map((v) => String(v.key)) : [])
+  const skippedVenues = new Map<string, "decided" | "data">()
+  for (const s of (mapped.venues?.skipped as { key: string; reason: string }[] | undefined) ?? []) {
+    skippedVenues.set(s.key, classifySkip(s.reason).category === "data" ? "data" : "decided")
+  }
   for (const [file, arrays] of Object.entries(LOAD_ARRAYS)) {
     if (!mapped[file]) continue
     if (!prepared[file]) {
@@ -371,9 +379,23 @@ export function checkPrepare(mapped: MappedFiles, prepared: MappedFiles): { line
     for (const array of arrays) {
       const before = (mapped[file]?.[array] as Row[] | undefined) ?? []
       const after = (prepared[file]?.[array] as Row[] | undefined) ?? []
-      const venueLeftOut = before.filter((r) => "venue_key" in r && !allowed.has(String(r.venue_key))).length
-      const cascade = before.length - after.length - venueLeftOut
-      if (cascade < 0) problems.push(`${file}.${array}: prepared has ${-cascade} more rows than mapped`)
+      let venueLeftOut = 0
+      let venueDataSkipped = 0
+      const unexplained = new Set<string>()
+      for (const r of before) {
+        if (!("venue_key" in r) || allowed.has(String(r.venue_key))) continue
+        const why = skippedVenues.get(String(r.venue_key))
+        if (why === "decided") venueLeftOut++
+        else if (why === "data") venueDataSkipped++
+        else unexplained.add(String(r.venue_key))
+      }
+      if (unexplained.size > 0)
+        problems.push(
+          `${file}.${array}: rows belong to ${unexplained.size} venue(s) that neither load nor appear in the venues skip list, e.g. ${[...unexplained][0]}`
+        )
+      const cascade = before.length - after.length - venueLeftOut - venueDataSkipped
+      if (cascade < 0 && unexplained.size === 0)
+        problems.push(`${file}.${array}: prepared has ${-cascade} more rows than mapped`)
       if (before.length !== after.length)
         lines.push({
           file,
@@ -381,6 +403,7 @@ export function checkPrepare(mapped: MappedFiles, prepared: MappedFiles): { line
           mapped: before.length,
           prepared: after.length,
           venueLeftOut,
+          venueDataSkipped,
           cascade: Math.max(cascade, 0),
         })
     }
@@ -402,7 +425,7 @@ export interface ReportInput {
   exports: ExportFiles
   mapped: MappedFiles
   prepared: MappedFiles
-  // Rows a person has looked at and accepted losing, by "<file>:<rule>" or "<file>.<array>:cascade", as the most allowed.
+  // Rows a person has looked at and accepted losing, by "<file>:<rule>", "<file>.<array>:cascade" or "<file>.<array>:venue-data", as the most allowed.
   accepted?: Record<string, number>
 }
 
@@ -429,6 +452,11 @@ export function buildReport(input: ReportInput): Report {
   const { lines: prepare, problems: prepareProblems } = checkPrepare(input.mapped, input.prepared)
   problems.push(...prepareProblems)
   for (const p of prepare) {
+    const allowedVenueData = accepted[`${p.file}.${p.array}:venue-data`] ?? 0
+    if (p.venueDataSkipped > allowedVenueData)
+      problems.push(
+        `${p.file}.${p.array}: ${p.venueDataSkipped} rows dropped because their venue was skipped for bad data (accepted ${allowedVenueData})`
+      )
     const allowed = accepted[`${p.file}.${p.array}:cascade`] ?? 0
     if (p.cascade > allowed)
       problems.push(
@@ -470,7 +498,7 @@ export function renderReport(report: Report): string {
   if (report.prepare.length === 0) out.push("   none")
   for (const p of report.prepare)
     out.push(
-      `   ${pad(`${p.file}.${p.array}`, 32)} ${p.mapped} to ${p.prepared}: ${p.venueLeftOut} in venues left out, ${p.cascade} children of a skipped parent`
+      `   ${pad(`${p.file}.${p.array}`, 32)} ${p.mapped} to ${p.prepared}: ${p.venueLeftOut} in venues left out by decision, ${p.venueDataSkipped} in venues skipped for bad data, ${p.cascade} children of a skipped parent`
     )
   out.push("")
   out.push(

@@ -272,6 +272,55 @@ describe("skipped rows", () => {
   })
 })
 
+describe("rows that go with a venue that does not load", () => {
+  const c = counts()
+  const run = (skipped: { key: string; reason: string }[], eventVenues: string[], accepted?: Record<string, number>) =>
+    buildReport({
+      counts: c,
+      exports: exportsFor(c),
+      mapped: {
+        venues: { venues: [{ key: "v1" }], skipped },
+        events: { events: eventVenues.map((venue, i) => ({ key: `e${i}`, venue_key: venue })) },
+      },
+      prepared: { venues: { venues: [{ key: "v1" }] }, events: { events: [{ key: "e0", venue_key: "v1" }] } },
+      accepted,
+    })
+  const eventsLine = (r: ReturnType<typeof run>) => r.prepare.find((p) => p.file === "events" && p.array === "events")
+  const eventProblems = (r: ReturnType<typeof run>) => r.problems.filter((p) => p.startsWith("events.events"))
+
+  it("keeps the children of a venue left out by decision as left out", () => {
+    const r = run([{ key: "vTest", reason: "test venue, left out by decision" }], ["v1", "vTest"])
+    expect(eventsLine(r)).toMatchObject({ venueLeftOut: 1, venueDataSkipped: 0, cascade: 0 })
+    expect(eventProblems(r)).toEqual([])
+  })
+
+  it("counts the children of a venue skipped for bad data as data, until a person accepts that many", () => {
+    const skipped = [{ key: "vBad", reason: "name is blank or over 100 characters" }]
+    const r = run(skipped, ["v1", "vBad", "vBad"])
+    expect(eventsLine(r)).toMatchObject({ venueLeftOut: 0, venueDataSkipped: 2 })
+    expect(eventProblems(r)).toContainEqual(
+      expect.stringContaining("2 rows dropped because their venue was skipped for bad data (accepted 0)")
+    )
+    expect(eventProblems(run(skipped, ["v1", "vBad", "vBad"], { "events.events:venue-data": 2 }))).toEqual([])
+    expect(eventProblems(run(skipped, ["v1", "vBad", "vBad", "vBad"], { "events.events:venue-data": 2 }))).toHaveLength(
+      1
+    )
+  })
+
+  it("fails rows whose venue neither loads nor appears in the skip list", () => {
+    const r = run([], ["v1", "vGhost"])
+    expect(eventProblems(r)).toContainEqual(expect.stringContaining("neither load nor appear in the venues skip list"))
+  })
+})
+
+describe("the table the deploy creates", () => {
+  it("classifies xvm_api_credentials, so a count run after the deploy does not fail", () => {
+    const c = counts({ xvm_api_credentials: 59 })
+    expect(problemsOf(c, exportsFor(c))).toEqual([])
+    expect(TABLES.xvm_api_credentials).toMatchObject({ kind: "not_migrated", confirmed: true })
+  })
+})
+
 describe("every skip reason in the mappers", () => {
   const dir = __dirname
   const sources = readdirSync(dir).filter(

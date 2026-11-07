@@ -71,6 +71,10 @@ export function frogScope(
     if (owners[guildId] !== undefined && owners[guildId] !== "ok") botGone.push({ guildId, tables })
     else include.push({ guildId, tables })
   }
+  const unreachable = (guildId: string) => owners[guildId] !== undefined && owners[guildId] !== "ok"
+  for (const guildId of current) {
+    if (unreachable(guildId) && !botGone.some((s) => s.guildId === guildId)) botGone.push({ guildId, tables: {} })
+  }
   const chosen = new Set(include.map((s) => s.guildId))
   return {
     include,
@@ -78,7 +82,7 @@ export function frogScope(
     botGone,
     leftOut,
     added: [...chosen].filter((g) => !current.has(g)),
-    dropped: [...current].filter((g) => !chosen.has(g)),
+    dropped: [...current].filter((g) => !chosen.has(g) && !unreachable(g)),
   }
 }
 

@@ -5,6 +5,7 @@ import {
   FROGGE_NOT_CARRIED,
   FROGGE_RELATIONS,
   FROGGE_TABLES,
+  VIP_ADDED,
   type FroggeInputs,
 } from "./frogge-conservation"
 
@@ -23,9 +24,22 @@ function inputs(): FroggeInputs {
       if (term.from === "features" || term.from === "tools") mapped[term.key] = rows(n)
       else if ("key" in term) counts[term.key] = n
     })
+  features.vip_memberships = [
+    { guild_id: "g", discord_user_id: "u1", ended_at: null },
+    { guild_id: "g", discord_user_id: "u2", ended_at: "2026-01-01" },
+  ]
+  features.vip_members = [
+    { guild_id: "g", discord_user_id: "u1" },
+    { guild_id: "g", discord_user_id: "u3" },
+  ]
+  mapped.vipMemberships = rows(3)
   return {
     exports: { staffing, features },
-    reports: { staffing: { counts, dropped: [], matchedVenues: [] }, features: { counts: {} }, tools: { counts } },
+    reports: {
+      staffing: { counts, dropped: [], matchedVenues: [] },
+      features: { counts: { [VIP_ADDED]: 1 } },
+      tools: { counts },
+    },
     mapped: { features: mapped, tools: mapped },
   }
 }
@@ -58,6 +72,25 @@ describe("checkFrogge", () => {
     const problems = checkFrogge(base).problems
     expect(problems).toContainEqual(expect.stringContaining("brand_new_table"))
     expect(problems).toContainEqual(expect.stringContaining("mapper output for it is missing"))
+  })
+})
+
+describe("the VIP arrays", () => {
+  it("do not count the rows the mapper adds for current holders against the history", () => {
+    expect(checkFrogge(inputs()).problems).toEqual([])
+  })
+
+  it("see a current holder who was lost", () => {
+    const base = inputs()
+    base.reports.features!.counts![VIP_ADDED] = 0
+    base.mapped.features!.vipMemberships = rows(2)
+    expect(checkFrogge(base).problems).toEqual([expect.stringContaining("vip_members: 1 rows not carried")])
+  })
+
+  it("see a history row that was lost, even when the mapper added a row", () => {
+    const base = inputs()
+    base.mapped.features!.vipMemberships = rows(2)
+    expect(checkFrogge(base).problems).toEqual([expect.stringContaining("vip_memberships: 1 rows not carried")])
   })
 })
 

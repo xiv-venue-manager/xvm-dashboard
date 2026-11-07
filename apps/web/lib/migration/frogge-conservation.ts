@@ -10,7 +10,9 @@ export interface FroggeRelation {
   file: "staffing" | "features"
   mode: Mode
   carried: Term[]
+  minus?: Term[]
   keep?: (row: Record<string, unknown>) => boolean
+  count?: (rows: unknown[], inputs: FroggeInputs) => number
   dropWhat?: string
   note?: string
 }
@@ -24,6 +26,17 @@ export interface FroggeNotCarried {
 const t = (from: "staffing-report" | "features-report" | "tools-report", key: string): Term => ({ from, key })
 const f = (key: string): Term => ({ from: "features", key })
 const o = (key: string): Term => ({ from: "tools", key })
+
+export const VIP_ADDED = "current VIP members with no history row (started at the load)"
+
+function currentHoldersWithoutOpenHistory(inputs: FroggeInputs): number {
+  const history = inputs.exports.features?.vip_memberships
+  const members = inputs.exports.features?.vip_members
+  if (!Array.isArray(history) || !Array.isArray(members)) return 0
+  const slot = (r: Record<string, unknown>) => `${r.guild_id}|${r.discord_user_id}`
+  const open = new Set((history as Record<string, unknown>[]).filter((h) => !h.ended_at).map(slot))
+  return (members as Record<string, unknown>[]).filter((m) => !open.has(slot(m))).length
+}
 
 export const FROGGE_RELATIONS: FroggeRelation[] = [
   {
@@ -96,13 +109,21 @@ export const FROGGE_RELATIONS: FroggeRelation[] = [
   { array: "leveling_role_rewards", file: "features", mode: "equal", carried: [f("levelingTiers")] },
   { array: "vip_tiers", file: "features", mode: "equal", carried: [f("vipTiers")] },
   { array: "vip_perks", file: "features", mode: "equal", carried: [f("vipPerks")] },
-  { array: "vip_memberships", file: "features", mode: "equal", carried: [f("vipMemberships")] },
+  {
+    array: "vip_memberships",
+    file: "features",
+    mode: "equal",
+    carried: [f("vipMemberships")],
+    minus: [t("features-report", VIP_ADDED)],
+    note: "the mapper also adds a row for each current holder with no open history row; those are counted under vip_members",
+  },
   {
     array: "vip_members",
     file: "features",
-    mode: "atLeast",
-    carried: [f("vipMemberships")],
-    note: "the current holder is folded into the membership history",
+    mode: "equal",
+    carried: [t("features-report", VIP_ADDED)],
+    count: (_, inputs) => currentHoldersWithoutOpenHistory(inputs),
+    note: "a current holder with an open history row is carried through that row",
   },
   {
     array: "audit_log_settings",
@@ -429,22 +450,24 @@ export function checkFrogge(inputs: FroggeInputs, accepted: Record<string, numbe
       problems.push(`${rel.array}: the mapper output for it is missing`)
       continue
     }
-    const out = (terms as number[]).reduce((a, b) => a + b, 0)
+    const subtracted = (rel.minus ?? []).reduce((sum, term) => sum + (value(term, inputs) ?? 0), 0)
+    const out = (terms as number[]).reduce((a, b) => a + b, 0) - subtracted
+    const rowCount = rel.count ? rel.count(rows, inputs) : rows.length
     const dropped = rel.dropWhat
       ? (inputs.reports.staffing?.dropped ?? []).filter((d) => d.what === rel.dropWhat).length
       : 0
     const ceiling = accepted[`frogge:${rel.array}`] ?? 0
-    const gap = rows.length - out - dropped
+    const gap = rowCount - out - dropped
     let lost = 0
     let detail = rel.note ?? ""
     if (rel.mode === "equal") {
       lost = Math.max(gap, 0)
-      if (gap < 0) problems.push(`${rel.array}: ${out + dropped} rows out of ${rows.length} in, more than went in`)
+      if (gap < 0) problems.push(`${rel.array}: ${out + dropped} rows out of ${rowCount} in, more than went in`)
     } else if (rel.mode === "atLeast") {
-      if (out < rows.length) problems.push(`${rel.array}: ${rows.length} in but only ${out} came out`)
+      if (out < rowCount) problems.push(`${rel.array}: ${rowCount} in but only ${out} came out`)
     } else {
       lost = Math.max(gap, 0)
-      if (gap < 0) problems.push(`${rel.array}: ${out} out of ${rows.length} in, more than went in`)
+      if (gap < 0) problems.push(`${rel.array}: ${out} out of ${rowCount} in, more than went in`)
     }
     if (dropped > 0) detail = `${dropped} dropped by the mapper${detail ? "; " + detail : ""}`
     const unaccounted = rel.mode === "atLeast" ? 0 : lost + dropped
@@ -452,7 +475,7 @@ export function checkFrogge(inputs: FroggeInputs, accepted: Record<string, numbe
     lines.push({
       array: rel.array,
       status: rel.mode === "merged" ? "merged" : "carried",
-      rowsIn: rows.length,
+      rowsIn: rowCount,
       rowsOut: out,
       lost: unaccounted,
       detail,

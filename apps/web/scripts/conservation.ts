@@ -9,7 +9,8 @@
  *
  * accepted.json lists rows a person has reviewed and accepted losing, as the most allowed per line, for example
  *   { "finance:bad-amount": 2, "events.events:cascade": 0 }
- * so a later run that loses more than was reviewed fails.
+ * so a later run that loses more than was reviewed fails. Rows lost because their venue was skipped for bad data are counted
+ * per list, as "<file>.<array>:venue-data".
  */
 import { readFileSync, existsSync } from "node:fs"
 import { join } from "node:path"

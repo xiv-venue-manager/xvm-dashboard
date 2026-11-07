@@ -1,3 +1,4 @@
+import { classifySkip } from "./conservation"
 import type { ExportedShift } from "./shifts"
 
 export interface UnseatedInput {
@@ -6,7 +7,7 @@ export interface UnseatedInput {
   memberships: { id: string; nickname: string | null; userId: string }[]
   users: { id: string; displayName: string | null; name: string | null }[]
   venues: { id: string; name: string }[]
-  skippedShiftKeys: ReadonlySet<string>
+  skipped: { key: string; reason: string }[]
   now: Date
 }
 
@@ -31,10 +32,13 @@ export function unseatedShifts(input: UnseatedInput): UnseatedVenue[] {
   const members = new Map(input.memberships.map((m) => [m.id, m]))
   const venues = new Map(input.venues.map((v) => [v.id, v.name]))
   const byId = new Map(input.shifts.map((s) => [s.id, s]))
+  const unseatedKeys = new Set(
+    input.skipped.filter((s) => classifySkip(s.reason).id === "empty-shift").map((s) => s.key)
+  )
 
   const pending = input.shifts.filter(
     (s) =>
-      input.skippedShiftKeys.has(s.id) &&
+      unseatedKeys.has(s.id) &&
       s.membershipId !== null &&
       LIVE.has(s.status) &&
       s.actualStart === null &&

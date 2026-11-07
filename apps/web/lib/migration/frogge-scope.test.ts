@@ -38,4 +38,11 @@ describe("frogScope", () => {
     expect(r.added).toEqual(["4", "5", "6"])
     expect(r.dropped).toEqual(["2"])
   })
+
+  it("does not keep a server on the current list whose owner the bot cannot reach", () => {
+    const r = frogScope(activity, { "1": "ok", "2": "http_404" }, new Set(["1", "2"]))
+    expect(r.botGone.map((s) => s.guildId)).toEqual(["2"])
+    expect(r.include.map((s) => s.guildId)).not.toContain("2")
+    expect(r.dropped).toEqual([])
+  })
 })

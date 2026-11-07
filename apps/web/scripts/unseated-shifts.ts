@@ -20,7 +20,7 @@ const shifts = read(join(exportsDir, "shifts.json"))
 const positions = read(join(exportsDir, "positions.json"))
 const people = read(join(exportsDir, "people.json"))
 const venues = read(join(exportsDir, "venues.json"))
-const mapped = read(join(mappedDir, "shifts-mapped.json")) as { skipped: { key: string }[] }
+const mapped = read(join(mappedDir, "shifts-mapped.json")) as { skipped: { key: string; reason: string }[] }
 
 const result = unseatedShifts({
   shifts: shifts.shifts,
@@ -28,7 +28,7 @@ const result = unseatedShifts({
   memberships: positions.memberships,
   users: people.users,
   venues: venues.venues,
-  skippedShiftKeys: new Set(mapped.skipped.map((s) => s.key)),
+  skipped: mapped.skipped,
   now: new Date(),
 })
 writeFileSync(out, renderUnseatedShifts(result))

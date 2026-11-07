@@ -62,11 +62,7 @@ const UNMAPPED = ["ShiftStaffOption"]
 
 // Drift that is understood and not ours to fix here. Each entry must still occur, so a fix upstream
 // makes this test ask for the entry to be removed.
-const KNOWN_DRIFT: Record<string, string> = {
-  "GiveawayCreate.thumbnail_url":
-    "The giveaway routes send it, but xvm-api's GiveawayCreate has no such field, so a thumbnail cannot be set. GiveawayRow returns one.",
-  "GiveawayUpdate.thumbnail_url": "Same as GiveawayCreate.thumbnail_url.",
-}
+const KNOWN_DRIFT: Record<string, string> = {}
 
 describe("xvm-api.ts against the committed contract", () => {
   const report = findDrift(mirror, contract, ALIASES)

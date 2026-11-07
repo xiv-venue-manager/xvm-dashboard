@@ -248,6 +248,11 @@ export function EmojiPicker({
           // Radix counts a press on the anchor as outside the content, and closing on it would
           // shut the popup on the same click that repositions the caret.
           onEscapeKeyDown={() => fieldRef.current?.focus()}
+          onKeyDown={(e) => {
+            if (e.key !== "Tab") return
+            fieldRef.current?.focus()
+            setOpen(false)
+          }}
           onPointerDownOutside={(event) => {
             if (anchorRef.current?.contains(event.detail.originalEvent.target as Node)) event.preventDefault()
           }}

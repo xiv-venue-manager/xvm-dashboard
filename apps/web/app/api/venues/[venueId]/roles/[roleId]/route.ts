@@ -120,8 +120,10 @@ export const PUT = withRateLimit<{ params: Promise<{ venueId: string; roleId: st
         if (!held) {
           return NextResponse.json({ error: "Role not found" }, { status: 404 })
         }
-        const check = await requireRoleInGuild(session.user.id, venueId, data.discordRoleId, held.discord_role_id)
-        if (!check.ok) return check.response
+        if (data.discordRoleId !== held.discord_role_id) {
+          const check = await requireRoleInGuild(session.user.id, venueId, data.discordRoleId, held.discord_role_id)
+          if (!check.ok) return check.response
+        }
       }
 
       const position = await updatePosition(token, lookup.venue.id, positionId, {

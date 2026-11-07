@@ -3,7 +3,6 @@ import { getServerSession } from "next-auth"
 import { z } from "zod"
 import { authOptions } from "@/lib/auth"
 import { withRateLimit } from "@/lib/middleware/with-rate-limit"
-import { invalidateCache, cacheKeys } from "@/lib/redis-cache"
 import { getValidXvmApiToken, isVenueOwner, xvmApiErrorResponse } from "@/lib/api/xvm-api-store"
 import { requireMyVenue } from "@/lib/api/venue-access"
 import { getVenue, linkVenueExternal, unlinkVenueExternal } from "@/lib/api/xvm-api"
@@ -76,7 +75,6 @@ export const POST = withRateLimit<{ params: Promise<{ venueId: string }> }>(
         provider: "DiscordGuild",
         external_id: guildId,
       })
-      await Promise.all([invalidateCache(cacheKeys.venue(venueId)), invalidateCache(cacheKeys.venueBySlug(lookup.venue.slug))])
       return NextResponse.json(link, { status: 201 })
     } catch (err) {
       return xvmApiErrorResponse(err, session.user.id, "[discord link] POST error")
@@ -129,7 +127,6 @@ export const DELETE = withRateLimit<{ params: Promise<{ venueId: string }> }>(
       return xvmApiErrorResponse(err, session.user.id, "[discord link] DELETE error")
     }
 
-    await Promise.all([invalidateCache(cacheKeys.venue(venueId)), invalidateCache(cacheKeys.venueBySlug(lookup.venue.slug))])
     return new NextResponse(null, { status: 204 })
   },
   { requests: 10, window: "1 m" }

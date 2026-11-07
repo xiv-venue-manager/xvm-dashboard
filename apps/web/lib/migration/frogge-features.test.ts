@@ -18,9 +18,21 @@ const empty = (): FroggeFeatureExport => ({
   vip_memberships: [],
   vip_members: [],
 })
-const run = (over: Partial<FroggeFeatureExport>, people = base()) => mapFroggeFeatures({ ...empty(), ...over }, ctx, people)
+const run = (
+  over: Partial<FroggeFeatureExport>,
+  people = base(),
+  context: typeof ctx & { createdVenues?: ReadonlySet<string> } = ctx
+) => mapFroggeFeatures({ ...empty(), ...over }, context, people)
 
-const panel = { id: 1, guild_id: G, title: "Pronouns", description: null, thumbnail_url: null, color: 5, message_type: "unique" }
+const panel = {
+  id: 1,
+  guild_id: G,
+  title: "Pronouns",
+  description: null,
+  thumbnail_url: null,
+  color: 5,
+  message_type: "unique",
+}
 
 describe("reaction roles", () => {
   it("keeps a panel and numbers its options in id order", () => {
@@ -32,7 +44,15 @@ describe("reaction roles", () => {
       ],
     })
     expect(r.features.reactionRolePanels).toEqual([
-      { key: "frogge:rr:1", venue_key: "venue-a", title: "Pronouns", description: null, color: 5, message_type: "unique", thumbnail_source: null },
+      {
+        key: "frogge:rr:1",
+        venue_key: "venue-a",
+        title: "Pronouns",
+        description: null,
+        color: 5,
+        message_type: "unique",
+        thumbnail_source: null,
+      },
     ])
     expect(r.features.reactionRoleOptions.map((o) => [o.role_id, o.sort_order])).toEqual([
       ["111", 0],
@@ -42,8 +62,16 @@ describe("reaction roles", () => {
   })
 
   it("hands a panel's thumbnail URL to the image copy step", () => {
-    const r = run({ reaction_role_panels: [{ ...panel, thumbnail_url: " https://bucket/reaction-roles/p.png " }, { ...panel, id: 2 }] })
-    expect(r.features.reactionRolePanels.map((p) => p.thumbnail_source)).toEqual(["https://bucket/reaction-roles/p.png", null])
+    const r = run({
+      reaction_role_panels: [
+        { ...panel, thumbnail_url: " https://bucket/reaction-roles/p.png " },
+        { ...panel, id: 2 },
+      ],
+    })
+    expect(r.features.reactionRolePanels.map((p) => p.thumbnail_source)).toEqual([
+      "https://bucket/reaction-roles/p.png",
+      null,
+    ])
     expect(r.report.counts["panel images to copy"]).toBe(1)
   })
 
@@ -78,12 +106,20 @@ describe("leveling", () => {
       { venue_key: "venue-a", source_key: "discord.message", xp_amount: 20, cooldown_seconds: 60, enabled: true },
       { venue_key: "venue-a", source_key: "discord.voice", xp_amount: 5, cooldown_seconds: 0, enabled: true },
     ])
-    expect(r.features.levelingSettings[0]).toMatchObject({ venue_key: "venue-a", excluded_channel_ids: ["333"], voice_needs_company: true })
+    expect(r.features.levelingSettings[0]).toMatchObject({
+      venue_key: "venue-a",
+      excluded_channel_ids: ["333"],
+      voice_needs_company: true,
+    })
     expect(r.report.counts["message XP ranges set to their midpoint"]).toBe(1)
   })
 
   it("keeps a disabled server's rules disabled", () => {
-    expect(run({ leveling_settings: [{ ...settings, enabled: false }] }).features.levelingRules.every((rule) => rule.enabled === false)).toBe(true)
+    expect(
+      run({ leveling_settings: [{ ...settings, enabled: false }] }).features.levelingRules.every(
+        (rule) => rule.enabled === false
+      )
+    ).toBe(true)
   })
 
   it("links a member to the existing person, or makes a placeholder", () => {
@@ -98,17 +134,19 @@ describe("leveling", () => {
           { guild_id: G, discord_user_id: "77", total_xp: 20 },
         ],
       },
-      people,
+      people
     )
     expect(r.features.levelingMembers.map((m) => m.person_key)).toEqual(["p-known", "frogge:p:77"])
-    expect(r.people.people).toEqual([{ key: "frogge:p:77", kind: "user", display_name: "Discord user 77", is_platform_admin: false, created_at: NOW }])
+    expect(r.people.people).toEqual([
+      { key: "frogge:p:77", kind: "user", display_name: "Discord user 77", is_platform_admin: false, created_at: NOW },
+    ])
     expect(people.people).toEqual([])
   })
 
   it("turns a role reward into a named tier", () => {
-    expect(run({ leveling_role_rewards: [{ id: 1, guild_id: G, level: 5, role_id: "808" }] }).features.levelingTiers).toEqual([
-      { venue_key: "venue-a", name: "Level 5", min_level: 5, discord_role_id: "808" },
-    ])
+    expect(
+      run({ leveling_role_rewards: [{ id: 1, guild_id: G, level: 5, role_id: "808" }] }).features.levelingTiers
+    ).toEqual([{ venue_key: "venue-a", name: "Level 5", min_level: 5, discord_role_id: "808" }])
   })
 })
 
@@ -126,7 +164,15 @@ describe("vip", () => {
     warn_sent: false,
     expire_sent: false,
   }
-  const member = { id: 1, guild_id: G, discord_user_id: "42", tier_id: 4, expires_at: "2027-01-01T00:00:00.000Z", name: "Mira", notes: "comp" }
+  const member = {
+    id: 1,
+    guild_id: G,
+    discord_user_id: "42",
+    tier_id: 4,
+    expires_at: "2027-01-01T00:00:00.000Z",
+    name: "Mira",
+    notes: "comp",
+  }
 
   it("orders tiers and perks and renames one_time to once", () => {
     const r = run({
@@ -136,7 +182,12 @@ describe("vip", () => {
         { id: 1, guild_id: G, tier_id: 4, text: "Seat", description: "d", repeatability: "monthly" },
       ],
     })
-    expect(r.features.vipTiers[0]).toMatchObject({ key: "frogge:vt:4", name: "Gold", discord_role_id: "909", sort_order: 0 })
+    expect(r.features.vipTiers[0]).toMatchObject({
+      key: "frogge:vt:4",
+      name: "Gold",
+      discord_role_id: "909",
+      sort_order: 0,
+    })
     expect(r.features.vipPerks.map((p) => [p.name, p.repeatability, p.sort_order])).toEqual([
       ["Seat", "monthly", 0],
       ["Drink", "once", 1],
@@ -164,8 +215,15 @@ describe("vip", () => {
   })
 
   it("closes an open membership whose expiry has passed", () => {
-    const r = run({ vip_tiers: [tier], vip_memberships: [history], vip_members: [{ ...member, expires_at: "2026-10-01T00:00:00.000Z" }] })
-    expect(r.features.vipMemberships[0]).toMatchObject({ ended_at: "2026-10-01T00:00:00.000Z", ended_reason: "expired" })
+    const r = run({
+      vip_tiers: [tier],
+      vip_memberships: [history],
+      vip_members: [{ ...member, expires_at: "2026-10-01T00:00:00.000Z" }],
+    })
+    expect(r.features.vipMemberships[0]).toMatchObject({
+      ended_at: "2026-10-01T00:00:00.000Z",
+      ended_reason: "expired",
+    })
     expect(r.report.counts["open VIP memberships closed at their expiry"]).toBe(1)
   })
 
@@ -174,7 +232,11 @@ describe("vip", () => {
       vip_tiers: [tier],
       vip_memberships: [{ ...history, ended_at: "2026-09-10T00:00:00.000Z", ended_reason: "removed" }],
     })
-    expect(r.features.vipMemberships[0]).toMatchObject({ ended_at: "2026-09-10T00:00:00.000Z", ended_reason: "revoked", expires_at: null })
+    expect(r.features.vipMemberships[0]).toMatchObject({
+      ended_at: "2026-09-10T00:00:00.000Z",
+      ended_reason: "revoked",
+      expires_at: null,
+    })
   })
 
   it("stamps a sent warning with the load time so it is not sent twice", () => {
@@ -222,7 +284,9 @@ describe("guild settings", () => {
 
   it("carries a server's lead times and channels to the venue, one row each", () => {
     const r = run({ guild_configurations: [config] })
-    expect(r.features.shiftSettings).toEqual([{ venue_key: "venue-a", start_reminder_minutes: 120, lockout_minutes: 240 }])
+    expect(r.features.shiftSettings).toEqual([
+      { venue_key: "venue-a", start_reminder_minutes: 120, lockout_minutes: 240 },
+    ])
     expect(r.features.discordSettings).toEqual([
       { venue_key: "venue-a", greeting_channel_id: "1090332741872132239", honeypot_channel_id: "1090332741872132240" },
     ])
@@ -233,17 +297,90 @@ describe("guild settings", () => {
 
   it("writes a row with only what the server has set", () => {
     const r = run({
-      guild_configurations: [{ ...config, event_start_reminder_minutes: null, event_lockout_minutes: 15, greeting_channel_id: null }],
+      guild_configurations: [
+        { ...config, event_start_reminder_minutes: null, event_lockout_minutes: 15, greeting_channel_id: null },
+      ],
     })
-    expect(r.features.shiftSettings).toEqual([{ venue_key: "venue-a", start_reminder_minutes: null, lockout_minutes: 15 }])
-    expect(r.features.discordSettings).toEqual([{ venue_key: "venue-a", greeting_channel_id: null, honeypot_channel_id: "1090332741872132240" }])
+    expect(r.features.shiftSettings).toEqual([
+      { venue_key: "venue-a", start_reminder_minutes: null, lockout_minutes: 15 },
+    ])
+    expect(r.features.discordSettings).toEqual([
+      { venue_key: "venue-a", greeting_channel_id: null, honeypot_channel_id: "1090332741872132240" },
+    ])
   })
 
   it("writes nothing for a server with none of them set", () => {
-    const none = { ...config, event_start_reminder_minutes: null, event_lockout_minutes: null, greeting_channel_id: null, honeypot_channel_id: null }
+    const none = {
+      ...config,
+      event_start_reminder_minutes: null,
+      event_lockout_minutes: null,
+      greeting_channel_id: null,
+      honeypot_channel_id: null,
+    }
     const r = run({ guild_configurations: [none] })
     expect(r.features.shiftSettings).toEqual([])
     expect(r.features.discordSettings).toEqual([])
+  })
+
+  it("turns shift approval off for a venue made from a Frogge server, where joining takes the seat at once", () => {
+    const created = { ...ctx, createdVenues: new Set(["venue-a"]) }
+    const r = run({ guild_configurations: [config] }, base(), created)
+    expect(r.features.shiftSettings).toEqual([
+      { venue_key: "venue-a", start_reminder_minutes: 120, lockout_minutes: 240, approval_required: false },
+    ])
+    expect(r.report.counts["shift approval turned off"]).toBe(1)
+  })
+
+  it("writes the approval row even when the server set neither lead time", () => {
+    const created = { ...ctx, createdVenues: new Set(["venue-a"]) }
+    const none = { ...config, event_start_reminder_minutes: null, event_lockout_minutes: null }
+    const r = run({ guild_configurations: [none] }, base(), created)
+    expect(r.features.shiftSettings).toEqual([
+      { venue_key: "venue-a", start_reminder_minutes: null, lockout_minutes: null, approval_required: false },
+    ])
+  })
+
+  it("leaves a matched venue's approval alone", () => {
+    const r = run({ guild_configurations: [config] })
+    expect(r.features.shiftSettings).toEqual([
+      { venue_key: "venue-a", start_reminder_minutes: 120, lockout_minutes: 240 },
+    ])
+    expect(r.features.shiftSettings[0]).not.toHaveProperty("approval_required")
+  })
+
+  it("carries the staff role to the venue's Discord settings", () => {
+    const r = run({ guild_configurations: [{ ...config, staff_role_id: "555" }] })
+    expect(r.features.discordSettings).toEqual([
+      {
+        venue_key: "venue-a",
+        greeting_channel_id: "1090332741872132239",
+        honeypot_channel_id: "1090332741872132240",
+        staff_role_id: "555",
+      },
+    ])
+    expect(r.report.counts["staff roles"]).toBe(1)
+  })
+
+  it("writes a Discord settings row for a staff role alone, and no staff_role_id when there is none", () => {
+    const bare = { guild_id: G, vip_warning_threshold_days: 3 }
+    const only = run({ guild_configurations: [{ ...bare, staff_role_id: "555" }] })
+    expect(only.features.discordSettings).toEqual([
+      { venue_key: "venue-a", greeting_channel_id: null, honeypot_channel_id: null, staff_role_id: "555" },
+    ])
+    expect(run({ guild_configurations: [config] }).features.discordSettings[0]).not.toHaveProperty("staff_role_id")
+  })
+
+  it("notes the settings it does not carry, with how many servers use them", () => {
+    const r = run({
+      guild_configurations: [
+        { ...config, profile_approval_required: false, require_staffing_qualification: true },
+        { ...config, guild_id: "999", profile_approval_required: false },
+      ],
+    })
+    expect(r.report.notes).toContain(
+      "1 server turned off profile approval, which xvm-api's profile settings do not carry yet"
+    )
+    expect(r.report.notes).toContain("1 server required a staffing qualification, which is not carried")
   })
 
   it("drops a number of minutes xvm-api would refuse, and ignores a server that is not a venue", () => {
@@ -268,7 +405,13 @@ describe("audit log settings", () => {
   it("writes the channel, and a row for each event that is on or has a colour", () => {
     const r = run({
       audit_log_settings: [
-        { ...audit, log_message_deleted: true, color_message_deleted: 3107663, log_member_name_changed: true, color_voice_left: 15902298 },
+        {
+          ...audit,
+          log_message_deleted: true,
+          color_message_deleted: 3107663,
+          log_member_name_changed: true,
+          color_voice_left: 15902298,
+        },
       ],
     })
     expect(r.features.auditLogSettings).toEqual([{ venue_key: "venue-a", channel_id: "1373894502929928203" }])
@@ -284,18 +427,52 @@ describe("audit log settings", () => {
   it("names every event the way xvm-api does", () => {
     const everything = Object.fromEntries(
       [
-        "message_deleted", "message_edited", "member_joined", "member_left", "member_name_changed", "member_avatar_changed",
-        "member_banned", "member_unbanned", "member_timed_out", "member_timeout_removed", "channel_created", "channel_updated",
-        "channel_deleted", "role_created", "role_updated", "role_deleted", "server_updated", "emoji_updated", "voice_joined",
-        "voice_moved", "voice_left",
-      ].map((e) => [`log_${e}`, true]),
+        "message_deleted",
+        "message_edited",
+        "member_joined",
+        "member_left",
+        "member_name_changed",
+        "member_avatar_changed",
+        "member_banned",
+        "member_unbanned",
+        "member_timed_out",
+        "member_timeout_removed",
+        "channel_created",
+        "channel_updated",
+        "channel_deleted",
+        "role_created",
+        "role_updated",
+        "role_deleted",
+        "server_updated",
+        "emoji_updated",
+        "voice_joined",
+        "voice_moved",
+        "voice_left",
+      ].map((e) => [`log_${e}`, true])
     )
     const r = run({ audit_log_settings: [{ ...audit, ...everything }] })
     expect(r.features.auditLogEvents.map((e) => e.event_key)).toEqual([
-      "message.deleted", "message.edited", "member.joined", "member.left", "member.name_changed", "member.avatar_changed",
-      "member.banned", "member.unbanned", "member.timed_out", "member.timeout_removed", "channel.created", "channel.updated",
-      "channel.deleted", "role.created", "role.updated", "role.deleted", "server.updated", "emoji.updated", "voice.joined",
-      "voice.moved", "voice.left",
+      "message.deleted",
+      "message.edited",
+      "member.joined",
+      "member.left",
+      "member.name_changed",
+      "member.avatar_changed",
+      "member.banned",
+      "member.unbanned",
+      "member.timed_out",
+      "member.timeout_removed",
+      "channel.created",
+      "channel.updated",
+      "channel.deleted",
+      "role.created",
+      "role.updated",
+      "role.deleted",
+      "server.updated",
+      "emoji.updated",
+      "voice.joined",
+      "voice.moved",
+      "voice.left",
     ])
   })
 

@@ -13,7 +13,7 @@ export const LOAD_ARRAYS: Record<string, string[]> = {
   positions: ["positions", "memberships", "membershipPositions"],
   services: ["categories", "services", "servicePositions", "inventories"],
   events: ["rules", "events", "totals"],
-  shifts: ["shifts", "audits"],
+  shifts: ["event_positions", "event_shifts", "shifts", "audits"],
   finance: ["transactions", "payroll"],
   patrons: ["patrons", "logs"],
   "follows-feedback": ["follows", "feedback"],
@@ -24,6 +24,8 @@ export const LOAD_ARRAYS: Record<string, string[]> = {
 
 const CASCADES: { file: string; array: string; field: string; parent: [string, string] }[] = [
   { file: "events", array: "totals", field: "event_key", parent: ["events", "events"] },
+  { file: "shifts", array: "event_positions", field: "event_key", parent: ["events", "events"] },
+  { file: "shifts", array: "event_shifts", field: "event_position_key", parent: ["shifts", "event_positions"] },
   { file: "shifts", array: "audits", field: "shift_key", parent: ["shifts", "shifts"] },
   { file: "positions", array: "membershipPositions", field: "membership_key", parent: ["positions", "memberships"] },
   { file: "services", array: "servicePositions", field: "service_key", parent: ["services", "services"] },

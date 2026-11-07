@@ -17,6 +17,16 @@ const fixture = (): MappedFiles => ({
       { key: "s4", venue_key: "vTest", payroll_entry_key: null },
     ],
     audits: [{ shift_key: "s1" }, { shift_key: "s4" }],
+    event_positions: [
+      { key: "ep1", venue_key: "v1", event_key: "e1" },
+      { key: "ep2", venue_key: "vTest", event_key: "e2" },
+      { key: "ep3", venue_key: "v1", event_key: "e-gone" },
+    ],
+    event_shifts: [
+      { key: "es1", venue_key: "v1", event_position_key: "ep1" },
+      { key: "es2", venue_key: "vTest", event_position_key: "ep2" },
+      { key: "es3", venue_key: "v1", event_position_key: "ep3" },
+    ],
   },
   finance: { transactions: [], payroll: [{ key: "p1", venue_key: "v1" }, { key: "p2", venue_key: "vTest" }] },
   positions: {
@@ -55,6 +65,13 @@ describe("prepareLoad", () => {
       "services.servicePositions": 1,
       "services.inventories": 1,
     })
+  })
+
+  it("drops a left-out venue's event positions and event shifts, and anything under a dropped parent", () => {
+    const { files, report } = prepareLoad(fixture())
+    expect((files.shifts.event_positions as { key: string }[]).map((r) => r.key)).toEqual(["ep1"])
+    expect((files.shifts.event_shifts as { key: string }[]).map((r) => r.key)).toEqual(["es1"])
+    expect(report.dropped).toMatchObject({ "shifts.event_positions": 2, "shifts.event_shifts": 2 })
   })
 
   it("clears a shift's payroll link only when the entry is gone", () => {

@@ -193,6 +193,14 @@ npx tsx scripts/conservation.ts --counts table-counts.json --exports <export dir
   [--counts-after table-counts-after.json] [--accepted accepted.json]
 ```
 
+### Which Frogge servers become venues
+
+A rule, not a list. `scripts/frogge-scope.ts` reads the per-server row counts from `frogge-guild-activity.sh` and picks every server with real venue data (staff, positions, events, forms, giveaways, raffles, leveling members, rooms, reaction roles, stickies, streams, VIP, an FFXIV Venues link or a finance entry). Defaults every server gets, welcome posts, plugin sync rows, and a single profile or template do not count. A server whose owner the bot cannot reach is skipped (Allegro, 2026-11-03), and one nobody has looked up yet is listed for an owner lookup. A server already on the current list stays on it and is shown for review. Run it in the window, because servers keep gaining data.
+
+```bash
+npx tsx scripts/frogge-scope.ts frogge-guild-activity.txt frogge-owners-output.csv current-ids.txt ids.txt
+```
+
 ### Upcoming shifts with no event
 
 xvm-api seats a scheduled shift on an event shift, which needs an event and a position, so a standalone shift (no event, often one of a recurring series) cannot load. The mapper skips them as `empty-shift`. The unfilled and past ones are not worth carrying. The upcoming claimed or scheduled ones are real commitments (75 at the 2026-11-07 rehearsal: 16 recurring series, 13 members, 5 venues), so list them for the owners to re-create:

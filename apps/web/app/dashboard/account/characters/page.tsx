@@ -8,6 +8,7 @@ import { Input } from "@/components/ui/input"
 import { Label } from "@/components/ui/label"
 import { Badge } from "@/components/ui/badge"
 import { Alert, AlertDescription } from "@/components/ui/alert"
+import { describeXivAuthResult, type XivAuthNotice } from "@/lib/api/xivauth-result"
 import {
   AlertDialog,
   AlertDialogAction,
@@ -25,6 +26,7 @@ interface UserCharacter {
   characterName: string
   world: string
   isPrimary: boolean
+  verifiedVia: string
 }
 
 export default function CharactersPage() {
@@ -35,6 +37,7 @@ export default function CharactersPage() {
   const [isCreating, setIsCreating] = useState(false)
   const [error, setError] = useState("")
   const [success, setSuccess] = useState("")
+  const [notice, setNotice] = useState<XivAuthNotice | null>(null)
 
   async function fetchCharacters(showLoading = true) {
     if (showLoading) setIsLoading(true)
@@ -58,6 +61,14 @@ export default function CharactersPage() {
     // Genuine data fetch (sets characters/loading state), not derivable from props/state during render.
     // eslint-disable-next-line react-hooks/set-state-in-effect
     fetchCharacters()
+  }, [])
+
+  useEffect(() => {
+    const found = describeXivAuthResult(window.location.search)
+    if (!found) return
+    // eslint-disable-next-line react-hooks/set-state-in-effect
+    setNotice(found)
+    window.history.replaceState(null, "", window.location.pathname)
   }, [])
 
   useEffect(() => {
@@ -153,6 +164,32 @@ export default function CharactersPage() {
         </Alert>
       )}
 
+      {notice && (
+        <Alert
+          variant={notice.tone === "error" ? "destructive" : "default"}
+          className={notice.tone === "success" ? "mb-6 border-emerald-500/40 bg-emerald-500/10" : "mb-6"}
+        >
+          <AlertDescription className={notice.tone === "success" ? "text-emerald-300" : undefined}>
+            {notice.message}
+          </AlertDescription>
+        </Alert>
+      )}
+
+      <Card className="mb-6">
+        <CardHeader>
+          <CardTitle>Verify with XIV Auth</CardTitle>
+          <CardDescription>
+            Prove you own your characters. You choose which ones to share on XIV Auth, and a verified character cannot be
+            taken by anyone else.
+          </CardDescription>
+        </CardHeader>
+        <CardContent>
+          <Button asChild>
+            <a href="/api/xivauth/start">Verify with XIV Auth</a>
+          </Button>
+        </CardContent>
+      </Card>
+
       <Card className="mb-6">
         <CardHeader>
           <CardTitle>Link a character</CardTitle>
@@ -219,6 +256,15 @@ export default function CharactersPage() {
                     {c.isPrimary && (
                       <Badge variant="outline" className="border-emerald-500/40 text-emerald-300">
                         Primary
+                      </Badge>
+                    )}
+                    {c.verifiedVia === "xivauth" ? (
+                      <Badge variant="outline" className="border-sky-500/40 text-sky-300">
+                        Verified
+                      </Badge>
+                    ) : (
+                      <Badge variant="outline" className="text-muted-foreground">
+                        Not verified
                       </Badge>
                     )}
                   </div>

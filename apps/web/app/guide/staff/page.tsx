@@ -157,17 +157,19 @@ export default function StaffGuidePage() {
                   </span>
                   <div className="space-y-2 text-sm leading-relaxed">
                     <span>
-                      <span className="font-medium">Add your character:</span> On the website, open the account menu in
-                      the top right and go to <span className="font-medium">Profile</span>, then{" "}
-                      <span className="font-medium">My Characters</span>. Add your FFXIV character name and world. This
-                      lets the plugin tell you apart from patrons so you are not counted as a visitor during your shift.
+                      <span className="font-medium">Link your character:</span> In the plugin, open Settings and press{" "}
+                      <span className="font-medium">Link current character</span> (log in to the character first). Or on
+                      the website, open the account menu in the top right, go to{" "}
+                      <span className="font-medium">Profile</span>, and add your FFXIV character name and world under{" "}
+                      <span className="font-medium">My Characters</span>. The plugin does not log your own visits until
+                      your current character is linked.
                     </span>
                     <p className="text-muted-foreground">
-                      You also need to save the venue location in your own plugin. Visit the venue&apos;s housing plot
-                      in game, open the plugin&apos;s <span className="font-medium text-foreground">Venues</span> tab,
-                      enter a name, and click <span className="font-medium text-foreground">Save Venue</span>. Then
-                      select your venue from the <span className="font-medium text-foreground">XIV-App Venue</span>{" "}
-                      dropdown. This is saved per-person and must be done by each staff member individually.
+                      The plugin links the venue&apos;s house for you the first time you enter it, as long as the venue
+                      has its location filled in. If it does not link, go to the house, open the plugin&apos;s{" "}
+                      <span className="font-medium text-foreground">Venues</span> tab, enter a name, click{" "}
+                      <span className="font-medium text-foreground">Save Venue</span>, then choose your venue in the{" "}
+                      <span className="font-medium text-foreground">XIV-App Venue</span> dropdown.
                     </p>
                   </div>
                 </li>
@@ -263,8 +265,9 @@ export default function StaffGuidePage() {
                   event is active. Toggle in plugin Settings if you want always-on tracking.
                 </li>
                 <li>
-                  <span className="font-medium">Staff aren&apos;t double-counted:</span> if you&apos;re on an active
-                  shift, the plugin classifies you as staff, not a patron (v3.2.0+).
+                  <span className="font-medium">Staff aren&apos;t double-counted:</span> while your character is linked
+                  and you are clocked in, your visits are recorded as staff, not as patron visits. If you are not
+                  clocked in, you are counted as a patron.
                 </li>
                 <li>
                   <span className="font-medium">Snooze alerts:</span> run{" "}

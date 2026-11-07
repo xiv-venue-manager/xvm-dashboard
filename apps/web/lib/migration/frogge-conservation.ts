@@ -169,7 +169,9 @@ const notCarried = (decision: string): FroggeTableSpec => ({ kind: "not_carried"
 // Every table in Frogge's schema (107 at 2026-11-01). A table not listed here fails the run, so a new one has to be decided.
 export const FROGGE_TABLES: Record<string, FroggeTableSpec> = {
   activity_logs: notCarried("mostly config-edit noise, dropped (fold-in decision 2026-11-01)"),
-  admin_roles: { kind: "undecided", note: "1 row of role ids that make a member an admin, maybe a tier hint" },
+  admin_roles: notCarried(
+    "role ids that make a member an admin: no xvm-api home, Frogge admin_users already give the owner and manager memberships"
+  ),
   admin_users: { kind: "exported", array: "admin_users" },
   alembic_version: { kind: "ignored" },
   audit_log_settings: { kind: "exported", array: "audit_log_settings" },
@@ -206,7 +208,7 @@ export const FROGGE_TABLES: Record<string, FroggeTableSpec> = {
   finance_transaction_templates: notCarried(
     "seeded defaults, the same 10 rows for every server, dropped (fold-in decision)"
   ),
-  finance_transactions: { kind: "undecided", note: "1 real finance row at 2026-11-01 that no export carries" },
+  finance_transactions: { kind: "exported", array: "finance_transactions" },
   finance_trigger_bindings: { kind: "expect_empty" },
   form_questions: { kind: "exported", array: "form_questions" },
   form_responses: { kind: "exported", array: "form_responses" },

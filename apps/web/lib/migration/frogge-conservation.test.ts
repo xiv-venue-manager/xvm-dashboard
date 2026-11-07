@@ -88,10 +88,16 @@ describe("checkFroggeTables", () => {
 
   it("passes a table carried by decision and flags an undecided one that has rows", () => {
     expect(checkFroggeTables(counts({ activity_logs: 500 }), empty).problems).toEqual([])
-    expect(checkFroggeTables(counts({ finance_transactions: 1 }), empty).problems).toEqual([
-      expect.stringContaining("no decision yet"),
-    ])
-    expect(checkFroggeTables(counts({ finance_transactions: 0 }), empty).problems).toEqual([])
+    const original = FROGGE_TABLES.quotes
+    FROGGE_TABLES.quotes = { kind: "undecided", note: "pending" }
+    try {
+      expect(checkFroggeTables(counts({ quotes: 1 }), empty).problems).toEqual([
+        expect.stringContaining("no decision yet"),
+      ])
+      expect(checkFroggeTables(counts({ quotes: 0 }), empty).problems).toEqual([])
+    } finally {
+      FROGGE_TABLES.quotes = original
+    }
   })
 
   it("fails an export with more rows than the table has, or a missing array", () => {

@@ -214,7 +214,7 @@ export function TransactionsList({ transactions, venueSlug, onTransactionsChange
                         : "text-base text-foreground/80"
                   }`}
                 >
-                  {amount.toLocaleString()} gil
+                  {amount.toLocaleString("en-US")} gil
                 </p>
                 <div className="flex gap-0.5">
                   <Button
@@ -309,7 +309,7 @@ export function TransactionsList({ transactions, venueSlug, onTransactionsChange
             <AlertDialogTitle>Void Transaction</AlertDialogTitle>
             <AlertDialogDescription>
               Are you sure you want to void this transaction for{" "}
-              <strong>{deletingTransaction?.amount.toLocaleString()} gil</strong>? It will be removed from this list
+              <strong>{deletingTransaction?.amount.toLocaleString("en-US")} gil</strong>? It will be removed from this list
               and marked voided, but kept as an audit record — this cannot be undone.
             </AlertDialogDescription>
           </AlertDialogHeader>

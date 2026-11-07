@@ -193,6 +193,16 @@ npx tsx scripts/conservation.ts --counts table-counts.json --exports <export dir
   [--counts-after table-counts-after.json] [--accepted accepted.json]
 ```
 
+### Upcoming shifts with no event
+
+xvm-api seats a scheduled shift on an event shift, which needs an event and a position, so a standalone shift (no event, often one of a recurring series) cannot load. The mapper skips them as `empty-shift`. The unfilled and past ones are not worth carrying. The upcoming claimed or scheduled ones are real commitments (75 at the 2026-11-07 rehearsal: 16 recurring series, 13 members, 5 venues), so list them for the owners to re-create:
+
+```bash
+npx tsx scripts/unseated-shifts.ts <export dir> <mapped dir> unseated-shifts.md
+```
+
+The file is grouped by venue and series and holds names, so send each owner only their own venue.
+
 Inside the maintenance window nothing writes, so one counts file is enough and the counts must match exactly. On a live database the export can land between two counts, so pass `--counts-after` and a count inside that range is accepted.
 
 What it checks, in order:

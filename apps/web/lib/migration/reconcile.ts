@@ -18,7 +18,7 @@ const POSITION: Target = ["positions", "positions"]
 const REFS: { file: string; array: string; field: string; target: Target }[] = [
   ...[
     ["positions", "positions"], ["positions", "memberships"], ["services", "categories"], ["services", "services"],
-    ["events", "rules"], ["events", "events"], ["shifts", "rules"], ["shifts", "shifts"],
+    ["events", "rules"], ["events", "events"], ["shifts", "event_positions"], ["shifts", "event_shifts"], ["shifts", "shifts"],
     ["finance", "transactions"], ["finance", "payroll"], ["patrons", "patrons"], ["patrons", "logs"],
     ["follows-feedback", "follows"], ["tasks-rooms", "taskCategories"], ["tasks-rooms", "tasks"], ["tasks-rooms", "rooms"],
     ["hours", "hours"], ["settings", "payrollSettings"], ["settings", "modules"], ["venues", "externalLinks"], ["venues", "images"],
@@ -31,7 +31,10 @@ const REFS: { file: string; array: string; field: string; target: Target }[] = [
   { file: "services", array: "services", field: "category_key", target: ["services", "categories"] },
   { file: "events", array: "events", field: "rule_key", target: ["events", "rules"] },
   { file: "events", array: "totals", field: "event_key", target: ["events", "events"] },
-  { file: "shifts", array: "shifts", field: "rule_key", target: ["shifts", "rules"] },
+  { file: "shifts", array: "event_positions", field: "event_key", target: ["events", "events"] },
+  { file: "shifts", array: "event_positions", field: "position_key", target: POSITION },
+  { file: "shifts", array: "event_shifts", field: "event_position_key", target: ["shifts", "event_positions"] },
+  { file: "shifts", array: "shifts", field: "event_shift_key", target: ["shifts", "event_shifts"] },
   { file: "shifts", array: "shifts", field: "membership_key", target: MEMBERSHIP },
   { file: "shifts", array: "shifts", field: "position_key", target: POSITION },
   { file: "shifts", array: "shifts", field: "event_key", target: ["events", "events"] },

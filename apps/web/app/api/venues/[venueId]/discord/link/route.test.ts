@@ -11,17 +11,12 @@ const m = vi.hoisted(() => ({
   getVenue: vi.fn(),
   link: vi.fn(),
   unlink: vi.fn(),
-  invalidate: vi.fn(),
 }))
 
 vi.mock("next-auth", () => ({ getServerSession: m.session }))
 vi.mock("@/lib/auth", () => ({ authOptions: {} }))
 vi.mock("@/lib/middleware/with-rate-limit", () => ({ withRateLimit: (handler: unknown) => handler }))
 vi.mock("@/lib/api/venue-access", () => ({ requireMyVenue: m.venue }))
-vi.mock("@/lib/redis-cache", () => ({
-  invalidateCache: m.invalidate,
-  cacheKeys: { venue: (id: string) => `venue:${id}`, venueBySlug: (s: string) => `venue:slug:${s}` },
-}))
 vi.mock("@/lib/api/xvm-api-store", async () => {
   const actual = await vi.importActual<typeof import("@/lib/api/xvm-api-store")>("@/lib/api/xvm-api-store")
   return {
@@ -73,7 +68,6 @@ beforeEach(() => {
     ],
   })
   m.unlink.mockResolvedValue(undefined)
-  m.invalidate.mockResolvedValue(undefined)
 })
 
 describe("POST /api/venues/[venueId]/discord/link", () => {
@@ -157,12 +151,10 @@ describe("POST /api/venues/[venueId]/discord/link", () => {
     expect(m.link).not.toHaveBeenCalled()
   })
 
-  it("links the guild and drops the venue's cached copies", async () => {
+  it("links the guild", async () => {
     const res = await post({ guildId: GUILD })
     expect(res.status).toBe(201)
     expect(m.link).toHaveBeenCalledWith("tok", "xv-1", { provider: "DiscordGuild", external_id: GUILD })
-    expect(m.invalidate).toHaveBeenCalledWith("venue:vn_1")
-    expect(m.invalidate).toHaveBeenCalledWith("venue:slug:lilypad")
   })
 
   it("forwards xvm-api's conflict for a guild another venue already holds", async () => {
@@ -227,12 +219,10 @@ describe("DELETE /api/venues/[venueId]/discord/link", () => {
     expect(m.unlink).not.toHaveBeenCalled()
   })
 
-  it("unlinks the live link by the id xvm-api gave it, and drops the cached copies", async () => {
+  it("unlinks the live link by the id xvm-api gave it", async () => {
     const res = await remove()
     expect(res.status).toBe(204)
     expect(m.unlink).toHaveBeenCalledWith("tok", "xv-1", 7)
-    expect(m.invalidate).toHaveBeenCalledWith("venue:vn_1")
-    expect(m.invalidate).toHaveBeenCalledWith("venue:slug:lilypad")
   })
 
   it("does not require authority over the guild it is unlinking", async () => {
@@ -248,6 +238,5 @@ describe("DELETE /api/venues/[venueId]/discord/link", () => {
     const res = await remove()
     expect(res.status).toBe(403)
     expect((await res.json()).error).toBe("Owner tier required.")
-    expect(m.invalidate).not.toHaveBeenCalled()
   })
 })

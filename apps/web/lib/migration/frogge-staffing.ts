@@ -565,6 +565,33 @@ export function mapFroggeStaffing(source: FroggeExport, ctx: FroggeContext, base
     bump("shifts created")
   }
 
+  const serverLinked = new Set(
+    (files.venues.externalLinks ?? [])
+      .filter((l) => str(l, "provider") === "DiscordGuild")
+      .map((l) => str(l, "venue_key"))
+  )
+  for (const guild of source.guilds) {
+    const venueKey = venueKeyByGuild.get(guild.guild_id)
+    if (!venueKey) continue
+    if (serverLinked.has(venueKey)) {
+      drop("discord link", guild.guild_id, "the venue already has a Discord server linked")
+      continue
+    }
+    serverLinked.add(venueKey)
+    const ownerDiscord = ctx.owners[guild.guild_id]
+    files.venues.externalLinks = [
+      ...(files.venues.externalLinks ?? []),
+      {
+        venue_key: venueKey,
+        provider: "DiscordGuild",
+        external_id: guild.guild_id,
+        linked_at: ctx.now,
+        linked_by_person_key: ownerDiscord ? (personByDiscord.get(ownerDiscord) ?? null) : null,
+      },
+    ]
+    bump("Discord server links")
+  }
+
   const listings = new Set(
     (files.venues.externalLinks ?? []).map((l) => `${str(l, "provider")}|${str(l, "external_id")}`)
   )

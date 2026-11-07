@@ -510,7 +510,7 @@ describe("mapFroggeStaffing finance entries and FFXIV Venues links", () => {
         { guild_id: "nowhere", ffxivvenues_id: "x", last_synced_at: null },
       ],
     })
-    expect(result.files.venues.externalLinks).toEqual([
+    expect((result.files.venues.externalLinks ?? []).filter((l) => l.provider === "FFXIVVenues")).toEqual([
       {
         venue_key: "frogge:v:g2",
         provider: "FFXIVVenues",
@@ -534,7 +534,26 @@ describe("mapFroggeStaffing finance entries and FFXIV Venues links", () => {
       ctx(),
       files
     )
-    expect(result.files.venues.externalLinks).toHaveLength(1)
+    expect((result.files.venues.externalLinks ?? []).filter((l) => l.provider === "FFXIVVenues")).toHaveLength(1)
     expect(result.report.dropped.filter((d) => d.what === "venue link")).toHaveLength(1)
+  })
+})
+
+describe("mapFroggeStaffing Discord server links", () => {
+  it("links every loaded server to its venue, by the server owner", () => {
+    const links = (run().files.venues.externalLinks ?? []).filter((l) => l.provider === "DiscordGuild")
+    expect(links.map((l) => [l.venue_key, l.external_id])).toEqual([
+      ["v-ours", "g1"],
+      ["frogge:v:g2", "g2"],
+      ["frogge:v:g3", "g3"],
+    ])
+    expect(links.find((l) => l.external_id === "g2")?.linked_by_person_key).toBeTruthy()
+  })
+
+  it("does not link a second server to a venue that already has one", () => {
+    const files = base()
+    files.venues.externalLinks = [{ venue_key: "v-ours", provider: "DiscordGuild", external_id: "other" }]
+    const result = run(source(), ctx(), files)
+    expect(result.report.dropped.filter((d) => d.what === "discord link").map((d) => d.id)).toEqual(["g1"])
   })
 })

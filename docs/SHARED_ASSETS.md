@@ -77,6 +77,7 @@ House-specific:
 | `xvm-page-read` | `xvmPageReader`, `xvmPersonReader`: the safe pattern for a server page read |
 | `venue-access` | `requireVenueRole`, `atLeast`, `roleInVenue`, `myVenueRoles`: venue role gates, resolved from xvm-api |
 | `venue-guild` | `requireVenueGuild`, `discordFailureResponse`, `wantsRefresh`: the venue's Discord server for a signed-in caller (#157) |
+| `xivauth` (`xivauthConfig`, `createPkcePair`, `buildAuthorizeUrl`, `exchangeCode`, `fetchSharedCharacters`, `toVerifiedCharacters`) | Talking to XIV Auth: PKCE, the authorize URL, the code exchange and the shared character list |
 | `*-shape`, `position-convert`, `task-convert` | Mappers from xvm-api rows to what the UI expects. Look for one before writing another |
 
 `lib/discord-rest.ts` holds the Discord REST fetchers and the role-safety helpers (`unsafeRoleReason`, `filterAssignableRoles`). It is server only, because it sits beside the bot token.

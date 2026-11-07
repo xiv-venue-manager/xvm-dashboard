@@ -70,9 +70,9 @@ export const TABLES: Record<string, Disposition> = {
   shift_signup_embeds: dropped(
     "the old shift-embed pipeline is gone; waitlists checked on prod 2026-11-07, none upcoming"
   ),
-  discord_open_venues: dropped("manifest default: dropped with the old bot, not yet confirmed", false),
-  discord_tracked_messages: dropped("manifest default: dropped with the old bot, not yet confirmed", false),
-  discord_gil_reaction_rewards: dropped("manifest default: dropped with the old bot, not yet confirmed", false),
+  discord_open_venues: dropped("old bot state, confirmed 2026-11-07: a rolling list of open venues, message ids of old bot embeds, one reaction marker"),
+  discord_tracked_messages: dropped("old bot state, confirmed 2026-11-07: a rolling list of open venues, message ids of old bot embeds, one reaction marker"),
+  discord_gil_reaction_rewards: dropped("old bot state, confirmed 2026-11-07: a rolling list of open venues, message ids of old bot embeds, one reaction marker"),
   shout_templates: { kind: "separate", note: "the shouts backfill script (window step 8)" },
   event_templates: dropped("docs/MIGRATION_EXPORTS.md, not exported on purpose: the one row is junk"),
   device_tokens: empty("empty in prod"),

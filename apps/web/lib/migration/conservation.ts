@@ -307,6 +307,7 @@ export const SKIP_RULES: SkipRule[] = [
     category: "data",
   },
   { id: "tax-range", test: /^tax of .*% is outside 0 to 100$/, category: "data" },
+  { id: "unreferenced", test: /^unreferenced$/, category: "data" },
   { id: "stock-no-item", test: /^stock count without a linked item/, category: "data" },
   {
     id: "empty-shift",

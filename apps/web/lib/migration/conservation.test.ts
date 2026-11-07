@@ -275,11 +275,12 @@ describe("every skip reason in the mappers", () => {
     (f) => f.endsWith(".ts") && !f.endsWith(".test.ts") && f !== "conservation.ts"
   )
 
-  // Each skip(key, reason) call, with every string in its reason argument. A ternary gives two reasons, a template has its
+  // Each skip(key, reason) call or direct skipped.push({ key, reason }), with every string in its reason argument. A ternary gives two reasons, a template has its
   // ${...} parts replaced by 1. The reason argument starts after the first comma that is not inside brackets or a string.
   function calls(text: string): { reasons: string[] }[] {
     const found: { reasons: string[] }[] = []
-    for (const m of text.matchAll(/\bskip\(/g)) {
+    for (const m of text.matchAll(/\bskip\(|\bskipped\.push\(/g)) {
+      const direct = m[0] !== "skip("
       let depth = 1
       let quote = ""
       let firstComma = -1
@@ -295,12 +296,11 @@ describe("every skip reason in the mappers", () => {
         else if (")]}".includes(ch)) depth--
         else if (ch === "," && depth === 1 && firstComma < 0) firstComma = i
       }
-      const reasonArg = text.slice(firstComma + 1, i - 1)
+      const reasonArg = text.slice(direct ? start : firstComma + 1, i - 1)
       const reasons = [...reasonArg.matchAll(/(["'`])((?:\\.|(?!\1).)*)\1/g)].map((r) =>
         r[2].replace(/\$\{[^}]*\}/g, "1")
       )
-      found.push({ reasons })
-      void start
+      if (!direct || reasons.length > 0) found.push({ reasons })
     }
     return found
   }

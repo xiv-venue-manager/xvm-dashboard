@@ -3618,6 +3618,13 @@ export interface MyCharacterRow {
   is_primary: boolean
 }
 
+export interface VerifiedCharacterInput {
+  lodestone_id: number
+  xivauth_key: string
+  character_name: string
+  world: string
+}
+
 export async function listMyCharacters(personToken: string): Promise<MyCharacterRow[]> {
   if (!process.env.XVM_API_BASE_URL) throw new Error("XVM_API_BASE_URL is not set")
   return xvmFetch<MyCharacterRow[]>("/me/characters", {}, personToken)

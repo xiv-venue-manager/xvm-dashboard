@@ -3616,6 +3616,7 @@ export interface MyCharacterRow {
   character_name: string
   world: string
   is_primary: boolean
+  verified_via: string
 }
 
 export interface VerifiedCharacterInput {
@@ -3623,6 +3624,28 @@ export interface VerifiedCharacterInput {
   xivauth_key: string
   character_name: string
   world: string
+}
+
+export interface VerifiedCharacterOutcome {
+  character_name: string
+  world: string
+  lodestone_id: number
+  outcome: "created" | "verified" | "transferred" | "conflict"
+  character_id: number | null
+  detail: string | null
+}
+
+export async function recordVerifiedCharacters(
+  personId: number,
+  characters: VerifiedCharacterInput[]
+): Promise<VerifiedCharacterOutcome[]> {
+  if (!process.env.XVM_API_BASE_URL) throw new Error("XVM_API_BASE_URL is not set")
+  if (!process.env.XVM_API_DASHBOARD_SERVICE_TOKEN) throw new Error("XVM_API_DASHBOARD_SERVICE_TOKEN is not set")
+  return xvmFetch<VerifiedCharacterOutcome[]>(
+    "/internal/characters/verified",
+    { method: "POST", body: JSON.stringify({ person_id: personId, characters }) },
+    XVM_API_DASHBOARD_SERVICE_TOKEN
+  )
 }
 
 export async function listMyCharacters(personToken: string): Promise<MyCharacterRow[]> {

@@ -3,11 +3,12 @@ import { toCharacterShape } from "./character-shape"
 
 describe("toCharacterShape", () => {
   it("maps an xvm-api character to the shape the characters page reads", () => {
-    expect(toCharacterShape({ id: 7, character_name: "Test Char", world: "Lich", is_primary: true })).toEqual({
+    expect(toCharacterShape({ id: 7, character_name: "Test Char", world: "Lich", is_primary: true, verified_via: "xivauth" })).toEqual({
       id: "7",
       characterName: "Test Char",
       world: "Lich",
       isPrimary: true,
+      verifiedVia: "xivauth",
     })
   })
 

@@ -5,6 +5,7 @@ export interface CharacterShape {
   characterName: string
   world: string
   isPrimary: boolean
+  verifiedVia: string
 }
 
 export function toCharacterShape(row: MyCharacterRow): CharacterShape {
@@ -13,5 +14,6 @@ export function toCharacterShape(row: MyCharacterRow): CharacterShape {
     characterName: row.character_name,
     world: row.world,
     isPrimary: row.is_primary,
+    verifiedVia: row.verified_via,
   }
 }

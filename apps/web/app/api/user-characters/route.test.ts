@@ -23,6 +23,7 @@ const row = (over: Partial<MyCharacterRow> = {}): MyCharacterRow => ({
   character_name: "Test Char",
   world: "Lich",
   is_primary: true,
+  verified_via: "self_declared",
   ...over,
 })
 const post = (body: unknown) =>
@@ -54,8 +55,8 @@ describe("GET /api/user-characters", () => {
     expect(m.list).toHaveBeenCalledWith("tok")
     expect(await res.json()).toEqual({
       characters: [
-        { id: "4", characterName: "Test Char", world: "Lich", isPrimary: true },
-        { id: "5", characterName: "Alt", world: "Lich", isPrimary: false },
+        { id: "4", characterName: "Test Char", world: "Lich", isPrimary: true, verifiedVia: "self_declared" },
+        { id: "5", characterName: "Alt", world: "Lich", isPrimary: false, verifiedVia: "self_declared" },
       ],
     })
   })
@@ -81,7 +82,7 @@ describe("POST /api/user-characters", () => {
     const res = await post(valid)
     expect(res.status).toBe(200)
     expect(m.link).toHaveBeenCalledWith("tok", { character_name: "Test Char", world: "Lich" })
-    expect(await res.json()).toEqual({ character: { id: "4", characterName: "Test Char", world: "Lich", isPrimary: true } })
+    expect(await res.json()).toEqual({ character: { id: "4", characterName: "Test Char", world: "Lich", isPrimary: true, verifiedVia: "self_declared" } })
   })
 
   it("forwards xvm-api's already-linked-elsewhere conflict", async () => {

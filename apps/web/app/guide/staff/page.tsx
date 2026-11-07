@@ -83,20 +83,6 @@ export default function StaffGuidePage() {
               <h1>Staff Guide</h1>
             </header>
 
-            {/* What's New */}
-            <div className="bg-[rgba(0,180,255,0.06)] border border-[rgba(0,180,255,0.2)] rounded-lg p-4 space-y-1.5">
-              <p className="text-xs font-semibold text-[var(--xiv-blue)] uppercase tracking-widest">Recent Updates</p>
-              <ul className="space-y-1 text-sm text-muted-foreground">
-                <li>
-                  <span className="font-medium text-foreground">Website redesign</span>: The dashboard and every page
-                  has a new look. Navigation, cards, and layout are all updated.
-                </li>
-                <li>
-                  <span className="font-medium text-foreground">Plugin UI redesign (v3.8.0)</span>: The plugin has a new
-                  XIV blue design to match the website.
-                </li>
-              </ul>
-            </div>
 
             {/* Getting Started */}
             <section id="getting-started" className="space-y-6 scroll-mt-[84px]">
@@ -152,21 +138,17 @@ export default function StaffGuidePage() {
                   </span>
                   <div className="space-y-2 text-sm leading-relaxed">
                     <span>
-                      <span className="font-medium">Configure the plugin:</span> Open it with{" "}
+                      <span className="font-medium">Link the plugin:</span> On the website, open the account menu in
+                      the top right and go to <span className="font-medium">Account settings</span>, then choose{" "}
+                      <span className="font-medium">Link the plugin</span> in the Plugin card and press{" "}
+                      <span className="font-medium">Generate link code</span>. Then open the plugin with{" "}
                       <code className="bg-[rgba(0,180,255,0.08)] text-[var(--xiv-blue)] px-1.5 py-0.5 rounded text-xs font-mono">
                         /xvm
-                      </code>{" "}
-                      and go to Settings. Paste your API key, set the server URL to{" "}
-                      <code className="bg-[rgba(0,180,255,0.08)] text-[var(--xiv-blue)] px-1.5 py-0.5 rounded text-xs font-mono">
-                        https://xivvenuemanager.com
                       </code>
-                      , and select your venue.
+                      , go to Settings, find <span className="font-medium">Account link</span>, type the code and press
+                      Link. Select your venue.
                     </span>
-                    <p className="text-muted-foreground">
-                      To find your API key: open your venue dashboard, click{" "}
-                      <span className="font-medium text-foreground">Settings</span> in the left sidebar (not the account
-                      menu in the top right), then <span className="font-medium text-foreground">API Keys</span>.
-                    </p>
+                    <p className="text-muted-foreground">One link covers every venue you work at.</p>
                   </div>
                 </li>
                 <li className="flex items-start gap-3">
@@ -176,8 +158,8 @@ export default function StaffGuidePage() {
                   <div className="space-y-2 text-sm leading-relaxed">
                     <span>
                       <span className="font-medium">Add your character:</span> On the website, open the account menu in
-                      the top right and go to <span className="font-medium">Account Settings</span>, then{" "}
-                      <span className="font-medium">Characters</span>. Add your FFXIV character name and world. This
+                      the top right and go to <span className="font-medium">Profile</span>, then{" "}
+                      <span className="font-medium">My Characters</span>. Add your FFXIV character name and world. This
                       lets the plugin tell you apart from patrons so you are not counted as a visitor during your shift.
                     </span>
                     <p className="text-muted-foreground">
@@ -334,8 +316,9 @@ export default function StaffGuidePage() {
                   <code className="bg-[rgba(0,180,255,0.08)] text-[var(--xiv-blue)] px-1.5 py-0.5 rounded text-xs font-mono">
                     /xvm
                   </code>
-                  ), go to the My Shift tab, and use the Clock In / Clock Out buttons. You can clock in up to 30 minutes
-                  early and up to 60 minutes late.
+                  ), go to the My Shift tab, and use the Clock In / Clock Out buttons. The plugin lets you clock in from 30
+                  minutes before your shift starts. A shift you have claimed shows as awaiting approval until a manager
+                  approves it, and you cannot clock in until then.
                 </p>
               </div>
 

@@ -32,7 +32,7 @@
     "@radix-ui/react-switch": "^1.2.6",
     "@radix-ui/react-tooltip": "1.2.8",
     "@sentry/nextjs": "^10.76.2",
-    "@twemoji/api": "^17.0.3",
+    "@twemoji/parser": "^17.0.2",
     "@types/pg": "^8.20.0",
     "@xiv-venue-manager/types": "workspace:*",
     "class-variance-authority": "^0.7.1",

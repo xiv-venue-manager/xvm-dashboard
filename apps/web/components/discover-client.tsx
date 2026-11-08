@@ -210,7 +210,7 @@ function FeaturedCard({ venue, isAuthed }: { venue: DiscoverVenue; isAuthed: boo
           )}
           <span className="text-[0.78rem] text-muted-foreground flex items-center gap-1.5">
             <Heart className="h-[14px] w-[14px] text-[var(--support-pink)]" />
-            {venue.followCount.toLocaleString()} following
+            {venue.followCount.toLocaleString("en-US")} following
           </span>
         </div>
       </div>
@@ -229,7 +229,7 @@ function FeaturedCard({ venue, isAuthed }: { venue: DiscoverVenue; isAuthed: boo
       >
         {[
           { k: "Tonight", v: venue.activeEvent?.title ?? venue.upcomingEvent?.title ?? "—", blue: true },
-          { k: "Followers", v: venue.followCount.toLocaleString() },
+          { k: "Followers", v: venue.followCount.toLocaleString("en-US") },
           { k: "Status", v: venue.isOpenNow ? "Live" : venue.isTonightOpen ? "Opening soon" : "Closed" },
           { k: "Data Centre", v: venue.dataCenter },
         ].map(({ k, v, blue }) => (

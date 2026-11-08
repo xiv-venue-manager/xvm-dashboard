@@ -47,6 +47,19 @@ describe("POST staff/invites/[inviteId]/send", () => {
     expect(mockSend).not.toHaveBeenCalled()
   })
 
+  it("answers 503 when the caller has no xvm-api token, without calling xvm-api", async () => {
+    mockToken.mockResolvedValue(null)
+    const res = await call("venue-1", "9")
+    expect(res.status).toBe(503)
+    expect(mockSend).not.toHaveBeenCalled()
+  })
+
+  it("does not report success when the DM send rejects", async () => {
+    mockSend.mockRejectedValue(new Error("dm failed"))
+    const res = await call("venue-1", "9")
+    expect(res.status).not.toBe(200)
+  })
+
   it("rejects a non-numeric invite id before calling xvm-api", async () => {
     const res = await call("venue-1", "not-a-number")
     expect(res.status).toBe(404)

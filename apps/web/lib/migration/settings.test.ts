@@ -19,7 +19,7 @@ const run = (potRows: ExportedPotSettings[], inventoryRows: ExportedInventorySet
 describe("pot settings", () => {
   it("maps the tax percent to basis points and keeps the two flags", () => {
     expect(run([pot({ taxPercent: 7.5, includeSalesInPot: true, defaultTipPooled: true })]).payrollSettings).toEqual([
-      { venue_key: "v1", tax_basis_points: 750, include_sales_in_pot: true, default_tip_pooled: true, auto_close_after_hours: null },
+      { venue_key: "v1", pot_enabled: false, tax_basis_points: 750, include_sales_in_pot: true, default_tip_pooled: true, auto_close_after_hours: null },
     ])
   })
 
@@ -41,17 +41,25 @@ describe("pot settings", () => {
   it("makes a row with auto-close off for every venue, including ones with default or no pot settings", () => {
     const r = run([pot({ venueId: "a" }), pot({ venueId: "b", taxPercent: 5 })], [], ["a", "b", "c"])
     expect(r.payrollSettings).toEqual([
-      { venue_key: "a", tax_basis_points: 0, include_sales_in_pot: false, default_tip_pooled: false, auto_close_after_hours: null },
-      { venue_key: "b", tax_basis_points: 500, include_sales_in_pot: false, default_tip_pooled: false, auto_close_after_hours: null },
-      { venue_key: "c", tax_basis_points: 0, include_sales_in_pot: false, default_tip_pooled: false, auto_close_after_hours: null },
+      { venue_key: "a", pot_enabled: false, tax_basis_points: 0, include_sales_in_pot: false, default_tip_pooled: false, auto_close_after_hours: null },
+      { venue_key: "b", pot_enabled: false, tax_basis_points: 500, include_sales_in_pot: false, default_tip_pooled: false, auto_close_after_hours: null },
+      { venue_key: "c", pot_enabled: false, tax_basis_points: 0, include_sales_in_pot: false, default_tip_pooled: false, auto_close_after_hours: null },
     ])
   })
 
-  it("lists the venues with the pot switched on, even when everything else is default", () => {
-    const r = run([pot({ venueId: "a", enabled: true }), pot({ venueId: "b", enabled: true, taxPercent: 5 }), pot({ venueId: "c" })])
-    expect(r.potEnabledVenues).toEqual(["a", "b"])
-    expect(r.payrollSettings.map((s) => s.venue_key)).toEqual(["a", "b", "c"])
-    expect(r.warnings.map((w) => w.message)).toContain("2 venues had the pot switched on, which has no column in xvm-api, listed in potEnabledVenues")
+  it("carries the pot switch on each venue's row, including ones that are otherwise default", () => {
+    const r = run([pot({ venueId: "a", enabled: true }), pot({ venueId: "b", enabled: true, taxPercent: 5 }), pot({ venueId: "c" })], [], ["a", "b", "c", "d"])
+    expect(r.payrollSettings.map((s) => [s.venue_key, s.pot_enabled])).toEqual([["a", true], ["b", true], ["c", false], ["d", false]])
+    expect(r.warnings).toEqual([])
+    expect("potEnabledVenues" in r).toBe(false)
+  })
+
+  it("keeps the pot switch on a venue whose tax is skipped", () => {
+    const r = run([pot({ venueId: "a", enabled: true, taxPercent: 120 })])
+    expect(r.payrollSettings).toEqual([
+      { venue_key: "a", pot_enabled: true, tax_basis_points: 0, include_sales_in_pot: false, default_tip_pooled: false, auto_close_after_hours: null },
+    ])
+    expect(r.skipped.map((s) => s.key)).toEqual(["a"])
   })
 
   it("keeps the first of two rows for one venue", () => {

@@ -17,7 +17,7 @@ async function requireAdmin(session: any) {
 
 const createSchema = z.object({
   title: z.string().min(1).max(100),
-  message: z.string().min(1).max(500),
+  message: z.string().min(1).max(2000),
   link: validators.url.nullable(),
   linkLabel: z.string().max(50).optional().nullable(),
   expiresAt: z.string().optional().nullable(),

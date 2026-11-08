@@ -8,6 +8,7 @@ const m = vi.hoisted(() => ({
   token: vi.fn(),
   read: vi.fn(),
   write: vi.fn(),
+  role: vi.fn(),
 }))
 
 vi.mock("next-auth", () => ({ getServerSession: m.session }))
@@ -20,9 +21,12 @@ vi.mock("@/lib/api/xvm-api-store", () => ({
 }))
 vi.mock("@/lib/api/xvm-api", () => ({ getDiscordSettings: m.read, updateDiscordSettings: m.write }))
 
+vi.mock("@/lib/api/venue-guild", () => ({ requireRoleInGuild: m.role }))
+
 import { GET, PUT } from "./route"
 
 const CHANNEL = "1509616350337962024"
+const NEW_ROLE = "1509616350337962999"
 const context = { params: Promise.resolve({ venueId: "the-lilypad-lounge" }) }
 const get = () => GET(new Request("http://localhost/api") as never, context as never)
 const put = (body: unknown) =>
@@ -45,6 +49,7 @@ beforeEach(() => {
   m.token.mockResolvedValue("tok")
   m.read.mockResolvedValue(row)
   m.write.mockResolvedValue(row)
+  m.role.mockResolvedValue({ ok: true })
 })
 
 describe("GET discord/settings", () => {
@@ -97,8 +102,61 @@ describe("PUT discord/settings", () => {
     })
   })
 
+  it("checks a changed verified role against the venue's server before xvm-api is asked", async () => {
+    const res = await put({ verifiedRoleId: NEW_ROLE })
+    expect(res.status).toBe(200)
+    expect(m.role).toHaveBeenCalledWith("user-1", "the-lilypad-lounge", NEW_ROLE, CHANNEL)
+    expect(m.role.mock.invocationCallOrder[0]).toBeLessThan(m.write.mock.invocationCallOrder[0])
+    expect(m.write).toHaveBeenCalledWith("tok", "ven_1", { verified_role_id: NEW_ROLE })
+  })
+
+  it("passes a refusal on unchanged and sends nothing", async () => {
+    const refusal = { error: "role_unsafe", message: "That role can't be given out automatically: it has Administrator." }
+    m.role.mockResolvedValue({ ok: false, response: NextResponse.json(refusal, { status: 400 }) })
+    const res = await put({ verifiedRoleId: NEW_ROLE, verificationCaptcha: true })
+    expect(res.status).toBe(400)
+    expect(await res.json()).toEqual(refusal)
+    expect(m.write).not.toHaveBeenCalled()
+  })
+
+  it("sends nothing when the server cannot be reached", async () => {
+    m.role.mockResolvedValue({
+      ok: false,
+      response: NextResponse.json({ error: "bot_absent", message: "The bot isn't in this server." }, { status: 409 }),
+    })
+    expect((await put({ verifiedRoleId: NEW_ROLE })).status).toBe(409)
+    expect(m.write).not.toHaveBeenCalled()
+  })
+
+  it("does not check a role the venue already holds", async () => {
+    await put({ verifiedRoleId: CHANNEL, verificationCaptcha: true })
+    expect(m.role).not.toHaveBeenCalled()
+    expect(m.write).toHaveBeenCalledWith("tok", "ven_1", { verified_role_id: CHANNEL, verification_captcha: true })
+  })
+
+  it("checks a role against nothing when the venue has none saved", async () => {
+    m.read.mockResolvedValue({ ...row, verified_role_id: null })
+    await put({ verifiedRoleId: NEW_ROLE })
+    expect(m.role).toHaveBeenCalledWith("user-1", "the-lilypad-lounge", NEW_ROLE, null)
+  })
+
+  it("reports an xvm-api failure while reading the saved role, and writes nothing", async () => {
+    m.read.mockRejectedValue(new Error("down"))
+    expect((await put({ verifiedRoleId: NEW_ROLE })).status).toBe(502)
+    expect(m.role).not.toHaveBeenCalled()
+    expect(m.write).not.toHaveBeenCalled()
+  })
+
+  it("asks Discord and the saved settings nothing for a body without the role", async () => {
+    await put({ honeypotChannelId: CHANNEL })
+    expect(m.role).not.toHaveBeenCalled()
+    expect(m.read).not.toHaveBeenCalled()
+  })
+
   it("clears the verified role with null", async () => {
     await put({ verifiedRoleId: null })
+    expect(m.role).not.toHaveBeenCalled()
+    expect(m.read).not.toHaveBeenCalled()
     expect(m.write).toHaveBeenCalledWith("tok", "ven_1", { verified_role_id: null })
   })
 

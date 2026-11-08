@@ -6,6 +6,7 @@ import { withRateLimit } from "@/lib/middleware/with-rate-limit"
 import { getValidXvmApiToken, xvmApiErrorResponse } from "@/lib/api/xvm-api-store"
 import { requireMyVenue, requireMyVenueRole } from "@/lib/api/venue-access"
 import { getDiscordSettings, updateDiscordSettings, type DiscordSettings } from "@/lib/api/xvm-api"
+import { requireRoleInGuild } from "@/lib/api/venue-guild"
 import { validators } from "@/lib/validation"
 
 const channelId = validators.snowflake.nullable().optional()
@@ -114,6 +115,18 @@ export const PUT = withRateLimit<{ params: Promise<{ venueId: string }> }>(
     const token = await getValidXvmApiToken(session.user.id)
     if (!token) {
       return NextResponse.json({ error: "xvm-api link not established yet" }, { status: 503 })
+    }
+
+    if (verifiedRoleId) {
+      try {
+        const current = await getDiscordSettings(token, lookup.venue.id)
+        if (current.verified_role_id !== verifiedRoleId) {
+          const check = await requireRoleInGuild(session.user.id, venueId, verifiedRoleId, current.verified_role_id)
+          if (!check.ok) return check.response
+        }
+      } catch (err) {
+        return xvmApiErrorResponse(err, session.user.id, "[discord settings] read error")
+      }
     }
 
     try {

@@ -229,6 +229,8 @@ What it checks, in order:
 
 It does not see the loader's own drops (a row whose parent did not load). Read the loader's dry-run report for those; making the loader write a machine-readable report would close the gap.
 
+A slug cannot be changed through xvm-api once a venue exists, so the few that need a hand-picked slug are set once, right after the load and before maintenance ends, with `scripts/post-load/frogge-venue-slugs.sql`. It finds each venue through its Discord server link (the Frogge guild id), so it does not depend on the slug the mapper generated, changes nothing on a second run, and stops with an error if a venue is missing or a slug is already taken. Run it with `psql -v ON_ERROR_STOP=1 -f` against `xvm_api` and check the notice says all 4 are in place. Edit the list inside it when a fresh export brings a new awkward name the "new venue slugs to review" section shows.
+
 ## The rehearsal
 
 The full rehearsal comes once every slice, the venues slice and the loader exist: load a copy of prod into a real xvm-api, then reconcile counts per venue and per person, and the sums above (transactions, payroll, entries and exits) against the source. Per-slice runs, like the table above, are checks along the way and not the sign-off.

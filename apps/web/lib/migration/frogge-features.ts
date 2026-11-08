@@ -132,7 +132,8 @@ export function mapFroggeFeatures(source: FroggeFeatureExport, ctx: FeatureConte
     if (!venueKey) continue
     const key = `frogge:rr:${panel.id}`
     panelKey.set(panel.id, key)
-    if (panel.thumbnail_url) bump("panel thumbnails not carried")
+    const thumbnailSource = panel.thumbnail_url?.trim() || null
+    if (thumbnailSource) bump("panel images to copy")
     features.reactionRolePanels.push({
       key,
       venue_key: venueKey,
@@ -140,6 +141,7 @@ export function mapFroggeFeatures(source: FroggeFeatureExport, ctx: FeatureConte
       description: panel.description,
       color: panel.color,
       message_type: panel.message_type,
+      thumbnail_source: thumbnailSource,
     })
     bump("reaction role panels")
   }

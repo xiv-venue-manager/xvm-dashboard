@@ -31,13 +31,19 @@ describe("reaction roles", () => {
       ],
     })
     expect(r.features.reactionRolePanels).toEqual([
-      { key: "frogge:rr:1", venue_key: "venue-a", title: "Pronouns", description: null, color: 5, message_type: "unique" },
+      { key: "frogge:rr:1", venue_key: "venue-a", title: "Pronouns", description: null, color: 5, message_type: "unique", thumbnail_source: null },
     ])
     expect(r.features.reactionRoleOptions.map((o) => [o.role_id, o.sort_order])).toEqual([
       ["111", 0],
       ["222", 1],
     ])
     expect(r.features.reactionRoleOptions[0].panel_key).toBe("frogge:rr:1")
+  })
+
+  it("hands a panel's thumbnail URL to the image copy step", () => {
+    const r = run({ reaction_role_panels: [{ ...panel, thumbnail_url: " https://bucket/reaction-roles/p.png " }, { ...panel, id: 2 }] })
+    expect(r.features.reactionRolePanels.map((p) => p.thumbnail_source)).toEqual(["https://bucket/reaction-roles/p.png", null])
+    expect(r.report.counts["panel images to copy"]).toBe(1)
   })
 
   it("drops a panel of a server that is not a venue, and its options", () => {
@@ -48,10 +54,6 @@ describe("reaction roles", () => {
     expect(r.features.reactionRolePanels).toEqual([])
     expect(r.features.reactionRoleOptions).toEqual([])
     expect(r.report.dropped.map((d) => d.what)).toEqual(["reaction role panel", "reaction role option"])
-  })
-
-  it("counts a thumbnail it cannot carry", () => {
-    expect(run({ reaction_role_panels: [{ ...panel, thumbnail_url: "https://x/y.png" }] }).report.counts["panel thumbnails not carried"]).toBe(1)
   })
 })
 

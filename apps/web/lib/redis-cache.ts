@@ -19,11 +19,6 @@ const k = (key: string) => `${PREFIX}${key}`
  */
 export const cacheTTL = {
   venue: 300, // 5 minutes
-  venueSettings: 600, // 10 minutes
-  membership: 300, // 5 minutes
-  user: 300, // 5 minutes
-  services: 600, // 10 minutes (services don't change often)
-  transactions: 180, // 3 minutes (more dynamic)
   publicStats: 300, // 5 minutes (public /stats page)
   // Discord guild metadata. Short, because someone who just made a role in Discord comes
   // straight back to the picker expecting to see it; the routes also take ?refresh=1.
@@ -38,13 +33,7 @@ export const cacheTTL = {
  * the boundary of every Redis call, not here).
  */
 export const cacheKeys = {
-  venue: (id: string) => `venue:${id}`,
-  venueSettings: (id: string) => `venue:${id}:settings`,
-  venueBySlug: (slug: string) => `venue:slug:${slug}`,
-  membership: (userId: string, venueId: string) => `membership:${userId}:${venueId}`,
   userVenues: (userId: string) => `user:${userId}:venues`,
-  venueServices: (venueId: string) => `venue:${venueId}:services`,
-  venueTransactions: (venueId: string, params: string) => `venue:${venueId}:transactions:${params}`,
   publicStats: () => `public:stats`,
   discordRoles: (guildId: string) => `discord:${guildId}:roles`,
   discordChannels: (guildId: string) => `discord:${guildId}:channels`,

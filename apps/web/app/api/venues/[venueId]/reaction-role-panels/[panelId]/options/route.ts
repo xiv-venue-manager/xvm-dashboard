@@ -6,6 +6,7 @@ import { withRateLimit } from "@/lib/middleware/with-rate-limit"
 import { getValidXvmApiToken, xvmApiErrorResponse } from "@/lib/api/xvm-api-store"
 import { requireMyVenue } from "@/lib/api/venue-access"
 import { addPanelOption } from "@/lib/api/xvm-api"
+import { requireRoleInGuild } from "@/lib/api/venue-guild"
 import { validators } from "@/lib/validation"
 
 const addOptionSchema = z
@@ -55,6 +56,9 @@ export const POST = withRateLimit<{ params: Promise<{ venueId: string; panelId: 
       }
       return NextResponse.json({ error: "Invalid request" }, { status: 400 })
     }
+
+    const check = await requireRoleInGuild(session.user.id, venueId, data.roleId)
+    if (!check.ok) return check.response
 
     try {
       const option = await addPanelOption(token, lookup.venue.id, id, {

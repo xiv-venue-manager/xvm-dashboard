@@ -74,7 +74,7 @@ export default function OwnerManagerGuidePage() {
               { id: "tasks", label: "Tasks" },
               { id: "auto-greeter", label: "Auto-Greeter" },
               { id: "patron-logs", label: "Patron Logs" },
-              { id: "webhooks", label: "Discord Webhooks" },
+              { id: "discord", label: "Discord" },
               { id: "server-time", label: "Server Time" },
               { id: "tips", label: "Tips" },
             ]}
@@ -86,29 +86,6 @@ export default function OwnerManagerGuidePage() {
               <h1>Owner &amp; Manager Guide</h1>
             </header>
 
-            {/* What's New */}
-            <div className="bg-[rgba(0,180,255,0.06)] border border-[rgba(0,180,255,0.2)] rounded-lg p-4 space-y-1.5">
-              <p className="text-xs font-semibold text-[var(--xiv-blue)] uppercase tracking-widest">Recent Updates</p>
-              <ul className="space-y-1 text-sm text-muted-foreground">
-                <li>
-                  <span className="font-medium text-foreground">Website redesign</span>: The dashboard and every page
-                  has a new look. Navigation, cards, and layout are all updated.
-                </li>
-                <li>
-                  <span className="font-medium text-foreground">Plugin UI redesign (v3.8.0)</span>: The plugin has a new
-                  XIV blue design to match the website, including a changelog window that opens automatically after
-                  updates.
-                </li>
-                <li>
-                  <span className="font-medium text-foreground">Auto-greeter (v3.7.0)</span>: The plugin can now
-                  automatically send a{" "}
-                  <code className="bg-[rgba(0,180,255,0.08)] text-[var(--xiv-blue)] px-1.5 py-0.5 rounded text-xs font-mono">
-                    /tell
-                  </code>{" "}
-                  to patrons when they enter your venue. Configure in plugin Settings.
-                </li>
-              </ul>
-            </div>
 
             {/* Initial Setup */}
             <section id="setup" className="space-y-6 scroll-mt-[84px]">
@@ -176,16 +153,14 @@ export default function OwnerManagerGuidePage() {
                         , go to Settings
                       </li>
                       <li>
-                        On the website, open your venue dashboard and click{" "}
-                        <span className="font-medium">Settings</span> in the left sidebar (not the account menu in the
-                        top right), then go to <span className="font-medium">API Keys</span> and generate a key
+                        On the website, open your venue&apos;s <span className="font-medium">Settings</span>, find{" "}
+                        <span className="font-medium">Dalamud Plugin</span> and choose{" "}
+                        <span className="font-medium">Link the plugin</span>, then press{" "}
+                        <span className="font-medium">Generate link code</span>
                       </li>
-                      <li>Paste the API key into the plugin</li>
                       <li>
-                        Set the server URL to{" "}
-                        <code className="bg-[rgba(0,180,255,0.08)] text-[var(--xiv-blue)] px-1.5 py-0.5 rounded text-xs font-mono">
-                          https://xivvenuemanager.com
-                        </code>
+                        In the plugin&apos;s Settings, find <span className="font-medium">Account link</span>, type the
+                        code and press Link. One link covers every venue you work at.
                       </li>
                       <li>Select your venue</li>
                     </ol>
@@ -204,10 +179,10 @@ export default function OwnerManagerGuidePage() {
                     <ol className="list-decimal list-inside space-y-1.5 pl-2 leading-relaxed">
                       <li>
                         On the website, open the account menu in the top right and go to{" "}
-                        <span className="font-medium">Account Settings</span>
+                        <span className="font-medium">Profile</span>
                       </li>
                       <li>
-                        Under <span className="font-medium">Characters</span>, add your FFXIV character name and world
+                        Under <span className="font-medium">My Characters</span>, add your FFXIV character name and world
                       </li>
                       <li>Ask your staff to do the same from their own accounts</li>
                     </ol>
@@ -254,33 +229,26 @@ export default function OwnerManagerGuidePage() {
                         <span className="font-medium">Visibility Controls</span>: Control what staff can see:
                         <ul className="list-disc list-inside pl-4 space-y-1 mt-1.5 text-muted-foreground">
                           <li>
-                            <code className="bg-[rgba(0,180,255,0.08)] text-[var(--xiv-blue)] px-1.5 py-0.5 rounded text-xs font-mono">
-                              salesVisibility
-                            </code>
-                            :{" "}
-                            <code className="bg-[rgba(0,180,255,0.08)] text-[var(--xiv-blue)] px-1.5 py-0.5 rounded text-xs font-mono">
-                              all
-                            </code>{" "}
-                            (everyone sees all sales),{" "}
-                            <code className="bg-[rgba(0,180,255,0.08)] text-[var(--xiv-blue)] px-1.5 py-0.5 rounded text-xs font-mono">
-                              own
-                            </code>{" "}
-                            (staff see only their own),{" "}
-                            <code className="bg-[rgba(0,180,255,0.08)] text-[var(--xiv-blue)] px-1.5 py-0.5 rounded text-xs font-mono">
-                              none
-                            </code>
+                            <span className="font-medium text-foreground">Tasks</span>: All tasks, Assigned only, or
+                            Assigned + unassigned
                           </li>
                           <li>
-                            <code className="bg-[rgba(0,180,255,0.08)] text-[var(--xiv-blue)] px-1.5 py-0.5 rounded text-xs font-mono">
-                              revenueVisibility
-                            </code>
-                            : same options; controls revenue numbers in Analytics and Live Mode
+                            <span className="font-medium text-foreground">Sales</span>: All transactions, Their own
+                            only, or No access
+                          </li>
+                          <li>
+                            <span className="font-medium text-foreground">Revenue</span>: All statistics, Personal
+                            only, or Hidden. Controls revenue numbers in Analytics and Live Mode
+                          </li>
+                          <li>
+                            <span className="font-medium text-foreground">Events</span>: All (including drafts), or
+                            Published only
                           </li>
                         </ul>
                       </li>
                       <li>
-                        <span className="font-medium">Discord Webhooks</span>: Separate webhook URLs for staff, events,
-                        and revenue channels
+                        <span className="font-medium">Discord</span>: Connect your server and choose the honeypot,
+                        events and rooms channels (see Discord below)
                       </li>
                     </ul>
                   </div>
@@ -473,9 +441,13 @@ export default function OwnerManagerGuidePage() {
                 <h3 className="text-base font-semibold text-foreground/80">How Shifts Work</h3>
                 <ul className="list-disc list-inside space-y-1.5 pl-4 text-sm leading-relaxed">
                   <li>Staff see their shifts on their dashboard and in the plugin</li>
-                  <li>Staff can Clock In up to 30 minutes before their shift starts</li>
+                  <li>
+                    A shift a staff member claims shows as awaiting approval until a manager approves it, and they
+                    cannot clock in until then
+                  </li>
+                  <li>The plugin lets staff Clock In from 30 minutes before their shift starts</li>
                   <li>Clock Out calculates hours worked automatically</li>
-                  <li>Statuses: Scheduled, Active, Completed, Missed, Cancelled</li>
+                  <li>Statuses: Pending approval, Scheduled, Active, Completed, Missed, Cancelled</li>
                 </ul>
               </div>
 
@@ -649,25 +621,34 @@ export default function OwnerManagerGuidePage() {
               </ul>
             </section>
 
-            {/* Discord Webhooks */}
-            <section id="webhooks" className="space-y-6 scroll-mt-[84px]">
+            {/* Discord */}
+            <section id="discord" className="space-y-6 scroll-mt-[84px]">
               <h2 className="font-cinzel text-2xl font-semibold border-b border-[rgba(0,180,255,0.2)] pb-3 tracking-wide">
-                Discord Webhooks
+                Discord
               </h2>
 
-              <p className="text-sm leading-relaxed">Set up webhooks in Settings to auto-post to Discord:</p>
+              <p className="text-sm leading-relaxed">
+                The XIV Venue Manager bot does the posting to your Discord server, so there are no webhook URLs to set
+                up. In venue Settings:
+              </p>
               <ul className="list-disc list-inside space-y-1.5 pl-4 text-sm leading-relaxed">
-                <li>Sale Logged, Daily Sales Summary</li>
-                <li>Task Created/Completed, Staff Joined</li>
                 <li>
-                  Partake Event Mirror: auto-posts your Partake events to Discord (with flyer images) within 7 days of
-                  the start date, and updates the post for edits and cancellations
+                  <span className="font-medium">Connected server</span>: which Discord server this venue belongs to.
+                  Only the venue owner can change it.
+                </li>
+                <li>
+                  <span className="font-medium">Honeypot channel</span>: anyone without server powers who posts here is
+                  banned. The bot needs Ban Members and Manage Messages in your server, and the trap does nothing until
+                  a channel is set.
+                </li>
+                <li>
+                  <span className="font-medium">Events channel</span>: where the bot posts a published event.
+                </li>
+                <li>
+                  <span className="font-medium">Rooms channel</span>: where the bot posts rooms. Nothing posts until a
+                  channel is set.
                 </li>
               </ul>
-              <p className="text-sm leading-relaxed text-muted-foreground">
-                Route different types to different channels (e.g., revenue to a private channel, events to a public
-                one). The Partake Event Mirror requires your venue to have a linked Partake team in Settings.
-              </p>
             </section>
 
             {/* Server Time */}
@@ -704,7 +685,7 @@ export default function OwnerManagerGuidePage() {
                 </li>
                 <li className="flex items-start gap-2">
                   <span className="text-emerald-500 mt-0.5">&#10003;</span>
-                  <span>Set up Discord webhooks early for automatic community updates</span>
+                  <span>Connect your Discord server early so the bot can post your events</span>
                 </li>
                 <li className="flex items-start gap-2">
                   <span className="text-emerald-500 mt-0.5">&#10003;</span>

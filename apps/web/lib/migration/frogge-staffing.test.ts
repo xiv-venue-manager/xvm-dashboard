@@ -216,7 +216,7 @@ describe("mapFroggeStaffing venue slugs", () => {
 
   it("turns an apostrophe into a hyphen and does not note it", () => {
     const report = slugsFor([["g9", "Its Always Bee's! FC and Friends"]])
-    expect(report.newVenues[0].slug).toBe("its-always-bee-s-fc-and-friends")
+    expect(report.newVenues[0].slug).toBe("its-always-bees-fc-and-friends")
     expect(report.slugNotes).toEqual([])
   })
 
@@ -248,6 +248,80 @@ describe("mapFroggeStaffing venue slugs", () => {
     expect(report.slugNotes).toEqual([
       { guild_id: "g9", name: long, slug: `${"c".repeat(48)}-2`, why: "numbered because the slug was taken" },
     ])
+  })
+
+  it("folds accents and drops apostrophes without a note", () => {
+    const report = slugsFor([
+      ["111", "Café Lumière"],
+      ["222", "Bee's Knees"],
+      ["333", "Frogge\u2019s Pad"],
+    ])
+    expect(report.newVenues.map((v) => v.slug)).toEqual(["cafe-lumiere", "bees-knees", "frogges-pad"])
+    expect(report.slugNotes).toEqual([])
+  })
+
+  it("notes a name that still has characters outside ASCII", () => {
+    const report = slugsFor([["111", "夜の Bar"]])
+    expect(report.newVenues[0].slug).toBe("bar")
+    expect(report.slugNotes).toEqual([
+      { guild_id: "111", name: "夜の Bar", slug: "bar", why: "characters outside ASCII dropped" },
+    ])
+  })
+
+  it("returns the slug of every new venue and none for matched ones", () => {
+    const src = source()
+    src.guilds = [
+      { guild_id: "111", name: "One", timezone: null },
+      { guild_id: "222", name: "Two", timezone: null },
+    ]
+    const result = run(src, ctx({ venueMatch: { "111": null, "222": "v-ours" }, owners: {} }))
+    expect(result.venueSlugs).toEqual({ "111": "one" })
+  })
+
+  describe("overrides", () => {
+    const withOverrides = (venueSlugs: Record<string, string>, names: [string, string][] = [["111", "One"]], venueMatch: Record<string, string | null> = {}) => {
+      const src = source()
+      src.guilds = names.map(([guild_id, name]) => ({ guild_id, name, timezone: null }))
+      const match = Object.fromEntries(names.map(([id]) => [id, venueMatch[id] ?? null]))
+      return run(src, ctx({ venueMatch: match, venueSlugs, owners: {} }))
+    }
+
+    it("uses the override and notes it", () => {
+      const result = withOverrides({ "111": "my-place" })
+      expect(result.report.newVenues[0].slug).toBe("my-place")
+      expect(result.venueSlugs).toEqual({ "111": "my-place" })
+      expect(result.report.slugNotes).toEqual([{ guild_id: "111", name: "One", slug: "my-place", why: "override" }])
+    })
+
+    it("never lets a generated slug take an override's slug", () => {
+      const result = withOverrides({ "222": "one" }, [["111", "One"], ["222", "Other"]])
+      expect(result.venueSlugs).toEqual({ "111": "one-2", "222": "one" })
+    })
+
+    it.each([
+      ["a bad pattern", { "111": "Bad_Slug" }],
+      ["a leading hyphen", { "111": "-bad" }],
+      ["a doubled hyphen", { "111": "a--b" }],
+      ["more than 50 characters", { "111": "a".repeat(51) }],
+      ["an existing venue slug, any case", { "111": "afterdark" }],
+      ["a guild not in the export", { "999": "fine" }],
+    ])("throws naming the guild for %s", (_what, venueSlugs) => {
+      const guild = Object.keys(venueSlugs)[0]
+      expect(() => withOverrides(venueSlugs)).toThrow(new RegExp(`guild ${guild}\\b`))
+    })
+
+    it("throws when two overrides share a slug", () => {
+      expect(() => withOverrides({ "111": "same", "222": "same" }, [["111", "One"], ["222", "Two"]])).toThrow(/guild 222/)
+    })
+
+    it("throws when the guild is matched to an existing venue", () => {
+      expect(() => withOverrides({ "111": "fine" }, [["111", "One"]], { "111": "v-ours" })).toThrow(/guild 111.*matched/)
+    })
+
+    it("accepts a 50 character override", () => {
+      const slug = "a".repeat(50)
+      expect(withOverrides({ "111": slug }).venueSlugs).toEqual({ "111": slug })
+    })
   })
 
   it("notes a plain clash and produces only valid slugs", () => {

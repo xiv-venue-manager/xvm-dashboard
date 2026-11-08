@@ -6,6 +6,7 @@ import { Button } from "@/components/ui/button"
 import { Input } from "@/components/ui/input"
 import { Label } from "@/components/ui/label"
 import { Textarea } from "@/components/ui/textarea"
+import { RolePicker } from "@/components/discord-picker"
 import { Select, SelectContent, SelectItem, SelectTrigger, SelectValue } from "@/components/ui/select"
 import { Checkbox } from "@/components/ui/checkbox"
 import { Card, CardContent, CardDescription, CardHeader, CardTitle } from "@/components/ui/card"
@@ -51,6 +52,7 @@ interface Role {
   hourlyRate: string | null
   potPayoutMode: "STANDARD" | "POT" | "CONTRACTOR"
   contractorSharesPot: boolean
+  discordRoleId: string | null
   _count?: {
     memberships: number
   }
@@ -74,6 +76,7 @@ export default function RolesPage({ params }: { params: Promise<{ slug: string }
     hourlyRate: "",
     potPayoutMode: "STANDARD" as "STANDARD" | "POT" | "CONTRACTOR",
     contractorSharesPot: false,
+    discordRoleId: "",
   })
   const [formError, setFormError] = useState("")
   const [isSubmitting, setIsSubmitting] = useState(false)
@@ -133,12 +136,13 @@ export default function RolesPage({ params }: { params: Promise<{ slug: string }
         body: JSON.stringify({
           ...formData,
           hourlyRate: formData.hourlyRate ? Number(formData.hourlyRate) : null,
+          discordRoleId: formData.discordRoleId || null,
         }),
       })
 
       if (!response.ok) {
         const data = await response.json()
-        throw new Error(data.error || "Failed to create role")
+        throw new Error(data.message ?? data.error ?? "Failed to create role")
       }
 
       const newRole = await response.json()
@@ -151,6 +155,7 @@ export default function RolesPage({ params }: { params: Promise<{ slug: string }
         hourlyRate: "",
         potPayoutMode: "STANDARD",
         contractorSharesPot: false,
+        discordRoleId: "",
       })
     } catch (error: unknown) {
       setFormError(error instanceof Error ? error.message : "Failed to create role")
@@ -175,12 +180,13 @@ export default function RolesPage({ params }: { params: Promise<{ slug: string }
         body: JSON.stringify({
           ...formData,
           hourlyRate: formData.hourlyRate ? Number(formData.hourlyRate) : null,
+          discordRoleId: formData.discordRoleId || null,
         }),
       })
 
       if (!response.ok) {
         const data = await response.json()
-        throw new Error(data.error || "Failed to update role")
+        throw new Error(data.message ?? data.error ?? "Failed to update role")
       }
 
       const updatedRole = await response.json()
@@ -194,6 +200,7 @@ export default function RolesPage({ params }: { params: Promise<{ slug: string }
         hourlyRate: "",
         potPayoutMode: "STANDARD",
         contractorSharesPot: false,
+        discordRoleId: "",
       })
     } catch (error: unknown) {
       setFormError(error instanceof Error ? error.message : "Failed to update role")
@@ -228,6 +235,7 @@ export default function RolesPage({ params }: { params: Promise<{ slug: string }
       hourlyRate: role.hourlyRate ?? "",
       potPayoutMode: role.potPayoutMode ?? "STANDARD",
       contractorSharesPot: role.contractorSharesPot ?? false,
+      discordRoleId: role.discordRoleId ?? "",
     })
     setFormError("")
     setIsEditDialogOpen(true)
@@ -241,6 +249,7 @@ export default function RolesPage({ params }: { params: Promise<{ slug: string }
       hourlyRate: "",
       potPayoutMode: "STANDARD",
       contractorSharesPot: false,
+      discordRoleId: "",
     })
     setFormError("")
     setIsCreateDialogOpen(true)
@@ -402,6 +411,30 @@ export default function RolesPage({ params }: { params: Promise<{ slug: string }
                 />
               </div>
               <div className="space-y-2">
+                <div className="flex items-center justify-between">
+                  <Label htmlFor="create-discord-role">Discord Role (Optional)</Label>
+                  {formData.discordRoleId !== "" && (
+                    <button
+                      type="button"
+                      onClick={() => setFormData({ ...formData, discordRoleId: "" })}
+                      className="text-xs text-[var(--fg-faint)] hover:text-[var(--xiv-blue)]"
+                    >
+                      No role
+                    </button>
+                  )}
+                </div>
+                <RolePicker
+                  id="create-discord-role"
+                  venueId={slug}
+                  value={formData.discordRoleId}
+                  onChange={(discordRoleId) => setFormData({ ...formData, discordRoleId })}
+                  disabled={isSubmitting}
+                />
+                <p className="text-xs text-muted-foreground">
+                  Staff in this role are given it in Discord, and lose it when they leave the role.
+                </p>
+              </div>
+              <div className="space-y-2">
                 <Label htmlFor="create-payout-mode">Pot Payroll Mode</Label>
                 <Select
                   value={formData.potPayoutMode}
@@ -541,6 +574,30 @@ export default function RolesPage({ params }: { params: Promise<{ slug: string }
                   onChange={(e) => setFormData({ ...formData, hourlyRate: e.target.value })}
                   disabled={isSubmitting}
                 />
+              </div>
+              <div className="space-y-2">
+                <div className="flex items-center justify-between">
+                  <Label htmlFor="edit-discord-role">Discord Role (Optional)</Label>
+                  {formData.discordRoleId !== "" && (
+                    <button
+                      type="button"
+                      onClick={() => setFormData({ ...formData, discordRoleId: "" })}
+                      className="text-xs text-[var(--fg-faint)] hover:text-[var(--xiv-blue)]"
+                    >
+                      No role
+                    </button>
+                  )}
+                </div>
+                <RolePicker
+                  id="edit-discord-role"
+                  venueId={slug}
+                  value={formData.discordRoleId}
+                  onChange={(discordRoleId) => setFormData({ ...formData, discordRoleId })}
+                  disabled={isSubmitting}
+                />
+                <p className="text-xs text-muted-foreground">
+                  Staff in this role are given it in Discord, and lose it when they leave the role.
+                </p>
               </div>
               <div className="space-y-2">
                 <Label htmlFor="edit-payout-mode">Pot Payroll Mode</Label>

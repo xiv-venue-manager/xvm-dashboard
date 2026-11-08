@@ -1,3 +1,5 @@
+import type { AppRouteHandlerRoutes, ParamsOf } from "../.next/types/routes"
+
 /**
  * Thrown by apiFetch for both non-2xx HTTP responses and network failures.
  * `status` is 0 for network failures (fetch itself rejected, no response was received).
@@ -60,4 +62,50 @@ export async function apiFetch<T = unknown>(input: string, init?: RequestInit): 
   }
 
   return body as T
+}
+
+type RouteParams<R extends AppRouteHandlerRoutes> = keyof ParamsOf<R> extends never
+  ? { params?: undefined }
+  : { params: { [K in keyof ParamsOf<R>]: ParamsOf<R>[K] extends string[] ? string[] : string | number } }
+
+export type ApiRequestInit = RequestInit & { query?: Record<string, string | number | boolean | undefined> }
+
+export type ApiRouteInit<R extends AppRouteHandlerRoutes> = ApiRequestInit & RouteParams<R>
+
+export function routePath(
+  route: string,
+  params: Record<string, string | number | string[]> = {},
+  query: Record<string, string | number | boolean | undefined> = {}
+): string {
+  const path = route.replace(/\[(?:\.\.\.)?(\w+)\]/g, (_, name: string) =>
+    [params[name]]
+      .flat()
+      .map((v) => encodeURIComponent(String(v)))
+      .join("/")
+  )
+  const search = new URLSearchParams()
+  for (const [key, value] of Object.entries(query)) if (value !== undefined) search.set(key, String(value))
+  const qs = search.toString()
+  return qs ? `${path}?${qs}` : path
+}
+
+type ApiRouteArgs = {
+  [R in AppRouteHandlerRoutes]: keyof ParamsOf<R> extends never
+    ? [route: R, init?: ApiRouteInit<R>]
+    : [route: R, init: ApiRouteInit<R>]
+}[AppRouteHandlerRoutes]
+
+/**
+ * apiFetch for this app's own route handlers. The route is checked against the routes Next
+ * generates, so deleting or renaming a handler is a type error at every caller instead of a 404 at
+ * runtime, and each dynamic segment must be supplied in `params`. The arguments are a union of
+ * per-route tuples so that `apiRoute<Result>(route, init)` can still name the result type, which
+ * a second generic for the route would not allow.
+ */
+export function apiRoute<T = unknown>(...[route, init]: ApiRouteArgs): Promise<T> {
+  const { params, query, ...rest } = (init ?? {}) as RequestInit & {
+    params?: Record<string, string | number | string[]>
+    query?: Record<string, string | number | boolean | undefined>
+  }
+  return apiFetch<T>(routePath(route, params, query), rest)
 }

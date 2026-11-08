@@ -213,7 +213,7 @@ export default async function VenueProfilePage({ params }: { params: Promise<{ s
                       <Heart className="w-4 h-4" /> Follow
                     </Link>
                     <div className="text-[0.8rem] text-muted-foreground mt-2 text-right">
-                      <strong className="text-foreground">{followerCount.toLocaleString()}</strong> following
+                      <strong className="text-foreground">{followerCount.toLocaleString("en-US")}</strong> following
                     </div>
                   </>
                 )}

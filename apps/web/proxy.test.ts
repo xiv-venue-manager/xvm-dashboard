@@ -74,6 +74,15 @@ describe("proxy", () => {
     expect(res.headers.get("location")).toBeNull()
   })
 
+  it("lets a signed-out visitor read the privacy policy and the terms of use", async () => {
+    m.getToken.mockResolvedValue(null)
+
+    for (const path of ["/privacy", "/terms"]) {
+      const res = await proxy(new NextRequest(`http://localhost:3000${path}`))
+      expect(res.headers.get("location")).toBeNull()
+    }
+  })
+
   it("lets a signed-out visitor read the team page but not edit their card", async () => {
     m.getToken.mockResolvedValue(null)
 

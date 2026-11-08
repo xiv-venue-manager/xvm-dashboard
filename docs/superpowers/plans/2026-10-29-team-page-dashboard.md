@@ -1,6 +1,6 @@
 # Meet the team: Dashboard Implementation Plan
 
-> **For agentic workers:** REQUIRED SUB-SKILL: Use superpowers:subagent-driven-development (recommended) or superpowers:executing-plans to implement this plan task-by-task. Steps use checkbox (`- [ ]`) syntax for tracking.
+**Status:** built in #303 (2026-10-30), with the curated roles and groups from `2026-10-29-team-roles-groups.md`. Kept as a record; don't follow it.
 
 **Goal:** A public `/team` page (editorial rows grouped under headings), a members-only `/team/edit` screen for photo, bio and listing, and an admin `/admin/team` screen to add, retitle, group, order and remove people.
 
@@ -25,7 +25,7 @@
 
 `CLAUDE.md` requires a worktree for any code change, and `dev` is the real trunk (a worktree tool may default to `main`).
 
-- [ ] **Step 1: Create the worktree off `origin/dev`**
+- [x] **Step 1: Create the worktree off `origin/dev`**
 
 ```bash
 git -C ~/xvm-dashboard fetch origin
@@ -35,7 +35,7 @@ cd ~/xvm-dashboard-team && pnpm install --frozen-lockfile
 
 Expected: worktree on `feat/team-page`, install finishes.
 
-- [ ] **Step 2: Confirm a green baseline**
+- [x] **Step 2: Confirm a green baseline**
 
 Run (from `~/xvm-dashboard-team/apps/web`): `pnpm run typecheck && pnpm run lint && pnpm test`
 Expected: all pass. If anything fails, stop and report; do not build on a red base.
@@ -50,7 +50,7 @@ All commands below run from `~/xvm-dashboard-team/apps/web` unless stated.
 - Create: `lib/team-groups.ts`
 - Create: `lib/team-groups.test.ts`
 
-- [ ] **Step 1: Write the failing test**
+- [x] **Step 1: Write the failing test**
 
 Create `lib/team-groups.test.ts`:
 
@@ -121,12 +121,12 @@ describe("TEAM_BIO_MAX", () => {
 })
 ```
 
-- [ ] **Step 2: Run it to verify it fails**
+- [x] **Step 2: Run it to verify it fails**
 
 Run: `pnpm vitest run lib/team-groups.test.ts`
 Expected: FAIL, `Failed to resolve import "./team-groups"`.
 
-- [ ] **Step 3: Write the implementation**
+- [x] **Step 3: Write the implementation**
 
 Create `lib/team-groups.ts`:
 
@@ -170,12 +170,12 @@ export function initials(name: string): string {
 
 `Map` keeps insertion order, which is what makes sections appear in the order of each label's first member.
 
-- [ ] **Step 4: Run it to verify it passes**
+- [x] **Step 4: Run it to verify it passes**
 
 Run: `pnpm vitest run lib/team-groups.test.ts`
 Expected: all PASS.
 
-- [ ] **Step 5: Commit**
+- [x] **Step 5: Commit**
 
 ```bash
 git add lib/team-groups.ts lib/team-groups.test.ts
@@ -190,7 +190,7 @@ git commit -m "feat(team): grouping and initials helpers for the team page"
 - Modify: `lib/api/xvm-api.ts` (append a section at the end of the file)
 - Create: `lib/api/xvm-api-team.test.ts`
 
-- [ ] **Step 1: Write the failing test**
+- [x] **Step 1: Write the failing test**
 
 Create `lib/api/xvm-api-team.test.ts`:
 
@@ -289,12 +289,12 @@ describe("team client", () => {
 })
 ```
 
-- [ ] **Step 2: Run it to verify it fails**
+- [x] **Step 2: Run it to verify it fails**
 
 Run: `pnpm vitest run lib/api/xvm-api-team.test.ts`
 Expected: FAIL, the named imports do not exist.
 
-- [ ] **Step 3: Append the client section**
+- [x] **Step 3: Append the client section**
 
 At the end of `lib/api/xvm-api.ts`:
 
@@ -397,12 +397,12 @@ export async function searchTeamCandidates(personToken: string, query: string): 
 }
 ```
 
-- [ ] **Step 4: Run it to verify it passes**
+- [x] **Step 4: Run it to verify it passes**
 
 Run: `pnpm vitest run lib/api/xvm-api-team.test.ts`
 Expected: all PASS.
 
-- [ ] **Step 5: Commit**
+- [x] **Step 5: Commit**
 
 ```bash
 git add lib/api/xvm-api.ts lib/api/xvm-api-team.test.ts
@@ -422,7 +422,7 @@ git commit -m "feat(team): xvm-api client for the team endpoints"
 - Create: `app/api/admin/team/candidates/route.ts`
 - Create: `app/api/admin/team/route.test.ts`
 
-- [ ] **Step 1: Write the failing profile-route test**
+- [x] **Step 1: Write the failing profile-route test**
 
 Create `app/api/team/profile/route.test.ts`:
 
@@ -504,12 +504,12 @@ describe("PATCH /api/team/profile", () => {
 })
 ```
 
-- [ ] **Step 2: Run it to verify it fails**
+- [x] **Step 2: Run it to verify it fails**
 
 Run: `pnpm vitest run app/api/team/profile/route.test.ts`
 Expected: FAIL, `Failed to resolve import "./route"`.
 
-- [ ] **Step 3: Write the profile route**
+- [x] **Step 3: Write the profile route**
 
 Create `app/api/team/profile/route.ts`:
 
@@ -570,7 +570,7 @@ export const PATCH = withRateLimit(
 )
 ```
 
-- [ ] **Step 4: Write the photo route**
+- [x] **Step 4: Write the photo route**
 
 Create `app/api/team/profile/photo/route.ts`:
 
@@ -604,12 +604,12 @@ export const PUT = withRateLimit(
 )
 ```
 
-- [ ] **Step 5: Run the profile tests to verify they pass**
+- [x] **Step 5: Run the profile tests to verify they pass**
 
 Run: `pnpm vitest run app/api/team/profile/route.test.ts`
 Expected: all PASS.
 
-- [ ] **Step 6: Write the failing admin-route test**
+- [x] **Step 6: Write the failing admin-route test**
 
 Create `app/api/admin/team/route.test.ts`:
 
@@ -747,12 +747,12 @@ describe("/api/admin/team/candidates", () => {
 })
 ```
 
-- [ ] **Step 7: Run it to verify it fails**
+- [x] **Step 7: Run it to verify it fails**
 
 Run: `pnpm vitest run app/api/admin/team/route.test.ts`
 Expected: FAIL, unresolved imports for `./route`, `./[personId]/route`, `./candidates/route`.
 
-- [ ] **Step 8: Write the admin routes**
+- [x] **Step 8: Write the admin routes**
 
 Create `app/api/admin/team/route.ts`:
 
@@ -915,12 +915,12 @@ export const GET = withRateLimit(
 )
 ```
 
-- [ ] **Step 9: Run the route tests to verify they pass**
+- [x] **Step 9: Run the route tests to verify they pass**
 
 Run: `pnpm vitest run app/api/team app/api/admin/team`
 Expected: all PASS.
 
-- [ ] **Step 10: Commit**
+- [x] **Step 10: Commit**
 
 ```bash
 git add app/api/team app/api/admin/team
@@ -941,7 +941,7 @@ git commit -m "feat(team): route handlers for the team card and admin screen"
 
 No unit tests: vitest runs in a node environment and the repo has no component tests. This task is verified by `tsc`, lint and the live check in Task 6.
 
-- [ ] **Step 1: Add the row component**
+- [x] **Step 1: Add the row component**
 
 Create `components/team-row.tsx`:
 
@@ -989,7 +989,7 @@ export function TeamRow({ member, flip }: { member: Card; flip: boolean }) {
 }
 ```
 
-- [ ] **Step 2: Add the edit link**
+- [x] **Step 2: Add the edit link**
 
 Create `components/team-edit-link.tsx`:
 
@@ -1029,7 +1029,7 @@ export function TeamEditLink() {
 }
 ```
 
-- [ ] **Step 3: Add the page**
+- [x] **Step 3: Add the page**
 
 Create `app/team/page.tsx`:
 
@@ -1100,7 +1100,7 @@ export default async function TeamPage() {
 }
 ```
 
-- [ ] **Step 4: Add the sitemap entry**
+- [x] **Step 4: Add the sitemap entry**
 
 In `app/sitemap.ts`, add this line directly after the `/stats` entry:
 
@@ -1108,7 +1108,7 @@ In `app/sitemap.ts`, add this line directly after the `/stats` entry:
     { url: `${BASE}/team`, lastModified: new Date(), changeFrequency: "weekly", priority: 0.4 },
 ```
 
-- [ ] **Step 5: Link it from the footer**
+- [x] **Step 5: Link it from the footer**
 
 In `components/site-footer.tsx`, add this entry to the "Product" array after `{ label: "Usage stats", href: "/stats" },`:
 
@@ -1116,7 +1116,7 @@ In `components/site-footer.tsx`, add this entry to the "Product" array after `{ 
                 { label: "Meet the team", href: "/team" },
 ```
 
-- [ ] **Step 6: Record the shared component**
+- [x] **Step 6: Record the shared component**
 
 In `docs/SHARED_ASSETS.md`, add this row to the "Feature components" table, after the `user-picker` row:
 
@@ -1124,12 +1124,12 @@ In `docs/SHARED_ASSETS.md`, add this row to the "Feature components" table, afte
 | `team-row` (`TeamRow`) | One person on the Meet the team page: photo or initials, name, role chip, bio. Used by `/team` and the live preview in `/team/edit` |
 ```
 
-- [ ] **Step 7: Typecheck and lint**
+- [x] **Step 7: Typecheck and lint**
 
 Run: `pnpm run typecheck && pnpm run lint`
 Expected: both clean. If lint objects to the `<img>`, mirror the exact comment style used in `app/venues/[slug]/page.tsx`.
 
-- [ ] **Step 8: Commit**
+- [x] **Step 8: Commit**
 
 ```bash
 git add components/team-row.tsx components/team-edit-link.tsx app/team/page.tsx app/sitemap.ts components/site-footer.tsx docs/SHARED_ASSETS.md
@@ -1146,7 +1146,7 @@ git commit -m "feat(team): the public Meet the team page"
 
 Verified by `tsc`, lint and the live check in Task 6.
 
-- [ ] **Step 1: Add the member edit page**
+- [x] **Step 1: Add the member edit page**
 
 Create `app/team/edit/page.tsx`:
 
@@ -1337,7 +1337,7 @@ export default function EditTeamCardPage() {
 }
 ```
 
-- [ ] **Step 2: Add the admin page**
+- [x] **Step 2: Add the admin page**
 
 Create `app/admin/team/page.tsx`:
 
@@ -1610,12 +1610,12 @@ export default function AdminTeamPage() {
 }
 ```
 
-- [ ] **Step 3: Typecheck and lint**
+- [x] **Step 3: Typecheck and lint**
 
 Run: `pnpm run typecheck && pnpm run lint`
 Expected: both clean. If `Button` has no `size="icon"` or `variant="ghost"` here, use the variants that `components/ui/button.tsx` actually exports (read it) rather than inventing new ones.
 
-- [ ] **Step 4: Commit**
+- [x] **Step 4: Commit**
 
 ```bash
 git add app/team/edit/page.tsx app/admin/team/page.tsx
@@ -1626,16 +1626,16 @@ git commit -m "feat(team): member edit screen and admin team screen"
 
 ## Task 6: Verification and PR
 
-- [ ] **Step 1: Static checks and the full suite**
+- [x] **Step 1: Static checks and the full suite**
 
 Run: `pnpm run typecheck && pnpm run lint && pnpm test`
 Expected: all pass.
 
-- [ ] **Step 2: Bring up the local stack with the xvm-api branch**
+- [x] **Step 2: Bring up the local stack with the xvm-api branch**
 
 Follow `docs/LOCAL_DEV.md`. Run the xvm-api `feat/team-page` worktree (`~/xvm-api-team`) as the local API, apply its migration, and start `pnpm dev` at `localhost:3000`. Sign in as a user who has the `platform_admin` scope (set `is_platform_admin` on that person in the local xvm-api DB, then sign out and in).
 
-- [ ] **Step 3: Click through every path**
+- [x] **Step 3: Click through every path**
 
 At 1280px and again at 375px:
 1. `/team` with nobody on the team: shows the "being set up" text, no error.
@@ -1649,7 +1649,7 @@ At 1280px and again at 375px:
 
 Record anything that fails and fix it before continuing. Do not mark this task done on static checks alone; this repo has repeatedly found real bugs only in a live click-through.
 
-- [ ] **Step 4: Stop and confirm before pushing**
+- [x] **Step 4: Stop and confirm before pushing**
 
 Pushing and opening a PR are outward-facing. Ask the user to confirm, then:
 

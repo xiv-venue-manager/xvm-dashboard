@@ -78,11 +78,7 @@ export const PATCH = withRateLimit<{ params: Promise<{ venueId: string }> }>(
 
     try {
       const updated = await updateVenue(token, lookup.venue.id, xvmUpdate)
-      await Promise.all([
-        invalidateCache(cacheKeys.venue(venueId)),
-        invalidateCache(cacheKeys.venueBySlug(lookup.venue.slug)),
-        invalidateCache(cacheKeys.userVenues(session.user.id)),
-      ])
+      await invalidateCache(cacheKeys.userVenues(session.user.id))
       return NextResponse.json(updated)
     } catch (err) {
       return xvmApiErrorResponse(err, session.user.id, "[venue] PATCH error")
@@ -126,11 +122,7 @@ export const DELETE = withRateLimit(
         return xvmApiErrorResponse(err, session.user.id, "[venue delete] xvm-api deactivate error")
       }
 
-      await Promise.all([
-        invalidateCache(cacheKeys.userVenues(session.user.id)),
-        invalidateCache(cacheKeys.venue(access.venue.id)),
-        invalidateCache(cacheKeys.venueBySlug(access.venue.slug)),
-      ])
+      await invalidateCache(cacheKeys.userVenues(session.user.id))
 
       return NextResponse.json({ message: "Venue deactivated" }, { status: 200 })
     } catch (error) {

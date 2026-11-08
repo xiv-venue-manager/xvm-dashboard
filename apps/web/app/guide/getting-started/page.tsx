@@ -145,7 +145,7 @@ export default function GettingStartedPage() {
               "Schedule shifts and see who is working at a glance, no more digging through Discord threads.",
               "Log sales from inside the game with a single plugin command.",
               "Run payroll at the end of the week based on shift hours and sales.",
-              "Go live with one click. The plugin updates your venue status and notifies patrons who follow you.",
+              "Show as open automatically: your venue profile shows Open while an event is running or inside your opening hours.",
               "Track events, attendance, and revenue over time from the analytics dashboard.",
             ].map((item) => (
               <li key={item} className="flex gap-3">

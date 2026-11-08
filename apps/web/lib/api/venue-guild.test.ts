@@ -9,6 +9,8 @@ const m = vi.hoisted(() => ({
   setCache: vi.fn(),
   channels: vi.fn(),
   channelInfo: vi.fn(),
+  roles: vi.fn(),
+  botPosition: vi.fn(),
 }))
 
 vi.mock("@/lib/api/venue-access", () => ({ requireMyVenue: m.lookup }))
@@ -30,14 +32,18 @@ vi.mock("@/lib/discord-rest", async (importOriginal) => ({
   ...(await importOriginal<typeof import("@/lib/discord-rest")>()),
   getGuildChannels: m.channels,
   getChannelInfo: m.channelInfo,
+  getGuildRoles: m.roles,
+  getBotRolePosition: m.botPosition,
 }))
 
-import { requireVenueGuild, requireChannelInGuild, discordFailureResponse, wantsRefresh } from "./venue-guild"
+import { requireVenueGuild, requireChannelInGuild, requireRoleInGuild, discordFailureResponse, wantsRefresh } from "./venue-guild"
 import { XvmApiError } from "@/lib/api/xvm-api"
 
 const GUILD = "1509616350337962024"
 const CHANNEL = "1509616350337962099"
 const OTHER_GUILD_CHANNEL = "1409616350337962011"
+const ROLE = "1509616350337962101"
+const ADMIN_ROLE = "1509616350337962102"
 const THREAD = "1509616350337962055"
 const FORUM = "1509616350337962066"
 const links = (rows: Record<string, unknown>[]) => ({ external_links: rows })
@@ -59,6 +65,14 @@ beforeEach(() => {
   m.cached.mockResolvedValue(null)
   m.channels.mockResolvedValue({ ok: true, data: [{ id: CHANNEL, name: "shifts" }] })
   m.channelInfo.mockResolvedValue({ ok: false, status: 404 })
+  m.roles.mockResolvedValue({
+    ok: true,
+    data: [
+      { id: ROLE, name: "Bartender", color: 0, permissions: "0", managed: false, position: 2 },
+      { id: ADMIN_ROLE, name: "Admin", color: 0, permissions: "8", managed: false, position: 3 },
+    ],
+  })
+  m.botPosition.mockResolvedValue(null)
 })
 
 describe("requireVenueGuild", () => {
@@ -240,5 +254,143 @@ describe("requireChannelInGuild", () => {
     expect(result.ok).toBe(false)
     if (result.ok) return
     expect(result.response.status).toBe(502)
+  })
+})
+
+describe("requireRoleInGuild", () => {
+  const check = (roleId = ROLE, current: string | null = null) => requireRoleInGuild("user-1", "vn_1", roleId, current)
+  const refusal = async (result: Awaited<ReturnType<typeof check>>) => {
+    if (result.ok) throw new Error("expected a refusal")
+    return { status: result.response.status, body: await result.response.json() }
+  }
+
+  it("accepts a role in the cached list without asking Discord", async () => {
+    m.cached.mockResolvedValue([{ id: ROLE, name: "Bartender", color: 0, permissions: "0", managed: false }])
+    expect(await check()).toEqual({ ok: true })
+    expect(m.roles).not.toHaveBeenCalled()
+  })
+
+  it("asks Discord on a cache miss, and caches what it learns", async () => {
+    expect(await check()).toEqual({ ok: true })
+    expect(m.roles).toHaveBeenCalledWith(GUILD)
+    expect(m.setCache).toHaveBeenCalledWith(`discord:${GUILD}:roles`, expect.any(Array), expect.any(Number))
+  })
+
+  it("re-asks Discord when the cached list lacks the role, so a role made minutes ago is not refused", async () => {
+    m.cached.mockResolvedValue([])
+    expect(await check()).toEqual({ ok: true })
+    expect(m.roles).toHaveBeenCalledOnce()
+  })
+
+  it("refuses a role that is not in this venue's server, on the live list", async () => {
+    expect(await refusal(await check("1409616350337962011"))).toMatchObject({
+      status: 400,
+      body: { error: "role_not_in_guild" },
+    })
+  })
+
+  it("refuses a role with Administrator, which the bot would hand to every holder", async () => {
+    expect(await refusal(await check(ADMIN_ROLE))).toMatchObject({ status: 400, body: { error: "role_unsafe" } })
+  })
+
+  it("refuses @everyone, whose id is the server's", async () => {
+    m.roles.mockResolvedValue({ ok: true, data: [{ id: GUILD, name: "@everyone", color: 0, permissions: "0", managed: false }] })
+    expect(await refusal(await check(GUILD))).toMatchObject({ status: 400, body: { error: "role_unsafe" } })
+  })
+
+  it("keeps an unsafe role the row already holds, so an unrelated edit is not refused", async () => {
+    expect(await check(ADMIN_ROLE, ADMIN_ROLE)).toEqual({ ok: true })
+  })
+
+  it("still refuses a held role that has left the server", async () => {
+    expect(await refusal(await check("1409616350337962011", "1409616350337962011"))).toMatchObject({
+      body: { error: "role_not_in_guild" },
+    })
+  })
+
+  it("treats Discord being down as transient, not as the role being wrong", async () => {
+    m.roles.mockResolvedValue({ ok: false, status: 500 })
+    expect(await refusal(await check())).toMatchObject({ status: 502 })
+  })
+
+  it("refuses when the server cannot be established, rather than letting any id through", async () => {
+    m.getVenue.mockResolvedValue(links([]))
+    expect(await refusal(await check())).toMatchObject({ status: 409, body: { error: "not_linked" } })
+    expect(m.roles).not.toHaveBeenCalled()
+  })
+
+  describe("against the bot's own highest role", () => {
+    const BOT_KEY = `discord:${GUILD}:bot-role-position`
+    const cachedBotPosition = (value: number | null) =>
+      m.cached.mockImplementation(async (key: string) => (key === BOT_KEY ? value : null))
+
+    it("accepts a role below the bot's highest role", async () => {
+      m.botPosition.mockResolvedValue(3)
+      expect(await check()).toEqual({ ok: true })
+    })
+
+    it("refuses a role above the bot's highest role, and says what to do", async () => {
+      m.botPosition.mockResolvedValue(1)
+      const { status, body } = await refusal(await check())
+      expect(status).toBe(400)
+      expect(body).toMatchObject({ error: "role_unsafe" })
+      expect(body.message).toMatch(/bot's highest role/)
+    })
+
+    it("refuses a role level with the bot's highest role, because Discord needs it strictly below", async () => {
+      m.botPosition.mockResolvedValue(2)
+      expect(await refusal(await check())).toMatchObject({ body: { error: "role_unsafe" } })
+    })
+
+    it("uses the cached bot position without asking Discord", async () => {
+      cachedBotPosition(5)
+      expect(await check()).toEqual({ ok: true })
+      expect(m.botPosition).not.toHaveBeenCalled()
+    })
+
+    it("lets the role the row already holds through, however far above the bot it sits", async () => {
+      m.botPosition.mockResolvedValue(1)
+      expect(await check(ROLE, ROLE)).toEqual({ ok: true })
+      expect(m.botPosition).not.toHaveBeenCalled()
+    })
+
+    it("does not refuse when Discord will not say where the bot sits", async () => {
+      m.botPosition.mockResolvedValue(null)
+      expect(await check()).toEqual({ ok: true })
+    })
+
+    const cachedRoles = [{ id: ROLE, name: "Bartender", color: 0, permissions: "0", managed: false, position: 2 }]
+    const cachedBoth = (botPosition: number) =>
+      m.cached.mockImplementation(async (key: string) => (key === BOT_KEY ? botPosition : cachedRoles))
+
+    it("confirms a refusal against live data first, so moving the bot's role up is not held back by the cache", async () => {
+      cachedBoth(1)
+      m.botPosition.mockResolvedValue(9)
+      expect(await check()).toEqual({ ok: true })
+      expect(m.roles).toHaveBeenCalledOnce()
+      expect(m.botPosition).toHaveBeenCalledOnce()
+      expect(m.setCache).toHaveBeenCalledWith(BOT_KEY, 9, expect.any(Number))
+    })
+
+    it("does not read the role list twice when it was just read live", async () => {
+      cachedBotPosition(1)
+      m.botPosition.mockResolvedValue(9)
+      expect(await check()).toEqual({ ok: true })
+      expect(m.roles).toHaveBeenCalledOnce()
+      expect(m.botPosition).toHaveBeenCalledOnce()
+      expect(m.setCache).toHaveBeenCalledWith(BOT_KEY, 9, expect.any(Number))
+    })
+
+    it("still refuses when the live read agrees", async () => {
+      cachedBoth(1)
+      m.botPosition.mockResolvedValue(1)
+      expect(await refusal(await check())).toMatchObject({ body: { error: "role_unsafe" } })
+    })
+
+    it("keeps the cached refusal if the live re-read fails", async () => {
+      cachedBoth(1)
+      m.roles.mockResolvedValue({ ok: false, status: 500 })
+      expect(await refusal(await check())).toMatchObject({ body: { error: "role_unsafe" } })
+    })
   })
 })

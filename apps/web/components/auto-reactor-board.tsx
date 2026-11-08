@@ -19,7 +19,7 @@ import {
 import { AutoReactorRuleDialog } from "@/components/auto-reactor-rule-dialog"
 import { useDiscordOptions } from "@/components/discord-picker"
 import { toast } from "sonner"
-import { apiFetch, ApiError } from "@/lib/api-fetch"
+import { ApiError, apiRoute } from "@/lib/api-fetch"
 import { customEmojiUrl, emojiLabel, parseCustomEmoji } from "@/lib/discord-emoji"
 import type { AutoReactorRuleRow, ModuleRow } from "@/lib/api/xvm-api"
 
@@ -66,7 +66,8 @@ export function AutoReactorBoard({ venueId, canManage, rules: initialRules, enab
   async function toggle(next: boolean) {
     setSwitching(true)
     try {
-      const row = await apiFetch<ModuleRow>(`/api/venues/${venueId}/auto-reactor/module`, {
+      const row = await apiRoute<ModuleRow>("/api/venues/[venueId]/auto-reactor/module", {
+        params: { venueId },
         method: "PUT",
         headers: { "Content-Type": "application/json" },
         body: JSON.stringify({ enabled: next }),
@@ -89,7 +90,10 @@ export function AutoReactorBoard({ venueId, canManage, rules: initialRules, enab
     if (!deleteTarget) return
     setDeleting(true)
     try {
-      await apiFetch(`/api/venues/${venueId}/auto-reactor/rules/${deleteTarget.id}`, { method: "DELETE" })
+      await apiRoute("/api/venues/[venueId]/auto-reactor/rules/[ruleId]", {
+        params: { venueId, ruleId: deleteTarget.id },
+        method: "DELETE",
+      })
       setRules((prev) => prev.filter((r) => r.id !== deleteTarget.id))
       toast.success("Rule removed.")
     } catch (e) {

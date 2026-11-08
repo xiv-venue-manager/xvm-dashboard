@@ -3,8 +3,8 @@ import { getServerSession } from "next-auth"
 import { authOptions } from "@/lib/auth"
 import { withRateLimit } from "@/lib/middleware/with-rate-limit"
 import { getCached, setCache, cacheKeys, cacheTTL } from "@/lib/redis-cache"
-import { requireVenueGuild, discordFailureResponse, wantsRefresh } from "@/lib/api/venue-guild"
-import { getGuildRoles, unsafeRoleReason, type DiscordRoleOption } from "@/lib/discord-rest"
+import { requireVenueGuild, discordFailureResponse, wantsRefresh, botRolePosition } from "@/lib/api/venue-guild"
+import { getGuildRoles, unsafeRoleReason, ROLE_ABOVE_BOT_REASON, type DiscordRoleOption } from "@/lib/discord-rest"
 
 export const GET = withRateLimit<{ params: Promise<{ venueId: string }> }>(
   async (request: NextRequest, context) => {
@@ -32,6 +32,8 @@ export const GET = withRateLimit<{ params: Promise<{ venueId: string }> }>(
       await setCache(key, roles, cacheTTL.discordGuild)
     }
 
+    const botPosition = await botRolePosition(guild.guildId, roles, wantsRefresh(request))
+
     // Annotated, not filtered. filterAssignableRoles sits beside the bot token in discord-rest,
     // so a client component cannot import it; and the picker is the only thing that knows which
     // role the row already holds, which has to stay selectable however unsafe it looks. The raw
@@ -44,6 +46,8 @@ export const GET = withRateLimit<{ params: Promise<{ venueId: string }> }>(
         name: role.name,
         color: role.color,
         unsafeReason: unsafeRoleReason(role, guild.guildId),
+        hierarchyReason:
+          unsafeRoleReason(role, guild.guildId, botPosition) === ROLE_ABOVE_BOT_REASON ? ROLE_ABOVE_BOT_REASON : null,
       })),
     })
   },

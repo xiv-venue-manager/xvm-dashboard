@@ -15,7 +15,7 @@ import { ChannelPicker } from "@/components/discord-picker"
 import { Label } from "@/components/ui/label"
 import { Select, SelectContent, SelectItem, SelectTrigger, SelectValue } from "@/components/ui/select"
 import { toast } from "sonner"
-import { apiFetch, ApiError } from "@/lib/api-fetch"
+import { ApiError, apiRoute } from "@/lib/api-fetch"
 import { pollUntil } from "@/lib/poll-until"
 import { SNOWFLAKE_PATTERN } from "@/lib/validation"
 import type { PanelRow, TemplateRow } from "@/lib/api/xvm-api"
@@ -57,17 +57,18 @@ export function ApplyTemplateDialog({ venueId, templates, onApplied }: ApplyTemp
     setSubmitting(true)
     const toastId = toast.loading("Asking the bot...")
     try {
-      const before = await apiFetch<PanelRow[]>(`/api/venues/${venueId}/reaction-role-panels`)
+      const before = await apiRoute<PanelRow[]>("/api/venues/[venueId]/reaction-role-panels", { params: { venueId } })
       const beforeIds = new Set(before.map((p) => p.id))
 
-      await apiFetch(`/api/venues/${venueId}/reaction-role-panels/from-template`, {
+      await apiRoute("/api/venues/[venueId]/reaction-role-panels/from-template", {
+        params: { venueId },
         method: "POST",
         headers: { "Content-Type": "application/json" },
         body: JSON.stringify({ templateId: Number(templateId), channelId }),
       })
 
       const after = await pollUntil<PanelRow>(
-        () => apiFetch<PanelRow[]>(`/api/venues/${venueId}/reaction-role-panels`),
+        () => apiRoute<PanelRow[]>("/api/venues/[venueId]/reaction-role-panels", { params: { venueId } }),
         (p) => !beforeIds.has(p.id),
         { cancelled: () => !mountedRef.current }
       )

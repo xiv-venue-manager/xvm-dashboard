@@ -17,7 +17,7 @@ vi.mock("@/lib/auth", () => ({ authOptions: {} }))
 vi.mock("@/lib/middleware/with-rate-limit", () => ({ withRateLimit: (handler: unknown) => handler }))
 vi.mock("@/lib/redis-cache", () => ({
   invalidateCache: m.invalidate,
-  cacheKeys: { venue: (id: string) => `venue:${id}`, venueBySlug: (s: string) => `venue:slug:${s}`, userVenues: (id: string) => `user:${id}:venues` },
+  cacheKeys: { userVenues: (id: string) => `user:${id}:venues` },
 }))
 vi.mock("@/lib/api/xvm-api-store", () => ({ getValidXvmApiToken: m.token, xvmApiErrorResponse: m.errorResponse }))
 vi.mock("@/lib/api/venue-access", () => ({ requireMyVenueRole: m.requireRole, requireMyVenue: m.requireVenue }))
@@ -85,7 +85,7 @@ describe("PATCH /api/venues/[venueId] lookup", () => {
     expect((await patch({ name: "New name" })).status).toBe(200)
     expect(m.requireVenue).toHaveBeenCalledWith("u1", "v1", expect.any(String))
     expect(m.updateVenue).toHaveBeenCalledWith("tok", "ven_1", { name: "New name" })
-    expect(m.invalidate).toHaveBeenCalledWith("venue:slug:velvet-lotus")
+    expect(m.invalidate).toHaveBeenCalledWith("user:u1:venues")
   })
 
   it("answers 404 for a venue the caller cannot see and updates nothing", async () => {

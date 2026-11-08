@@ -2291,7 +2291,7 @@ export async function listPatronLogs(
 }
 
 export interface PatronLogSummary {
-  event_id: number
+  event_id: number | null
   attendance: number
   entries: number
   exits: number
@@ -2468,7 +2468,6 @@ export interface GiveawayCreate {
   name?: string | null
   description?: string | null
   prize?: string | null
-  thumbnail_url?: string | null
   color?: number | null
   emoji?: string | null
   end_at?: string | null
@@ -2480,7 +2479,6 @@ export interface GiveawayUpdate {
   name?: string | null
   description?: string | null
   prize?: string | null
-  thumbnail_url?: string | null
   color?: number | null
   emoji?: string | null
   end_at?: string | null

@@ -267,7 +267,7 @@ function TimelineRow({ item, isLast }: { item: TimelineItem; isLast: boolean }) 
         <div className="tl-node em">
           <div className="tl-title">
             <strong>Sale logged</strong>
-            {service && <> — {service.name}</>} <span className="gil">{Number(amount).toLocaleString()} gil</span>
+            {service && <> — {service.name}</>} <span className="gil">{Number(amount).toLocaleString("en-US")} gil</span>
           </div>
           {(customerName || staff?.name) && (
             <div className="tl-desc">

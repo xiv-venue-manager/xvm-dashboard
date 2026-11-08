@@ -112,7 +112,11 @@ export default function OwnerManagerGuidePage() {
                         with Discord
                       </li>
                       <li>Click &quot;Create Venue&quot;</li>
-                      <li>Fill in your venue name, world, data center, and optional location/description</li>
+                      <li>
+                        Fill in your venue name, world and data center. Add the in-game location (district, ward, and
+                        plot or apartment) and a description if you can: the plugin uses the location to recognise your
+                        house
+                      </li>
                     </ol>
                   </div>
                 </li>
@@ -173,16 +177,18 @@ export default function OwnerManagerGuidePage() {
                   <div className="space-y-2">
                     <span className="font-medium">Add Your Character</span>
                     <p className="text-muted-foreground leading-relaxed">
-                      The plugin uses your character name to tell staff and patrons apart. Without this step, everyone
-                      in your venue is counted as a patron.
+                      A visit is recorded as staff when its character is linked to a member who is clocked in at that
+                      moment. The plugin does not log your own visits until your current character is linked.
                     </p>
                     <ol className="list-decimal list-inside space-y-1.5 pl-2 leading-relaxed">
                       <li>
-                        On the website, open the account menu in the top right and go to{" "}
-                        <span className="font-medium">Profile</span>
+                        In the plugin, open Settings and press <span className="font-medium">Link current character</span>{" "}
+                        (log in to the character first). The Setup checklist at the top of Settings shows when it is done
                       </li>
                       <li>
-                        Under <span className="font-medium">My Characters</span>, add your FFXIV character name and world
+                        Or on the website, open the account menu in the top right, go to{" "}
+                        <span className="font-medium">Profile</span>, and add your FFXIV character name and world under{" "}
+                        <span className="font-medium">My Characters</span>
                       </li>
                       <li>Ask your staff to do the same from their own accounts</li>
                     </ol>
@@ -193,28 +199,30 @@ export default function OwnerManagerGuidePage() {
                     4
                   </span>
                   <div className="space-y-2">
-                    <span className="font-medium">Set Your Venue Location in the Plugin</span>
+                    <span className="font-medium">Link Your House to Your Venue</span>
                     <p className="text-muted-foreground leading-relaxed">
-                      The plugin needs to know which housing plot is your venue. This is saved locally per person. Every
-                      staff member needs to do this on their own machine.
+                      The plugin recognises your venue&apos;s house by its address. When you enter a house that matches
+                      exactly one of your venues, the plugin saves it and links it to that venue by itself. Houses you
+                      saved earlier are linked the same way, and each staff member&apos;s plugin does this on its own.
                     </p>
                     <ol className="list-decimal list-inside space-y-1.5 pl-2 leading-relaxed">
-                      <li>Go to your venue&apos;s housing plot in game with the plugin running</li>
                       <li>
-                        Open the plugin (
-                        <code className="bg-[rgba(0,180,255,0.08)] text-[var(--xiv-blue)] px-1.5 py-0.5 rounded text-xs font-mono">
-                          /xvm
-                        </code>
-                        ) and go to the <span className="font-medium">Venues</span> tab
+                        In your venue&apos;s <span className="font-medium">Settings</span>, set the in-game location:{" "}
+                        <span className="font-medium">House</span> (district, ward and plot) or{" "}
+                        <span className="font-medium">Apartment</span>
                       </li>
-                      <li>
-                        Enter a name and click <span className="font-medium">Save Venue</span> to save the current plot
-                      </li>
-                      <li>
-                        In the <span className="font-medium">XIV-App Venue</span> column, select your web venue from the
-                        dropdown. This connects patron tracking to the correct venue on the website.
-                      </li>
+                      <li>Enter the house in game with the plugin running</li>
                     </ol>
+                    <p className="text-muted-foreground leading-relaxed">
+                      If it does not link (the address is missing or wrong, or two venues share it), link it by hand: go
+                      to the house, open the plugin (
+                      <code className="bg-[rgba(0,180,255,0.08)] text-[var(--xiv-blue)] px-1.5 py-0.5 rounded text-xs font-mono">
+                        /xvm
+                      </code>
+                      ), go to the <span className="font-medium">Venues</span> tab, enter a name and click{" "}
+                      <span className="font-medium">Save Venue</span>, then choose your venue in the{" "}
+                      <span className="font-medium">XIV-App Venue</span> column.
+                    </p>
                   </div>
                 </li>
                 <li className="flex items-start gap-3">
@@ -615,8 +623,8 @@ export default function OwnerManagerGuidePage() {
                   <span className="font-medium text-foreground">Character name</span>: look up a specific visitor
                 </li>
                 <li>
-                  <span className="font-medium text-foreground">Classification</span>: patron, staff, or all (the plugin
-                  separates staff on active shifts from patrons)
+                  <span className="font-medium text-foreground">Classification</span>: patron, staff, or all (a visit counts
+                  as staff when its character is linked to a member who is clocked in at that moment)
                 </li>
               </ul>
             </section>

@@ -4,6 +4,7 @@ services:
     container_name: postgres
     ports:
       - "192.168.1.122:5432:5432"
+      - "100.80.129.7:5432:5432"
     environment:
       - POSTGRES_PASSWORD=${POSTGRES_PASSWORD}
       - POSTGRES_DB=venue_manager
@@ -194,6 +195,67 @@ services:
       - app-network
     profiles:
       - green
+
+  venue-manager-dev:
+    build:
+      context: /home/server/xiv-app-dev
+      dockerfile: apps/web/Dockerfile
+      args:
+        NEXT_PUBLIC_SENTRY_DSN: ${NEXT_PUBLIC_SENTRY_DSN}
+        NEXT_PUBLIC_DISCORD_APPLICATION_ID: ${NEXT_PUBLIC_DISCORD_APPLICATION_ID}
+        SENTRY_RELEASE: dev
+      secrets:
+        - sentry_auth_token
+    container_name: venue-manager-dev
+    working_dir: /app
+    ports:
+      - "3008:3000"
+    env_file: /home/server/xiv-app-dev/.env.dev
+    depends_on:
+      postgres:
+        condition: service_healthy
+      redis:
+        condition: service_healthy
+    restart: unless-stopped
+    networks:
+      - app-network
+    profiles:
+      - dev
+
+  xvm-api-dev:
+    build:
+      context: /home/server/xvm-api-dev
+    container_name: xvm-api-dev
+    ports:
+      - "8001:8000"
+    environment:
+      APIV2_DATABASE_URL: postgresql+asyncpg://postgres:${POSTGRES_PASSWORD}@postgres:5432/xvm_api_dev
+      APIV2_DEBUG: "true"
+    depends_on:
+      postgres:
+        condition: service_healthy
+    restart: unless-stopped
+    networks:
+      - app-network
+    profiles:
+      - dev
+
+  xvm-api:
+    build:
+      context: /home/server/xvm-api
+    container_name: xvm-api
+    ports:
+      - "8002:8000"
+    env_file:
+      - /home/server/xvm-api/.env.prod
+    depends_on:
+      postgres:
+        condition: service_healthy
+    restart: unless-stopped
+    networks:
+      - app-network
+    profiles:
+      - prod
 
   maintenance-page:
     image: nginx:alpine

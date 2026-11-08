@@ -1,6 +1,6 @@
 import type { MyVenue } from "@/lib/api/venue-access"
 import type { VenueLinkRow } from "@/lib/api/xvm-api"
-import { ApiError, apiFetch } from "@/lib/api-fetch"
+import { ApiError, apiRoute } from "@/lib/api-fetch"
 import type { GuildAuthority } from "@/lib/discord-user"
 import { validators } from "@/lib/validation"
 
@@ -84,7 +84,8 @@ export function connectView({
 
 export async function connectServer(venueRef: string, guildId: string): Promise<string | null> {
   try {
-    await apiFetch(`/api/venues/${venueRef}/discord/link`, {
+    await apiRoute("/api/venues/[venueId]/discord/link", {
+      params: { venueId: venueRef },
       method: "POST",
       headers: { "Content-Type": "application/json" },
       body: JSON.stringify({ guildId }),

@@ -7,7 +7,8 @@ import { Button } from "@/components/ui/button"
 import { Input } from "@/components/ui/input"
 import { Copy } from "lucide-react"
 import { toast } from "sonner"
-import { apiFetch, ApiError } from "@/lib/api-fetch"
+import { ApiError, apiRoute } from "@/lib/api-fetch"
+import { contestCall } from "@/lib/contest-api"
 import type { ResolvedEntry } from "@/lib/api/resolve-entry-names"
 import { memberLabel, type DiscordMember } from "@/lib/discord-member-state"
 import { MemberChip, useResolvedMembers } from "@/components/discord-members"
@@ -27,12 +28,6 @@ interface ContestEntriesDrawerProps {
 function entrantLabel(entry: ResolvedEntry, member: DiscordMember | undefined): string {
   if (entry.display_name) return entry.display_name
   return memberLabel(entry.discord_user_id, member)
-}
-
-function entriesPath(venueId: string, contestType: "giveaway" | "raffle", contestId: number): string {
-  return contestType === "giveaway"
-    ? `/api/venues/${venueId}/contests/giveaways/${contestId}/entries`
-    : `/api/venues/${venueId}/contests/raffles/${contestId}/entries`
 }
 
 export function ContestEntriesDrawer({
@@ -64,7 +59,7 @@ export function ContestEntriesDrawer({
   useEffect(() => {
     if (contestId === null) return
     let cancelled = false
-    apiFetch<ResolvedEntry[]>(entriesPath(venueId, contestType, contestId))
+    contestCall<ResolvedEntry[]>(venueId, contestType, contestId, "entries")
       .then((data) => {
         if (!cancelled) setEntries(data)
       })
@@ -87,9 +82,14 @@ export function ContestEntriesDrawer({
       return
     }
     try {
-      const updated = await apiFetch<ResolvedEntry>(
-        `/api/venues/${venueId}/contests/raffles/${contestId}/entries/${discordUserId}`,
-        { method: "PUT", headers: { "Content-Type": "application/json" }, body: JSON.stringify({ quantity }) }
+      const updated = await apiRoute<ResolvedEntry>(
+        "/api/venues/[venueId]/contests/raffles/[raffleId]/entries/[discordUserId]",
+        {
+          params: { venueId, raffleId: contestId, discordUserId },
+          method: "PUT",
+          headers: { "Content-Type": "application/json" },
+          body: JSON.stringify({ quantity }),
+        }
       )
       setEntries((prev) => prev.map((e) => (e.discord_user_id === discordUserId ? { ...e, ...updated } : e)))
       toast.success(`Credited ${quantity} ticket(s)`)
@@ -103,7 +103,8 @@ export function ContestEntriesDrawer({
   async function removeEntry(discordUserId: string) {
     if (contestId === null || contestType !== "raffle") return
     try {
-      await apiFetch(`/api/venues/${venueId}/contests/raffles/${contestId}/entries/${discordUserId}`, {
+      await apiRoute("/api/venues/[venueId]/contests/raffles/[raffleId]/entries/[discordUserId]", {
+        params: { venueId, raffleId: contestId, discordUserId },
         method: "DELETE",
       })
       setEntries((prev) => prev.filter((e) => e.discord_user_id !== discordUserId))

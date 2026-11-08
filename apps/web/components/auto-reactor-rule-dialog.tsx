@@ -14,7 +14,7 @@ import {
 } from "@/components/ui/dialog"
 import { ChannelPicker, RolePicker } from "@/components/discord-picker"
 import { toast } from "sonner"
-import { apiFetch, ApiError } from "@/lib/api-fetch"
+import { ApiError, apiRoute } from "@/lib/api-fetch"
 import { SNOWFLAKE_PATTERN } from "@/lib/validation"
 import type { AutoReactorRuleRow } from "@/lib/api/xvm-api"
 
@@ -65,14 +65,17 @@ export function AutoReactorRuleDialog({ venueId, rule, onSaved, onClose }: AutoR
         keyword: keyword.trim() || null,
         roleId: roleId || null,
       }
-      const saved = await apiFetch<AutoReactorRuleRow>(
-        rule ? `/api/venues/${venueId}/auto-reactor/rules/${rule.id}` : `/api/venues/${venueId}/auto-reactor/rules`,
-        {
-          method: rule ? "PATCH" : "POST",
-          headers: { "Content-Type": "application/json" },
-          body: JSON.stringify(body),
-        }
-      )
+      const init = {
+        method: rule ? "PATCH" : "POST",
+        headers: { "Content-Type": "application/json" },
+        body: JSON.stringify(body),
+      }
+      const saved = rule
+        ? await apiRoute<AutoReactorRuleRow>("/api/venues/[venueId]/auto-reactor/rules/[ruleId]", {
+            ...init,
+            params: { venueId, ruleId: rule.id },
+          })
+        : await apiRoute<AutoReactorRuleRow>("/api/venues/[venueId]/auto-reactor/rules", { ...init, params: { venueId } })
       toast.success(rule ? "Rule saved." : "Rule added.")
       onSaved(saved, rule === null)
     } catch (e) {

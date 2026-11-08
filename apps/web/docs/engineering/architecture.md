@@ -121,23 +121,14 @@ Trade-offs:
 
 ## Caching layer
 
-`lib/redis-cache.ts` uses the shared ioredis singleton. Six routes use it (cache-aside via `getOrSet`):
+`lib/redis-cache.ts` uses the shared ioredis singleton. What it caches (TTLs in `cacheTTL`):
 
-- `GET /api/venues` (a user's venues)
-- `GET /api/venues/[venueId]`
-- `GET /api/venues/[venueId]/services` + `[serviceId]`
-- `GET /api/venues/[venueId]/transactions/[transactionId]`
-- `lib/api/transactions.ts` (helper)
+- `GET /api/venues`, a user's venue list (`userVenues`, 5 min, via `getOrSet`)
+- the public `/stats` page (`publicStats`, 5 min)
+- Discord guild roles, channels and custom emoji for the pickers (5 min, `?refresh=1` skips the cache), and the bot's own emoji
+- Discord member lookups for saved ids, per member (1 hour)
 
-TTLs (`cacheTTL` in `lib/redis-cache.ts`):
-
-- Venues: 5 min
-- Venue settings: 10 min
-- Memberships: 5 min
-- Services: 10 min (low churn)
-- Transactions: 3 min (higher churn)
-
-Invalidation is explicit in mutating routes. `invalidateCache(cacheKeys.userVenues(userId))` runs after venue create/delete, etc.
+Invalidation is explicit in mutating routes. `invalidateCache(cacheKeys.userVenues(userId))` runs after venue create, update and delete, gallery changes and invite acceptance. Everything else expires by TTL.
 
 ## Production deployment
 

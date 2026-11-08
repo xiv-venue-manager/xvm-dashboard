@@ -49,7 +49,7 @@ Not confirmed: whether a scope needs an access review for us, whether two XIV Au
    - `GET /api/xivauth/start`: for a signed-in person, creates `state` and a PKCE verifier, keeps them in a 10 minute httpOnly cookie, and redirects to XIV Auth asking only for `character:all`. No `user`, email or `refresh` scope.
    - `GET /api/xivauth/callback`: checks `state`, exchanges the code, calls `GET /characters`, forwards the list to xvm-api and shows the result. Everything is server side, so the content security policy is unchanged.
    - New server-only settings: `XIVAUTH_CLIENT_ID` and `XIVAUTH_CLIENT_SECRET`. The redirect URI is built from the site's own URL.
-2. **xvm-api endpoint** (Allegro's repo, our change). `POST /internal/characters/verified`, callable only with the dashboard service credential, taking a person id and a list of characters. A person's own credential must be refused, or they could forge a verified claim. It returns one outcome per character.
+2. **xvm-api endpoint** (Allegro's repo, our change). `POST /venues/{venue_id}/verification/xivauth`, callable only with the dashboard service credential, taking a person id and a list of characters, and only for a venue whose verification method is `xivauth`. A person's own credential and the bot's must be refused, or they could forge a verified claim. It returns one outcome per character and lands each proof through `CharacterService.verify`.
 3. **Bot door** (Allegro, later). The bot's Verify button opens `/verify?guild=<id>` on the dashboard, which signs in with Discord and runs the same flow. When xvm-api records a proof for someone in that server, it queues the verified-role grant for the venue.
 
 ### Data
@@ -81,7 +81,7 @@ The person and any displaced holder are locked in id order. Repeating a proof ch
 
 - A proof is a snapshot. If a user later removes or unverifies a character at XIV Auth, we are not told. Running the flow again refreshes it.
 - Existing characters stay self-declared until their owners verify. There is no data migration.
-- A verified character renamed into a name that someone else has self-declared is a `conflict`, not a transfer. The unverified holder of the name is not displaced. Add displacement later if it happens in practice.
+- A character renamed into a name that someone else holds is handled by `verify()` as the Lodestone path does: the other holder's link to that name is released and they are told, and a link verified as a different Lodestone character gives the name up. Two characters with the same name in one request are not expected from XIV Auth.
 
 ## Rollout
 

@@ -28,7 +28,7 @@ House-specific:
 | `venue-context` | The active venue, via React context |
 | `venue-switcher`, `venue-layout`, `venue-sidebar`, `navbar` | Page chrome |
 | `item-search-combobox` | Searching game items |
-| `discord-picker` | `RolePicker`, `ChannelPicker`, `DiscordOptionPicker`, `useDiscordOptions`: choose a Discord role or channel from the venue's server. Use these instead of a hand-rolled dropdown or a paste-an-id field. `DiscordOptionPicker` takes an optional `actions` slot: buttons shown in the field's own row, straight after the input or dropdown |
+| `discord-picker` | `RolePicker`, `ChannelPicker`, `DiscordOptionPicker`, `useDiscordOptions`: choose a Discord role or channel from the venue's server. `RolePicker` takes `forVerification` to hide roles with a moderation power, for the role the bot gives every verified member. Use these instead of a hand-rolled dropdown or a paste-an-id field. `DiscordOptionPicker` takes an optional `actions` slot: buttons shown in the field's own row, straight after the input or dropdown |
 | `discord-settings-card` | `DiscordSettingsCard`: the honeypot, events and rooms channels on the venue settings page, each a `DiscordOptionPicker` with Save and Clear, over `/api/venues/[venueId]/discord/settings` |
 | `verification-settings-card` | `VerificationSettingsCard`: verified role, captcha, Lodestone check and Change Nickname for a venue's Discord server, over the same settings route as the channels card. Its warnings come from `verificationWarnings` in `lib/venue-verification` |
 | `user-picker` | `UserPicker`: find a Discord member by typing part of the name, with entering an id as the fallback. Keyed to a venue |
@@ -80,7 +80,7 @@ House-specific:
 | `venue-guild` | `requireVenueGuild`, `discordFailureResponse`, `wantsRefresh`: the venue's Discord server for a signed-in caller (#157) |
 | `*-shape`, `position-convert`, `task-convert` | Mappers from xvm-api rows to what the UI expects. Look for one before writing another |
 
-`lib/discord-rest.ts` holds the Discord REST fetchers and the role-safety helpers (`unsafeRoleReason`, `filterAssignableRoles`). It is server only, because it sits beside the bot token.
+`lib/discord-rest.ts` holds the Discord REST fetchers and the role-safety helpers (`unsafeRoleReason`, `elevatedRoleReason`, `filterAssignableRoles`). It is server only, because it sits beside the bot token.
 
 ## Design tokens (`app/globals.css`)
 

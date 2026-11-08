@@ -59,12 +59,13 @@ export function useDiscordOptions(venueId: string, resource: Resource, enabled =
         setProblem(null)
         setOptions(
           resource === "roles"
-            ? (body.roles ?? []).map((r: { id: string; name: string; color: number; unsafeReason: string | null; hierarchyReason: string | null }) => ({
+            ? (body.roles ?? []).map((r: { id: string; name: string; color: number; unsafeReason: string | null; hierarchyReason: string | null; elevatedReason?: string | null }) => ({
                 value: r.id,
                 label: r.name,
                 color: r.color,
                 note: r.unsafeReason,
                 hierarchy: r.hierarchyReason,
+                elevated: r.elevatedReason ?? null,
               }))
             : (body.channels ?? []).map((c: { id: string; name: string }) => ({
                 value: c.id,
@@ -230,7 +231,8 @@ export function DiscordOptionPicker({
  * silently rewrites it to whatever sits first in the dropdown.
  *
  * `grants` is whether the bot hands the picked role out. Roles above the bot are dropped only then;
- * a filter that merely matches on a role (auto-reactor) can still pick one.
+ * a filter that merely matches on a role (auto-reactor) can still pick one. `forVerification` also
+ * drops roles with a moderation power, which the bot refuses to give a verifying member.
  */
 export function RolePicker({
   venueId,
@@ -240,6 +242,7 @@ export function RolePicker({
   id,
   className,
   grants = true,
+  forVerification = false,
 }: {
   venueId: string
   value: string
@@ -248,9 +251,10 @@ export function RolePicker({
   id?: string
   className?: string
   grants?: boolean
+  forVerification?: boolean
 }) {
   const { options, loading, problem, refresh } = useDiscordOptions(venueId, "roles", !disabled)
-  const offered = offeredRoles(options, value, grants).map((option) =>
+  const offered = offeredRoles(options, value, grants, forVerification).map((option) =>
     grants ? { ...option, note: option.note ?? option.hierarchy } : option
   )
 

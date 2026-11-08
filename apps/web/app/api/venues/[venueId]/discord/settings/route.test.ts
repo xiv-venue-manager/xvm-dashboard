@@ -105,7 +105,7 @@ describe("PUT discord/settings", () => {
   it("checks a changed verified role against the venue's server before xvm-api is asked", async () => {
     const res = await put({ verifiedRoleId: NEW_ROLE })
     expect(res.status).toBe(200)
-    expect(m.role).toHaveBeenCalledWith("user-1", "the-lilypad-lounge", NEW_ROLE, CHANNEL)
+    expect(m.role).toHaveBeenCalledWith("user-1", "the-lilypad-lounge", NEW_ROLE, CHANNEL, { elevated: true })
     expect(m.role.mock.invocationCallOrder[0]).toBeLessThan(m.write.mock.invocationCallOrder[0])
     expect(m.write).toHaveBeenCalledWith("tok", "ven_1", { verified_role_id: NEW_ROLE })
   })
@@ -117,6 +117,20 @@ describe("PUT discord/settings", () => {
     expect(res.status).toBe(400)
     expect(await res.json()).toEqual(refusal)
     expect(m.write).not.toHaveBeenCalled()
+  })
+
+  it.each(["Ban Members", "Timeout Members"])("refuses a role with %s and sends nothing", async (power) => {
+    const refusal = { error: "role_unsafe", message: `That role can't be the verified role: it has ${power}.` }
+    m.role.mockResolvedValue({ ok: false, response: NextResponse.json(refusal, { status: 400 }) })
+    const res = await put({ verifiedRoleId: NEW_ROLE })
+    expect(res.status).toBe(400)
+    expect(await res.json()).toEqual(refusal)
+    expect(m.write).not.toHaveBeenCalled()
+  })
+
+  it("accepts a plain role", async () => {
+    expect((await put({ verifiedRoleId: NEW_ROLE })).status).toBe(200)
+    expect(m.role).toHaveBeenCalledWith("user-1", "the-lilypad-lounge", NEW_ROLE, CHANNEL, { elevated: true })
   })
 
   it("sends nothing when the server cannot be reached", async () => {
@@ -137,7 +151,7 @@ describe("PUT discord/settings", () => {
   it("checks a role against nothing when the venue has none saved", async () => {
     m.read.mockResolvedValue({ ...row, verified_role_id: null })
     await put({ verifiedRoleId: NEW_ROLE })
-    expect(m.role).toHaveBeenCalledWith("user-1", "the-lilypad-lounge", NEW_ROLE, null)
+    expect(m.role).toHaveBeenCalledWith("user-1", "the-lilypad-lounge", NEW_ROLE, null, { elevated: true })
   })
 
   it("reports an xvm-api failure while reading the saved role, and writes nothing", async () => {

@@ -121,7 +121,9 @@ export const PUT = withRateLimit<{ params: Promise<{ venueId: string }> }>(
       try {
         const current = await getDiscordSettings(token, lookup.venue.id)
         if (current.verified_role_id !== verifiedRoleId) {
-          const check = await requireRoleInGuild(session.user.id, venueId, verifiedRoleId, current.verified_role_id)
+          const check = await requireRoleInGuild(session.user.id, venueId, verifiedRoleId, current.verified_role_id, {
+            elevated: true,
+          })
           if (!check.ok) return check.response
         }
       } catch (err) {

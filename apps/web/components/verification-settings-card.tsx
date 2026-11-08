@@ -91,13 +91,14 @@ export function VerificationSettingsCard({ venueSlug }: { venueSlug: string }) {
         </span>
         <div className="iinfo min-w-0 flex-1">
           <div className="iname">Verified role</div>
-          <div className="idesc">The role members get once they pass verification. Roles above the bot are hidden.</div>
+          <div className="idesc">The role members get once they pass verification. Roles above the bot, and roles with moderation powers, are hidden.</div>
         </div>
         <div className="flex w-full flex-wrap items-center gap-2 pl-[54px]">
           <RolePicker
             venueId={venueSlug}
             value={roleValue}
             onChange={setRoleDraft}
+            forVerification
             disabled={locked}
             className="h-8 w-56"
           />

@@ -74,6 +74,11 @@ export interface BaseFiles {
   shifts: { event_positions: Row[]; event_shifts: Row[]; shifts: Row[] } & Record<string, unknown>
 }
 
+export type SlugWhy =
+  | "cut to 50 characters"
+  | "numbered because the slug was taken"
+  | "no letters or digits in the name"
+
 export interface FroggeReport {
   newVenues: {
     guild_id: string
@@ -84,6 +89,7 @@ export interface FroggeReport {
     owner_discord_id: string | null
   }[]
   matchedVenues: { guild_id: string; key: string }[]
+  slugNotes: { guild_id: string; name: string; slug: string; why: SlugWhy }[]
   startDateAmendments: { membership_key: string; from: string; to: string }[]
   placeholderPeople: string[]
   utcVenues: string[]
@@ -116,13 +122,13 @@ const fold = (value: string | null | undefined) => clean(value).toLowerCase()
 const ms = (iso: string) => new Date(iso).getTime()
 const iso = (time: number) => new Date(time).toISOString()
 const str = (row: Row, field: string) => row[field] as string
-const slugify = (name: string) =>
+const MAX_SLUG = 50
+const slugWhole = (name: string) =>
   clean(name)
     .toLowerCase()
     .replace(/[^a-z0-9]+/g, "-")
     .replace(/^-+|-+$/g, "")
-    .slice(0, 30)
-    .replace(/-+$/g, "")
+const slugify = (name: string) => slugWhole(name).slice(0, MAX_SLUG).replace(/-+$/g, "")
 
 const nameKey = (name: string | null | undefined) =>
   clean(name)
@@ -151,6 +157,7 @@ export function mapFroggeStaffing(source: FroggeExport, ctx: FroggeContext, base
   const report: FroggeReport = {
     newVenues: [],
     matchedVenues: [],
+    slugNotes: [],
     startDateAmendments: [],
     placeholderPeople: [],
     utcVenues: [],
@@ -176,10 +183,20 @@ export function mapFroggeStaffing(source: FroggeExport, ctx: FroggeContext, base
       continue
     }
     const key = `frogge:v:${guild.guild_id}`
-    const stem = slugify(guild.name) || "venue"
+    const named = slugify(guild.name)
+    const stem = named || `venue-${guild.guild_id.slice(-6)}`
     let slug = stem
-    for (let n = 2; slugs.has(slug); n++) slug = `${stem.slice(0, 30 - String(n).length - 1)}-${n}`
+    for (let n = 2; slugs.has(slug); n++) slug = `${stem.slice(0, MAX_SLUG - String(n).length - 1)}-${n}`
     slugs.add(slug)
+    const why: SlugWhy | null =
+      slug !== stem
+        ? "numbered because the slug was taken"
+        : !named
+          ? "no letters or digits in the name"
+          : slugWhole(guild.name).length > MAX_SLUG
+            ? "cut to 50 characters"
+            : null
+    if (why) report.slugNotes.push({ guild_id: guild.guild_id, name: guild.name, slug, why })
     const raw = clean(timezoneByGuild.get(guild.guild_id)) || "UTC"
     const timezone = TZ_ALIASES[raw] ?? raw
     if (timezone === "UTC") report.utcVenues.push(guild.guild_id)

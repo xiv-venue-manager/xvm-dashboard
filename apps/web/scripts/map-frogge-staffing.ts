@@ -62,6 +62,8 @@ for (const m of report.matchedVenues)
     `  merges: ${source.guilds.find((g) => g.guild_id === m.guild_id)?.name} -> ${m.key}${matchFile ? "" : " (suggested by name)"}`
   )
 for (const [what, n] of Object.entries(report.counts)) console.log(`  ${what}: ${n}`)
+console.log(`new venue slugs to review (cut, numbered or made up): ${report.slugNotes.length}`)
+for (const n of report.slugNotes) console.log(`  ${n.slug} <- "${n.name}" (${n.guild_id}): ${n.why}`)
 console.log(`hire dates moved earlier: ${report.startDateAmendments.length}`)
 console.log(`new venues on UTC (owner to check): ${report.utcVenues.length}`)
 console.log(`people without a name (placeholders): ${report.placeholderPeople.length}`)

@@ -4,7 +4,7 @@ import { useRef, useState } from "react"
 import { ImageIcon, Trash2, Upload } from "lucide-react"
 import { toast } from "sonner"
 import { Button } from "@/components/ui/button"
-import { apiFetch, ApiError } from "@/lib/api-fetch"
+import { ApiError, apiFetch, apiRoute } from "@/lib/api-fetch"
 
 interface BannerUploadProps {
   venueSlug: string
@@ -20,7 +20,7 @@ export function BannerUpload({ venueSlug, initialUrl, onUpdate }: BannerUploadPr
   const upload = async (file: File) => {
     setUploading(true)
     try {
-      const { uploadUrl, storedUrl } = await apiFetch<{ uploadUrl: string; storedUrl: string }>("/api/upload", {
+      const { uploadUrl, storedUrl } = await apiRoute<{ uploadUrl: string; storedUrl: string }>("/api/upload", {
         method: "POST",
         headers: { "Content-Type": "application/json" },
         body: JSON.stringify({ filename: file.name, contentType: file.type, size: file.size }),
@@ -28,7 +28,8 @@ export function BannerUpload({ venueSlug, initialUrl, onUpdate }: BannerUploadPr
 
       await apiFetch(uploadUrl, { method: "PUT", body: file, headers: { "Content-Type": file.type } })
 
-      await apiFetch(`/api/venues/${venueSlug}`, {
+      await apiRoute("/api/venues/[venueId]", {
+        params: { venueId: venueSlug },
         method: "PATCH",
         headers: { "Content-Type": "application/json" },
         body: JSON.stringify({ bannerUrl: storedUrl }),
@@ -48,7 +49,8 @@ export function BannerUpload({ venueSlug, initialUrl, onUpdate }: BannerUploadPr
   const remove = async () => {
     setUploading(true)
     try {
-      await apiFetch(`/api/venues/${venueSlug}`, {
+      await apiRoute("/api/venues/[venueId]", {
+        params: { venueId: venueSlug },
         method: "PATCH",
         headers: { "Content-Type": "application/json" },
         body: JSON.stringify({ bannerUrl: null }),

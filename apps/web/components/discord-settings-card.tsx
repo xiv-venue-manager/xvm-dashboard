@@ -16,7 +16,7 @@ import {
 } from "@/components/ui/alert-dialog"
 import { DiscordOptionPicker, useDiscordOptions } from "@/components/discord-picker"
 import { channelProblem } from "@/lib/discord-picker-state"
-import { apiFetch, ApiError } from "@/lib/api-fetch"
+import { ApiError, apiRoute } from "@/lib/api-fetch"
 
 type Field = "honeypotChannelId" | "eventsChannelId" | "roomsChannelId"
 type Values = Record<Field, string | null>
@@ -56,7 +56,7 @@ export function DiscordSettingsCard({ venueSlug }: { venueSlug: string }) {
   const { refresh, ...channels } = useDiscordOptions(venueSlug, "channels")
 
   useEffect(() => {
-    apiFetch<Values>(`/api/venues/${venueSlug}/discord/settings`)
+    apiRoute<Values>("/api/venues/[venueId]/discord/settings", { params: { venueId: venueSlug } })
       .then(setSaved)
       .catch(() => setLoadFailed(true))
   }, [venueSlug, attempt])
@@ -65,7 +65,8 @@ export function DiscordSettingsCard({ venueSlug }: { venueSlug: string }) {
     setBusy(key)
     try {
       setSaved(
-        await apiFetch<Values>(`/api/venues/${venueSlug}/discord/settings`, {
+        await apiRoute<Values>("/api/venues/[venueId]/discord/settings", {
+          params: { venueId: venueSlug },
           method: "PUT",
           headers: { "Content-Type": "application/json" },
           body: JSON.stringify({ [key]: value }),

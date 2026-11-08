@@ -19,7 +19,8 @@ import { ContestEntriesDrawer } from "@/components/contest-entries-drawer"
 import { ChannelPicker } from "@/components/discord-picker"
 import { useResolvedMembers } from "@/components/discord-members"
 import { toast } from "sonner"
-import { apiFetch, ApiError } from "@/lib/api-fetch"
+import { ApiError, apiRoute } from "@/lib/api-fetch"
+import { contestCall } from "@/lib/contest-api"
 import { memberLabel } from "@/lib/discord-member-state"
 import { formatServerTime, SERVER_TIME_LABEL } from "@/lib/server-time"
 import { SNOWFLAKE_PATTERN } from "@/lib/validation"
@@ -51,10 +52,6 @@ interface Winner {
 const WINNER_LOOKUPS = 12
 const CLOCK_TICK_MS = 30_000
 
-function contestPath(venueId: string, kind: "giveaway" | "raffle", id: number, action: string): string {
-  return `/api/venues/${venueId}/contests/${kind === "giveaway" ? "giveaways" : "raffles"}/${id}/${action}`
-}
-
 function winnersOf(entries: ResolvedEntry[]): Winner[] {
   return entries
     .filter((e) => e.won_at !== null)
@@ -70,8 +67,8 @@ function endState(c: Contest, now: number | null): { label: string; ended: boole
 
 async function fetchContests(venueId: string): Promise<Contest[]> {
   const [giveaways, raffles] = await Promise.all([
-    apiFetch<GiveawayRow[]>(`/api/venues/${venueId}/contests/giveaways?include_rolled=true`),
-    apiFetch<RaffleRow[]>(`/api/venues/${venueId}/contests/raffles?include_rolled=true`),
+    apiRoute<GiveawayRow[]>("/api/venues/[venueId]/contests/giveaways", { params: { venueId }, query: { include_rolled: true } }),
+    apiRoute<RaffleRow[]>("/api/venues/[venueId]/contests/raffles", { params: { venueId }, query: { include_rolled: true } }),
   ])
   return [
     ...giveaways.map((g) => ({ kind: "giveaway" as const, ...g })),
@@ -122,7 +119,7 @@ export function ContestsBoard({ venueId, canManage, giveaways, raffles }: Contes
       .filter((c) => !winnersRequested.current.has(contestKey(c)))
     for (const c of wanted) winnersRequested.current.add(contestKey(c))
     for (const c of wanted) {
-      apiFetch<ResolvedEntry[]>(contestPath(venueId, c.kind, c.id, "entries"))
+      contestCall<ResolvedEntry[]>(venueId, c.kind, c.id, "entries")
         .then((entries) => setWinnersByContest((prev) => ({ ...prev, [contestKey(c)]: winnersOf(entries) })))
         .catch(() => winnersRequested.current.delete(contestKey(c)))
     }
@@ -138,10 +135,10 @@ export function ContestsBoard({ venueId, canManage, giveaways, raffles }: Contes
   async function runRoll(target: Contest, reroll: boolean) {
     setRolling(true)
     try {
-      const result = await apiFetch<GiveawayRoll | RaffleRoll>(
-        `${contestPath(venueId, target.kind, target.id, "roll")}${reroll ? "?reroll=true" : ""}`,
-        { method: "POST" }
-      )
+      const result = await contestCall<GiveawayRoll | RaffleRoll>(venueId, target.kind, target.id, "roll", {
+        method: "POST",
+        query: reroll ? { reroll: true } : undefined,
+      })
       const key = contestKey(target)
       winnersRequested.current.add(key)
       setWinnersByContest((prev) => ({
@@ -179,7 +176,7 @@ export function ContestsBoard({ venueId, canManage, giveaways, raffles }: Contes
     }
     setPosting(true)
     try {
-      await apiFetch(contestPath(venueId, postTarget.kind, postTarget.id, "posts"), {
+      await contestCall(venueId, postTarget.kind, postTarget.id, "posts", {
         method: "POST",
         headers: { "Content-Type": "application/json" },
         body: JSON.stringify({ channelId: postChannelId }),

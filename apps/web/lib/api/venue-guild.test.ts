@@ -9,6 +9,7 @@ const m = vi.hoisted(() => ({
   setCache: vi.fn(),
   channels: vi.fn(),
   channelInfo: vi.fn(),
+  roles: vi.fn(),
 }))
 
 vi.mock("@/lib/api/venue-access", () => ({ requireMyVenue: m.lookup }))
@@ -30,14 +31,17 @@ vi.mock("@/lib/discord-rest", async (importOriginal) => ({
   ...(await importOriginal<typeof import("@/lib/discord-rest")>()),
   getGuildChannels: m.channels,
   getChannelInfo: m.channelInfo,
+  getGuildRoles: m.roles,
 }))
 
-import { requireVenueGuild, requireChannelInGuild, discordFailureResponse, wantsRefresh } from "./venue-guild"
+import { requireVenueGuild, requireChannelInGuild, requireRoleInGuild, discordFailureResponse, wantsRefresh } from "./venue-guild"
 import { XvmApiError } from "@/lib/api/xvm-api"
 
 const GUILD = "1509616350337962024"
 const CHANNEL = "1509616350337962099"
 const OTHER_GUILD_CHANNEL = "1409616350337962011"
+const ROLE = "1509616350337962101"
+const ADMIN_ROLE = "1509616350337962102"
 const THREAD = "1509616350337962055"
 const FORUM = "1509616350337962066"
 const links = (rows: Record<string, unknown>[]) => ({ external_links: rows })
@@ -59,6 +63,13 @@ beforeEach(() => {
   m.cached.mockResolvedValue(null)
   m.channels.mockResolvedValue({ ok: true, data: [{ id: CHANNEL, name: "shifts" }] })
   m.channelInfo.mockResolvedValue({ ok: false, status: 404 })
+  m.roles.mockResolvedValue({
+    ok: true,
+    data: [
+      { id: ROLE, name: "Bartender", color: 0, permissions: "0", managed: false },
+      { id: ADMIN_ROLE, name: "Admin", color: 0, permissions: "8", managed: false },
+    ],
+  })
 })
 
 describe("requireVenueGuild", () => {
@@ -240,5 +251,68 @@ describe("requireChannelInGuild", () => {
     expect(result.ok).toBe(false)
     if (result.ok) return
     expect(result.response.status).toBe(502)
+  })
+})
+
+describe("requireRoleInGuild", () => {
+  const check = (roleId = ROLE, current: string | null = null) => requireRoleInGuild("user-1", "vn_1", roleId, current)
+  const refusal = async (result: Awaited<ReturnType<typeof check>>) => {
+    if (result.ok) throw new Error("expected a refusal")
+    return { status: result.response.status, body: await result.response.json() }
+  }
+
+  it("accepts a role in the cached list without asking Discord", async () => {
+    m.cached.mockResolvedValue([{ id: ROLE, name: "Bartender", color: 0, permissions: "0", managed: false }])
+    expect(await check()).toEqual({ ok: true })
+    expect(m.roles).not.toHaveBeenCalled()
+  })
+
+  it("asks Discord on a cache miss, and caches what it learns", async () => {
+    expect(await check()).toEqual({ ok: true })
+    expect(m.roles).toHaveBeenCalledWith(GUILD)
+    expect(m.setCache).toHaveBeenCalledWith(`discord:${GUILD}:roles`, expect.any(Array), expect.any(Number))
+  })
+
+  it("re-asks Discord when the cached list lacks the role, so a role made minutes ago is not refused", async () => {
+    m.cached.mockResolvedValue([])
+    expect(await check()).toEqual({ ok: true })
+    expect(m.roles).toHaveBeenCalledOnce()
+  })
+
+  it("refuses a role that is not in this venue's server, on the live list", async () => {
+    expect(await refusal(await check("1409616350337962011"))).toMatchObject({
+      status: 400,
+      body: { error: "role_not_in_guild" },
+    })
+  })
+
+  it("refuses a role with Administrator, which the bot would hand to every holder", async () => {
+    expect(await refusal(await check(ADMIN_ROLE))).toMatchObject({ status: 400, body: { error: "role_unsafe" } })
+  })
+
+  it("refuses @everyone, whose id is the server's", async () => {
+    m.roles.mockResolvedValue({ ok: true, data: [{ id: GUILD, name: "@everyone", color: 0, permissions: "0", managed: false }] })
+    expect(await refusal(await check(GUILD))).toMatchObject({ status: 400, body: { error: "role_unsafe" } })
+  })
+
+  it("keeps an unsafe role the row already holds, so an unrelated edit is not refused", async () => {
+    expect(await check(ADMIN_ROLE, ADMIN_ROLE)).toEqual({ ok: true })
+  })
+
+  it("still refuses a held role that has left the server", async () => {
+    expect(await refusal(await check("1409616350337962011", "1409616350337962011"))).toMatchObject({
+      body: { error: "role_not_in_guild" },
+    })
+  })
+
+  it("treats Discord being down as transient, not as the role being wrong", async () => {
+    m.roles.mockResolvedValue({ ok: false, status: 500 })
+    expect(await refusal(await check())).toMatchObject({ status: 502 })
+  })
+
+  it("refuses when the server cannot be established, rather than letting any id through", async () => {
+    m.getVenue.mockResolvedValue(links([]))
+    expect(await refusal(await check())).toMatchObject({ status: 409, body: { error: "not_linked" } })
+    expect(m.roles).not.toHaveBeenCalled()
   })
 })

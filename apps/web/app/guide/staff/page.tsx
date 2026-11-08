@@ -83,20 +83,6 @@ export default function StaffGuidePage() {
               <h1>Staff Guide</h1>
             </header>
 
-            {/* What's New */}
-            <div className="bg-[rgba(0,180,255,0.06)] border border-[rgba(0,180,255,0.2)] rounded-lg p-4 space-y-1.5">
-              <p className="text-xs font-semibold text-[var(--xiv-blue)] uppercase tracking-widest">Recent Updates</p>
-              <ul className="space-y-1 text-sm text-muted-foreground">
-                <li>
-                  <span className="font-medium text-foreground">Website redesign</span>: The dashboard and every page
-                  has a new look. Navigation, cards, and layout are all updated.
-                </li>
-                <li>
-                  <span className="font-medium text-foreground">Plugin UI redesign (v3.8.0)</span>: The plugin has a new
-                  XIV blue design to match the website.
-                </li>
-              </ul>
-            </div>
 
             {/* Getting Started */}
             <section id="getting-started" className="space-y-6 scroll-mt-[84px]">
@@ -152,21 +138,17 @@ export default function StaffGuidePage() {
                   </span>
                   <div className="space-y-2 text-sm leading-relaxed">
                     <span>
-                      <span className="font-medium">Configure the plugin:</span> Open it with{" "}
+                      <span className="font-medium">Link the plugin:</span> On the website, open the account menu in
+                      the top right and go to <span className="font-medium">Account settings</span>, then choose{" "}
+                      <span className="font-medium">Link the plugin</span> in the Plugin card and press{" "}
+                      <span className="font-medium">Generate link code</span>. Then open the plugin with{" "}
                       <code className="bg-[rgba(0,180,255,0.08)] text-[var(--xiv-blue)] px-1.5 py-0.5 rounded text-xs font-mono">
                         /xvm
-                      </code>{" "}
-                      and go to Settings. Paste your API key, set the server URL to{" "}
-                      <code className="bg-[rgba(0,180,255,0.08)] text-[var(--xiv-blue)] px-1.5 py-0.5 rounded text-xs font-mono">
-                        https://xivvenuemanager.com
                       </code>
-                      , and select your venue.
+                      , go to Settings, find <span className="font-medium">Account link</span>, type the code and press
+                      Link. Select your venue.
                     </span>
-                    <p className="text-muted-foreground">
-                      To find your API key: open your venue dashboard, click{" "}
-                      <span className="font-medium text-foreground">Settings</span> in the left sidebar (not the account
-                      menu in the top right), then <span className="font-medium text-foreground">API Keys</span>.
-                    </p>
+                    <p className="text-muted-foreground">One link covers every venue you work at.</p>
                   </div>
                 </li>
                 <li className="flex items-start gap-3">
@@ -175,17 +157,19 @@ export default function StaffGuidePage() {
                   </span>
                   <div className="space-y-2 text-sm leading-relaxed">
                     <span>
-                      <span className="font-medium">Add your character:</span> On the website, open the account menu in
-                      the top right and go to <span className="font-medium">Account Settings</span>, then{" "}
-                      <span className="font-medium">Characters</span>. Add your FFXIV character name and world. This
-                      lets the plugin tell you apart from patrons so you are not counted as a visitor during your shift.
+                      <span className="font-medium">Link your character:</span> In the plugin, open Settings and press{" "}
+                      <span className="font-medium">Link current character</span> (log in to the character first). Or on
+                      the website, open the account menu in the top right, go to{" "}
+                      <span className="font-medium">Profile</span>, and add your FFXIV character name and world under{" "}
+                      <span className="font-medium">My Characters</span>. The plugin does not log your own visits until
+                      your current character is linked.
                     </span>
                     <p className="text-muted-foreground">
-                      You also need to save the venue location in your own plugin. Visit the venue&apos;s housing plot
-                      in game, open the plugin&apos;s <span className="font-medium text-foreground">Venues</span> tab,
-                      enter a name, and click <span className="font-medium text-foreground">Save Venue</span>. Then
-                      select your venue from the <span className="font-medium text-foreground">XIV-App Venue</span>{" "}
-                      dropdown. This is saved per-person and must be done by each staff member individually.
+                      The plugin links the venue&apos;s house for you the first time you enter it, as long as the venue
+                      has its location filled in. If it does not link, go to the house, open the plugin&apos;s{" "}
+                      <span className="font-medium text-foreground">Venues</span> tab, enter a name, click{" "}
+                      <span className="font-medium text-foreground">Save Venue</span>, then choose your venue in the{" "}
+                      <span className="font-medium text-foreground">XIV-App Venue</span> dropdown.
                     </p>
                   </div>
                 </li>
@@ -281,8 +265,9 @@ export default function StaffGuidePage() {
                   event is active. Toggle in plugin Settings if you want always-on tracking.
                 </li>
                 <li>
-                  <span className="font-medium">Staff aren&apos;t double-counted:</span> if you&apos;re on an active
-                  shift, the plugin classifies you as staff, not a patron (v3.2.0+).
+                  <span className="font-medium">Staff aren&apos;t double-counted:</span> while your character is linked
+                  and you are clocked in, your visits are recorded as staff, not as patron visits. If you are not
+                  clocked in, you are counted as a patron.
                 </li>
                 <li>
                   <span className="font-medium">Snooze alerts:</span> run{" "}
@@ -334,8 +319,9 @@ export default function StaffGuidePage() {
                   <code className="bg-[rgba(0,180,255,0.08)] text-[var(--xiv-blue)] px-1.5 py-0.5 rounded text-xs font-mono">
                     /xvm
                   </code>
-                  ), go to the My Shift tab, and use the Clock In / Clock Out buttons. You can clock in up to 30 minutes
-                  early and up to 60 minutes late.
+                  ), go to the My Shift tab, and use the Clock In / Clock Out buttons. The plugin lets you clock in from 30
+                  minutes before your shift starts. A shift you have claimed shows as awaiting approval until a manager
+                  approves it, and you cannot clock in until then.
                 </p>
               </div>
 

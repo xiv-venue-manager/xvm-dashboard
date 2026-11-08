@@ -6,8 +6,7 @@
  * Every venue gets a payroll settings row with auto_close_after_hours null (the sweep off), because
  * prod has no auto-close and xvm-api's own default would switch a 2 hour sweep on for them all.
  *
- * xvm-api has no column for "the pot is switched on", so the venues that had it on come out in a
- * separate list, potEnabledVenues, until that question is answered.
+ * The pot switch rides on each row as pot_enabled.
  *
  * Usage (from apps/web):
  *   psql "$DATABASE_URL" -At -f scripts/export/settings.sql > settings-export.json
@@ -28,7 +27,7 @@ writeFileSync(output, JSON.stringify(result, null, 2))
 
 console.log(`pot rows:           ${source.pot.length}`)
 console.log(`payroll settings:   ${result.payrollSettings.length} (${result.payrollSettings.filter((s) => s.tax_basis_points > 0).length} with a tax)`)
-console.log(`pot switched on:    ${result.potEnabledVenues.length} venues (no home in xvm-api yet)`)
+console.log(`pot switched on:    ${result.payrollSettings.filter((s) => s.pot_enabled).length} venues`)
 console.log(`inventory rows:     ${source.inventory.length}, ${result.modules.length} enabled`)
 console.log(`skipped:  ${result.skipped.length}`)
 for (const s of result.skipped) console.log(`  skipped ${s.key}: ${s.reason}`)

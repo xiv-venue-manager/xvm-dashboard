@@ -255,7 +255,7 @@ export default function PromotingGuidePage() {
           <ul className="space-y-3 text-muted-foreground">
             {[
               "Your venue profile on xivvenuemanager.com stays live and searchable, showing your current schedule, staff, and open status to anyone browsing.",
-              "The Dalamud plugin sets your open status with a single command. When you are open, your profile reflects it in real time.",
+              "Your profile shows Open while an event is live or inside your opening hours, so it matches what you actually run.",
               "Partake events sync into XIV Venue Manager automatically. Post on Partake and your dashboard stays current without a second entry.",
               "Patron visit logs track how many people came through on a given night, so you can see which nights perform and which promotions moved attendance.",
               "When you close for a hiatus or change your schedule, one update in the dashboard keeps every surface that references your listing accurate.",

@@ -1,8 +1,6 @@
 "use client"
 
 import { useId, useRef, useState } from "react"
-import emojiByChar from "unicode-emoji-json/data-by-emoji.json"
-import orderedEmoji from "unicode-emoji-json/data-ordered-emoji.json"
 import { Input } from "@/components/ui/input"
 import { Popover, PopoverAnchor, PopoverContent } from "@/components/ui/popover"
 import { cn } from "@/lib/utils"
@@ -25,12 +23,28 @@ interface UnicodeEmojiEntry {
   cdnUrl: string | null
 }
 
-// Resolved once at module load, not per render: ~1,900 entries that each resolve to the same URL
-// every time.
-const UNICODE_EMOJI: UnicodeEmojiEntry[] = (orderedEmoji as string[]).map((char) => {
-  const entry = (emojiByChar as Record<string, { name: string; group: string }>)[char]
-  return { char, name: entry?.name ?? "", group: entry?.group ?? "Other", cdnUrl: twemojiCdnUrl(char) }
-})
+// Imported on first open so the ~300 KB of emoji data stays out of every page that renders a
+// picker. Built once and shared: ~1,900 entries that each resolve to the same URL every time. A
+// failed load clears the cache so the next open tries again.
+let unicodeEmojiPromise: Promise<UnicodeEmojiEntry[]> | null = null
+
+function loadUnicodeEmoji(): Promise<UnicodeEmojiEntry[]> {
+  unicodeEmojiPromise ??= Promise.all([
+    import("unicode-emoji-json/data-by-emoji.json"),
+    import("unicode-emoji-json/data-ordered-emoji.json"),
+  ])
+    .then(([byChar, ordered]) =>
+      (ordered.default as string[]).map((char) => {
+        const entry = (byChar.default as Record<string, { name: string; group: string }>)[char]
+        return { char, name: entry?.name ?? "", group: entry?.group ?? "Other", cdnUrl: twemojiCdnUrl(char) }
+      })
+    )
+    .catch((error) => {
+      unicodeEmojiPromise = null
+      throw error
+    })
+  return unicodeEmojiPromise
+}
 
 // Discord's own category order, so browsing with an empty search feels like the same set.
 const GROUP_ORDER = [
@@ -77,6 +91,8 @@ export function EmojiPicker({
   const [query, setQuery] = useState("")
   const [customEmoji, setCustomEmoji] = useState<DiscordEmojiOption[] | null>(null)
   const [fetchFailed, setFetchFailed] = useState(false)
+  const [unicodeEmoji, setUnicodeEmoji] = useState<UnicodeEmojiEntry[] | null>(null)
+  const [unicodeFailed, setUnicodeFailed] = useState(false)
   const anchorRef = useRef<HTMLDivElement>(null)
   const fetching = useRef(false)
   const openedByKeyboard = useRef(false)
@@ -88,6 +104,14 @@ export function EmojiPicker({
   function handleOpen(viaKeyboard = false) {
     openedByKeyboard.current = viaKeyboard
     setOpen(true)
+    if (unicodeEmoji === null) {
+      loadUnicodeEmoji()
+        .then((entries) => {
+          setUnicodeEmoji(entries)
+          setUnicodeFailed(false)
+        })
+        .catch(() => setUnicodeFailed(true))
+    }
     if (customEmoji !== null || fetching.current) return
     fetching.current = true
     const url = source === "application" ? "/api/admin/discord/emojis" : `/api/venues/${venueId}/discord/emojis`
@@ -105,7 +129,7 @@ export function EmojiPicker({
 
   const lowerQuery = query.trim().toLowerCase()
   const matchedCustom = (customEmoji ?? []).filter((e) => e.name.toLowerCase().includes(lowerQuery))
-  const matchedUnicode = UNICODE_EMOJI.filter((e) => e.name.toLowerCase().includes(lowerQuery))
+  const matchedUnicode = (unicodeEmoji ?? []).filter((e) => e.name.toLowerCase().includes(lowerQuery))
   // No query: browse grouped by category. With one: a flat list, uncapped - the whole set is
   // small enough to render, so a real match is never hidden behind a result limit.
   const groupedUnicode =
@@ -229,7 +253,15 @@ export function EmojiPicker({
               </div>
             )}
 
-            {groupedUnicode
+            {unicodeEmoji === null && (
+              <div className="text-[12px] text-muted-foreground">
+                {unicodeFailed ? "Couldn't load emoji." : "Loading emoji..."}
+              </div>
+            )}
+
+            {unicodeEmoji === null
+              ? null
+              : groupedUnicode
               ? groupedUnicode.map(({ group, emoji }) => (
                   <div key={group} className="mb-2">
                     <div className={heading}>{group}</div>

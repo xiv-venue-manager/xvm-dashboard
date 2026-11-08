@@ -19,7 +19,7 @@ import {
 import { ReactionRolePanelFormDialog } from "@/components/reaction-role-panel-form-dialog"
 import { ApplyTemplateDialog } from "@/components/apply-template-dialog"
 import { toast } from "sonner"
-import { apiFetch, ApiError } from "@/lib/api-fetch"
+import { ApiError, apiRoute } from "@/lib/api-fetch"
 import { pollUntil } from "@/lib/poll-until"
 import { SNOWFLAKE_PATTERN } from "@/lib/validation"
 import type { PanelRow, PanelPostRow, TemplateRow } from "@/lib/api/xvm-api"
@@ -56,7 +56,9 @@ export function ReactionRolePanelsBoard({
     let cancelled = false
     Promise.all(
       panels.map((p) =>
-        apiFetch<PanelPostRow[]>(`/api/venues/${venueId}/reaction-role-panels/${p.id}/posts`)
+        apiRoute<PanelPostRow[]>("/api/venues/[venueId]/reaction-role-panels/[panelId]/posts", {
+          params: { venueId, panelId: p.id },
+        })
           .then((posts) => [p.id, posts] as const)
           .catch(() => [p.id, []] as const)
       )
@@ -81,7 +83,10 @@ export function ReactionRolePanelsBoard({
     if (!deleteTarget) return
     setDeleting(true)
     try {
-      await apiFetch(`/api/venues/${venueId}/reaction-role-panels/${deleteTarget.id}`, { method: "DELETE" })
+      await apiRoute("/api/venues/[venueId]/reaction-role-panels/[panelId]", {
+        params: { venueId, panelId: deleteTarget.id },
+        method: "DELETE",
+      })
       setPanels((prev) => prev.filter((p) => p.id !== deleteTarget.id))
       toast.success("Panel deleted.")
     } catch (e) {
@@ -101,14 +106,18 @@ export function ReactionRolePanelsBoard({
     setPosting(true)
     const toastId = toast.loading("Asking the bot...")
     try {
-      await apiFetch(`/api/venues/${venueId}/reaction-role-panels/${postTarget.id}/posts`, {
+      await apiRoute("/api/venues/[venueId]/reaction-role-panels/[panelId]/posts", {
+        params: { venueId, panelId: postTarget.id },
         method: "POST",
         headers: { "Content-Type": "application/json" },
         body: JSON.stringify({ channelId: postChannelId }),
       })
 
       const posts = await pollUntil<PanelPostRow>(
-        () => apiFetch<PanelPostRow[]>(`/api/venues/${venueId}/reaction-role-panels/${postTarget.id}/posts`),
+        () =>
+          apiRoute<PanelPostRow[]>("/api/venues/[venueId]/reaction-role-panels/[panelId]/posts", {
+            params: { venueId, panelId: postTarget.id },
+          }),
         (p) => p.channel_id === postChannelId,
         { cancelled: () => !mountedRef.current }
       )

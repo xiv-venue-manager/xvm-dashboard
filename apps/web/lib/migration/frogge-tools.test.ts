@@ -1,0 +1,398 @@
+import { describe, it, expect } from "vitest"
+import type { PeopleFile } from "./frogge-features"
+import { mapFroggeTools, type FroggeToolsExport } from "./frogge-tools"
+
+const NOW = "2026-11-04T00:00:00.000Z"
+const G = "1111111111111111111"
+const ctx = { venueKeyByGuild: { [G]: "venue-a" }, now: NOW }
+const base = (): PeopleFile => ({ people: [], discordAccounts: [] })
+const empty = (): FroggeToolsExport => ({
+  forms: [],
+  form_questions: [],
+  form_responses: [],
+  giveaways: [],
+  giveaway_entries: [],
+  raffles: [],
+  raffle_entries: [],
+  sticky_messages: [],
+  tracked_streams: [],
+  quote_board_settings: [],
+  custom_embeds: [],
+  custom_embed_fields: [],
+  auto_reactor_rules: [],
+  event_templates: [],
+  message_templates: [],
+  profile_characters: [],
+  rooms: [],
+})
+const run = (over: Partial<FroggeToolsExport>) => mapFroggeTools({ ...empty(), ...over }, ctx, base())
+
+const form = (id: number, name: string) => ({
+  id,
+  guild_id: G,
+  name,
+  description: null,
+  pre_prompt: null,
+  post_prompt: null,
+  thumbnail_url: null,
+  color: null,
+  button_label: "Fill Out",
+  button_emoji: null,
+  allow_multiple_responses: false,
+  message_id: null,
+})
+const question = { id: 32, guild_id: G, form_id: 1, prompt: "Name?", question_type: "short_text", required: true, sort_order: 0, options: [] }
+const response = {
+  id: 1,
+  guild_id: G,
+  form_id: 1,
+  discord_user_id: "42",
+  submitted_at: null,
+  answers: [{ question_id: 32, question: "Name?", question_type: "short_text", answer: "Mira" }],
+}
+
+describe("forms", () => {
+  it("points an answer at the question's key", () => {
+    const r = run({ forms: [form(1, "Apply")], form_questions: [question], form_responses: [response] })
+    expect(r.tools.formResponses[0].answers).toEqual([{ question_id: "frogge:fq:32", question: "Name?", question_type: "short_text", answer: "Mira" }])
+  })
+
+  it("drops a response whose question is gone", () => {
+    const r = run({ forms: [form(1, "Apply")], form_responses: [response] })
+    expect(r.tools.formResponses).toEqual([])
+    expect(r.report.dropped[0].reason).toContain("question 32")
+  })
+
+  it("renames a form whose name is already taken at the venue, ignoring case", () => {
+    const r = run({ forms: [form(1, "Apply"), form(2, "apply")] })
+    expect(r.tools.forms.map((f) => f.name)).toEqual(["Apply", "apply 2"])
+  })
+})
+
+describe("giveaways and raffles", () => {
+  const giveaway = {
+    id: 1,
+    guild_id: G,
+    created_by: "42",
+    name: null,
+    description: null,
+    prize: null,
+    thumbnail_url: null,
+    color: null,
+    emoji: null,
+    end_at: null,
+    num_winners: 1,
+    auto_notify: true,
+    rolled_at: "2026-08-09T18:50:35.400Z",
+    rolled_by: "77",
+    winner_ids: ["42"],
+  }
+
+  it("marks a winner's entry with the roll time and rank, and makes people for the creator and roller", () => {
+    const r = run({
+      giveaways: [giveaway],
+      giveaway_entries: [
+        { id: 1, guild_id: G, giveaway_id: 1, discord_user_id: "42" },
+        { id: 2, guild_id: G, giveaway_id: 1, discord_user_id: "43" },
+      ],
+    })
+    expect(r.tools.giveawayEntries).toEqual([
+      { giveaway_key: "frogge:g:1", discord_user_id: "42", entered_at: NOW, won_at: "2026-08-09T18:50:35.400Z", winner_rank: 1 },
+      { giveaway_key: "frogge:g:1", discord_user_id: "43", entered_at: NOW, won_at: null, winner_rank: null },
+    ])
+    expect(r.tools.giveaways[0]).toMatchObject({ created_by_person_key: "frogge:p:42", rolled_by_person_key: "frogge:p:77" })
+  })
+
+  it("notes an ended giveaway that was never rolled, since xvm-api would draw it", () => {
+    const r = run({ giveaways: [{ ...giveaway, end_at: "2026-11-03T12:00:00.000Z", rolled_at: null, rolled_by: null, winner_ids: [] }] })
+    expect(r.report.notes).toContain("giveaway 1 ended 2026-11-03T12:00:00.000Z and was never rolled, so xvm-api draws it on its first tick and posts the winners")
+  })
+
+  it("does not note a giveaway that is rolled or has not ended", () => {
+    const r = run({
+      giveaways: [
+        { ...giveaway, id: 1, end_at: "2026-11-03T12:00:00.000Z" },
+        { ...giveaway, id: 2, end_at: "2026-11-05T12:00:00.000Z", rolled_at: null, rolled_by: null, winner_ids: [] },
+        { ...giveaway, id: 3, end_at: null, rolled_at: null, rolled_by: null, winner_ids: [] },
+      ],
+    })
+    expect(r.report.notes.filter((n) => n.startsWith("giveaway "))).toEqual([])
+  })
+
+  it("reports a winner who has no entry", () => {
+    const r = run({ giveaways: [giveaway] })
+    expect(r.report.dropped).toEqual([{ what: "giveaway winner", id: "1:42", reason: "the winner has no entry row" }])
+  })
+
+  it("turns the winner percent into basis points", () => {
+    const r = run({
+      raffles: [
+        {
+          id: 6,
+          guild_id: G,
+          created_by: "42",
+          name: null,
+          cost_per_ticket: 100000,
+          winner_pct: 50,
+          num_winners: 1,
+          auto_notify: true,
+          rolled_at: null,
+          rolled_by: null,
+          winner_ids: [],
+        },
+      ],
+      raffle_entries: [{ id: 3, guild_id: G, raffle_id: 6, discord_user_id: "42", quantity: 35 }],
+    })
+    expect(r.tools.raffles[0]).toMatchObject({ winner_basis_points: 5000, rolled_by_person_key: null })
+    expect(r.tools.raffleEntries[0]).toMatchObject({ quantity: 35, won_at: null })
+  })
+})
+
+describe("templates", () => {
+  it("renames the message template types and drops an unknown one", () => {
+    const r = run({
+      message_templates: [
+        { id: 1, guild_id: G, template_type: "channel_greeting", title: null, description: "Hi {member}", is_active: true },
+        { id: 2, guild_id: G, template_type: "something_new", title: null, description: null, is_active: true },
+      ],
+    })
+    expect(r.tools.messageTemplates).toEqual([{ venue_key: "venue-a", template_type: "greeting.channel", title: null, description: "Hi {member}", is_active: true }])
+    expect(r.report.dropped).toHaveLength(1)
+  })
+
+  it("carries the winner message types", () => {
+    const r = run({
+      message_templates: [
+        { id: 1, guild_id: G, template_type: "giveaway_winner", title: "Won", description: "{user}", is_active: true },
+        { id: 2, guild_id: G, template_type: "raffle_winner", title: "Won", description: "{user}", is_active: false },
+      ],
+    })
+    expect(r.tools.messageTemplates.map((t) => t.template_type)).toEqual(["giveaway.winner", "raffle.winner"])
+    expect(r.report.dropped).toEqual([])
+  })
+
+  it("calls the server {venue} in a greeting's title and description, and nowhere else", () => {
+    const r = run({
+      message_templates: [
+        { id: 1, guild_id: G, template_type: "channel_greeting", title: "Welcome to {guild}", description: "{member}, {guild} and {guild}", is_active: true },
+        { id: 2, guild_id: G, template_type: "dm_greeting", title: null, description: "Hi from {guild}", is_active: true },
+        { id: 3, guild_id: G, template_type: "vip_welcome", title: null, description: "{guild}", is_active: true },
+      ],
+    })
+    expect(r.tools.messageTemplates.map((t) => [t.title, t.description])).toEqual([
+      ["Welcome to {venue}", "{member}, {venue} and {venue}"],
+      [null, "Hi from {venue}"],
+      [null, "{guild}"],
+    ])
+  })
+
+  it("builds an event template from its data blob", () => {
+    const r = run({
+      event_templates: [
+        { id: 1, guild_id: G, name: "Opening", data: { description: "d", default_start_time_minutes: 1320, duration_minutes: null, positions: [{ id: 1 }] } },
+      ],
+    })
+    expect(r.tools.eventTemplates).toEqual([
+      { venue_key: "venue-a", name: "Opening", title: "Opening", description: "d", default_start_minute_of_day: 1320, default_duration_minutes: null },
+    ])
+    expect(r.report.counts["event template position lists not carried"]).toBe(1)
+  })
+})
+
+describe("the rest", () => {
+  it("skips a quote board row with nothing set", () => {
+    const r = run({
+      quote_board_settings: [{ guild_id: G, board_channel_id: null, emoji: "x", reaction_threshold: 1, allow_nsfw_sources: false, blacklisted_channel_ids: [] }],
+    })
+    expect(r.tools.quoteBoardSettings).toEqual([])
+  })
+
+  it("renames a sticky message's timestamp and counts the images it leaves", () => {
+    const r = run({
+      sticky_messages: [
+        {
+          id: 1,
+          guild_id: G,
+          channel_id: "9",
+          enabled: true,
+          title: "t",
+          description: null,
+          color: null,
+          url: null,
+          timestamp: NOW,
+          header_text: null,
+          header_url: null,
+          footer_text: null,
+          header_icon_url: null,
+          footer_icon_url: null,
+          thumbnail_url: "https://x/a.png",
+          image_url: "https://x/b.png",
+        },
+      ],
+    })
+    expect(r.tools.stickyMessages[0]).toMatchObject({ channel_id: "9", timestamp_at: NOW })
+    expect(r.report.counts["sticky message images not carried"]).toBe(2)
+  })
+
+  it("maps the embed's main image and keeps its fields", () => {
+    const r = run({
+      custom_embeds: [
+        {
+          id: 1,
+          guild_id: G,
+          name: "e",
+          title: null,
+          description: null,
+          color: null,
+          url: null,
+          timestamp: null,
+          header_text: null,
+          header_icon_url: null,
+          header_url: null,
+          footer_text: null,
+          footer_icon_url: null,
+          thumbnail_url: null,
+          main_image_url: "https://x/m.png",
+        },
+      ],
+      custom_embed_fields: [{ id: 1, guild_id: G, custom_embed_id: 1, name: "n", value: "v", inline: true, sort_order: 0 }],
+    })
+    expect(r.tools.customEmbeds[0]).toMatchObject({ key: "frogge:ce:1", image_url: "https://x/m.png" })
+    expect(r.tools.customEmbedFields[0]).toMatchObject({ custom_embed_key: "frogge:ce:1" })
+  })
+
+  it("drops rows of a server that is not a venue", () => {
+    const r = run({ rooms: [{ id: 1, guild_id: "999", room_number: 1, name: null, description: null, owner_id: null, locked: false, disabled: false }] })
+    expect(r.tools.rooms).toEqual([])
+    expect(r.report.dropped).toHaveLength(1)
+  })
+
+  it("carries a room and counts an owner it cannot", () => {
+    const r = run({ rooms: [{ id: 1, guild_id: G, room_number: 2, name: "Suite", description: "d", owner_id: "5", locked: true, disabled: false }] })
+    expect(r.tools.rooms).toEqual([{ venue_key: "venue-a", name: "Suite", notes: "d", room_number: 2, locked: true, disabled: false }])
+    expect(r.report.counts["room owners not carried"]).toBe(1)
+  })
+})
+
+describe("character profiles", () => {
+  const profile = {
+    id: 1,
+    guild_id: G,
+    discord_user_id: "42",
+    character_name: " Aria  Vale ",
+    is_primary: true,
+    approval_status: "approved",
+    submitted_at: "2026-08-01T00:00:00.000Z",
+    reviewed_at: "2026-08-02T00:00:00.000Z",
+    reviewed_by: "77",
+    rejection_reason: null,
+    color: 255,
+    thumbnail_url: "https://cdn/t.png",
+    main_image_url: null,
+    race: "viera",
+    about_me: "  hello  ",
+  }
+
+  it("maps an approved profile with its review, text trimmed and the unset fields null", () => {
+    const r = run({ profile_characters: [profile] })
+    expect(r.tools.profiles).toHaveLength(1)
+    expect(r.tools.profiles[0]).toMatchObject({
+      venue_key: "venue-a",
+      person_key: "frogge:p:42",
+      character_name: "Aria Vale",
+      is_primary: true,
+      submitted_at: "2026-08-01T00:00:00.000Z",
+      reviewed_at: "2026-08-02T00:00:00.000Z",
+      reviewed_by_person_key: "frogge:p:77",
+      rejection_reason: null,
+      race: "viera",
+      about_me: "hello",
+      clan: null,
+    })
+    expect(r.tools.profiles[0]).toMatchObject({ thumbnail_source: "https://cdn/t.png", main_image_source: null })
+    expect(r.report.counts["profile images to copy"]).toBe(1)
+  })
+
+  it("leaves a draft unsubmitted, and a pending one submitted and unreviewed", () => {
+    const r = run({
+      profile_characters: [
+        { ...profile, id: 1, character_name: "Draft", approval_status: "draft", submitted_at: null, reviewed_at: null, is_primary: false },
+        { ...profile, id: 2, character_name: "Pending", approval_status: "pending_approval", reviewed_at: null, reviewed_by: null, is_primary: false },
+      ],
+    })
+    expect(r.tools.profiles.map((p) => [p.character_name, p.submitted_at, p.reviewed_at])).toEqual([
+      ["Draft", null, null],
+      ["Pending", "2026-08-01T00:00:00.000Z", null],
+    ])
+  })
+
+  it("keeps one primary per person at a venue and drops a repeated character name", () => {
+    const r = run({
+      profile_characters: [
+        { ...profile, id: 1, character_name: "Aria" },
+        { ...profile, id: 2, character_name: "Brin" },
+        { ...profile, id: 3, character_name: "aria", is_primary: false },
+      ],
+    })
+    expect(r.tools.profiles.map((p) => [p.character_name, p.is_primary])).toEqual([
+      ["Aria", true],
+      ["Brin", false],
+    ])
+    expect(r.report.counts["extra primary profiles made ordinary"]).toBe(1)
+    expect(r.report.dropped).toEqual([
+      { what: "character profile", id: "3", reason: "same character name as an earlier profile of this person at the venue, ignoring case" },
+    ])
+  })
+
+  it("drops a nameless profile and one with a status xvm-api has no value for, and cuts an over-long field", () => {
+    const r = run({
+      profile_characters: [
+        { ...profile, id: 1, character_name: "  " },
+        { ...profile, id: 2, character_name: "Odd", approval_status: "archived" },
+        { ...profile, id: 3, character_name: "Long", about_me: "x".repeat(3001) },
+      ],
+    })
+    expect(r.tools.profiles).toHaveLength(1)
+    expect((r.tools.profiles[0].about_me as string).length).toBe(3000)
+    expect(r.report.counts["profile fields cut to fit"]).toBe(1)
+    expect(r.report.dropped.map((d) => d.id)).toEqual(["1", "2"])
+  })
+
+  it("gives a rejected profile a reason when Frogge has none", () => {
+    const r = run({ profile_characters: [{ ...profile, approval_status: "rejected", rejection_reason: null }] })
+    expect(r.tools.profiles[0]).toMatchObject({ reviewed_at: "2026-08-02T00:00:00.000Z", rejection_reason: "Rejected on Frogge" })
+  })
+
+  it("hands a profile's gallery images to the copy step in order, keyed to the profile", () => {
+    const r = run({
+      profile_characters: [profile],
+      profile_additional_images: [
+        { id: 2, guild_id: G, character_id: 1, image_url: " https://bucket/profile-characters/b.png ", caption: " Second  look ", sort_order: 1 },
+        { id: 1, guild_id: G, character_id: 1, image_url: "https://bucket/profile-characters/a.png", caption: null, sort_order: 0 },
+      ],
+    })
+    expect(r.tools.profileImages).toEqual([
+      { venue_key: "venue-a", person_key: "frogge:p:42", character_name: "Aria Vale", image_source: "https://bucket/profile-characters/a.png", caption: null, sort_order: 0 },
+      { venue_key: "venue-a", person_key: "frogge:p:42", character_name: "Aria Vale", image_source: "https://bucket/profile-characters/b.png", caption: "Second look", sort_order: 1 },
+    ])
+    expect(r.report.counts["profile gallery images to copy"]).toBe(2)
+  })
+
+  it("drops a gallery image whose profile was not migrated, one with no URL, and any past three", () => {
+    const image = (id: number, over = {}) => ({ id, guild_id: G, character_id: 1, image_url: `https://bucket/${id}.png`, caption: null, sort_order: id, ...over })
+    const r = run({
+      profile_characters: [profile],
+      profile_additional_images: [image(1), image(2), image(3), image(4), image(5, { image_url: "  " }), image(6, { character_id: 99 })],
+    })
+    expect(r.tools.profileImages.map((i) => i.sort_order)).toEqual([0, 1, 2])
+    expect(r.report.dropped.map((d) => [d.id, d.reason])).toEqual([
+      ["4", "xvm-api keeps at most 3 extra images on a profile"],
+      ["5", "no image URL"],
+      ["6", "its profile was not migrated"],
+    ])
+  })
+
+  it("maps a profile export that has no gallery list", () => {
+    expect(run({ profile_characters: [profile] }).tools.profileImages).toEqual([])
+  })
+})

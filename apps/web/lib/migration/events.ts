@@ -86,14 +86,14 @@ const MAX_TYPE = 32
 const DEFAULT_LENGTH_MS = 3 * 60 * 60 * 1000
 const DAY_NAMES = ["Mon", "Tue", "Wed", "Thu", "Fri", "Sat", "Sun"]
 
-interface LocalParts {
+export interface LocalParts {
   date: string
   day: number
   weekday: number
   minuteOfDay: number
 }
 
-function localParts(iso: string, timeZone: string): LocalParts {
+export function localParts(iso: string, timeZone: string): LocalParts {
   const parts = Object.fromEntries(
     new Intl.DateTimeFormat("en-US", {
       timeZone,
@@ -132,7 +132,7 @@ function offsetMinutes(utcMs: number, timeZone: string): number {
   return (Date.UTC(y, m - 1, d, 0, p.minuteOfDay) - Math.floor(utcMs / 60000) * 60000) / 60000
 }
 
-function localToUtc(date: string, minuteOfDay: number, timeZone: string): string {
+export function localToUtc(date: string, minuteOfDay: number, timeZone: string): string {
   const [y, m, d] = date.split("-").map(Number)
   const wall = Date.UTC(y, m - 1, d, 0, minuteOfDay)
   let guess = wall - offsetMinutes(wall, timeZone) * 60000

@@ -59,11 +59,12 @@ export function useDiscordOptions(venueId: string, resource: Resource, enabled =
         setProblem(null)
         setOptions(
           resource === "roles"
-            ? (body.roles ?? []).map((r: { id: string; name: string; color: number; unsafeReason: string | null }) => ({
+            ? (body.roles ?? []).map((r: { id: string; name: string; color: number; unsafeReason: string | null; hierarchyReason: string | null }) => ({
                 value: r.id,
                 label: r.name,
                 color: r.color,
                 note: r.unsafeReason,
+                hierarchy: r.hierarchyReason,
               }))
             : (body.channels ?? []).map((c: { id: string; name: string }) => ({
                 value: c.id,
@@ -227,6 +228,9 @@ export function DiscordOptionPicker({
  * Unsafe roles are dropped from the list, except one already saved on this row: a row holding
  * @everyone or an Administrator role has to keep showing it, or re-saving an unrelated field
  * silently rewrites it to whatever sits first in the dropdown.
+ *
+ * `grants` is whether the bot hands the picked role out. Roles above the bot are dropped only then;
+ * a filter that merely matches on a role (auto-reactor) can still pick one.
  */
 export function RolePicker({
   venueId,
@@ -235,6 +239,7 @@ export function RolePicker({
   disabled,
   id,
   className,
+  grants = true,
 }: {
   venueId: string
   value: string
@@ -242,9 +247,12 @@ export function RolePicker({
   disabled?: boolean
   id?: string
   className?: string
+  grants?: boolean
 }) {
   const { options, loading, problem, refresh } = useDiscordOptions(venueId, "roles", !disabled)
-  const offered = offeredRoles(options, value)
+  const offered = offeredRoles(options, value, grants).map((option) =>
+    grants ? { ...option, note: option.note ?? option.hierarchy } : option
+  )
 
   return (
     <DiscordOptionPicker

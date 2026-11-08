@@ -7,6 +7,7 @@ const m = vi.hoisted(() => ({
   getCached: vi.fn(),
   setCache: vi.fn(),
   fetchDiscord: vi.fn(),
+  botPosition: vi.fn(),
 }))
 
 vi.mock("next-auth", () => ({ getServerSession: m.session }))
@@ -25,6 +26,7 @@ vi.mock("@/lib/redis-cache", async (importOriginal) => ({
 vi.mock("@/lib/discord-rest", async (importOriginal) => ({
   ...(await importOriginal<typeof import("@/lib/discord-rest")>()),
   getGuildRoles: m.fetchDiscord,
+  getBotRolePosition: m.botPosition,
 }))
 
 import { GET } from "./route"
@@ -41,6 +43,7 @@ beforeEach(() => {
   m.guild.mockResolvedValue({ ok: true, guildId: GUILD })
   m.getCached.mockResolvedValue(null)
   m.setCache.mockResolvedValue(undefined)
+  m.botPosition.mockResolvedValue(null)
 })
 
 const role = (over: Record<string, unknown> = {}) => ({
@@ -49,6 +52,7 @@ const role = (over: Record<string, unknown> = {}) => ({
   color: 123,
   permissions: "0",
   managed: false,
+  position: 1,
   ...over,
 })
 
@@ -119,6 +123,48 @@ describe("GET discord/roles", () => {
       ["Bot role", "it's managed by a bot or integration"],
       ["@everyone", "it's the @everyone role"],
     ])
+  })
+
+  it("marks a role at or above the bot's highest role, so the picker can say the bot cannot give it out", async () => {
+    m.botPosition.mockResolvedValue(5)
+    m.fetchDiscord.mockResolvedValue({
+      ok: true,
+      data: [
+        role({ id: "100", name: "Below", position: 4 }),
+        role({ id: "200", name: "Level", position: 5 }),
+        role({ id: "300", name: "Above", position: 9 }),
+      ],
+    })
+    const body = await (await call()).json()
+    expect(body.roles.map((r: { name: string; hierarchyReason: string | null }) => [r.name, r.hierarchyReason === null])).toEqual([
+      ["Below", true],
+      ["Level", false],
+      ["Above", false],
+    ])
+    expect(body.roles[2].hierarchyReason).toMatch(/bot's highest role/)
+    expect(body.roles.every((r: { unsafeReason: string | null }) => r.unsafeReason === null)).toBe(true)
+  })
+
+  it("marks nothing as above the bot when its position cannot be read", async () => {
+    m.botPosition.mockResolvedValue(null)
+    m.fetchDiscord.mockResolvedValue({ ok: true, data: [role({ position: 99 })] })
+    expect((await (await call()).json()).roles[0].hierarchyReason).toBeNull()
+  })
+
+  it("asks Discord for the bot's position again on refresh=1, and caches it", async () => {
+    m.fetchDiscord.mockResolvedValue({ ok: true, data: [role()] })
+    m.botPosition.mockResolvedValue(3)
+    m.getCached.mockResolvedValue(7)
+    await call("?refresh=1")
+    expect(m.botPosition).toHaveBeenCalledOnce()
+    expect(m.setCache).toHaveBeenCalledWith(cacheKeys.discordBotRolePosition(GUILD), 3, cacheTTL.discordGuild)
+  })
+
+  it("uses the cached bot position without asking Discord", async () => {
+    m.fetchDiscord.mockResolvedValue({ ok: true, data: [role()] })
+    m.getCached.mockImplementation(async (key: string) => (key === cacheKeys.discordBotRolePosition(GUILD) ? 7 : null))
+    await call()
+    expect(m.botPosition).not.toHaveBeenCalled()
   })
 
   it("does not hand the browser the raw permissions bitfield", async () => {

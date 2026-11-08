@@ -36,6 +36,7 @@ export const cacheKeys = {
   userVenues: (userId: string) => `user:${userId}:venues`,
   publicStats: () => `public:stats`,
   discordRoles: (guildId: string) => `discord:${guildId}:roles`,
+  discordBotRolePosition: (guildId: string) => `discord:${guildId}:bot-role-position`,
   discordChannels: (guildId: string) => `discord:${guildId}:channels`,
   discordEmojis: (guildId: string) => `discord:${guildId}:emojis`,
   // The bot's own emoji belong to no guild, so this one key serves every caller.

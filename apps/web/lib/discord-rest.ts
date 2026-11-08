@@ -141,6 +141,7 @@ export interface DiscordRoleOption {
   // unsafeRoleReason below.
   permissions: string
   managed: boolean
+  position: number
 }
 
 // Discord's own role settings UI lists the highest-position role first — sort the same way here
@@ -153,24 +154,53 @@ export async function getGuildRoles(guildId: string): Promise<DiscordFetchResult
     ok: true,
     data: [...result.data]
       .sort((a, b) => b.position - a.position)
-      .map(({ id, name, color, permissions, managed }) => ({ id, name, color, permissions, managed })),
+      .map(({ id, name, color, permissions, managed, position }) => ({ id, name, color, permissions, managed, position })),
   }
+}
+
+let botUserId: Promise<string | null> | null = null
+
+function getBotUserId(): Promise<string | null> {
+  botUserId ??= discordFetchJson<{ id: string }>("/users/@me").then((result) => {
+    if (result.ok) return result.data.id
+    botUserId = null
+    return null
+  })
+  return botUserId
+}
+
+// The highest position among the bot's own roles in this guild, or null when it cannot be worked
+// out. Discord lets a bot assign only roles strictly below that, so this is the ceiling for every
+// role the dashboard hands to the bot to give out. `roles` is the guild's role list with positions.
+export async function getBotRolePosition(guildId: string, roles: DiscordRoleOption[]): Promise<number | null> {
+  if (roles.some((role) => typeof role.position !== "number")) return null
+  const id = await getBotUserId()
+  if (!id) return null
+  const member = await discordFetchJson<{ roles: string[] }>(`/guilds/${guildId}/members/${id}`)
+  if (!member.ok) return null
+  const held = new Set(member.data.roles)
+  return roles.reduce((top, role) => (held.has(role.id) && role.position > top ? role.position : top), 0)
 }
 
 const ADMINISTRATOR_PERMISSION_BIT = BigInt(8) // 1 << 3, Discord's ADMINISTRATOR permission flag
 
 // Used wherever a role gets wired into an automated flow, never for roles a human explicitly
 // clicks to accept for themselves. `null` means the role is safe to hand real server power to.
-export function unsafeRoleReason(role: DiscordRoleOption, guildId: string): string | null {
+export const ROLE_ABOVE_BOT_REASON = "it's at or above the bot's highest role, so the bot can't give it out"
+
+export function unsafeRoleReason(role: DiscordRoleOption, guildId: string, botRolePosition: number | null = null): string | null {
   if ((BigInt(role.permissions) & ADMINISTRATOR_PERMISSION_BIT) === ADMINISTRATOR_PERMISSION_BIT) {
     return "it has Administrator permission"
   }
   if (role.managed) return "it's managed by a bot or integration"
   if (role.id === guildId) return "it's the @everyone role"
+  if (botRolePosition !== null && typeof role.position === "number" && role.position >= botRolePosition) {
+    return ROLE_ABOVE_BOT_REASON
+  }
   return null
 }
 
-// Same three checks as unsafeRoleReason, applied proactively to a role list rather than reactively
+// The first three checks of unsafeRoleReason, applied proactively to a role list rather than reactively
 // to one already-picked role - the standard for every role picker, so an admin never sees
 // @everyone/managed/Administrator roles as options to begin with. Server-side submit handlers
 // should still call unsafeRoleReason directly (pickers have a manual "Enter ID" escape hatch,

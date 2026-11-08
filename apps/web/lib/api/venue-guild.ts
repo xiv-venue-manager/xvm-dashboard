@@ -6,9 +6,11 @@ import { getCached, setCache, cacheKeys, cacheTTL } from "@/lib/redis-cache"
 import {
   getGuildChannels,
   getGuildRoles,
+  getBotRolePosition,
   getChannelInfo,
   isThreadChannelType,
   unsafeRoleReason,
+  ROLE_ABOVE_BOT_REASON,
   type DiscordChannelOption,
   type DiscordRoleOption,
 } from "@/lib/discord-rest"
@@ -138,6 +140,22 @@ export async function requireChannelInGuild(userId: string, venueId: string, cha
 export type RoleCheck = { ok: true } | { ok: false; response: NextResponse }
 
 /**
+ * The highest position among the bot's roles in this server, cached beside the role list. Null when
+ * Discord will not say: the check this feeds is about whether the bot's grant will succeed, not
+ * about safety, so not knowing leaves a role allowed instead of blocking a save on one extra call.
+ */
+export async function botRolePosition(guildId: string, roles: DiscordRoleOption[], refresh = false): Promise<number | null> {
+  const key = cacheKeys.discordBotRolePosition(guildId)
+  if (!refresh) {
+    const cached = await getCached<number>(key)
+    if (typeof cached === "number") return cached
+  }
+  const live = await getBotRolePosition(guildId, roles)
+  if (live !== null) await setCache(key, live, cacheTTL.discordGuild)
+  return live
+}
+
+/**
  * Whether a role id is one this venue's Discord server can hand out automatically.
  *
  * A position's role is granted to everyone holding the position, so an id that is another
@@ -146,7 +164,9 @@ export type RoleCheck = { ok: true } | { ok: false; response: NextResponse }
  * on a row that holds an unsafe role is not refused, but it still has to be in the server.
  *
  * Fails closed like requireChannelInGuild, and re-asks Discord before saying a role is missing, as
- * the cached list is five minutes old.
+ * the cached list is five minutes old. A role at or above the bot's own highest role is refused
+ * too, since Discord answers 403 to every grant; that refusal is confirmed against a live read
+ * first, so moving the bot's role up does not leave saves refused for the length of the cache.
  */
 export async function requireRoleInGuild(
   userId: string,
@@ -158,11 +178,15 @@ export async function requireRoleInGuild(
   if (!guild.ok) return guild
 
   const key = cacheKeys.discordRoles(guild.guildId)
-  let role = (await getCached<DiscordRoleOption[]>(key))?.find((r) => r.id === roleId)
+  let roles = await getCached<DiscordRoleOption[]>(key)
+  let role = roles?.find((r) => r.id === roleId)
+  let rolesAreLive = false
   if (!role) {
     const live = await getGuildRoles(guild.guildId)
     if (!live.ok) return { ok: false, response: discordFailureResponse(live.status) }
     await setCache(key, live.data, cacheTTL.discordGuild)
+    roles = live.data
+    rolesAreLive = true
     role = live.data.find((r) => r.id === roleId)
   }
 
@@ -175,7 +199,18 @@ export async function requireRoleInGuild(
       ),
     }
   }
-  const unsafe = roleId === current ? null : unsafeRoleReason(role, guild.guildId)
+  let unsafe: string | null = null
+  if (roleId !== current) {
+    unsafe = unsafeRoleReason(role, guild.guildId, await botRolePosition(guild.guildId, roles ?? []))
+    if (unsafe === ROLE_ABOVE_BOT_REASON) {
+      const live = rolesAreLive ? { ok: true as const, data: roles ?? [] } : await getGuildRoles(guild.guildId)
+      if (live.ok) {
+        if (!rolesAreLive) await setCache(key, live.data, cacheTTL.discordGuild)
+        const liveRole = live.data.find((r) => r.id === roleId)
+        if (liveRole) unsafe = unsafeRoleReason(liveRole, guild.guildId, await botRolePosition(guild.guildId, live.data, true))
+      }
+    }
+  }
   if (unsafe) {
     return {
       ok: false,

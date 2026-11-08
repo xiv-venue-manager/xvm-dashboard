@@ -221,7 +221,7 @@ What it checks, in order:
 3. **Skipped rows.** Every `skip(...)` reason is classified in `SKIP_RULES` as `decided`, `duplicate` or `data`. Decided and duplicate skips are listed. A `data` skip is a real row lost to bad data and fails until a person has looked and put a most-allowed count in `accepted.json`, for example `{ "finance:bad-amount": 2 }`, so a later run that loses more than was reviewed fails again. A test reads every `skip(...)` in `lib/migration` and fails on a reason that is not classified.
 4. **prepare-load.** Rows dropped because their venue was left out are listed. Rows dropped because their parent was skipped fail unless accepted, as `{ "events.totals:cascade": 0 }`.
 
-It does not see the loader's own drops (a row whose parent did not load). Read the loader's dry-run report for those; making the loader write a machine-readable report would close the gap.
+It does not see the loader's own drops (a row whose parent did not load). The loader's own table shows those: for every list, rows read must equal rows loaded plus rows already present, with 0 dropped and 0 nulled. `run-rehearsal.sh` checks that table and fails the run if any list differs, and its report page shows it as "Loader: every list".
 
 ## The rehearsal
 

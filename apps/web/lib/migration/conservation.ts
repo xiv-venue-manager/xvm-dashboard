@@ -502,7 +502,7 @@ export function renderReport(report: Report): string {
     )
   out.push("")
   out.push(
-    "Not covered here: the loader's own drops (rows whose parent did not load). Read its dry-run report for those."
+    "Not covered here: the loader's own drops (rows whose parent did not load). The loader's own table shows those: every list must read = loaded + present, with 0 dropped and 0 nulled."
   )
   out.push("")
   out.push(

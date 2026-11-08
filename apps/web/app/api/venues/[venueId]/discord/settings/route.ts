@@ -14,6 +14,10 @@ const updateSchema = z.object({
   honeypotChannelId: channelId,
   eventsChannelId: channelId,
   roomsChannelId: channelId,
+  verifiedRoleId: channelId,
+  verificationCaptcha: z.boolean().optional(),
+  verificationLodestone: z.enum(["off", "exists", "code"]).optional(),
+  verificationNickname: z.boolean().optional(),
 })
 
 function served(settings: DiscordSettings) {
@@ -21,6 +25,10 @@ function served(settings: DiscordSettings) {
     honeypotChannelId: settings.honeypot_channel_id,
     eventsChannelId: settings.events_channel_id,
     roomsChannelId: settings.rooms_channel_id,
+    verifiedRoleId: settings.verified_role_id,
+    verificationCaptcha: settings.verification_captcha,
+    verificationLodestone: settings.verification_lodestone,
+    verificationNickname: settings.verification_nickname,
   }
 }
 
@@ -78,11 +86,26 @@ export const PUT = withRateLimit<{ params: Promise<{ venueId: string }> }>(
     if (!parsed.success) {
       return NextResponse.json({ error: "Validation error", details: parsed.error.issues }, { status: 400 })
     }
-    const { honeypotChannelId, eventsChannelId, roomsChannelId } = parsed.data
+    const {
+      honeypotChannelId,
+      eventsChannelId,
+      roomsChannelId,
+      verifiedRoleId,
+      verificationCaptcha,
+      verificationLodestone,
+      verificationNickname,
+    } = parsed.data
     const changes: Partial<DiscordSettings> = {
       ...(honeypotChannelId !== undefined && { honeypot_channel_id: honeypotChannelId }),
       ...(eventsChannelId !== undefined && { events_channel_id: eventsChannelId }),
       ...(roomsChannelId !== undefined && { rooms_channel_id: roomsChannelId }),
+      ...(verifiedRoleId !== undefined && { verified_role_id: verifiedRoleId }),
+      ...(verificationCaptcha !== undefined && { verification_captcha: verificationCaptcha }),
+      ...(verificationLodestone !== undefined && { verification_lodestone: verificationLodestone }),
+      ...(verificationNickname !== undefined && { verification_nickname: verificationNickname }),
+    }
+    if (verificationLodestone === "off" && verificationNickname === undefined) {
+      changes.verification_nickname = false
     }
     if (Object.keys(changes).length === 0) {
       return NextResponse.json({ error: "Nothing to change" }, { status: 400 })

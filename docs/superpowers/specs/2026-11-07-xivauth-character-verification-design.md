@@ -1,6 +1,17 @@
 # Character verification with XIV Auth
 
-Status: design, agreed 2026-11-07. Nothing is built. Ships after the Prisma to xvm-api cutover.
+Status: design, agreed 2026-11-07, revised 2026-11-08 (see Revision). Ships after the Prisma to xvm-api cutover.
+
+## Revision 2026-11-08: venue-scoped, like the Lodestone check
+
+xvm-api #259 added Lodestone verification with bot-only routes under a venue. To keep the two verifications consistent, XIV Auth follows the same scoping and the same account rules. The "Units" and "Rules" sections below still describe the proof and the takeover rules. These parts change:
+
+- **Entry.** The bot's Verify button sends the member to the dashboard's `/verify?guild=<id>`. There is no Verify button on the account characters page, which only shows the Verified mark for either method.
+- **Route.** The dashboard records the proof with a venue-scoped route, `POST /venues/{venue_id}/verification/xivauth`, using the dashboard's service credential and naming the person. It replaces `POST /internal/characters/verified`. A person's own credential and the bot's are refused.
+- **Venue setting.** The venue's verification method gains an XIV Auth option next to Off, Character exists and Code in bio. This edits #259's `LodestoneCheck` enum and its CHECKs, so it is raised with Allegro on that PR before it is built.
+- **Same account rules.** The proof lands through the same `CharacterService.verify` as the Lodestone check: a verified claim takes a character from an unverified holder and never from a verified one, and a character is found by Lodestone id first. XIV Auth adds `xivauth_key` and batches several characters.
+- **Same limits.** The per-venue rate limit applies. The role, nickname and notifications stay with the bot.
+- **Order.** Nothing is pushed until #259 has merged. The xvm-api branch is then rebased on it, and the dashboard contract copy is refreshed from merged xvm-api.
 
 ## Goal
 

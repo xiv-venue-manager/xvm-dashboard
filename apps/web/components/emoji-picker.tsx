@@ -4,6 +4,7 @@ import { useId, useRef, useState } from "react"
 import { Input } from "@/components/ui/input"
 import { Popover, PopoverAnchor, PopoverContent } from "@/components/ui/popover"
 import { cn } from "@/lib/utils"
+import { GRID_NAV_KEYS, nextSwatchIndex, type GridNavKey } from "@/lib/emoji-grid-nav"
 import {
   customEmojiCdnUrl,
   customEmojiMarkup,
@@ -94,6 +95,9 @@ export function EmojiPicker({
   const [unicodeEmoji, setUnicodeEmoji] = useState<UnicodeEmojiEntry[] | null>(null)
   const [unicodeFailed, setUnicodeFailed] = useState(false)
   const anchorRef = useRef<HTMLDivElement>(null)
+  const fieldRef = useRef<HTMLInputElement>(null)
+  const searchRef = useRef<HTMLInputElement>(null)
+  const gridRef = useRef<HTMLDivElement>(null)
   const fetching = useRef(false)
   const openedByKeyboard = useRef(false)
   const popupId = useId()
@@ -143,6 +147,26 @@ export function EmojiPicker({
     onChange(picked)
     setOpen(false)
     setQuery("")
+    fieldRef.current?.focus()
+  }
+
+  function swatchElements() {
+    return Array.from(gridRef.current?.querySelectorAll<HTMLElement>("[data-swatch]") ?? [])
+  }
+
+  function handleGridKeyDown(e: React.KeyboardEvent<HTMLDivElement>) {
+    if (!(GRID_NAV_KEYS as readonly string[]).includes(e.key)) return
+    const swatches = swatchElements()
+    const current = swatches.indexOf(e.target as HTMLElement)
+    if (current === -1) return
+    e.preventDefault()
+    const next = nextSwatchIndex(
+      swatches.map((el) => el.getBoundingClientRect()),
+      current,
+      e.key as GridNavKey
+    )
+    if (next === -1) searchRef.current?.focus()
+    else swatches[next].focus()
   }
 
   // One image, never a glyph and an image at once: Segoe UI Emoji draws a visibly different
@@ -167,6 +191,7 @@ export function EmojiPicker({
         <PopoverAnchor asChild>
           <div ref={anchorRef} className="relative">
             <Input
+              ref={fieldRef}
               aria-label={ariaLabel}
               // The anchor is not a trigger, so Radix wires none of this - and aria-expanded only
               // means anything on a widget that can expand. The popup holds a search box and
@@ -183,7 +208,12 @@ export function EmojiPicker({
               onClick={() => handleOpen()}
               // The field is the only way in, so ArrowDown is the keyboard equivalent of clicking it.
               onKeyDown={(e) => {
-                if (e.key === "ArrowDown" && !open) handleOpen(true)
+                if (e.key !== "ArrowDown") return
+                if (!open) handleOpen(true)
+                else {
+                  e.preventDefault()
+                  searchRef.current?.focus()
+                }
               }}
               placeholder="🎉"
               maxLength={maxLength}
@@ -217,13 +247,25 @@ export function EmojiPicker({
           }}
           // Radix counts a press on the anchor as outside the content, and closing on it would
           // shut the popup on the same click that repositions the caret.
+          onEscapeKeyDown={() => fieldRef.current?.focus()}
+          onKeyDown={(e) => {
+            if (e.key !== "Tab") return
+            fieldRef.current?.focus()
+            setOpen(false)
+          }}
           onPointerDownOutside={(event) => {
             if (anchorRef.current?.contains(event.detail.originalEvent.target as Node)) event.preventDefault()
           }}
         >
           <Input
+            ref={searchRef}
             value={query}
             onChange={(e) => setQuery(e.target.value)}
+            onKeyDown={(e) => {
+              if (e.key !== "ArrowDown") return
+              e.preventDefault()
+              swatchElements()[0]?.focus()
+            }}
             placeholder="Search emoji..."
             className="h-8 text-sm"
           />
@@ -233,13 +275,13 @@ export function EmojiPicker({
             and this is portaled, so react-remove-scroll calls preventDefault and the list never
             scrolls. Its document listener is bubble-phase, so stopping here is enough.
           */}
-          <div className="mt-2 max-h-64 overflow-y-auto" onWheel={(e) => e.stopPropagation()}>
+          <div ref={gridRef} className="mt-2 max-h-64 overflow-y-auto" onWheel={(e) => e.stopPropagation()} onKeyDown={handleGridKeyDown}>
             {matchedCustom.length > 0 && (
               <div className="mb-2">
                 <div className={heading}>{source === "application" ? "Bot emoji" : "Server emoji"}</div>
                 <div className="flex flex-wrap gap-1">
                   {matchedCustom.map((e) => (
-                    <button key={e.id} type="button" title={e.name} onClick={() => pick(customEmojiMarkup(e))} className={swatch}>
+                    <button key={e.id} type="button" data-swatch tabIndex={-1} title={e.name} onClick={() => pick(customEmojiMarkup(e))} className={swatch}>
                       {/* eslint-disable-next-line @next/next/no-img-element */}
                       <img src={customEmojiCdnUrl(e)} alt={e.name} loading="lazy" className="h-6 w-6" />
                     </button>
@@ -267,7 +309,7 @@ export function EmojiPicker({
                     <div className={heading}>{group}</div>
                     <div className="flex flex-wrap gap-1">
                       {emoji.map((e) => (
-                        <button key={e.char} type="button" title={e.name} onClick={() => pick(e.char)} className={swatch}>
+                        <button key={e.char} type="button" data-swatch tabIndex={-1} title={e.name} onClick={() => pick(e.char)} className={swatch}>
                           {e.cdnUrl ? (
                             // eslint-disable-next-line @next/next/no-img-element
                             <img src={e.cdnUrl} alt={e.name} loading="lazy" className="h-5 w-5" />
@@ -284,7 +326,7 @@ export function EmojiPicker({
                     <div className={heading}>Emoji</div>
                     <div className="flex flex-wrap gap-1">
                       {matchedUnicode.map((e) => (
-                        <button key={e.char} type="button" title={e.name} onClick={() => pick(e.char)} className={swatch}>
+                        <button key={e.char} type="button" data-swatch tabIndex={-1} title={e.name} onClick={() => pick(e.char)} className={swatch}>
                           {e.cdnUrl ? (
                             // eslint-disable-next-line @next/next/no-img-element
                             <img src={e.cdnUrl} alt={e.name} loading="lazy" className="h-5 w-5" />

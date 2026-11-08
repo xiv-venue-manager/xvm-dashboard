@@ -28,6 +28,7 @@ function buildCsp(nonce: string): string {
 
 const PUBLIC_PATHS = [
   "/privacy",
+  "/terms",
   "/",
   "/auth/signin",
   "/auth/error",

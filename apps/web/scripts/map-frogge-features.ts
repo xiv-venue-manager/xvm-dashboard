@@ -21,16 +21,25 @@ if (!input || !stagingDir || !outDir) {
 const read = <T>(file: string) => JSON.parse(readFileSync(file, "utf8")) as T
 const source = read<FroggeFeatureExport>(input)
 const peopleFile = read<PeopleFile & Record<string, unknown>>(join(stagingDir, "people-mapped.json"))
-const frogge = read<{ matchedVenues: { guild_id: string; key: string }[]; newVenues: { guild_id: string; key: string }[] }>(
-  join(stagingDir, "frogge-report.json"),
+const frogge = read<{
+  matchedVenues: { guild_id: string; key: string }[]
+  newVenues: { guild_id: string; key: string }[]
+}>(join(stagingDir, "frogge-report.json"))
+const venueKeyByGuild = Object.fromEntries(
+  [...frogge.matchedVenues, ...frogge.newVenues].map((v) => [v.guild_id, v.key])
 )
-const venueKeyByGuild = Object.fromEntries([...frogge.matchedVenues, ...frogge.newVenues].map((v) => [v.guild_id, v.key]))
 
-const { people, features, report } = mapFroggeFeatures(source, { venueKeyByGuild, now: new Date().toISOString() }, peopleFile)
+const createdVenues = new Set(frogge.newVenues.map((v) => v.key))
+const { people, features, report } = mapFroggeFeatures(
+  source,
+  { venueKeyByGuild, createdVenues, now: new Date().toISOString() },
+  peopleFile
+)
 
 mkdirSync(outDir, { recursive: true })
 for (const name of readdirSync(stagingDir)) {
-  if (name.endsWith(".json") && name !== "people-mapped.json" && name !== "ledger.json") copyFileSync(join(stagingDir, name), join(outDir, name))
+  if (name.endsWith(".json") && name !== "people-mapped.json" && name !== "ledger.json")
+    copyFileSync(join(stagingDir, name), join(outDir, name))
 }
 writeFileSync(join(outDir, "people-mapped.json"), JSON.stringify({ ...peopleFile, ...people }, null, 2))
 writeFileSync(join(outDir, "frogge-features-mapped.json"), JSON.stringify(features, null, 2))

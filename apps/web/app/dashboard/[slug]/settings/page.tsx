@@ -19,6 +19,7 @@ import { LogoUpload } from "@/components/logo-upload"
 import { Server } from "lucide-react"
 import { DiscordGuildConnect } from "@/components/discord-guild-connect"
 import { DiscordSettingsCard } from "@/components/discord-settings-card"
+import { VerificationSettingsCard } from "@/components/verification-settings-card"
 import type { VenueImage } from "@/lib/api/xvm-api"
 import { Select, SelectContent, SelectItem, SelectTrigger, SelectValue } from "@/components/ui/select"
 import { Alert, AlertDescription } from "@/components/ui/alert"
@@ -1084,6 +1085,19 @@ export default function SettingsPage({ params }: { params: Promise<{ slug: strin
                 </div>
               </div>
               <DiscordSettingsCard venueSlug={slug} />
+            </section>
+
+            {/* ── Verification ── */}
+            <section className="panel">
+              <div className="ph">
+                <span className="pt">
+                  <svg xmlns="http://www.w3.org/2000/svg" viewBox="0 0 24 24" fill="none" stroke="currentColor" strokeWidth="2">
+                    <path d="M12 22s8-4 8-10V5l-8-3-8 3v7c0 6 8 10 8 10z" />
+                  </svg>
+                  Verification
+                </span>
+              </div>
+              <VerificationSettingsCard venueSlug={slug} />
             </section>
 
             {/* ── Operations ── */}

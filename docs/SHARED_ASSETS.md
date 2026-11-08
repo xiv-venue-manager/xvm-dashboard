@@ -30,6 +30,7 @@ House-specific:
 | `item-search-combobox` | Searching game items |
 | `discord-picker` | `RolePicker`, `ChannelPicker`, `DiscordOptionPicker`, `useDiscordOptions`: choose a Discord role or channel from the venue's server. Use these instead of a hand-rolled dropdown or a paste-an-id field. `DiscordOptionPicker` takes an optional `actions` slot: buttons shown in the field's own row, straight after the input or dropdown |
 | `discord-settings-card` | `DiscordSettingsCard`: the honeypot, events and rooms channels on the venue settings page, each a `DiscordOptionPicker` with Save and Clear, over `/api/venues/[venueId]/discord/settings` |
+| `verification-settings-card` | `VerificationSettingsCard`: verified role, captcha, Lodestone check and Change Nickname for a venue's Discord server, over the same settings route as the channels card. Its warnings come from `verificationWarnings` in `lib/venue-verification` |
 | `user-picker` | `UserPicker`: find a Discord member by typing part of the name, with entering an id as the fallback. Keyed to a venue |
 | `team-row` (`TeamRow`) | One person on the Meet the team page: photo or initials, name, role chip, bio. Used by `/team` and the live preview in `/team/edit` |
 | `discord-members` | `MemberChip`, `useResolvedMembers`: put names and avatars on Discord ids a page already holds. `useResolvedMembers` asks the members route once per id, in as many requests as its cap needs; `MemberChip` renders whatever label the caller decided on. This is for a table of saved ids — `user-picker` is for choosing a new one |

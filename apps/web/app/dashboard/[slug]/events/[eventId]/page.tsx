@@ -242,7 +242,7 @@ export default async function EventDetailsPage({ params }: { params: Promise<{ s
                 </CardHeader>
                 <CardContent>
                   <p className="text-sm text-muted-foreground">Revenue</p>
-                  <p className="text-2xl font-bold">{revenue > 0 ? `${revenue.toLocaleString()} Gil` : "-"}</p>
+                  <p className="text-2xl font-bold">{revenue > 0 ? `${revenue.toLocaleString("en-US")} Gil` : "-"}</p>
                 </CardContent>
               </Card>
             )}
@@ -296,7 +296,7 @@ export default async function EventDetailsPage({ params }: { params: Promise<{ s
                         ? {
                             generatedAt: potDistribution.generated_at,
                             recipientCount: potDistribution.recipient_count,
-                            perPersonShare: potDistribution.per_person_share_minor.toLocaleString(),
+                            perPersonShare: potDistribution.per_person_share_minor.toLocaleString("en-US"),
                           }
                         : null
                     }

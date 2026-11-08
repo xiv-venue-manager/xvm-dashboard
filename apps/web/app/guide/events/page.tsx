@@ -191,8 +191,8 @@ export default function EventsGuidePage() {
           </h2>
           <p className="text-muted-foreground leading-relaxed">
             XIV Venue Manager gives events their own scheduling layer in the same dashboard you use for regular shifts.
-            Staff get assigned, see their role and start time, and confirm from the app. When the event starts, the
-            plugin syncs your open status and notifies patrons in-game.
+            Staff get assigned, see their role and start time, and confirm from the app. While an event is live, your
+            venue profile shows as open and the Live page tracks patrons and sales.
           </p>
           <ul className="space-y-3 text-muted-foreground">
             {[

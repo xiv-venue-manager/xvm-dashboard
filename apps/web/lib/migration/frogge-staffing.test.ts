@@ -209,9 +209,7 @@ describe("mapFroggeStaffing venue slugs", () => {
     const name = "a".repeat(49) + " " + "b".repeat(10)
     const report = slugsFor([["g9", name]])
     expect(report.newVenues[0].slug).toBe("a".repeat(49))
-    expect(report.slugNotes).toEqual([
-      { guild_id: "g9", name, slug: "a".repeat(49), why: "cut to 50 characters" },
-    ])
+    expect(report.slugNotes).toEqual([{ guild_id: "g9", name, slug: "a".repeat(49), why: "cut to 50 characters" }])
   })
 
   it("turns an apostrophe into a hyphen and does not note it", () => {
@@ -279,7 +277,11 @@ describe("mapFroggeStaffing venue slugs", () => {
   })
 
   describe("overrides", () => {
-    const withOverrides = (venueSlugs: Record<string, string>, names: [string, string][] = [["111", "One"]], venueMatch: Record<string, string | null> = {}) => {
+    const withOverrides = (
+      venueSlugs: Record<string, string>,
+      names: [string, string][] = [["111", "One"]],
+      venueMatch: Record<string, string | null> = {}
+    ) => {
       const src = source()
       src.guilds = names.map(([guild_id, name]) => ({ guild_id, name, timezone: null }))
       const match = Object.fromEntries(names.map(([id]) => [id, venueMatch[id] ?? null]))
@@ -294,7 +296,10 @@ describe("mapFroggeStaffing venue slugs", () => {
     })
 
     it("never lets a generated slug take an override's slug", () => {
-      const result = withOverrides({ "222": "one" }, [["111", "One"], ["222", "Other"]])
+      const result = withOverrides({ "222": "one" }, [
+        ["111", "One"],
+        ["222", "Other"],
+      ])
       expect(result.venueSlugs).toEqual({ "111": "one-2", "222": "one" })
     })
 
@@ -311,11 +316,18 @@ describe("mapFroggeStaffing venue slugs", () => {
     })
 
     it("throws when two overrides share a slug", () => {
-      expect(() => withOverrides({ "111": "same", "222": "same" }, [["111", "One"], ["222", "Two"]])).toThrow(/guild 222/)
+      expect(() =>
+        withOverrides({ "111": "same", "222": "same" }, [
+          ["111", "One"],
+          ["222", "Two"],
+        ])
+      ).toThrow(/guild 222/)
     })
 
     it("throws when the guild is matched to an existing venue", () => {
-      expect(() => withOverrides({ "111": "fine" }, [["111", "One"]], { "111": "v-ours" })).toThrow(/guild 111.*matched/)
+      expect(() => withOverrides({ "111": "fine" }, [["111", "One"]], { "111": "v-ours" })).toThrow(
+        /guild 111.*matched/
+      )
     })
 
     it("accepts a 50 character override", () => {

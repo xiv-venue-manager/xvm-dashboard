@@ -202,6 +202,12 @@ A rule, not a list. `scripts/frogge-scope.ts` reads the per-server row counts fr
 npx tsx scripts/frogge-scope.ts frogge-guild-activity.txt frogge-owners-output.csv current-ids.txt ids.txt
 ```
 
+### Slugs of the new Frogge venues
+
+xvm-api accepts a venue slug of `a-z`, `0-9` and `-`, 1 to 50 characters, unique ignoring case. The loader writes the mapped slug as is, so the staffing mapper holds to those rules itself. A slug is the venue name lowercased, with every run of other characters turned into one hyphen, trimmed of leading and trailing hyphens and cut at 50 characters (no trailing hyphen after the cut). A name with no letters or digits becomes `venue-` plus the last 6 digits of the guild id. A slug already taken (by one of ours or an earlier Frogge venue) gets `-2`, `-3` and so on, shortening the stem to stay within 50.
+
+`map-frogge-staffing.ts` prints a "new venue slugs to review" section, and `frogge-report.json` carries it as `slugNotes` (`guild_id`, `name`, `slug`, `why`). It lists every new venue whose slug is not simply the name's slug: "cut to 50 characters", "numbered because the slug was taken", or "no letters or digits in the name". Read it on the day. Servers merged into our venues get no note.
+
 ### Upcoming shifts with no event
 
 xvm-api seats a scheduled shift on an event shift, which needs an event and a position, so a standalone shift (no event, often one of a recurring series) cannot load. The mapper skips them as `empty-shift`. The unfilled and past ones are not worth carrying. The upcoming claimed or scheduled ones are real commitments (75 at the 2026-11-07 rehearsal: 16 recurring series, 13 members, 5 venues), so list them for the owners to re-create:

@@ -14,7 +14,7 @@ Each domain has three parts:
 | Mapper | `apps/web/lib/migration/<domain>.ts` | A pure function from the export to the rows xvm-api needs. No Prisma, no network, tested |
 | Runner | `apps/web/scripts/map-<domain>.ts` | Reads the export and the earlier mapped files, writes the mapped JSON, prints counts and skip reasons |
 
-**It does not load anything.** Nothing here writes to xvm-api or to Prisma. The loader is a separate piece, and it waits on Allegro saying which xvm-api tables a direct load may rely on.
+**It does not load anything.** Nothing here writes to xvm-api or to Prisma. The loader is a separate piece: `src/api/scripts/legacy_load` on the xvm-api branch `feat/legacy-loader`. It writes 32 xvm-api tables, the ones in its `specs.py`, in one transaction, and fails on a mapped field it does not know, so a mapper change that outruns it is caught. Which tables a direct load may rely on is settled by that list. All 32 exist on dev, and the loader's own tests pass against dev's migrations.
 
 Every row is keyed by its Prisma id, so the loader can assign real xvm-api ids and then rewrite the keys. Two keys are built, not copied: a manual payroll payee is `payee:<name folded to lower case>`, and a category is `<venue id>|<name folded to lower case>`.
 
@@ -128,7 +128,7 @@ Read-only, 2026-10-09. These are the numbers a rehearsal run should land on, giv
 | Tasks | 27 | 27 | 0 | 10 venues, 16 categories |
 | Rooms | 22 | 22 | 0 | 6 venues |
 | Opening hours | 28 | 20 | 8 | the 8 belong to the 5 venues synced from ffxivvenues.com |
-| Pot settings | 18 | 4 rows | 14 all default | 3 venues have the pot on |
+| Pot settings | 18 | 4 rows | 14 all default | 3 venues have the pot on, carried as `pot_enabled` on their row (xvm-api#233) |
 | Inventory settings | 18 | 5 module toggles | 13 off | |
 | Venue timezones | 69 venues | 69 proposed | 0 | 22 one zone, 6 mixed, 41 none (UTC), 6 suspect (mostly UTC events) |
 | Venues | 69 | **63** | 2 ownerless and empty, 4 test venues | 13 external links (7 Partake, 6 ffxivvenues.com), 42 gallery images over 8 venues, 28 venues with settings that have no home |
@@ -157,6 +157,7 @@ Each is a counted warning, not a silent change.
 7. **Venue timezones are decided (option B).** xvm-api's venue `timezone` defaults to `America/New_York`, so the load must set it for every venue. Each venue takes the most common timezone of its own events, else UTC, which is lossless because the old shifts and opening hours were stored in UTC Server Time. #175 produces the review list (one zone, mixed, none, and suspect where the events are mostly UTC) for owners to confirm after the load. Series rules take the venue's zone. Shift rules and opening hours are still computed in UTC until the load applies it, which leaves 54 of 63 shift rules and all 20 opening-hours rules in UTC today. Allegro confirmed a venue's timezone is only a creation-time default: every rule stores its own timezone and nothing propagates a later venue change, so existing times keep their absolute instants. Each mapper must write the rule's timezone explicitly.
 8. **Never load the pending notification queue.** It is not exported. 2,212 unsent rows would all be sent by xvm-api's dispatcher on its first run.
 9. **People who need a decision.** One person has no Discord identity (a pairing code is issued by hand). Email accounts come out in their own list with `verified_at` null. Allegro confirmed `person_accounts` may hold contact addresses (`provider` is a free string and every lookup is provider-scoped). 29 payroll payees are placeholder people, and one payee name matches a character name, a likely merge.
+10. **Load the prepared files, not the mapped ones.** `prepare-load.ts` writes `<name>-prepared.json` next to each `<name>-mapped.json`, and the loader reads `<name>-mapped.json`, so the prepared files have to be copied over the mapped names before the load (`run-dashboard-side.sh` does this into a separate directory). Loading the unprepared files loads the six left-out venues' rows, and the loader's first sign is rows it cannot place. The shifts file's `event_positions` and `event_shifts` are filtered by venue like the rest, and an event position or event shift whose event or position was dropped goes with it.
 
 ## Not exported, on purpose
 
@@ -170,11 +171,10 @@ Each is a counted warning, not a silent change.
 
 | Who | Question |
 |---|---|
-| Allegro | Which xvm-api tables a direct load may rely on |
-| Allegro | The pot `enabled` flag has no home: a column, a `pot` module, or derive it from positions that pay from the pot. Allegro recommends deriving it; check first whether any of the 3 venues with the pot on has no pot position |
 | Allegro | Should a no-Discord person path exist |
 | Allegro | Where the venue settings listed in the manifest live. #176 keeps them in `leftovers` meanwhile |
-| Allegro | Plugin route: decided that the plugin calls xvm-api directly. That needs xvm-api to cover what only the dashboard does today: the clock-in window (30 minutes early, 60 late), Frogge, and inventory linking. It is not part of the export layer |
+| Allegro | Where the loader lives: in xvm-api, so her CI runs its tests on every migration, or as a local branch that goes stale |
+| Allegro | Plugin route: decided that the plugin calls xvm-api directly, and the plugin is repointed. xvm-api has no early clock-in limit, by the product rule, and refuses a clock-in 30 minutes after the shift's end (`MISSED_GRACE`), so the dashboard's window (30 minutes early, 60 late) is dropped. Frogge remains. The inventory routes exist, but whether the plugin's link and restock flows fit them is unchecked. Prod xvm-api is not deployed yet. It is not part of the export layer |
 
 ## Safety when running it
 
@@ -182,6 +182,46 @@ Each is a counted warning, not a silent change.
 - Do not take a full `pg_dump` for this. It would copy every OAuth token in `accounts` to the machine running the exports, and the exports only need a handful of columns.
 - The export files hold names, Discord ids, emails and feedback text. Keep them in a scratch directory and delete them when done.
 - Each mapper has its own tests (`pnpm exec vitest run lib/migration`). A mapped run that skips or warns more than the table above is worth a look before anything loads.
+
+## Conservation report
+
+`scripts/conservation.ts` accounts for every row from prod to the loader's input and exits 1 if any row is lost without a recorded reason. Run it in the rehearsal and again in the window, after `prepare-load.ts`.
+
+```bash
+# a fifteenth export, read-only: every table's row count. Take one before the other exports and, on a live database, one after.
+psql "$DATABASE_URL" -At -f scripts/export/table-counts.sql > table-counts.json
+npx tsx scripts/conservation.ts --counts table-counts.json --exports <export dir> --mapped <mapped dir> \
+  [--counts-after table-counts-after.json] [--accepted accepted.json]
+```
+
+### Which Frogge servers become venues
+
+A rule, not a list. `scripts/frogge-scope.ts` reads the per-server row counts from `frogge-guild-activity.sh` and picks every server with real venue data (staff, positions, events, forms, giveaways, raffles, leveling members, rooms, reaction roles, stickies, streams, VIP, an FFXIV Venues link or a finance entry). Defaults every server gets, welcome posts, plugin sync rows, and a single profile or template do not count. A server whose owner the bot cannot reach is skipped (Allegro, 2026-11-03), and one nobody has looked up yet is listed for an owner lookup. A server already on the current list stays on it and is shown for review. Run it in the window, because servers keep gaining data.
+
+```bash
+npx tsx scripts/frogge-scope.ts frogge-guild-activity.txt frogge-owners-output.csv current-ids.txt ids.txt
+```
+
+### Upcoming shifts with no event
+
+xvm-api seats a scheduled shift on an event shift, which needs an event and a position, so a standalone shift (no event, often one of a recurring series) cannot load. The mapper skips them as `empty-shift`. The unfilled and past ones are not worth carrying. The upcoming claimed or scheduled ones are real commitments (75 at the 2026-11-07 rehearsal: 16 recurring series, 13 members, 5 venues), so list them for the owners to re-create:
+
+```bash
+npx tsx scripts/unseated-shifts.ts <export dir> <mapped dir> unseated-shifts.md
+```
+
+The file is grouped by venue and series and holds names, so send each owner only their own venue.
+
+Inside the maintenance window nothing writes, so one counts file is enough and the counts must match exactly. On a live database the export can land between two counts, so pass `--counts-after` and a count inside that range is accepted.
+
+What it checks, in order:
+
+1. **Prod to export.** Every table in prod is classified in `TABLES` (`lib/migration/conservation.ts`) as exported, nested in another export, folded into one, filtered, deliberately not migrated (with the decision), handled by another script, or expected empty. An exported table's row count must equal its export array. A table that is not in `TABLES` fails, so a new prod table cannot appear without a decision. A table marked "to confirm" is listed and does not fail.
+2. **Export to mapped.** For the nine arrays whose mappers account for every input row (characters, patrons, patron logs, transactions, payroll, follows, feedback, tasks, rooms) the report requires input = output + skipped. A row that is neither mapped nor skipped fails. A mapper creating extra rows is reported, not failed.
+3. **Skipped rows.** Every `skip(...)` reason is classified in `SKIP_RULES` as `decided`, `duplicate` or `data`. Decided and duplicate skips are listed. A `data` skip is a real row lost to bad data and fails until a person has looked and put a most-allowed count in `accepted.json`, for example `{ "finance:bad-amount": 2 }`, so a later run that loses more than was reviewed fails again. A test reads every `skip(...)` in `lib/migration` and fails on a reason that is not classified.
+4. **prepare-load.** Rows dropped because their venue was left out are listed. Rows dropped because their parent was skipped fail unless accepted, as `{ "events.totals:cascade": 0 }`.
+
+It does not see the loader's own drops (a row whose parent did not load). Read the loader's dry-run report for those; making the loader write a machine-readable report would close the gap.
 
 ## The rehearsal
 

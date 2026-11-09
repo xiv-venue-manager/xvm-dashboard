@@ -1,6 +1,6 @@
 import { describe, it, expect, vi, beforeEach } from "vitest"
 
-const m = vi.hoisted(() => ({ session: vi.fn(), token: vi.fn(), get: vi.fn(), update: vi.fn(), refresh: vi.fn() }))
+const m = vi.hoisted(() => ({ session: vi.fn(), token: vi.fn(), get: vi.fn(), update: vi.fn(), rename: vi.fn(), refresh: vi.fn() }))
 
 vi.mock("next-auth", () => ({ getServerSession: m.session }))
 vi.mock("@/lib/auth", () => ({ authOptions: {} }))
@@ -15,6 +15,7 @@ vi.mock("@/lib/api/xvm-api", async (importOriginal) => ({
   ...(await importOriginal<typeof import("@/lib/api/xvm-api")>()),
   getMyTeamProfile: m.get,
   updateMyTeamProfile: m.update,
+  updateMyDisplayName: m.rename,
 }))
 
 import { GET, PATCH } from "./route"
@@ -68,6 +69,41 @@ describe("PATCH /api/team/profile", () => {
     expect(res.status).toBe(200)
     expect(m.update).toHaveBeenCalledWith("tok", { bio: "Hello", listed: false })
     expect(m.refresh).toHaveBeenCalledTimes(1)
+  })
+
+  it("renames the person, then saves the rest of the card", async () => {
+    m.rename.mockResolvedValue({})
+    m.update.mockResolvedValue({ ...card, name: "Ehno Cure", bio: "Hi" })
+    const res = await patch({ name: "  Ehno Cure ", bio: "Hi" })
+    expect(res.status).toBe(200)
+    expect(m.rename).toHaveBeenCalledWith("tok", "Ehno Cure")
+    expect(m.update).toHaveBeenCalledWith("tok", { bio: "Hi" })
+    expect(m.refresh).toHaveBeenCalledTimes(1)
+  })
+
+  it("reads the card back when only the name changes", async () => {
+    m.rename.mockResolvedValue({})
+    m.get.mockResolvedValue({ ...card, name: "Ehno Cure" })
+    const res = await patch({ name: "Ehno Cure" })
+    expect(res.status).toBe(200)
+    expect(await res.json()).toEqual({ ...card, name: "Ehno Cure" })
+    expect(m.update).not.toHaveBeenCalled()
+    expect(m.refresh).toHaveBeenCalledTimes(1)
+  })
+
+  it("rejects an empty or over-long name, with no API call", async () => {
+    for (const name of ["", "   ", "x".repeat(51)]) {
+      expect((await patch({ name })).status).toBe(400)
+    }
+    expect(m.rename).not.toHaveBeenCalled()
+    expect(m.update).not.toHaveBeenCalled()
+  })
+
+  it("leaves the card alone when the rename is rejected", async () => {
+    m.rename.mockRejectedValue(new XvmApiError(422, JSON.stringify({ detail: "Invalid name." })))
+    expect((await patch({ name: "Ehno Cure", bio: "Hi" })).status).toBe(422)
+    expect(m.update).not.toHaveBeenCalled()
+    expect(m.refresh).not.toHaveBeenCalled()
   })
 
   it("does not refresh the public page when xvm-api rejects the save", async () => {

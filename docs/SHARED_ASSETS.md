@@ -25,6 +25,7 @@ House-specific:
 | Component | Use it for |
 |---|---|
 | `server-time` | Every displayed time. Server Time (UTC) is the default, never a raw date formatter. Re-exports `formatServerTime`, `formatServerTimeRange`, `formatLocalTimeRange` |
+| `pill-toggle` (`PillToggle`) | A row of pill buttons that picks one value, such as the 30 days, 90 days and All time switch on Analytics and Sales. Other pages still carry their own inline copy of this markup |
 | `venue-context` | The active venue, via React context |
 | `venue-switcher`, `venue-layout`, `venue-sidebar`, `navbar` | Page chrome |
 | `item-search-combobox` | Searching game items |

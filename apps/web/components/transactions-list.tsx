@@ -43,9 +43,15 @@ interface TransactionsListProps {
   transactions: Transaction[]
   venueSlug: string
   onTransactionsChange: (transactions: Transaction[]) => void
+  fallbackLabel?: string
 }
 
-export function TransactionsList({ transactions, venueSlug, onTransactionsChange }: TransactionsListProps) {
+export function TransactionsList({
+  transactions,
+  venueSlug,
+  onTransactionsChange,
+  fallbackLabel = "Manual Sale",
+}: TransactionsListProps) {
   const [editingTransaction, setEditingTransaction] = useState<Transaction | null>(null)
   const [deletingTransaction, setDeletingTransaction] = useState<Transaction | null>(null)
   const [isSubmitting, setIsSubmitting] = useState(false)
@@ -60,7 +66,7 @@ export function TransactionsList({ transactions, venueSlug, onTransactionsChange
 
     const rows = transactions.map((transaction) => {
       const date = formatLocalTime(transaction.createdAt, "isoDateTime")
-      const service = transaction.serviceName || "Manual Sale"
+      const service = transaction.serviceName || fallbackLabel
       return [date, service, transaction.amount]
     })
 
@@ -193,7 +199,7 @@ export function TransactionsList({ transactions, venueSlug, onTransactionsChange
             >
               <div className="flex-1 min-w-0">
                 <div className="flex items-center gap-2 mb-0.5 flex-wrap">
-                  <p className="font-semibold">{transaction.serviceName || "Manual Sale"}</p>
+                  <p className="font-semibold">{transaction.serviceName || fallbackLabel}</p>
                 </div>
                 <div className="flex items-center gap-2 flex-wrap text-xs text-muted-foreground">
                   {transaction.customerName && <span className="text-foreground/70">{transaction.customerName}</span>}
@@ -309,8 +315,8 @@ export function TransactionsList({ transactions, venueSlug, onTransactionsChange
             <AlertDialogTitle>Void Transaction</AlertDialogTitle>
             <AlertDialogDescription>
               Are you sure you want to void this transaction for{" "}
-              <strong>{deletingTransaction?.amount.toLocaleString("en-US")} gil</strong>? It will be removed from this list
-              and marked voided, but kept as an audit record — this cannot be undone.
+              <strong>{deletingTransaction?.amount.toLocaleString("en-US")} gil</strong>? It will be removed from this
+              list and marked voided, but kept as an audit record — this cannot be undone.
             </AlertDialogDescription>
           </AlertDialogHeader>
           <AlertDialogFooter>

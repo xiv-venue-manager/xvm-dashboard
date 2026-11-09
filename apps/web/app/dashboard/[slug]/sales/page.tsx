@@ -1,6 +1,7 @@
 "use client"
 
 import { useEffect, useState } from "react"
+import { PillToggle } from "@/components/pill-toggle"
 import { Card, CardContent } from "@/components/ui/card"
 import { BarChart3, Zap, TrendingUp, Hash } from "lucide-react"
 import { StatReadout } from "@/components/ui/stat-readout"
@@ -33,11 +34,25 @@ interface StaffMember {
   user: { id: number; name: string | null }
 }
 
-// Default lookback window for the transactions list. xvm-api's finance list
-// endpoint takes a from/to window instead of the old cursor - there's no
-// "load more" left to build against, so this just shows everything recorded
-// in the last 30 days rather than reintroducing pagination.
-const LOOKBACK_DAYS = 30
+const DAY_MS = 24 * 60 * 60 * 1000
+const ALL_TIME_FROM = new Date("2026-01-01T00:00:00.000Z")
+
+const RANGES = [
+  { id: "30d", label: "30 days", title: "Last 30 days", from: () => new Date(Date.now() - 30 * DAY_MS) },
+  { id: "90d", label: "90 days", title: "Last 90 days", from: () => new Date(Date.now() - 90 * DAY_MS) },
+  { id: "all", label: "All time", title: "All time", from: () => ALL_TIME_FROM },
+] as const
+
+type RangeId = (typeof RANGES)[number]["id"]
+
+const VIEWS = [
+  { id: "sales", label: "Sales" },
+  { id: "expenses", label: "Expenses" },
+] as const
+
+type ViewId = (typeof VIEWS)[number]["id"]
+
+const EXPENSE_KINDS = ["expense", "payout"] as const
 
 function toUiTransaction(row: FinanceTransactionRow): Transaction {
   return {
@@ -59,6 +74,10 @@ export default function SalesPage({ params }: { params: Promise<{ slug: string }
   const [staffNamesByPersonId, setStaffNamesByPersonId] = useState<Map<number, string>>(new Map())
   const [isLoading, setIsLoading] = useState(true)
   const [error, setError] = useState("")
+  const [rangeId, setRangeId] = useState<RangeId>("30d")
+  const range = RANGES.find((r) => r.id === rangeId) ?? RANGES[0]
+  const [view, setView] = useState<ViewId>("sales")
+  const isSales = view === "sales"
 
   useEffect(() => {
     params.then((p) => setSlug(p.slug))
@@ -73,23 +92,37 @@ export default function SalesPage({ params }: { params: Promise<{ slug: string }
         setError("")
 
         const to = new Date()
-        const from = new Date(to.getTime() - LOOKBACK_DAYS * 24 * 60 * 60 * 1000)
+        const from = range.from()
 
-        const [transactionsResponse, servicesResponse, staffResponse] = await Promise.all([
-          fetch(
-            `/api/venues/${slug}/transactions?startDate=${from.toISOString()}&endDate=${to.toISOString()}`
-          ),
+        const dates = `startDate=${from.toISOString()}&endDate=${to.toISOString()}`
+        const kindQueries = isSales ? [""] : EXPENSE_KINDS.map((kind) => `&kind=${kind}`)
+
+        const [transactionResponses, servicesResponse, staffResponse] = await Promise.all([
+          Promise.all(kindQueries.map((kind) => fetch(`/api/venues/${slug}/transactions?${dates}${kind}`))),
           fetch(`/api/venues/${slug}/services`),
           fetch(`/api/venues/${slug}/staff`),
         ])
 
-        if (!transactionsResponse.ok) {
-          const data = await transactionsResponse.json()
-          throw new Error(data.message || data.error || "Failed to fetch transactions")
+        for (const response of transactionResponses) {
+          if (!response.ok) {
+            const data = await response.json()
+            throw new Error(data.message || data.error || "Failed to fetch transactions")
+          }
         }
         if (!servicesResponse.ok) throw new Error("Failed to fetch services")
 
-        const transactionsData: { transactions: FinanceTransactionRow[] } = await transactionsResponse.json()
+        const transactionsData: { transactions: FinanceTransactionRow[] } = {
+          transactions: (
+            await Promise.all(
+              transactionResponses.map(async (response) => {
+                const data: { transactions: FinanceTransactionRow[] } = await response.json()
+                return data.transactions
+              })
+            )
+          )
+            .flat()
+            .sort((a, b) => b.created_at.localeCompare(a.created_at)),
+        }
         const servicesData: Array<{ id: number; name: string; price_minor: number | null; is_active: boolean }> =
           await servicesResponse.json()
 
@@ -115,7 +148,7 @@ export default function SalesPage({ params }: { params: Promise<{ slug: string }
     }
 
     fetchData()
-  }, [slug])
+  }, [slug, range, isSales])
 
   if (!slug) {
     return (
@@ -166,13 +199,22 @@ export default function SalesPage({ params }: { params: Promise<{ slug: string }
         <div className="head-row">
           <div>
             <VenueEyebrow slug={slug} />
-            <h1 className="page-h1">Sales</h1>
+            <h1 className="page-h1">Sales &amp; Expenses</h1>
           </div>
-          <SalesLogDialog
-            venueId={slug}
-            services={services}
-            onLogged={(t) => setTransactions((prev) => [t, ...prev])}
-          />
+          <div className="flex items-center gap-2">
+            <PillToggle label="Range" options={RANGES} value={rangeId} onChange={setRangeId} />
+            {isSales && (
+              <SalesLogDialog
+                venueId={slug}
+                services={services}
+                onLogged={(t) => setTransactions((prev) => [t, ...prev])}
+              />
+            )}
+          </div>
+        </div>
+
+        <div className="mb-4">
+          <PillToggle label="View" options={VIEWS} value={view} onChange={setView} />
         </div>
 
         {error && (
@@ -182,14 +224,14 @@ export default function SalesPage({ params }: { params: Promise<{ slug: string }
         )}
 
         {isLoading ? (
-          <PageLoading text="Loading sales..." />
+          <PageLoading text={isSales ? "Loading sales..." : "Loading expenses..."} />
         ) : (
           <>
             {/* KPIs — 4 stats matching prototype */}
             <div className="kpis mb-6">
               <Card className="px-[18px] py-4">
                 <StatReadout
-                  label="Sales today"
+                  label={isSales ? "Sales today" : "Expenses today"}
                   value={`${todayRevenue.toLocaleString("en-US")}`}
                   subtext="gil"
                   icon={<Zap />}
@@ -199,7 +241,7 @@ export default function SalesPage({ params }: { params: Promise<{ slug: string }
               </Card>
               <Card className="px-[18px] py-4">
                 <StatReadout
-                  label={`Last ${LOOKBACK_DAYS} days`}
+                  label={range.title}
                   value={`${totalRevenue.toLocaleString("en-US")}`}
                   subtext="gil"
                   icon={<BarChart3 />}
@@ -208,7 +250,7 @@ export default function SalesPage({ params }: { params: Promise<{ slug: string }
               </Card>
               <Card className="px-[18px] py-4">
                 <StatReadout
-                  label="Avg sale"
+                  label={isSales ? "Avg sale" : "Avg expense"}
                   value={`${transactions.length > 0 ? Math.round(totalRevenue / transactions.length).toLocaleString("en-US") : 0}`}
                   subtext="gil"
                   icon={<TrendingUp />}
@@ -233,7 +275,9 @@ export default function SalesPage({ params }: { params: Promise<{ slug: string }
                 {transactions.length === 0 ? (
                   <Card className="text-center py-12">
                     <CardContent>
-                      <p className="text-muted-foreground">No sales recorded yet.</p>
+                      <p className="text-muted-foreground">
+                        {isSales ? "No sales recorded yet." : "No expenses recorded yet."}
+                      </p>
                     </CardContent>
                   </Card>
                 ) : (
@@ -254,14 +298,13 @@ export default function SalesPage({ params }: { params: Promise<{ slug: string }
                         <polyline points="10 9 9 9 8 9" />
                       </svg>
                       Transaction history
-                      <span className="ml-auto text-xs text-[var(--fg-faint)] font-normal">
-                        Last {LOOKBACK_DAYS} days
-                      </span>
+                      <span className="ml-auto text-xs text-[var(--fg-faint)] font-normal">{range.title}</span>
                     </div>
                     <div className="p-5">
                       <TransactionsList
                         transactions={transactions}
                         venueSlug={slug}
+                        fallbackLabel={isSales ? "Manual Sale" : "Expense"}
                         onTransactionsChange={setTransactions}
                       />
                     </div>
@@ -270,80 +313,82 @@ export default function SalesPage({ params }: { params: Promise<{ slug: string }
               </div>
 
               {/* Right — top services */}
-              <div className="space-y-4">
-                {topServices.length > 0 && (
-                  <div className="rounded-xl border border-[var(--blue-018)] bg-[var(--card)] overflow-hidden">
-                    <div className="flex items-center gap-2 px-4 py-3 border-b border-[var(--blue-008)] font-semibold text-sm">
-                      <svg
-                        className="w-4 h-4 text-[var(--xiv-blue)]"
-                        xmlns="http://www.w3.org/2000/svg"
-                        viewBox="0 0 24 24"
-                        fill="none"
-                        stroke="currentColor"
-                        strokeWidth="2"
-                      >
-                        <rect x="3" y="3" width="7" height="7" />
-                        <rect x="14" y="3" width="7" height="7" />
-                        <rect x="14" y="14" width="7" height="7" />
-                        <rect x="3" y="14" width="7" height="7" />
-                      </svg>
-                      Top services
+              {isSales && (
+                <div className="space-y-4">
+                  {topServices.length > 0 && (
+                    <div className="rounded-xl border border-[var(--blue-018)] bg-[var(--card)] overflow-hidden">
+                      <div className="flex items-center gap-2 px-4 py-3 border-b border-[var(--blue-008)] font-semibold text-sm">
+                        <svg
+                          className="w-4 h-4 text-[var(--xiv-blue)]"
+                          xmlns="http://www.w3.org/2000/svg"
+                          viewBox="0 0 24 24"
+                          fill="none"
+                          stroke="currentColor"
+                          strokeWidth="2"
+                        >
+                          <rect x="3" y="3" width="7" height="7" />
+                          <rect x="14" y="3" width="7" height="7" />
+                          <rect x="14" y="14" width="7" height="7" />
+                          <rect x="3" y="14" width="7" height="7" />
+                        </svg>
+                        Top services
+                      </div>
+                      <div className="px-4 py-3 space-y-3">
+                        {topServices.map((s) => (
+                          <div key={s.name}>
+                            <div className="flex items-center justify-between text-xs mb-1">
+                              <span className="font-medium truncate mr-2">{s.name}</span>
+                              <span className="text-[var(--xiv-blue)] font-semibold shrink-0">
+                                {s.total.toLocaleString("en-US")} gil
+                              </span>
+                            </div>
+                            <div className="h-1.5 rounded-full bg-[var(--blue-008)] overflow-hidden">
+                              <div
+                                className="h-full rounded-full bg-[var(--xiv-blue)] transition-all"
+                                style={{ width: `${Math.round((s.total / maxServiceTotal) * 100)}%` }}
+                              />
+                            </div>
+                          </div>
+                        ))}
+                      </div>
                     </div>
-                    <div className="px-4 py-3 space-y-3">
-                      {topServices.map((s) => (
-                        <div key={s.name}>
-                          <div className="flex items-center justify-between text-xs mb-1">
-                            <span className="font-medium truncate mr-2">{s.name}</span>
-                            <span className="text-[var(--xiv-blue)] font-semibold shrink-0">
-                              {s.total.toLocaleString("en-US")} gil
+                  )}
+
+                  {topEarners.length > 0 && (
+                    <div className="rounded-xl border border-[var(--blue-018)] bg-[var(--card)] overflow-hidden">
+                      <div className="flex items-center gap-2 px-4 py-3 border-b border-[var(--blue-008)] font-semibold text-sm">
+                        <svg
+                          className="w-4 h-4 text-[var(--xiv-blue)]"
+                          xmlns="http://www.w3.org/2000/svg"
+                          viewBox="0 0 24 24"
+                          fill="none"
+                          stroke="currentColor"
+                          strokeWidth="2"
+                        >
+                          <path d="M17 21v-2a4 4 0 0 0-4-4H5a4 4 0 0 0-4 4v2" />
+                          <circle cx="9" cy="7" r="4" />
+                          <path d="M23 21v-2a4 4 0 0 0-3-3.87" />
+                          <path d="M16 3.13a4 4 0 0 1 0 7.75" />
+                        </svg>
+                        Top earners
+                      </div>
+                      <div className="divide-y divide-[var(--blue-008)]">
+                        {topEarners.map((e) => (
+                          <div key={e.name} className="flex items-center gap-3 px-4 py-2.5">
+                            <span className="w-7 h-7 rounded-full bg-gradient-to-br from-[var(--xiv-blue)] to-blue-700 flex items-center justify-center text-[0.62rem] font-bold text-white flex-shrink-0">
+                              {e.name.charAt(0).toUpperCase()}
+                            </span>
+                            <span className="flex-1 text-sm font-medium truncate">{e.name}</span>
+                            <span className="text-xs text-[var(--xiv-blue)] font-semibold shrink-0">
+                              {e.total.toLocaleString("en-US")} gil
                             </span>
                           </div>
-                          <div className="h-1.5 rounded-full bg-[var(--blue-008)] overflow-hidden">
-                            <div
-                              className="h-full rounded-full bg-[var(--xiv-blue)] transition-all"
-                              style={{ width: `${Math.round((s.total / maxServiceTotal) * 100)}%` }}
-                            />
-                          </div>
-                        </div>
-                      ))}
+                        ))}
+                      </div>
                     </div>
-                  </div>
-                )}
-
-                {topEarners.length > 0 && (
-                  <div className="rounded-xl border border-[var(--blue-018)] bg-[var(--card)] overflow-hidden">
-                    <div className="flex items-center gap-2 px-4 py-3 border-b border-[var(--blue-008)] font-semibold text-sm">
-                      <svg
-                        className="w-4 h-4 text-[var(--xiv-blue)]"
-                        xmlns="http://www.w3.org/2000/svg"
-                        viewBox="0 0 24 24"
-                        fill="none"
-                        stroke="currentColor"
-                        strokeWidth="2"
-                      >
-                        <path d="M17 21v-2a4 4 0 0 0-4-4H5a4 4 0 0 0-4 4v2" />
-                        <circle cx="9" cy="7" r="4" />
-                        <path d="M23 21v-2a4 4 0 0 0-3-3.87" />
-                        <path d="M16 3.13a4 4 0 0 1 0 7.75" />
-                      </svg>
-                      Top earners
-                    </div>
-                    <div className="divide-y divide-[var(--blue-008)]">
-                      {topEarners.map((e) => (
-                        <div key={e.name} className="flex items-center gap-3 px-4 py-2.5">
-                          <span className="w-7 h-7 rounded-full bg-gradient-to-br from-[var(--xiv-blue)] to-blue-700 flex items-center justify-center text-[0.62rem] font-bold text-white flex-shrink-0">
-                            {e.name.charAt(0).toUpperCase()}
-                          </span>
-                          <span className="flex-1 text-sm font-medium truncate">{e.name}</span>
-                          <span className="text-xs text-[var(--xiv-blue)] font-semibold shrink-0">
-                            {e.total.toLocaleString("en-US")} gil
-                          </span>
-                        </div>
-                      ))}
-                    </div>
-                  </div>
-                )}
-              </div>
+                  )}
+                </div>
+              )}
             </div>
           </>
         )}

@@ -5,7 +5,7 @@ import { z } from "zod"
 import { withRateLimit } from "@/lib/middleware/with-rate-limit"
 import { createTransaction, createTransactionSchema, InsufficientStockError } from "@/lib/api/transactions"
 import { withVenueAction } from "@/lib/api/venue-action"
-import { listFinanceTransactions } from "@/lib/api/xvm-api"
+import { listTransactionsInRange, MAX_TRANSACTION_RANGE_MS } from "@/lib/api/transaction-window"
 
 const DEFAULT_LIST_WINDOW_MS = 59 * 24 * 60 * 60 * 1000
 
@@ -58,11 +58,11 @@ export const GET = withRateLimit<{ params: Promise<{ venueId: string }> }>(
 
       const to = endDate ?? new Date()
       const from = startDate ?? new Date(to.getTime() - DEFAULT_LIST_WINDOW_MS)
-      const transactions = await listFinanceTransactions(token, xvmApiVenueId, {
-        from: from.toISOString(),
-        to: to.toISOString(),
-        kind,
-      })
+      if (to.getTime() - from.getTime() > MAX_TRANSACTION_RANGE_MS) {
+        return NextResponse.json({ error: "Date range is too long" }, { status: 400 })
+      }
+      const rows = await listTransactionsInRange(token, xvmApiVenueId, from, to, kind)
+      const transactions = kind ? rows : rows.filter((row) => row.kind !== "expense" && row.kind !== "payout")
 
       return NextResponse.json({ transactions, nextCursor: null, hasMore: false })
     })

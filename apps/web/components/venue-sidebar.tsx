@@ -170,9 +170,7 @@ function NavContent({ venueSlug, venues, navGroups, pathname, userRole, onNaviga
           <Settings
             className={cn(
               "h-[18px] w-[18px] shrink-0",
-              activeHref === `/dashboard/${venueSlug}/settings`
-                ? "text-[var(--xiv-navy)]"
-                : "text-muted-foreground"
+              activeHref === `/dashboard/${venueSlug}/settings` ? "text-[var(--xiv-navy)]" : "text-muted-foreground"
             )}
           />
           <span>Venue settings</span>
@@ -300,7 +298,7 @@ export function VenueSidebar({
     {
       label: "Records",
       items: [
-        { href: `/dashboard/${venueSlug}/sales`, label: "Sales", icon: Coins },
+        { href: `/dashboard/${venueSlug}/sales`, label: "Sales & Expenses", icon: Coins },
         {
           href: `/dashboard/${venueSlug}/payroll`,
           label: "Payroll",

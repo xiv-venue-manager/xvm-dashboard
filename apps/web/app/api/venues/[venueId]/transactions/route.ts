@@ -61,7 +61,8 @@ export const GET = withRateLimit<{ params: Promise<{ venueId: string }> }>(
       if (to.getTime() - from.getTime() > MAX_TRANSACTION_RANGE_MS) {
         return NextResponse.json({ error: "Date range is too long" }, { status: 400 })
       }
-      const transactions = await listTransactionsInRange(token, xvmApiVenueId, from, to, kind)
+      const rows = await listTransactionsInRange(token, xvmApiVenueId, from, to, kind)
+      const transactions = kind ? rows : rows.filter((row) => row.kind !== "expense" && row.kind !== "payout")
 
       return NextResponse.json({ transactions, nextCursor: null, hasMore: false })
     })

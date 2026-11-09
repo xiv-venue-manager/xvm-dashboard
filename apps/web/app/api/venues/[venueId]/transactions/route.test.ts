@@ -57,6 +57,21 @@ describe("transactions GET", () => {
     expect(m.listFinanceTransactions).not.toHaveBeenCalled()
   })
 
+  it("leaves expenses and payouts out unless asked for by kind", async () => {
+    m.listFinanceTransactions.mockResolvedValue([
+      { id: 1, kind: "sale" },
+      { id: 2, kind: "tip" },
+      { id: 3, kind: "expense" },
+      { id: 4, kind: "payout" },
+    ])
+    const all = await (await GET(get("?startDate=2026-10-01T00:00:00Z&endDate=2026-10-08T00:00:00Z"), context)).json()
+    expect(all.transactions.map((t: { id: number }) => t.id)).toEqual([1, 2])
+    const expenses = await (
+      await GET(get("?kind=expense&startDate=2026-10-01T00:00:00Z&endDate=2026-10-08T00:00:00Z"), context)
+    ).json()
+    expect(expenses.transactions.map((t: { id: number }) => t.id)).toEqual([1, 2, 3, 4])
+  })
+
   it("reads a 90 day range as more than one request", async () => {
     const res = await GET(get("?startDate=2026-07-10T00:00:00Z&endDate=2026-10-08T00:00:00Z"), context)
     expect(res.status).toBe(200)

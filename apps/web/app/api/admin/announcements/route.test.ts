@@ -77,7 +77,7 @@ describe("GET /api/admin/announcements", () => {
 
 describe("POST /api/admin/announcements", () => {
   it("rejects invalid input with 400 and makes no API call", async () => {
-    for (const body of [{ ...valid, title: "" }, { ...valid, message: "x".repeat(501) }, { ...valid, link: "not a url" }, { ...valid, expiresAt: "garbage" }]) {
+    for (const body of [{ ...valid, title: "" }, { ...valid, message: "x".repeat(2001) }, { ...valid, link: "not a url" }, { ...valid, expiresAt: "garbage" }]) {
       expect((await post(body)).status).toBe(400)
     }
     expect(m.create).not.toHaveBeenCalled()

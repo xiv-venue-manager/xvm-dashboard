@@ -190,6 +190,174 @@ describe("mapFroggeStaffing venues", () => {
   })
 })
 
+describe("mapFroggeStaffing venue slugs", () => {
+  const slugsFor = (names: [string, string][], taken: Record<string, string | null> = {}) => {
+    const src = source()
+    src.guilds = names.map(([guild_id, name]) => ({ guild_id, name, timezone: null }))
+    const venueMatch = Object.fromEntries(names.map(([id]) => [id, taken[id] ?? null]))
+    return run(src, ctx({ venueMatch, owners: {} })).report
+  }
+
+  it("keeps a 31 to 50 character name whole", () => {
+    const name = "a".repeat(20) + " " + "b".repeat(29)
+    const report = slugsFor([["g9", name]])
+    expect(report.newVenues[0].slug).toBe(`${"a".repeat(20)}-${"b".repeat(29)}`)
+    expect(report.slugNotes).toEqual([])
+  })
+
+  it("cuts a name over 50 characters at 50 without a trailing hyphen and notes it", () => {
+    const name = "a".repeat(49) + " " + "b".repeat(10)
+    const report = slugsFor([["g9", name]])
+    expect(report.newVenues[0].slug).toBe("a".repeat(49))
+    expect(report.slugNotes).toEqual([{ guild_id: "g9", name, slug: "a".repeat(49), why: "cut to 50 characters" }])
+  })
+
+  it("turns an apostrophe into a hyphen and does not note it", () => {
+    const report = slugsFor([["g9", "Its Always Bee's! FC and Friends"]])
+    expect(report.newVenues[0].slug).toBe("its-always-bees-fc-and-friends")
+    expect(report.slugNotes).toEqual([])
+  })
+
+  it("names a venue with no Latin letters after the last 6 digits of the guild id", () => {
+    const report = slugsFor([["123456789012", "夜の酒場"]])
+    expect(report.newVenues[0].slug).toBe("venue-789012")
+    expect(report.slugNotes).toEqual([
+      { guild_id: "123456789012", name: "夜の酒場", slug: "venue-789012", why: "no letters or digits in the name" },
+    ])
+  })
+
+  it("gives two non-Latin names different slugs", () => {
+    const report = slugsFor([
+      ["111111111111", "夜の酒場"],
+      ["222222222222", "星の宿"],
+    ])
+    const [a, b] = report.newVenues.map((v) => v.slug)
+    expect(a).not.toBe(b)
+  })
+
+  it("numbers a clash, keeps it within 50 characters and notes it", () => {
+    const long = "c".repeat(50)
+    const report = slugsFor([
+      ["g8", long],
+      ["g9", long],
+    ])
+    expect(report.newVenues[0].slug).toBe(long)
+    expect(report.newVenues[1].slug).toBe(`${"c".repeat(48)}-2`)
+    expect(report.slugNotes).toEqual([
+      { guild_id: "g9", name: long, slug: `${"c".repeat(48)}-2`, why: "numbered because the slug was taken" },
+    ])
+  })
+
+  it("folds accents and drops apostrophes without a note", () => {
+    const report = slugsFor([
+      ["111", "Café Lumière"],
+      ["222", "Bee's Knees"],
+      ["333", "Frogge\u2019s Pad"],
+    ])
+    expect(report.newVenues.map((v) => v.slug)).toEqual(["cafe-lumiere", "bees-knees", "frogges-pad"])
+    expect(report.slugNotes).toEqual([])
+  })
+
+  it("notes a name that still has characters outside ASCII", () => {
+    const report = slugsFor([["111", "夜の Bar"]])
+    expect(report.newVenues[0].slug).toBe("bar")
+    expect(report.slugNotes).toEqual([
+      { guild_id: "111", name: "夜の Bar", slug: "bar", why: "characters outside ASCII dropped" },
+    ])
+  })
+
+  it("returns the slug of every new venue and none for matched ones", () => {
+    const src = source()
+    src.guilds = [
+      { guild_id: "111", name: "One", timezone: null },
+      { guild_id: "222", name: "Two", timezone: null },
+    ]
+    const result = run(src, ctx({ venueMatch: { "111": null, "222": "v-ours" }, owners: {} }))
+    expect(result.venueSlugs).toEqual({ "111": "one" })
+  })
+
+  describe("overrides", () => {
+    const withOverrides = (
+      venueSlugs: Record<string, string>,
+      names: [string, string][] = [["111", "One"]],
+      venueMatch: Record<string, string | null> = {}
+    ) => {
+      const src = source()
+      src.guilds = names.map(([guild_id, name]) => ({ guild_id, name, timezone: null }))
+      const match = Object.fromEntries(names.map(([id]) => [id, venueMatch[id] ?? null]))
+      return run(src, ctx({ venueMatch: match, venueSlugs, owners: {} }))
+    }
+
+    it("uses the override and notes it", () => {
+      const result = withOverrides({ "111": "my-place" })
+      expect(result.report.newVenues[0].slug).toBe("my-place")
+      expect(result.venueSlugs).toEqual({ "111": "my-place" })
+      expect(result.report.slugNotes).toEqual([{ guild_id: "111", name: "One", slug: "my-place", why: "override" }])
+    })
+
+    it("never lets a generated slug take an override's slug", () => {
+      const result = withOverrides({ "222": "one" }, [
+        ["111", "One"],
+        ["222", "Other"],
+      ])
+      expect(result.venueSlugs).toEqual({ "111": "one-2", "222": "one" })
+    })
+
+    it.each([
+      ["a bad pattern", { "111": "Bad_Slug" }],
+      ["a leading hyphen", { "111": "-bad" }],
+      ["a doubled hyphen", { "111": "a--b" }],
+      ["more than 50 characters", { "111": "a".repeat(51) }],
+      ["an existing venue slug, any case", { "111": "afterdark" }],
+      ["a guild not in the export", { "999": "fine" }],
+    ])("throws naming the guild for %s", (_what, venueSlugs) => {
+      const guild = Object.keys(venueSlugs)[0]
+      expect(() => withOverrides(venueSlugs)).toThrow(new RegExp(`guild ${guild}\\b`))
+    })
+
+    it("throws when two overrides share a slug", () => {
+      expect(() =>
+        withOverrides({ "111": "same", "222": "same" }, [
+          ["111", "One"],
+          ["222", "Two"],
+        ])
+      ).toThrow(/guild 222/)
+    })
+
+    it("throws when the guild is matched to an existing venue", () => {
+      expect(() => withOverrides({ "111": "fine" }, [["111", "One"]], { "111": "v-ours" })).toThrow(
+        /guild 111.*matched/
+      )
+    })
+
+    it("accepts a 50 character override", () => {
+      const slug = "a".repeat(50)
+      expect(withOverrides({ "111": slug }).venueSlugs).toEqual({ "111": slug })
+    })
+  })
+
+  it("notes a plain clash and produces only valid slugs", () => {
+    const report = slugsFor([
+      ["g7", "Neon Den"],
+      ["g8", "neon den"],
+      ["g9", "!!!"],
+    ])
+    expect(report.slugNotes.map((n) => n.why)).toEqual([
+      "numbered because the slug was taken",
+      "no letters or digits in the name",
+    ])
+    for (const v of report.newVenues) {
+      expect(v.slug).toMatch(/^[a-z0-9-]+$/)
+      expect(v.slug.length).toBeLessThanOrEqual(50)
+    }
+  })
+
+  it("does not note a matched venue", () => {
+    const report = slugsFor([["g9", "夜の酒場"]], { g9: "v-ours" })
+    expect(report.slugNotes).toEqual([])
+  })
+})
+
 describe("mapFroggeStaffing people and tiers", () => {
   it("gives staff the staff tier, admins manager, and the server owner owner", () => {
     const tiers = Object.fromEntries(memberships(run()).map((m) => [m.person_key, m.tier]))

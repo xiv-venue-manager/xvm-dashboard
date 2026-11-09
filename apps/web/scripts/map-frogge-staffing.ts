@@ -5,11 +5,16 @@
  *
  * The venue match decides which servers merge. With no match file the names are compared and the
  * suggestion is used and written to <out>/frogge-venue-match.json. Check it, edit it, and pass it
- * back as the last argument when a suggestion is wrong.
+ * back as the fifth argument when a suggestion is wrong.
+ *
+ * Every new venue's slug is written to <out>/frogge-venue-slugs.json (guild id to slug). Edit it
+ * down to the entries that need a different slug and pass it back as the sixth argument; a slug
+ * cannot be changed through xvm-api once the venue exists. Pass "-" as the fifth argument to give
+ * a slugs file without a match file.
  *
  * Usage (from apps/web):
  *   bash frogge-export-staffing.sh > frogge-staffing.json
- *   npx tsx scripts/map-frogge-staffing.ts frogge-staffing.json <load-dir> owners.json <out-dir> [venue-match.json]
+ *   npx tsx scripts/map-frogge-staffing.ts frogge-staffing.json <load-dir> owners.json <out-dir> [venue-match.json|-] [venue-slugs.json]
  *
  * owners.json maps a server id to its owner's Discord id: { "<guild id>": "<discord user id>" }.
  */
@@ -22,14 +27,15 @@ import {
   type FroggeExport,
 } from "../lib/migration/frogge-staffing"
 
-const [input, loadDir, ownersFile, outDir, matchFile] = process.argv.slice(2)
+const [input, loadDir, ownersFile, outDir, matchArg, slugsFile] = process.argv.slice(2)
 if (!input || !loadDir || !ownersFile || !outDir) {
   console.error(
-    "Usage: npx tsx scripts/map-frogge-staffing.ts <frogge-export.json> <load-dir> <owners.json> <out-dir> [venue-match.json]"
+    "Usage: npx tsx scripts/map-frogge-staffing.ts <frogge-export.json> <load-dir> <owners.json> <out-dir> [venue-match.json|-] [venue-slugs.json]"
   )
   process.exit(1)
 }
 
+const matchFile = matchArg === "-" ? undefined : matchArg
 const read = <T>(file: string) => JSON.parse(readFileSync(file, "utf8")) as T
 const source = read<FroggeExport>(input)
 const owners = read<Record<string, string>>(ownersFile)
@@ -43,7 +49,12 @@ const venueMatch: Record<string, string | null> = matchFile
   ? { ...suggested, ...read<Record<string, string | null>>(matchFile) }
   : suggested
 
-const { files, report } = mapFroggeStaffing(source, { owners, venueMatch, now: new Date().toISOString() }, base)
+const venueSlugs = slugsFile ? read<Record<string, string>>(slugsFile) : {}
+const {
+  files,
+  report,
+  venueSlugs: usedSlugs,
+} = mapFroggeStaffing(source, { owners, venueMatch, venueSlugs, now: new Date().toISOString() }, base)
 
 mkdirSync(outDir, { recursive: true })
 for (const name of readdirSync(loadDir)) {
@@ -53,6 +64,7 @@ for (const name of readdirSync(loadDir)) {
 for (const name of merged) writeFileSync(join(outDir, `${name}-mapped.json`), JSON.stringify(files[name], null, 2))
 writeFileSync(join(outDir, "frogge-report.json"), JSON.stringify(report, null, 2))
 writeFileSync(join(outDir, "frogge-venue-match.json"), JSON.stringify(venueMatch, null, 2))
+writeFileSync(join(outDir, "frogge-venue-slugs.json"), JSON.stringify(usedSlugs, null, 2))
 
 console.log(
   `servers: ${source.guilds.length} (${report.matchedVenues.length} merge into our venues, ${report.newVenues.length} become new venues)`
@@ -62,6 +74,8 @@ for (const m of report.matchedVenues)
     `  merges: ${source.guilds.find((g) => g.guild_id === m.guild_id)?.name} -> ${m.key}${matchFile ? "" : " (suggested by name)"}`
   )
 for (const [what, n] of Object.entries(report.counts)) console.log(`  ${what}: ${n}`)
+console.log(`new venue slugs to review (cut, numbered or made up): ${report.slugNotes.length}`)
+for (const n of report.slugNotes) console.log(`  ${n.slug} <- "${n.name}" (${n.guild_id}): ${n.why}`)
 console.log(`hire dates moved earlier: ${report.startDateAmendments.length}`)
 console.log(`new venues on UTC (owner to check): ${report.utcVenues.length}`)
 console.log(`people without a name (placeholders): ${report.placeholderPeople.length}`)

@@ -61,6 +61,7 @@ export interface FroggeExport {
 export interface FroggeContext {
   owners: Record<string, string>
   venueMatch: Record<string, string | null>
+  venueSlugs?: Record<string, string>
   now: string
 }
 
@@ -74,6 +75,13 @@ export interface BaseFiles {
   shifts: { event_positions: Row[]; event_shifts: Row[]; shifts: Row[] } & Record<string, unknown>
 }
 
+export type SlugWhy =
+  | "cut to 50 characters"
+  | "numbered because the slug was taken"
+  | "no letters or digits in the name"
+  | "characters outside ASCII dropped"
+  | "override"
+
 export interface FroggeReport {
   newVenues: {
     guild_id: string
@@ -84,6 +92,7 @@ export interface FroggeReport {
     owner_discord_id: string | null
   }[]
   matchedVenues: { guild_id: string; key: string }[]
+  slugNotes: { guild_id: string; name: string; slug: string; why: SlugWhy }[]
   startDateAmendments: { membership_key: string; from: string; to: string }[]
   placeholderPeople: string[]
   utcVenues: string[]
@@ -94,6 +103,7 @@ export interface FroggeReport {
 export interface FroggeResult {
   files: BaseFiles
   report: FroggeReport
+  venueSlugs: Record<string, string>
 }
 
 const TZ_ALIASES: Record<string, string> = {
@@ -116,13 +126,19 @@ const fold = (value: string | null | undefined) => clean(value).toLowerCase()
 const ms = (iso: string) => new Date(iso).getTime()
 const iso = (time: number) => new Date(time).toISOString()
 const str = (row: Row, field: string) => row[field] as string
-const slugify = (name: string) =>
+const MAX_SLUG = 50
+const SLUG_PATTERN = /^[a-z0-9]+(-[a-z0-9]+)*$/
+const slugFolded = (name: string) =>
   clean(name)
+    .normalize("NFD")
+    .replace(/\p{M}/gu, "")
+    .replace(/['\u2019]/g, "")
     .toLowerCase()
+const slugWhole = (name: string) =>
+  slugFolded(name)
     .replace(/[^a-z0-9]+/g, "-")
     .replace(/^-+|-+$/g, "")
-    .slice(0, 30)
-    .replace(/-+$/g, "")
+const slugify = (name: string) => slugWhole(name).slice(0, MAX_SLUG).replace(/-+$/g, "")
 
 const nameKey = (name: string | null | undefined) =>
   clean(name)
@@ -151,6 +167,7 @@ export function mapFroggeStaffing(source: FroggeExport, ctx: FroggeContext, base
   const report: FroggeReport = {
     newVenues: [],
     matchedVenues: [],
+    slugNotes: [],
     startDateAmendments: [],
     placeholderPeople: [],
     utcVenues: [],
@@ -164,7 +181,23 @@ export function mapFroggeStaffing(source: FroggeExport, ctx: FroggeContext, base
   for (const account of files.people.discordAccounts)
     personByDiscord.set(str(account, "external_id"), str(account, "person_key"))
 
-  const slugs = new Set(files.venues.venues.map((v) => str(v, "slug")))
+  const slugs = new Set(files.venues.venues.map((v) => str(v, "slug").toLowerCase()))
+  const venueSlugs: Record<string, string> = {}
+  const overrides = ctx.venueSlugs ?? {}
+  const guildIds = new Set(source.guilds.map((g) => g.guild_id))
+  const overridden = new Set<string>()
+  for (const [guildId, slug] of Object.entries(overrides)) {
+    const fail = (why: string): never => {
+      throw new Error(`venue slug override for guild ${guildId}: ${why}`)
+    }
+    if (!guildIds.has(guildId)) fail("the guild is not in the export")
+    if (ctx.venueMatch[guildId]) fail("the guild is matched to an existing venue")
+    if (!SLUG_PATTERN.test(slug)) fail("the slug must be a-z, 0-9 and single hyphens, not at either end")
+    if (slug.length > MAX_SLUG) fail(`the slug is longer than ${MAX_SLUG} characters`)
+    if (slugs.has(slug.toLowerCase())) fail("the slug is already taken by an existing venue or another override")
+    slugs.add(slug.toLowerCase())
+    overridden.add(guildId)
+  }
   const venueKeyByGuild = new Map<string, string>()
   const timezoneByGuild = new Map(source.guilds.map((g) => [g.guild_id, g.timezone] as const))
 
@@ -176,10 +209,26 @@ export function mapFroggeStaffing(source: FroggeExport, ctx: FroggeContext, base
       continue
     }
     const key = `frogge:v:${guild.guild_id}`
-    const stem = slugify(guild.name) || "venue"
-    let slug = stem
-    for (let n = 2; slugs.has(slug); n++) slug = `${stem.slice(0, 30 - String(n).length - 1)}-${n}`
-    slugs.add(slug)
+    const named = slugify(guild.name)
+    const stem = named || `venue-${guild.guild_id.slice(-6)}`
+    let slug = overridden.has(guild.guild_id) ? overrides[guild.guild_id] : stem
+    if (!overridden.has(guild.guild_id)) {
+      for (let n = 2; slugs.has(slug); n++) slug = `${stem.slice(0, MAX_SLUG - String(n).length - 1)}-${n}`
+      slugs.add(slug)
+    }
+    venueSlugs[guild.guild_id] = slug
+    const why: SlugWhy | null = overridden.has(guild.guild_id)
+      ? "override"
+      : slug !== stem
+        ? "numbered because the slug was taken"
+        : !named
+          ? "no letters or digits in the name"
+          : slugWhole(guild.name).length > MAX_SLUG
+            ? "cut to 50 characters"
+            : /[^\x00-\x7f]/.test(slugFolded(guild.name))
+              ? "characters outside ASCII dropped"
+              : null
+    if (why) report.slugNotes.push({ guild_id: guild.guild_id, name: guild.name, slug, why })
     const raw = clean(timezoneByGuild.get(guild.guild_id)) || "UTC"
     const timezone = TZ_ALIASES[raw] ?? raw
     if (timezone === "UTC") report.utcVenues.push(guild.guild_id)
@@ -662,5 +711,5 @@ export function mapFroggeStaffing(source: FroggeExport, ctx: FroggeContext, base
     bump("finance transactions")
   }
 
-  return { files, report }
+  return { files, report, venueSlugs }
 }

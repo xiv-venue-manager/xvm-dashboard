@@ -150,11 +150,11 @@ export default function AdminAnnouncementsPage() {
               value={form.message}
               onChange={(e) => setForm((f) => ({ ...f, message: e.target.value }))}
               placeholder="What's new? Mention the feature and that it came from user feedback."
-              maxLength={500}
+              maxLength={2000}
               rows={3}
               required
             />
-            <p className="text-xs text-muted-foreground text-right">{form.message.length}/500</p>
+            <p className="text-xs text-muted-foreground text-right">{form.message.length}/2000</p>
           </div>
           <div className="grid grid-cols-2 gap-4">
             <div className="space-y-1.5">

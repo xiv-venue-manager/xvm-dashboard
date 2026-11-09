@@ -85,13 +85,13 @@ export function NavbarClient({ session, venues }: NavbarClientProps) {
           size="sm"
           className="text-muted-foreground hover:text-foreground hover:bg-[var(--blue-007)]"
         >
-          <Link href="/team" aria-label="Team">
+          <Link href="/team" aria-label="Meet the team">
             <Users className="h-4 w-4 lg:mr-1" />
             <span className="hidden lg:inline">Team</span>
           </Link>
         </Button>
       </TooltipTrigger>
-      <TooltipContent className="lg:hidden">Team</TooltipContent>
+      <TooltipContent>Meet the team</TooltipContent>
     </Tooltip>
   )
 

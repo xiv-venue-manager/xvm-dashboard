@@ -1,7 +1,7 @@
 "use client"
 
 import { useEffect, useState } from "react"
-import { Button } from "@/components/ui/button"
+import { PillToggle } from "@/components/pill-toggle"
 import { Card, CardContent } from "@/components/ui/card"
 import { BarChart3, Zap, TrendingUp, Hash } from "lucide-react"
 import { StatReadout } from "@/components/ui/stat-readout"
@@ -38,9 +38,9 @@ const DAY_MS = 24 * 60 * 60 * 1000
 const ALL_TIME_FROM = new Date("2026-01-01T00:00:00.000Z")
 
 const RANGES = [
-  { id: "30d", label: "Last 30 days", from: () => new Date(Date.now() - 30 * DAY_MS) },
-  { id: "90d", label: "Last 90 days", from: () => new Date(Date.now() - 90 * DAY_MS) },
-  { id: "all", label: "All time", from: () => ALL_TIME_FROM },
+  { id: "30d", label: "30 days", title: "Last 30 days", from: () => new Date(Date.now() - 30 * DAY_MS) },
+  { id: "90d", label: "90 days", title: "Last 90 days", from: () => new Date(Date.now() - 90 * DAY_MS) },
+  { id: "all", label: "All time", title: "All time", from: () => ALL_TIME_FROM },
 ] as const
 
 type RangeId = (typeof RANGES)[number]["id"]
@@ -175,19 +175,7 @@ export default function SalesPage({ params }: { params: Promise<{ slug: string }
             <h1 className="page-h1">Sales</h1>
           </div>
           <div className="flex items-center gap-2">
-            <div className="flex items-center gap-1" role="group" aria-label="Sales range">
-              {RANGES.map((r) => (
-                <Button
-                  key={r.id}
-                  size="sm"
-                  variant={r.id === rangeId ? "default" : "outline"}
-                  aria-pressed={r.id === rangeId}
-                  onClick={() => setRangeId(r.id)}
-                >
-                  {r.label}
-                </Button>
-              ))}
-            </div>
+            <PillToggle label="Sales range" options={RANGES} value={rangeId} onChange={setRangeId} />
             <SalesLogDialog
               venueId={slug}
               services={services}
@@ -220,7 +208,7 @@ export default function SalesPage({ params }: { params: Promise<{ slug: string }
               </Card>
               <Card className="px-[18px] py-4">
                 <StatReadout
-                  label={range.label}
+                  label={range.title}
                   value={`${totalRevenue.toLocaleString("en-US")}`}
                   subtext="gil"
                   icon={<BarChart3 />}
@@ -275,7 +263,7 @@ export default function SalesPage({ params }: { params: Promise<{ slug: string }
                         <polyline points="10 9 9 9 8 9" />
                       </svg>
                       Transaction history
-                      <span className="ml-auto text-xs text-[var(--fg-faint)] font-normal">{range.label}</span>
+                      <span className="ml-auto text-xs text-[var(--fg-faint)] font-normal">{range.title}</span>
                     </div>
                     <div className="p-5">
                       <TransactionsList

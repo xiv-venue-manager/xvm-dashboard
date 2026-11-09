@@ -11,7 +11,14 @@ import { TrendingUp, DollarSign, Users, Target, Download } from "lucide-react"
 import { StatReadout } from "@/components/ui/stat-readout"
 import { LocalTime } from "@/components/server-time"
 import { PageLoading } from "@/components/ui/loading-spinner"
+import { PillToggle } from "@/components/pill-toggle"
 import { AttendanceOverview } from "@/components/analytics/attendance-overview"
+
+const PERIODS = [
+  { id: "30d", label: "30 days" },
+  { id: "90d", label: "90 days" },
+  { id: "all", label: "All time" },
+] as const
 
 interface AnalyticsData {
   venueId: string
@@ -241,21 +248,7 @@ export default function AnalyticsPage() {
             <VenueEyebrow slug={slug} />
             <h1 className="page-h1">Analytics</h1>
           </div>
-          <div className="flex gap-1 bg-[var(--card)] border border-[var(--blue-015)] rounded-full p-1 self-start">
-            {(["30d", "90d", "all"] as const).map((p) => (
-              <button
-                key={p}
-                onClick={() => setPeriod(p)}
-                className={`text-xs font-semibold px-3 py-1.5 rounded-full transition-colors ${
-                  period === p
-                    ? "bg-[var(--xiv-blue)] text-[var(--xiv-navy)]"
-                    : "text-muted-foreground hover:text-foreground hover:bg-[var(--blue-007)]"
-                }`}
-              >
-                {p === "30d" ? "30 days" : p === "90d" ? "90 days" : "All time"}
-              </button>
-            ))}
-          </div>
+          <PillToggle label="Analytics period" options={PERIODS} value={period} onChange={setPeriod} />
         </div>
 
         {/* Summary KPIs */}

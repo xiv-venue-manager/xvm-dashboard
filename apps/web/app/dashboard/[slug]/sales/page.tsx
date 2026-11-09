@@ -1,6 +1,7 @@
 "use client"
 
 import { useEffect, useState } from "react"
+import { Button } from "@/components/ui/button"
 import { Card, CardContent } from "@/components/ui/card"
 import { BarChart3, Zap, TrendingUp, Hash } from "lucide-react"
 import { StatReadout } from "@/components/ui/stat-readout"
@@ -33,11 +34,16 @@ interface StaffMember {
   user: { id: number; name: string | null }
 }
 
-// Default lookback window for the transactions list. xvm-api's finance list
-// endpoint takes a from/to window instead of the old cursor - there's no
-// "load more" left to build against, so this just shows everything recorded
-// in the last 30 days rather than reintroducing pagination.
-const LOOKBACK_DAYS = 30
+const DAY_MS = 24 * 60 * 60 * 1000
+const ALL_TIME_FROM = new Date("2026-01-01T00:00:00.000Z")
+
+const RANGES = [
+  { id: "30d", label: "Last 30 days", from: () => new Date(Date.now() - 30 * DAY_MS) },
+  { id: "90d", label: "Last 90 days", from: () => new Date(Date.now() - 90 * DAY_MS) },
+  { id: "all", label: "All time", from: () => ALL_TIME_FROM },
+] as const
+
+type RangeId = (typeof RANGES)[number]["id"]
 
 function toUiTransaction(row: FinanceTransactionRow): Transaction {
   return {
@@ -59,6 +65,8 @@ export default function SalesPage({ params }: { params: Promise<{ slug: string }
   const [staffNamesByPersonId, setStaffNamesByPersonId] = useState<Map<number, string>>(new Map())
   const [isLoading, setIsLoading] = useState(true)
   const [error, setError] = useState("")
+  const [rangeId, setRangeId] = useState<RangeId>("30d")
+  const range = RANGES.find((r) => r.id === rangeId) ?? RANGES[0]
 
   useEffect(() => {
     params.then((p) => setSlug(p.slug))
@@ -73,12 +81,10 @@ export default function SalesPage({ params }: { params: Promise<{ slug: string }
         setError("")
 
         const to = new Date()
-        const from = new Date(to.getTime() - LOOKBACK_DAYS * 24 * 60 * 60 * 1000)
+        const from = range.from()
 
         const [transactionsResponse, servicesResponse, staffResponse] = await Promise.all([
-          fetch(
-            `/api/venues/${slug}/transactions?startDate=${from.toISOString()}&endDate=${to.toISOString()}`
-          ),
+          fetch(`/api/venues/${slug}/transactions?startDate=${from.toISOString()}&endDate=${to.toISOString()}`),
           fetch(`/api/venues/${slug}/services`),
           fetch(`/api/venues/${slug}/staff`),
         ])
@@ -115,7 +121,7 @@ export default function SalesPage({ params }: { params: Promise<{ slug: string }
     }
 
     fetchData()
-  }, [slug])
+  }, [slug, range])
 
   if (!slug) {
     return (
@@ -168,11 +174,26 @@ export default function SalesPage({ params }: { params: Promise<{ slug: string }
             <VenueEyebrow slug={slug} />
             <h1 className="page-h1">Sales</h1>
           </div>
-          <SalesLogDialog
-            venueId={slug}
-            services={services}
-            onLogged={(t) => setTransactions((prev) => [t, ...prev])}
-          />
+          <div className="flex items-center gap-2">
+            <div className="flex items-center gap-1" role="group" aria-label="Sales range">
+              {RANGES.map((r) => (
+                <Button
+                  key={r.id}
+                  size="sm"
+                  variant={r.id === rangeId ? "default" : "outline"}
+                  aria-pressed={r.id === rangeId}
+                  onClick={() => setRangeId(r.id)}
+                >
+                  {r.label}
+                </Button>
+              ))}
+            </div>
+            <SalesLogDialog
+              venueId={slug}
+              services={services}
+              onLogged={(t) => setTransactions((prev) => [t, ...prev])}
+            />
+          </div>
         </div>
 
         {error && (
@@ -199,7 +220,7 @@ export default function SalesPage({ params }: { params: Promise<{ slug: string }
               </Card>
               <Card className="px-[18px] py-4">
                 <StatReadout
-                  label={`Last ${LOOKBACK_DAYS} days`}
+                  label={range.label}
                   value={`${totalRevenue.toLocaleString("en-US")}`}
                   subtext="gil"
                   icon={<BarChart3 />}
@@ -254,9 +275,7 @@ export default function SalesPage({ params }: { params: Promise<{ slug: string }
                         <polyline points="10 9 9 9 8 9" />
                       </svg>
                       Transaction history
-                      <span className="ml-auto text-xs text-[var(--fg-faint)] font-normal">
-                        Last {LOOKBACK_DAYS} days
-                      </span>
+                      <span className="ml-auto text-xs text-[var(--fg-faint)] font-normal">{range.label}</span>
                     </div>
                     <div className="p-5">
                       <TransactionsList

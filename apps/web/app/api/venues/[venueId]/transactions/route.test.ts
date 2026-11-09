@@ -28,7 +28,10 @@ import { GET, POST } from "./route"
 const context = { params: Promise.resolve({ venueId: "gilded-lily" }) }
 const get = (query = "") => new NextRequest(`http://localhost/x${query}`)
 const post = (body: unknown) =>
-  new NextRequest("http://localhost/x", { method: "POST", body: typeof body === "string" ? body : JSON.stringify(body) })
+  new NextRequest("http://localhost/x", {
+    method: "POST",
+    body: typeof body === "string" ? body : JSON.stringify(body),
+  })
 
 beforeEach(() => {
   vi.resetAllMocks()
@@ -46,6 +49,18 @@ describe("transactions GET", () => {
       to: "2026-10-08T00:00:00.000Z",
       kind: "tip",
     })
+  })
+
+  it("refuses a range longer than the cap without calling xvm-api", async () => {
+    const res = await GET(get("?startDate=2020-01-01T00:00:00Z&endDate=2026-10-08T00:00:00Z"), context)
+    expect(res.status).toBe(400)
+    expect(m.listFinanceTransactions).not.toHaveBeenCalled()
+  })
+
+  it("reads a 90 day range as more than one request", async () => {
+    const res = await GET(get("?startDate=2026-07-10T00:00:00Z&endDate=2026-10-08T00:00:00Z"), context)
+    expect(res.status).toBe(200)
+    expect(m.listFinanceTransactions).toHaveBeenCalledTimes(2)
   })
 
   it.each([["?kind=bogus"], ["?startDate=nope"], ["?endDate=nope"], ["?startDate=2026-10-08&endDate=2026-10-01"]])(

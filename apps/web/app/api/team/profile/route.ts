@@ -4,13 +4,14 @@ import { z } from "zod"
 import { authOptions } from "@/lib/auth"
 import { withRateLimit } from "@/lib/middleware/with-rate-limit"
 import { getValidXvmApiToken, xvmApiErrorResponse } from "@/lib/api/xvm-api-store"
-import { getMyTeamProfile, updateMyTeamProfile } from "@/lib/api/xvm-api"
+import { getMyTeamProfile, updateMyDisplayName, updateMyTeamProfile } from "@/lib/api/xvm-api"
 import { TEAM_BIO_MAX } from "@/lib/team-groups"
 import { PHOTO_ZOOM_MAX, PHOTO_ZOOM_MIN } from "@/lib/team-photo"
 import { refreshTeamPage } from "@/lib/refresh-team"
 
 const updateSchema = z
   .object({
+    name: z.string().trim().min(1).max(50).optional(),
     bio: z.string().max(TEAM_BIO_MAX).nullable().optional(),
     listed: z.boolean().optional(),
     photo_x: z.number().min(0).max(1).optional(),
@@ -50,7 +51,9 @@ export const PATCH = withRateLimit(
     }
 
     try {
-      const profile = await updateMyTeamProfile(token, parsed.data)
+      const { name, ...fields } = parsed.data
+      if (name !== undefined) await updateMyDisplayName(token, name)
+      const profile = Object.keys(fields).length > 0 ? await updateMyTeamProfile(token, fields) : await getMyTeamProfile(token)
       refreshTeamPage()
       return NextResponse.json(profile)
     } catch (err) {

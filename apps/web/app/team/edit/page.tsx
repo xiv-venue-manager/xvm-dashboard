@@ -5,6 +5,7 @@ import { useSession } from "next-auth/react"
 import { useRouter } from "next/navigation"
 import Link from "next/link"
 import { Button } from "@/components/ui/button"
+import { Input } from "@/components/ui/input"
 import { Label } from "@/components/ui/label"
 import { Switch } from "@/components/ui/switch"
 import { Textarea } from "@/components/ui/textarea"
@@ -29,6 +30,7 @@ export default function EditTeamCardPage() {
   const { status } = useSession()
   const router = useRouter()
   const [profile, setProfile] = useState<TeamProfile | null>(null)
+  const [name, setName] = useState("")
   const [bio, setBio] = useState("")
   const [listed, setListed] = useState(true)
   const [frame, setFrame] = useState<PhotoFrame>(DEFAULT_PHOTO_FRAME)
@@ -50,6 +52,7 @@ export default function EditTeamCardPage() {
         if (!res.ok) return setError(await message(res, "Couldn't load your card."))
         const card: TeamProfile = await res.json()
         setProfile(card)
+        setName(card.name)
         setBio(card.bio ?? "")
         setListed(card.listed)
         setFrame(frameOf(card))
@@ -67,6 +70,7 @@ export default function EditTeamCardPage() {
         method: "PATCH",
         headers: { "Content-Type": "application/json" },
         body: JSON.stringify({
+          ...(name.trim() !== profile?.name ? { name: name.trim() } : {}),
           bio: bio.trim() === "" ? null : bio,
           listed,
           photo_x: round3(frame.x),
@@ -77,6 +81,7 @@ export default function EditTeamCardPage() {
       if (!res.ok) return setError(await message(res, "Couldn't save your card."))
       const card: TeamProfile = await res.json()
       setProfile(card)
+      setName(card.name)
       setFrame(frameOf(card))
       setSaved(true)
     } catch {
@@ -141,6 +146,20 @@ export default function EditTeamCardPage() {
 
       <div className="mt-6 space-y-6">
         <div className="space-y-2">
+          <Label htmlFor="name">Displayed name</Label>
+          <Input
+            id="name"
+            value={name}
+            maxLength={50}
+            onChange={(e) => {
+              setName(e.target.value)
+              setSaved(false)
+            }}
+          />
+          <p className="text-xs text-muted-foreground">This is the name on your card. It is also your name across XVM.</p>
+        </div>
+
+        <div className="space-y-2">
           <Label htmlFor="photo">Photo</Label>
           <input
             id="photo"
@@ -203,7 +222,7 @@ export default function EditTeamCardPage() {
 
         {error && <p className="text-sm text-destructive">{error}</p>}
         <div className="flex items-center gap-3">
-          <Button onClick={save} disabled={busy}>
+          <Button onClick={save} disabled={busy || name.trim() === ""}>
             Save
           </Button>
           {saved && <span className="text-sm text-[var(--success-text)]">Saved.</span>}
@@ -212,7 +231,7 @@ export default function EditTeamCardPage() {
 
       <h2 className="mb-3 mt-10 text-[11px] font-semibold uppercase tracking-[0.14em] text-[var(--xiv-blue)]">Preview</h2>
       <TeamRow
-        member={{ ...profile, bio: bio.trim() === "" ? null : bio, photo_x: frame.x, photo_y: frame.y, photo_zoom: frame.zoom }}
+        member={{ ...profile, name: name.trim() === "" ? profile.name : name.trim(), bio: bio.trim() === "" ? null : bio, photo_x: frame.x, photo_y: frame.y, photo_zoom: frame.zoom }}
       />
     </div>
   )

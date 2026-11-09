@@ -104,6 +104,13 @@ export const FROGGE_RELATIONS: FroggeRelation[] = [
   },
   { array: "reaction_role_panels", file: "features", mode: "equal", carried: [f("reactionRolePanels")] },
   { array: "reaction_role_options", file: "features", mode: "equal", carried: [f("reactionRoleOptions")] },
+  {
+    array: "reaction_role_panel_posts",
+    file: "features",
+    mode: "merged",
+    carried: [f("reactionRolePanelPosts")],
+    note: "a panel posted twice to one channel keeps its latest message, xvm-api holds one post per panel and channel",
+  },
   { array: "leveling_settings", file: "features", mode: "equal", carried: [f("levelingSettings")] },
   { array: "leveling_members", file: "features", mode: "equal", carried: [f("levelingMembers")] },
   { array: "leveling_role_rewards", file: "features", mode: "equal", carried: [f("levelingTiers")] },
@@ -171,7 +178,6 @@ export const FROGGE_RELATIONS: FroggeRelation[] = [
 ]
 
 export const FROGGE_NOT_CARRIED: FroggeNotCarried[] = [
-  { array: "reaction_role_panel_posts", file: "features", decision: "posted Discord messages are not carried yet" },
   { array: "custom_embed_posts", file: "features", decision: "posted Discord messages are not carried yet" },
   { array: "vip_display_posts", file: "features", decision: "posted Discord messages are not carried yet" },
   { array: "glyph_messages", file: "features", decision: "posted Discord messages are not carried yet" },

@@ -10,6 +10,7 @@ const empty = (): FroggeFeatureExport => ({
   audit_log_settings: [],
   reaction_role_panels: [],
   reaction_role_options: [],
+  reaction_role_panel_posts: [],
   leveling_settings: [],
   leveling_members: [],
   leveling_role_rewards: [],
@@ -83,6 +84,47 @@ describe("reaction roles", () => {
     expect(r.features.reactionRolePanels).toEqual([])
     expect(r.features.reactionRoleOptions).toEqual([])
     expect(r.report.dropped.map((d) => d.what)).toEqual(["reaction role panel", "reaction role option"])
+  })
+
+  it("carries where each panel is posted, under the panel's venue", () => {
+    const r = run({
+      reaction_role_panels: [panel],
+      reaction_role_panel_posts: [{ id: 4, guild_id: G, panel_id: 1, channel_id: "500", message_id: "600" }],
+    })
+    expect(r.features.reactionRolePanelPosts).toEqual([
+      {
+        venue_key: "venue-a",
+        panel_key: "frogge:rr:1",
+        target_type: "reaction_role_panel",
+        channel_id: "500",
+        message_id: "600",
+      },
+    ])
+    expect(r.report.counts["reaction role panel posts"]).toBe(1)
+  })
+
+  it("keeps the latest message when a panel was posted twice to one channel", () => {
+    const r = run({
+      reaction_role_panels: [panel],
+      reaction_role_panel_posts: [
+        { id: 8, guild_id: G, panel_id: 1, channel_id: "500", message_id: "second" },
+        { id: 2, guild_id: G, panel_id: 1, channel_id: "500", message_id: "first" },
+        { id: 3, guild_id: G, panel_id: 1, channel_id: "501", message_id: "other" },
+      ],
+    })
+    expect(r.features.reactionRolePanelPosts.map((p) => [p.channel_id, p.message_id])).toEqual([
+      ["500", "second"],
+      ["501", "other"],
+    ])
+  })
+
+  it("drops a post whose panel was not migrated", () => {
+    const r = run({
+      reaction_role_panels: [{ ...panel, guild_id: "999" }],
+      reaction_role_panel_posts: [{ id: 1, guild_id: "999", panel_id: 1, channel_id: "500", message_id: "600" }],
+    })
+    expect(r.features.reactionRolePanelPosts).toEqual([])
+    expect(r.report.dropped.map((d) => d.what)).toContain("reaction role panel post")
   })
 })
 

@@ -56,6 +56,13 @@ export interface FroggeFeatureExport {
     label: string | null
     emoji: string | null
   }[]
+  reaction_role_panel_posts: {
+    id: number
+    guild_id: string
+    panel_id: number
+    channel_id: string
+    message_id: string | null
+  }[]
   leveling_settings: {
     guild_id: string
     enabled: boolean
@@ -123,6 +130,7 @@ export interface PeopleFile {
 export interface FeatureFile {
   reactionRolePanels: Row[]
   reactionRoleOptions: Row[]
+  reactionRolePanelPosts: Row[]
   levelingSettings: Row[]
   levelingRules: Row[]
   levelingMembers: Row[]
@@ -164,6 +172,7 @@ export function mapFroggeFeatures(source: FroggeFeatureExport, ctx: FeatureConte
   const features: FeatureFile = {
     reactionRolePanels: [],
     reactionRoleOptions: [],
+    reactionRolePanelPosts: [],
     levelingSettings: [],
     levelingRules: [],
     levelingMembers: [],
@@ -209,12 +218,14 @@ export function mapFroggeFeatures(source: FroggeFeatureExport, ctx: FeatureConte
   const inOrder = <T extends { id: number }>(rows: T[]) => [...rows].sort((a, b) => a.id - b.id)
 
   const panelKey = new Map<number, string>()
+  const panelVenue = new Map<number, string>()
   const optionCount = new Map<number, number>()
   for (const panel of inOrder(source.reaction_role_panels)) {
     const venueKey = venueOf(panel.guild_id, "reaction role panel", String(panel.id))
     if (!venueKey) continue
     const key = `frogge:rr:${panel.id}`
     panelKey.set(panel.id, key)
+    panelVenue.set(panel.id, venueKey)
     const thumbnailSource = panel.thumbnail_url?.trim() || null
     if (thumbnailSource) bump("panel images to copy")
     features.reactionRolePanels.push({
@@ -245,6 +256,23 @@ export function mapFroggeFeatures(source: FroggeFeatureExport, ctx: FeatureConte
     })
     bump("reaction role options")
   }
+  const postsByChannel = new Map<string, Row>()
+  for (const post of inOrder(source.reaction_role_panel_posts)) {
+    const key = panelKey.get(post.panel_id)
+    if (!key) {
+      drop("reaction role panel post", String(post.id), "its panel was not migrated")
+      continue
+    }
+    postsByChannel.set(`${post.panel_id}|${post.channel_id}`, {
+      venue_key: panelVenue.get(post.panel_id),
+      panel_key: key,
+      target_type: "reaction_role_panel",
+      channel_id: post.channel_id,
+      message_id: post.message_id,
+    })
+  }
+  features.reactionRolePanelPosts.push(...postsByChannel.values())
+  bump("reaction role panel posts", postsByChannel.size)
 
   for (const settings of source.leveling_settings) {
     const venueKey = venueOf(settings.guild_id, "leveling settings", settings.guild_id)

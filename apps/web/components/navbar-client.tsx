@@ -8,7 +8,7 @@ import { Button } from "@/components/ui/button"
 import { UserMenu } from "./user-menu"
 import { FeedbackDialog } from "./feedback-dialog"
 import { useSidebar } from "./sidebar-context"
-import { Menu, Heart, Bell, CheckCheck, LayoutDashboard } from "lucide-react"
+import { Menu, Heart, Bell, CheckCheck, LayoutDashboard, Users } from "lucide-react"
 import { Tooltip, TooltipContent, TooltipTrigger } from "@/components/ui/tooltip"
 import { Popover, PopoverContent, PopoverTrigger } from "@/components/ui/popover"
 import { LocalTime } from "@/components/server-time"
@@ -75,6 +75,25 @@ export function NavbarClient({ session, venues }: NavbarClientProps) {
       body: JSON.stringify({}),
     })
   }
+
+  const teamLink = (
+    <Tooltip>
+      <TooltipTrigger asChild>
+        <Button
+          asChild
+          variant="ghost"
+          size="sm"
+          className="text-muted-foreground hover:text-foreground hover:bg-[var(--blue-007)]"
+        >
+          <Link href="/team" aria-label="Team">
+            <Users className="h-4 w-4 lg:mr-1" />
+            <span className="hidden lg:inline">Team</span>
+          </Link>
+        </Button>
+      </TooltipTrigger>
+      <TooltipContent className="lg:hidden">Team</TooltipContent>
+    </Tooltip>
+  )
 
   return (
     <nav className="sticky top-0 z-50 w-full xiv-nav xiv-glass relative">
@@ -208,6 +227,8 @@ export function NavbarClient({ session, venues }: NavbarClientProps) {
                 </PopoverContent>
               </Popover>
 
+              {teamLink}
+
               <FeedbackDialog iconOnlyBelowLg />
 
               <Tooltip>
@@ -240,6 +261,7 @@ export function NavbarClient({ session, venues }: NavbarClientProps) {
             </>
           ) : (
             <>
+              {teamLink}
               <Tooltip>
                 <TooltipTrigger asChild>
                   <Button

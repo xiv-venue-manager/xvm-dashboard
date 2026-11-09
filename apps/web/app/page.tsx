@@ -838,6 +838,7 @@ export default async function Home() {
                   { label: "Dashboard", href: "/dashboard" },
                   { label: "Discover venues", href: "/discover" },
                   { label: "Usage stats", href: "/stats" },
+                  { label: "Meet the team", href: "/team" },
                 ].map(({ label, href }) => (
                   <Link
                     key={href}

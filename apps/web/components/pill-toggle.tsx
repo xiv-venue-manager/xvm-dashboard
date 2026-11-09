@@ -10,7 +10,7 @@ export function PillToggle<T extends string>({ options, value, onChange, label }
     <div
       role="group"
       aria-label={label}
-      className="flex gap-1 bg-[var(--card)] border border-[var(--blue-015)] rounded-full p-1 self-start"
+      className="inline-flex gap-1 bg-[var(--card)] border border-[var(--blue-015)] rounded-full p-1 self-start"
     >
       {options.map((option) => (
         <button

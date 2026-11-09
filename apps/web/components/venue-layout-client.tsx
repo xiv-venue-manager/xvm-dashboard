@@ -21,7 +21,7 @@ const PAGE_LABELS: Record<string, string> = {
   shifts: "Shifts",
   tasks: "Tasks",
   services: "Services",
-  sales: "Sales",
+  sales: "Sales & Expenses",
   payroll: "Payroll",
   timeline: "Timeline",
   "patron-logs": "Patron Logs",

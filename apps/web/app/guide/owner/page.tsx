@@ -86,7 +86,6 @@ export default function OwnerManagerGuidePage() {
               <h1>Owner &amp; Manager Guide</h1>
             </header>
 
-
             {/* Initial Setup */}
             <section id="setup" className="space-y-6 scroll-mt-[84px]">
               <h2 className="font-cinzel text-2xl font-semibold border-b border-[rgba(0,180,255,0.2)] pb-3 tracking-wide">
@@ -182,8 +181,9 @@ export default function OwnerManagerGuidePage() {
                     </p>
                     <ol className="list-decimal list-inside space-y-1.5 pl-2 leading-relaxed">
                       <li>
-                        In the plugin, open Settings and press <span className="font-medium">Link current character</span>{" "}
-                        (log in to the character first). The Setup checklist at the top of Settings shows when it is done
+                        In the plugin, open Settings and press{" "}
+                        <span className="font-medium">Link current character</span> (log in to the character first). The
+                        Setup checklist at the top of Settings shows when it is done
                       </li>
                       <li>
                         Or on the website, open the account menu in the top right, go to{" "}
@@ -245,8 +245,8 @@ export default function OwnerManagerGuidePage() {
                             only, or No access
                           </li>
                           <li>
-                            <span className="font-medium text-foreground">Revenue</span>: All statistics, Personal
-                            only, or Hidden. Controls revenue numbers in Analytics and Live Mode
+                            <span className="font-medium text-foreground">Revenue</span>: All statistics, Personal only,
+                            or Hidden. Controls revenue numbers in Analytics and Live Mode
                           </li>
                           <li>
                             <span className="font-medium text-foreground">Events</span>: All (including drafts), or
@@ -360,15 +360,48 @@ export default function OwnerManagerGuidePage() {
                 <h3 className="text-base font-semibold text-foreground/80">Creating Events</h3>
                 <p className="text-sm leading-relaxed">
                   Go to Events &gt; Create. Set title, type (Performance, Game Night, Social, etc.), start/end time, and
-                  description. Events start as Draft, move to Published (visible to staff), then Active (running).
+                  description. Draft events are hidden from staff. Published events appear on the events list, then
+                  switch to Active while the event is running and Completed when it ends.
+                </p>
+              </div>
+
+              <div className="space-y-3">
+                <h3 className="text-base font-semibold text-foreground/80">Recurring Events</h3>
+                <p className="text-sm leading-relaxed">
+                  Turn on <span className="font-medium">Repeating Event</span> and choose Weekly, Every two weeks, or
+                  Monthly. Future occurrences join the schedule automatically; each one has its own event page, status,
+                  and roster.
+                </p>
+                <p className="text-sm leading-relaxed">
+                  To end the series, open any occurrence and choose <span className="font-medium">Cancel Series</span>.
+                  That cancels all future occurrences; past and active events are left alone.
+                </p>
+                <p className="text-sm leading-relaxed text-muted-foreground">
+                  For a venue synced with Partake.gg, only use a repeating event for a series Partake does not manage.
+                  If both cover the same night, duplicate events appear.
+                </p>
+              </div>
+
+              <div className="space-y-3">
+                <h3 className="text-base font-semibold text-foreground/80">Event Rosters</h3>
+                <p className="text-sm leading-relaxed">
+                  Open an event and use the Roster card to add the positions working that event. Add a shift to each
+                  position with its start time, end time, and number of seats. Managers can assign staff directly, or
+                  staff can claim an open seat from the event page. If your venue requires approval, the claim waits
+                  there until a manager approves or rejects it.
+                </p>
+                <p className="text-sm leading-relaxed">
+                  On an event in a series, choose <span className="font-medium">Apply to future occurrences</span> to
+                  copy the positions and shifts to later occurrences that have no roster. Seats, people, cancelled
+                  shifts, and archived positions are not copied, so each occurrence starts with its seats open.
                 </p>
               </div>
 
               <div className="space-y-3">
                 <h3 className="text-base font-semibold text-foreground/80">Event Templates</h3>
                 <p className="text-sm leading-relaxed">
-                  For recurring events, create templates that save the title, type, description, and default times.
-                  Create new events from a template.
+                  Templates save the title, type, description, and default times so you can prefill a new event. They do
+                  not create a series; use <span className="font-medium">Repeating Event</span> for that.
                 </p>
               </div>
 
@@ -623,8 +656,8 @@ export default function OwnerManagerGuidePage() {
                   <span className="font-medium text-foreground">Character name</span>: look up a specific visitor
                 </li>
                 <li>
-                  <span className="font-medium text-foreground">Classification</span>: patron, staff, or all (a visit counts
-                  as staff when its character is linked to a member who is clocked in at that moment)
+                  <span className="font-medium text-foreground">Classification</span>: patron, staff, or all (a visit
+                  counts as staff when its character is linked to a member who is clocked in at that moment)
                 </li>
               </ul>
             </section>
@@ -698,7 +731,8 @@ export default function OwnerManagerGuidePage() {
                 <li className="flex items-start gap-2">
                   <span className="text-emerald-500 mt-0.5">&#10003;</span>
                   <span>
-                    Use <span className="font-medium">Event Templates</span> for recurring events
+                    Use <span className="font-medium">Repeating Event</span> for series, and{" "}
+                    <span className="font-medium">Event Templates</span> to prefill the details
                   </span>
                 </li>
                 <li className="flex items-start gap-2">

@@ -175,6 +175,7 @@ export default async function EventDetailsPage({ params }: { params: Promise<{ s
                   <EventRoster
                     venueSlug={slug}
                     eventId={eventId}
+                    inSeries={event.recurrenceRuleId !== null}
                     canManage={canEdit}
                     currentMembershipId={roster.currentMembershipId}
                     roster={roster.rows}

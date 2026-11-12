@@ -1711,6 +1711,24 @@ export async function getEventRoster(personToken: string, venueId: string, event
   return xvmFetch<RosterPosition[]>(`/venues/${venueId}/events/${eventId}/roster`, {}, personToken)
 }
 
+export interface RosterApplyResult {
+  copied: number
+  skipped: number
+}
+
+export async function applyEventRosterToFuture(
+  personToken: string,
+  venueId: string,
+  eventId: number
+): Promise<RosterApplyResult> {
+  if (!process.env.XVM_API_BASE_URL) throw new Error("XVM_API_BASE_URL is not set")
+  return xvmFetch<RosterApplyResult>(
+    `/venues/${venueId}/events/${eventId}/roster/apply-to-future`,
+    { method: "POST" },
+    personToken
+  )
+}
+
 export async function addEventPosition(
   personToken: string,
   venueId: string,

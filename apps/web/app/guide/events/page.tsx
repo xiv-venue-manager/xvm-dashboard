@@ -155,8 +155,8 @@ export default function EventsGuidePage() {
           </p>
           <p className="text-muted-foreground leading-relaxed">
             Get confirmations earlier than you expect to need them. Staff reliable on regular nights sometimes treat
-            events as optional when they do not know what depends on them. Explicit shift assignments with a role
-            description and a confirmation step cut last-minute gaps.
+            events as optional when they do not know what depends on them. Clear positions, covered shifts, and an
+            approval step cut last-minute gaps.
           </p>
           <p className="text-muted-foreground leading-relaxed">
             Have one backup for each critical role. If your event host cancels the afternoon of the event and no one can
@@ -175,12 +175,12 @@ export default function EventsGuidePage() {
             night, whether the guest performer brought anyone new.
           </p>
           <p className="text-muted-foreground leading-relaxed">
-            Note the date, the format, peak patron count, and the night&apos;s revenue. After three or four events you will
-            see which formats pull well on your world and whether certain days perform better.
+            Note the date, the format, peak patron count, and the night&apos;s revenue. After three or four events you
+            will see which formats pull well on your world and whether certain days perform better.
           </p>
           <p className="text-muted-foreground leading-relaxed">
-            Track revenue for payouts too. Staff working an event shift expect a share of the night&apos;s tips. Without a
-            record of what came in, that calculation is a guess or a dispute.
+            Track revenue for payouts too. Staff working an event shift expect a share of the night&apos;s tips. Without
+            a record of what came in, that calculation is a guess or a dispute.
           </p>
         </section>
 
@@ -191,12 +191,13 @@ export default function EventsGuidePage() {
           </h2>
           <p className="text-muted-foreground leading-relaxed">
             XIV Venue Manager gives events their own scheduling layer in the same dashboard you use for regular shifts.
-            Staff get assigned, see their role and start time, and confirm from the app. While an event is live, your
-            venue profile shows as open and the Live page tracks patrons and sales.
+            Add positions and shifts to each event, then assign staff or let them claim an open seat. Pending claims
+            wait for a manager to approve them. While an event is live, your venue profile shows as open and the Live
+            page tracks patrons and sales.
           </p>
           <ul className="space-y-3 text-muted-foreground">
             {[
-              "Schedule events separately from regular shifts, with roles and notes per staff member.",
+              "Build a repeating series once, then copy its positions and shifts to later occurrences instead of rebuilding the roster.",
               "Partake events sync into the dashboard automatically, so your XIV VM event list stays current with what you post on Partake.gg.",
               "Staff log sales from inside the game with a single plugin command, with no spreadsheet handoff at the end of the night.",
               "Revenue and attendance roll into the analytics dashboard so you can compare events side by side over time.",

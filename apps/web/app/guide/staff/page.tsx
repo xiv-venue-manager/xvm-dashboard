@@ -83,7 +83,6 @@ export default function StaffGuidePage() {
               <h1>Staff Guide</h1>
             </header>
 
-
             {/* Getting Started */}
             <section id="getting-started" className="space-y-6 scroll-mt-[84px]">
               <h2 className="font-cinzel text-2xl font-semibold border-b border-[rgba(0,180,255,0.2)] pb-3 tracking-wide">
@@ -138,8 +137,8 @@ export default function StaffGuidePage() {
                   </span>
                   <div className="space-y-2 text-sm leading-relaxed">
                     <span>
-                      <span className="font-medium">Link the plugin:</span> On the website, open the account menu in
-                      the top right and go to <span className="font-medium">Account settings</span>, then choose{" "}
+                      <span className="font-medium">Link the plugin:</span> On the website, open the account menu in the
+                      top right and go to <span className="font-medium">Account settings</span>, then choose{" "}
                       <span className="font-medium">Link the plugin</span> in the Plugin card and press{" "}
                       <span className="font-medium">Generate link code</span>. Then open the plugin with{" "}
                       <code className="bg-[rgba(0,180,255,0.08)] text-[var(--xiv-blue)] px-1.5 py-0.5 rounded text-xs font-mono">
@@ -302,6 +301,17 @@ export default function StaffGuidePage() {
               </div>
 
               <div className="space-y-3">
+                <h3 className="text-base font-semibold text-foreground/80">Claiming an Event Shift</h3>
+                <p className="text-sm leading-relaxed">
+                  Open <span className="font-medium">Upcoming Events</span>, choose the event, and find the{" "}
+                  <span className="font-medium">Roster</span> card. Open seats show a{" "}
+                  <span className="font-medium">Claim</span> button. Confirm the shift; if your venue requires approval,
+                  it shows as pending until a manager approves it. Once approved, the shift appears under{" "}
+                  <span className="font-medium">My Shifts</span> so you can clock in.
+                </p>
+              </div>
+
+              <div className="space-y-3">
                 <h3 className="text-base font-semibold text-foreground/80">Clocking In and Out</h3>
                 <p className="text-sm leading-relaxed mb-3">Use the plugin UI or quick commands:</p>
                 <div className="grid grid-cols-1 sm:grid-cols-2 gap-3 mb-3">
@@ -319,9 +329,9 @@ export default function StaffGuidePage() {
                   <code className="bg-[rgba(0,180,255,0.08)] text-[var(--xiv-blue)] px-1.5 py-0.5 rounded text-xs font-mono">
                     /xvm
                   </code>
-                  ), go to the My Shift tab, and use the Clock In / Clock Out buttons. The plugin lets you clock in from 30
-                  minutes before your shift starts. A shift you have claimed shows as awaiting approval until a manager
-                  approves it, and you cannot clock in until then.
+                  ), go to the My Shift tab, and use the Clock In / Clock Out buttons. The plugin lets you clock in from
+                  30 minutes before your shift starts. A shift you have claimed shows as awaiting approval until a
+                  manager approves it, and you cannot clock in until then.
                 </p>
               </div>
 

@@ -85,9 +85,7 @@ export default function EventTemplatesPage() {
       if (!venueResponse.ok) throw new Error("Failed to fetch venue")
 
       const venues = await venueResponse.json()
-      const venue = venues.find(
-        (v: { slug: string; memberships: { role: string }[] }) => v.slug === slug
-      )
+      const venue = venues.find((v: { slug: string; memberships: { role: string }[] }) => v.slug === slug)
       if (!venue) throw new Error("Venue not found")
       setUserRole(venue.memberships?.[0]?.role ?? null)
 
@@ -257,7 +255,9 @@ export default function EventTemplatesPage() {
             <ClipboardList className="h-12 w-12 text-[var(--xiv-blue)] mx-auto opacity-50" />
             <div>
               <p className="font-cinzel font-semibold tracking-wide">No Templates Yet</p>
-              <p className="text-sm text-muted-foreground mt-1">Save time by templating your recurring events.</p>
+              <p className="text-sm text-muted-foreground mt-1">
+                Save time by reusing event details and default times.
+              </p>
             </div>
           </div>
         ) : (
@@ -315,7 +315,9 @@ export default function EventTemplatesPage() {
           <DialogContent className="max-w-2xl max-h-[90vh] overflow-y-auto">
             <DialogHeader>
               <DialogTitle>{editingTemplate ? "Edit Template" : "Create Template"}</DialogTitle>
-              <DialogDescription>Save time by creating reusable templates for recurring events</DialogDescription>
+              <DialogDescription>
+                Save time by creating reusable templates for event details and default times
+              </DialogDescription>
             </DialogHeader>
 
             <div className="space-y-4 py-4">

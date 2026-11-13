@@ -282,7 +282,7 @@ export function NewEventForm({ slug, venueId, hasPartake }: { slug: string; venu
                   </SelectContent>
                 </Select>
                 <p className="text-sm text-muted-foreground">
-                  Draft events are only visible to staff. Published events are visible to everyone.
+                  Draft events are visible to managers only. Published events are visible to everyone.
                 </p>
               </div>
 
@@ -293,7 +293,9 @@ export function NewEventForm({ slug, venueId, hasPartake }: { slug: string; venu
                     <Label htmlFor="repeating" className="text-sm font-semibold">
                       Repeating Event
                     </Label>
-                    <p className="text-xs text-muted-foreground mt-0.5">Generates 8 future instances automatically</p>
+                    <p className="text-xs text-muted-foreground mt-0.5">
+                      Future occurrences are added automatically; each has its own page and roster
+                    </p>
                   </div>
                   <button
                     type="button"

@@ -19,6 +19,7 @@ import { LogoUpload } from "@/components/logo-upload"
 import { Server } from "lucide-react"
 import { DiscordGuildConnect } from "@/components/discord-guild-connect"
 import { DiscordSettingsCard } from "@/components/discord-settings-card"
+import { ShiftApprovalSettings } from "@/components/shift-approval-settings"
 import type { VenueImage } from "@/lib/api/xvm-api"
 import { Select, SelectContent, SelectItem, SelectTrigger, SelectValue } from "@/components/ui/select"
 import { Alert, AlertDescription } from "@/components/ui/alert"
@@ -1187,6 +1188,7 @@ export default function SettingsPage({ params }: { params: Promise<{ slug: strin
                   <span className="text-sm">{inventoryEnabled ? "Enabled" : "Disabled"}</span>
                 </Label>
               </div>
+              <ShiftApprovalSettings venueSlug={slug} />
             </section>
 
             {/* ── Staff permissions ── */}

@@ -1518,6 +1518,33 @@ export interface ShiftStaffOption {
 // Recurrence (recurrence_rule_id) is schema-only on xvm-api right now - no series/pattern
 // endpoints exist yet, so this client only covers one-off shifts.
 
+export interface ShiftSettingsRow {
+  approval_required: boolean
+  lockout_minutes: number | null
+  qualification_required: boolean
+  start_reminder_minutes: number | null
+}
+
+export async function getShiftSettings(personToken: string, venueId: string): Promise<ShiftSettingsRow> {
+  if (!process.env.XVM_API_BASE_URL) throw new Error("XVM_API_BASE_URL is not set")
+  return xvmFetch<ShiftSettingsRow>(`/venues/${venueId}/shifts/settings`, {}, personToken)
+}
+
+export async function updateShiftSettings(
+  personToken: string,
+  venueId: string,
+  data: Partial<ShiftSettingsRow>,
+  opts: { approvePending?: boolean } = {}
+): Promise<ShiftSettingsRow> {
+  if (!process.env.XVM_API_BASE_URL) throw new Error("XVM_API_BASE_URL is not set")
+  const query = opts.approvePending ? "?approve_pending=true" : ""
+  return xvmFetch<ShiftSettingsRow>(
+    `/venues/${venueId}/shifts/settings${query}`,
+    { method: "PATCH", body: JSON.stringify(data) },
+    personToken
+  )
+}
+
 export type ShiftApiStatus = "pending_approval" | "scheduled" | "active" | "completed" | "cancelled" | "missed"
 
 export interface ShiftRow {

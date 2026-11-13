@@ -1,5 +1,5 @@
 import { describe, it, expect } from "vitest"
-import { toOpenSlot, toShiftRow } from "./shift-format"
+import { isClaimableOpenShift, isStaleUnclockedShift, toOpenSlot, toShiftRow } from "./shift-format"
 import type { BoardShift, ShiftRow as ApiShiftRow } from "./api/xvm-api"
 
 const board: BoardShift = {
@@ -40,6 +40,41 @@ describe("toOpenSlot", () => {
   it("remembers when the viewer already holds a seat on the shift", () => {
     expect(toOpenSlot(board, true).heldByMe).toBe(true)
     expect(toOpenSlot(board, false).heldByMe).toBe(false)
+  })
+})
+
+describe("isClaimableOpenShift", () => {
+  it("keeps an open shift claimable until its event shift ends", () => {
+    expect(isClaimableOpenShift(board, new Date("2026-10-11T18:00:00Z"))).toBe(true)
+    expect(isClaimableOpenShift(board, new Date("2026-10-11T22:59:59Z"))).toBe(true)
+  })
+
+  it("drops an open shift once its event shift has ended", () => {
+    expect(isClaimableOpenShift(board, new Date("2026-10-11T23:00:00Z"))).toBe(false)
+    expect(isClaimableOpenShift(board, new Date("2026-10-18T19:00:00Z"))).toBe(false)
+  })
+
+  it("drops an open shift whose end time cannot be read", () => {
+    expect(isClaimableOpenShift({ ends_at: "not-a-date" }, new Date("2026-10-11T18:00:00Z"))).toBe(false)
+  })
+})
+
+describe("isStaleUnclockedShift", () => {
+  const now = new Date("2026-10-11T23:00:00Z")
+
+  it("drops past seats that were never clocked in", () => {
+    expect(isStaleUnclockedShift({ scheduledEnd: "2026-10-11T22:59:59Z", status: "SCHEDULED" }, now)).toBe(true)
+    expect(isStaleUnclockedShift({ scheduledEnd: "2026-10-11T22:59:59Z", status: "MISSED" }, now)).toBe(true)
+  })
+
+  it("keeps scheduled seats that have not ended and every clocked seat", () => {
+    expect(isStaleUnclockedShift({ scheduledEnd: "2026-10-11T23:00:01Z", status: "SCHEDULED" }, now)).toBe(false)
+    expect(isStaleUnclockedShift({ scheduledEnd: "2026-10-11T22:59:59Z", status: "ACTIVE" }, now)).toBe(false)
+    expect(isStaleUnclockedShift({ scheduledEnd: "2026-10-11T22:59:59Z", status: "COMPLETED" }, now)).toBe(false)
+  })
+
+  it("keeps a seat whose end time cannot be read", () => {
+    expect(isStaleUnclockedShift({ scheduledEnd: "not-a-date", status: "SCHEDULED" }, now)).toBe(false)
   })
 })
 

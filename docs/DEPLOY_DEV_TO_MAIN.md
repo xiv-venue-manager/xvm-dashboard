@@ -1,39 +1,68 @@
 # Deploying `dev` to prod (`main`)
 
-> **Stale after the Prisma removal.** The `dev` code no longer uses the Prisma schema, so the additive SQL, the `pnpm db:push` warning and the drift re-check below, which run `prisma migrate diff` against `schema.prisma`, no longer apply. Rewrite this runbook around the xvm-api cutover (`docs/MIGRATION_EXPORTS.md`) before promoting `dev`.
+Prod runs `main`. `dev` is promoted to `main` by fast-forward. Pushing to `main` deploys nothing: prod only changes when someone runs a deploy script by hand. Last checked 2026-11-13.
 
-Prod runs `main` against the `venue_manager` Postgres. `dev` runs against `dashboard_dev`. The prod deploy script has no schema step, and prod has no migrations table, so schema changes are applied by hand from `docs/deploy/`.
+## How prod and dev are laid out
 
-Dev is the other way round on purpose. A push to `dev` runs `.github/workflows/deploy-dev.yml`, which builds the dev image and restarts the dev container. It runs no schema step. Prod deliberately has no equivalent. Do not add a prod workflow to close the gap by symmetry: prod schema changes stay hand-applied from `docs/deploy/`.
+Everything runs on one host (192.168.1.122) and shares one Postgres container.
 
-## Never do this on prod
-
-`pnpm db:push`, with or without a flag. The script in `apps/web/package.json` is `prisma db push --accept-data-loss`, so the bare command already carries it. The `dev` Prisma schema has dropped four tables and several columns that still hold data in prod. A push would silently delete them.
-
-## What differs (prod schema as of 2026-10-09 vs `dev`)
-
-| Kind | Objects | File |
+| | Prod | Dev |
 |---|---|---|
-| Additive | `services.xvmApiServiceId`, `venues.xvmApiVenueId/LinkedAt/LinkedBy` (unique on id), table `xvm_api_credentials` | `docs/deploy/01-additive.sql` |
-| Destructive | `patrons.isVip/vipSetAt/vipSetById` (+ index, FK), `venues.location`, tables `device_tokens`, `notification_preferences`, `refresh_tokens`, `rooms` | `docs/deploy/99-cleanup-after-cutover.sql` |
+| Dashboard | container `venue-manager`, built from `main` in `/home/server/xiv-app`, port 3000 (3007 during a green deploy) | `venue-manager-dev` on 3008, rebuilt by `deploy-dev.yml` on every push to `dev` |
+| API | `xvm-api` on 8002, built from `main` in `/home/server/xvm-api` | `xvm-api-dev` on 8001 |
+| Database | `xvm_api` | `xvm_api_dev` |
 
-Only the additive file is needed for `dev` code to run. The drops are safe to defer: the new code does not read the dropped objects, and the old columns and tables just sit unused.
+The dashboard has no database of its own. Every schema change is an Alembic migration in the xvm-api repo, so a dashboard deploy has no schema step. There is no Prisma left to run.
 
-All three SQL files were generated with `prisma migrate diff` against a restored copy of prod's structure, then applied in a throwaway Postgres. After 01 the only remaining diff was the drops. After 99 the diff was empty. 02 returned the database to the starting state.
+## Before you promote
 
-## Prerequisite: xvm-api in prod
+1. CI is green on `dev` in the repos you are promoting.
+2. `main` is an ancestor of `dev`, so the promotion is a fast-forward. Check with `git rev-list --count origin/dev..origin/main`, which must print 0. If it does not, merge `main` into `dev` through a PR first, as a merge commit and not a squash.
+3. xvm-api: there is a single Alembic head (`uv run alembic heads`), and you have read every migration since the last promotion. Additive migrations are safe to run before the new code. Anything that drops or rewrites data needs its own plan before you start.
+4. New environment variables are already in place. Prod reads `/home/server/xvm-api/.env.prod` for the API and `/home/server/xiv-app/.env` for the dashboard.
+5. Nothing is live. `maintenance.sh on` refuses to run during an event. The plugin cannot retry, so patron visits, sales and clock-ins sent while the site is down are lost. Anything that touches shifts, clock-ins or the plugin API belongs in a maintenance window.
 
-Prod has no xvm-api container and no `XVM_API_BASE_URL`. The `dev` code reads people, venues, shifts, events and more from xvm-api, so deploying `dev` before a prod xvm-api exists and is loaded breaks the site. Deploying `dev` to prod is the cutover. Sequence it with the migration load (`docs/MIGRATION_EXPORTS.md`), and with Allegro.
+## Promote
 
-## Procedure
+Do the API first. The dashboard on `dev` calls API routes that prod does not have until the API is promoted.
 
-1. **Backup.** `pg_dump -Fc venue_manager > venue_manager-$(date +%F).dump` on the DB host. Restore-check it into a scratch DB before continuing.
-2. **Apply additive SQL** while the old code is still running (it ignores the new columns): `psql -v ON_ERROR_STOP=1 venue_manager < docs/deploy/01-additive.sql`. It runs in one transaction.
-3. **Prod xvm-api up and loaded**, `XVM_API_BASE_URL` and credentials set on the `venue-manager` container.
-4. **Merge `dev` to `main`, deploy** with `~/bin/deploy-xiv-web.sh`, run by hand over SSH. Check sign-in, a venue page, the plugin.
-5. **Rollback.** Redeploy the previous `main` image. The old code ignores the additive objects, so no schema rollback is needed. To remove them anyway: `docs/deploy/02-rollback-additive.sql` (drops `xvm_api_credentials` and the link columns, so run it only if nothing has been linked).
-6. **Cleanup, later.** Once the cutover has soaked and nothing needs the old data, take a fresh backup and run `docs/deploy/99-cleanup-after-cutover.sql`. This is irreversible without the backup.
+### API
 
-## Re-check before running
+1. Fast-forward `main` to the `dev` commit you tested. This fails if it is not a fast-forward, which is what you want.
 
-Schema drift can reappear. Re-run the diff against prod just before the deploy: dump prod structure, restore it to a scratch Postgres, then `DATABASE_URL=<scratch> pnpm prisma migrate diff --from-config-datasource --to-schema prisma/schema.prisma --script` from `apps/web`. If the output differs from the files above, regenerate them.
+   ```
+   gh api -X PATCH repos/xiv-venue-manager/xvm-api/git/refs/heads/main -f sha=<dev sha> -F force=false
+   ```
+
+2. On the server, run `~/bin/deploy-xvm-api.sh`. It fetches `main`, checks there is one Alembic head, dumps `xvm_api` into `/home/server/backups` before any migration, builds, restarts and waits for `/health`.
+3. Check `/health` and `/health/deep` on `http://192.168.1.122:8002`, and `https://api.xivvenuemanager.com/health`. Read the container log for startup errors.
+
+### Dashboard
+
+1. Fast-forward `main` the same way, against `repos/xiv-venue-manager/xvm-dashboard`.
+2. From the laptop, run `~/bin/deploy-xiv-web.sh`. Use `--green` only inside a maintenance window.
+   - Plain: checks the laptop's `~/xiv-app` checkout is clean and pushes its `main`, checks the server tree is clean, pulls, rebuilds `venue-manager` on :3000 and points the Cloudflare tunnel at it.
+   - `--green`: builds `venue-manager-next` on :3007, health-checks it for 30 seconds, flips the tunnel (about a 10 second gap), smoke-tests the live domain and stops the old container. Port 3007 is also the maintenance page's slot.
+3. Check sign-in, a venue page, the shifts page and the plugin. Look for new errors in GlitchTip.
+
+## Rolling back
+
+- **Code:** do not force-push `main`. Revert the change on `dev`, promote the revert and redeploy. In an emergency, revert on `main` and merge `main` back into `dev` afterwards.
+- **Database:** additive migrations need no rollback, because the old code ignores new columns and tables. If a migration did something that must be undone, restore the dump the deploy script took, right away, because it loses everything written since:
+
+  ```
+  docker exec -i postgres pg_restore -U postgres -d xvm_api --clean --if-exists < <dump file>
+  ```
+
+## Do not
+
+- Edit prod data by hand without a `pg_dump` of `xvm_api` first.
+- Promote the dashboard before the API.
+- Push feature work straight to `main`. It only moves by fast-forward from `dev`, or by a hotfix that is merged back into `dev`.
+- Add a workflow that deploys prod. Prod stays a manual step on purpose.
+
+## Known rough edges in `deploy-xiv-web.sh`
+
+- The plain path points the tunnel back at :3000 even while maintenance is on, which ends the maintenance window without saying so.
+- It pushes the laptop checkout's `main`, so make sure that checkout matches `origin/main` before you run it.
+- The server pull is a plain `git pull`, not `--ff-only`, and the plain path has no health check after the restart.

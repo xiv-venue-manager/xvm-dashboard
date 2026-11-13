@@ -21,6 +21,7 @@ const ALIASES: Record<string, string> = {
   ListingSyncResult: "SyncResult",
   PublicPlatformStats: "PublicStats",
   ShiftAuditRow: "AuditRow",
+  ShiftSettingsRow: "ShiftSettings",
   TaskCreateData: "TaskCreate",
   TaskUpdateData: "TaskUpdate",
   TaskAssignData: "TaskAssign",

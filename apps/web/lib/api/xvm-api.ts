@@ -1514,6 +1514,10 @@ export interface ShiftStaffOption {
   image: string | null
 }
 
+// ── Shifts API ─────────────────────────────────────────────────
+// Recurrence (recurrence_rule_id) is schema-only on xvm-api right now - no series/pattern
+// endpoints exist yet, so this client only covers one-off shifts.
+
 export interface ShiftSettingsRow {
   approval_required: boolean
   lockout_minutes: number | null
@@ -1540,10 +1544,6 @@ export async function updateShiftSettings(
     personToken
   )
 }
-
-// ── Shifts API ─────────────────────────────────────────────────
-// Recurrence (recurrence_rule_id) is schema-only on xvm-api right now - no series/pattern
-// endpoints exist yet, so this client only covers one-off shifts.
 
 export type ShiftApiStatus = "pending_approval" | "scheduled" | "active" | "completed" | "cancelled" | "missed"
 

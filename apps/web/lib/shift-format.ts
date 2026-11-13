@@ -105,6 +105,19 @@ export function toShiftRow(shift: ApiShiftRow, roleName: string | null): ShiftRo
   }
 }
 
+/** Open board shifts stay claimable only until their event shift ends. */
+export function isClaimableOpenShift(shift: Pick<BoardShift, "ends_at">, now: Date): boolean {
+  const endsAt = new Date(shift.ends_at).getTime()
+  return Number.isFinite(endsAt) && endsAt > now.getTime()
+}
+
+/** A scheduled seat whose time passed without a clock-in adds nothing to history. */
+export function isStaleUnclockedShift(shift: Pick<ShiftRow, "scheduledEnd" | "status">, now: Date): boolean {
+  if (shift.status !== "SCHEDULED" && shift.status !== "MISSED") return false
+  const endsAt = new Date(shift.scheduledEnd).getTime()
+  return Number.isFinite(endsAt) && endsAt <= now.getTime()
+}
+
 export function toOpenSlot(shift: BoardShift, heldByMe: boolean): ShiftRow {
   return {
     id: -shift.id,

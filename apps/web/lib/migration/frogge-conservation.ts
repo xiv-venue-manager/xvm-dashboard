@@ -320,7 +320,7 @@ export const FROGGE_TABLES: Record<string, FroggeTableSpec> = {
   venue_refresh_requests: { kind: "expect_empty" },
   verification_records: {
     kind: "retained",
-    note: "frogge-verification.json, kept until Allegro builds the verification schema (decided 2026-11-03)",
+    note: "frogge-verification.json: lodestone_code records for people in the load go through map-frogge-verification.ts, the unverified claims stay here (decided 2026-11-03)",
   },
   verification_role_relations: notCarried("Allegro 2026-11-03: skip the role relations"),
   vip_display_posts: { kind: "exported", array: "vip_display_posts" },

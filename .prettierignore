@@ -11,9 +11,6 @@ build
 # Lockfiles
 pnpm-lock.yaml
 
-# Generated Prisma client
-**/generated/prisma
-**/generated/prisma-client
 
 # Test coverage
 coverage

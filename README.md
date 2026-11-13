@@ -84,7 +84,6 @@ The platform is two parts: a **web dashboard** (this repo) and a **Dalamud game-
 - **Frontend**: Next.js 16 (App Router), React 19, Tailwind CSS, shadcn/ui
 - **Backend**: Node.js, Next.js API Routes (55 routes), TypeScript with `strict: true`
 - **Database**: PostgreSQL 16 (self-hosted via Docker Compose), 19 tables
-- **ORM**: Prisma (using `db push` workflow)
 - **Authentication**: NextAuth.js (browser, Discord OAuth) + hashed API keys (game-client plugin)
 - **Caching + Rate Limiting**: Redis 7 (single instance, ioredis client, namespaced `cache:` and `rl:` keys)
 - **Real-time**: Server-Sent Events (SSE) for the live patron feed
@@ -111,8 +110,6 @@ See [QUICK_START.md](./QUICK_START.md) for detailed setup instructions.
 ```bash
 npm install
 cp .env.example .env  # fill in DATABASE_URL, REDIS_URL, NEXTAUTH_SECRET, DISCORD_CLIENT_ID/SECRET
-npx prisma generate
-npx prisma db push
 npm run dev
 ```
 

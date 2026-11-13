@@ -1,8 +1,10 @@
 # Deploying `dev` to prod (`main`)
 
+> **Stale after the Prisma removal.** The `dev` code no longer uses the Prisma schema, so the additive SQL, the `pnpm db:push` warning and the drift re-check below, which run `prisma migrate diff` against `schema.prisma`, no longer apply. Rewrite this runbook around the xvm-api cutover (`docs/MIGRATION_EXPORTS.md`) before promoting `dev`.
+
 Prod runs `main` against the `venue_manager` Postgres. `dev` runs against `dashboard_dev`. The prod deploy script has no schema step, and prod has no migrations table, so schema changes are applied by hand from `docs/deploy/`.
 
-Dev is the other way round on purpose. A push to `dev` runs `.github/workflows/deploy-dev.yml`, which builds the dev image and runs `prisma db push` against `dashboard_dev` only (it refuses any other `DATABASE_URL`), with an opt-in `accept_data_loss` switch on the manual dispatch. Prod deliberately has no equivalent. Do not add a prod workflow to close the gap by symmetry: prod schema changes stay hand-applied from `docs/deploy/`.
+Dev is the other way round on purpose. A push to `dev` runs `.github/workflows/deploy-dev.yml`, which builds the dev image and restarts the dev container. It runs no schema step. Prod deliberately has no equivalent. Do not add a prod workflow to close the gap by symmetry: prod schema changes stay hand-applied from `docs/deploy/`.
 
 ## Never do this on prod
 

@@ -16,11 +16,6 @@ const eslintConfig = defineConfig([
     "next-env.d.ts",
     // Standalone CJS ops scripts (run via `node <file>.js`, not part of ESM bundle):
     "apply-indexes.js",
-    "clean-pending-owner.js",
-    // Run via `tsx`, not node - tsx resolves the .ts prisma client import:
-    "backfill-venue-profile.js",
-    // Run via `tsx`, not `node` - needs the generated TS Prisma client, see its own header comment.
-    "backfill-gallery-images.js",
   ]),
   {
     rules: {
@@ -30,20 +25,12 @@ const eslintConfig = defineConfig([
           patterns: [
             {
               group: ["**/lib/prisma", "**/generated/prisma", "**/generated/prisma/*"],
-              message: "Prisma is being removed. Use xvm-api. See docs/PRISMA_MIGRATION_MANIFEST.md.",
+              message: "Prisma has been removed. Use xvm-api. See docs/PRISMA_MIGRATION_MANIFEST.md.",
             },
           ],
         },
       ],
     },
-  },
-  {
-    // Shrinks to empty as the Prisma cutover lands. Do not add to it.
-    files: [
-      "lib/prisma.ts",
-      "scripts/**",
-    ],
-    rules: { "no-restricted-imports": "off" },
   },
 ])
 

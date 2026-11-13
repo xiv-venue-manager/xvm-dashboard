@@ -6,13 +6,11 @@ const m = vi.hoisted(() => ({
   request: vi.fn(),
   invalidate: vi.fn(),
   errorResponse: vi.fn(),
-  userDelete: vi.fn(),
 }))
 
 vi.mock("next-auth", () => ({ getServerSession: m.session }))
 vi.mock("@/lib/auth", () => ({ authOptions: {} }))
 vi.mock("@/lib/middleware/with-rate-limit", () => ({ withRateLimit: (handler: unknown) => handler }))
-vi.mock("@/lib/prisma", () => ({ prisma: { user: { delete: m.userDelete } } }))
 vi.mock("@/lib/api/xvm-api", () => ({ requestAccountDeletion: m.request }))
 vi.mock("@/lib/api/xvm-api-store", () => ({
   getValidXvmApiToken: m.token,
@@ -72,10 +70,5 @@ describe("DELETE /api/user/deletion", () => {
     expect(res.status).toBe(200)
     expect(spy).toHaveBeenCalled()
     spy.mockRestore()
-  })
-
-  it("never deletes the Prisma user", async () => {
-    await call()
-    expect(m.userDelete).not.toHaveBeenCalled()
   })
 })

@@ -12,9 +12,6 @@ const {
     mockGetService: vi.fn(),
   }))
 
-vi.mock("@/lib/prisma", () => {
-  throw new Error("must not read Prisma")
-})
 vi.mock("@/lib/api/xvm-api", async (importOriginal) => {
   const actual = await importOriginal<typeof import("@/lib/api/xvm-api")>()
   return {

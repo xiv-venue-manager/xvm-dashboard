@@ -112,7 +112,7 @@ Status of each Prisma table on `dev`:
 
 | Prisma table | Dev code | Status | xvm-api target | Notes |
 |---|---|---|---|---|
-| `venues` | r web 131, w web 7, raw web 1, bot 3, dbot 1 | Live | `Venue`, `VenueProfileSettings`, `VenueDiscordSettings`, `VenueImage`, `VenueExternalLink` | Most reads are the `xvmApiVenueId` bridge. **No prod venue is on xvm-api** (prod's `venues` table does not even have the `xvmApiVenueId` column), so the window creates 63 of the 69 (decision 7). Existing scripts: `backfill-venue-profile.js`, `backfill-gallery-images.js`. Carries `froggeToken` (see Frogge). `discordWebhookUrl` is deprecated but still read and written. A field-by-field map is not written. |
+| `venues` | r web 131, w web 7, raw web 1, bot 3, dbot 1 | Live | `Venue`, `VenueProfileSettings`, `VenueDiscordSettings`, `VenueImage`, `VenueExternalLink` | Most reads are the `xvmApiVenueId` bridge. **No prod venue is on xvm-api** (prod's `venues` table does not even have the `xvmApiVenueId` column), so the window creates 63 of the 69 (decision 7). The `lib/migration/venues.ts` mapper replaced the old backfill scripts. Carries `froggeToken` (see Frogge). `discordWebhookUrl` is deprecated but still read and written. A field-by-field map is not written. |
 | `venue_schedules`, `venue_schedule_entries` | none | Dead | `VenueHours` | Retired from the app per code comments (`venues/[slug]/page.tsx`, `api/public/venues/route.ts`). Issue #57 still describes a Prisma write; its text predates this and should be rechecked. Hours live in xvm-api. |
 | `venue_follows` | r web 2 (the bot clock-in route and the dispatch cron, both deleted by #237) | Cut over | `VenueFollow` | Follow, unfollow, the follow state on discover, following and the venue page, and the follower counts all read and write xvm-api (`/me/follows`, `PublicVenue.follower_count`, `getVenueFollowers`). The table holds only the pre-window rows: 88 of 89 load in the window, and the app reads only xvm-api once this deploys, so the load must run with or before that deploy. The venue-opened and event-reminder DM fan-outs were dropped (xvm-api#200). Toggles were decided DROP. |
 | `venue_inventory_settings` | r web 2, w web 1 | Live | no obvious target (`ServiceInventory` is per service) | Target unclear. **Decision or xvm-api question.** Has a plugin counterpart that stays Prisma until the plugin cutover. |
@@ -144,8 +144,8 @@ xvm-api also has venue fields Prisma lacks (`room`, `subdivision`, and the task,
 | Prisma table | Dev code | Status | xvm-api target | Notes |
 |---|---|---|---|---|
 | `memberships` | r web 55, w web 1, raw bot 3, dbot 1 | Live | `Membership`, `EmploymentPeriod` | Decision 2026-08-30: backfill existing people, native invite flow for new. Needs persons, venues and positions first. Today only venue creation writes it, which is why the dashboard refuses invitees (PR #136 fixes the read side). Frogge staff are a separate source, see Frogge. |
-| `roles` | r web 1 | Live | `Position` | `migrate-positions.ts` exists. Hourly rates convert gil to minor units. |
-| `membership_role_assignments` | none | Cut over | `MembershipPosition` | Not confirmed that `migrate-positions.ts` carries assignments. **Check.** |
+| `roles` | r web 1 | Live | `Position` | The `lib/migration/positions.ts` mapper replaced `migrate-positions.ts`. Hourly rates convert gil to minor units. |
+| `membership_role_assignments` | none | Cut over | `MembershipPosition` | The `lib/migration/positions.ts` mapper carries them. |
 
 ### Events
 
@@ -165,7 +165,7 @@ xvm-api also has venue fields Prisma lacks (`room`, `subdivision`, and the task,
 
 | Prisma table | Dev code | Status | xvm-api target | Notes |
 |---|---|---|---|---|
-| `services` | r web 2, w web 2 | Live | `Service`, `ServiceCategory`, `ServiceInventory` | Only plugin inventory routes remain. `migrate-services-to-xvm-api.ts` exists and writes the new id back to Prisma. |
+| `services` | r web 2, w web 2 | Live | `Service`, `ServiceCategory`, `ServiceInventory` | Only plugin inventory routes remain. The `lib/migration/services.ts` mapper replaced `migrate-services-to-xvm-api.ts`. |
 | `transactions` | none | Cut over | `Transaction` | The daily-sales-summary cron was the last reader and is deleted (webhook retirement, decision 2026-09-09: the summary posts again as a scheduled job on the xvm-api and bot side, Allegro's). Sales are written through `lib/api/transactions.ts` into xvm-api. Decide how much history moves. |
 | `payroll_entries`, `pot_distributions`, `venue_pot_settings` | none | Cut over | `PayrollEntry`, `PotDistribution`, `VenuePayrollSettings` | Move needed. Whether pot settings map to `VenuePayrollSettings` is not confirmed. |
 
@@ -472,15 +472,7 @@ Rollback idea, unreviewed: Prisma is only read during the window, so rolling bac
 
 ## Existing scripts
 
-| Script | Covers | Uses Prisma client? |
-|---|---|---|
-| `apps/web/scripts/migrate-positions.ts` | roles to positions | yes |
-| `apps/web/scripts/migrate-services-to-xvm-api.ts` | services, categories, position grants | yes (and writes ids back) |
-| `apps/web/backfill-venue-profile.js` | venue profile fields | yes |
-| `apps/web/backfill-gallery-images.js` | gallery images to storage | yes |
-| `apps/web/scripts/backfill-shouts-to-xvm-api.ts` (PR #134, merged) | shouts | **no**, reads a SQL export |
-
-Decision 1 converts the four older scripts to the export-based pattern. With decision 3, most of them are superseded by the direct load and only keep their mapping logic.
+The Prisma-based scripts were deleted with the Prisma client. The `lib/migration` mappers replaced them, and `apps/web/scripts/backfill-shouts-to-xvm-api.ts` (PR #134, merged) reads a SQL export.
 
 ## What this does not tell you
 

@@ -10,6 +10,7 @@ import {
   getChannelInfo,
   isThreadChannelType,
   unsafeRoleReason,
+  elevatedRoleReason,
   ROLE_ABOVE_BOT_REASON,
   type DiscordChannelOption,
   type DiscordRoleOption,
@@ -167,12 +168,16 @@ export async function botRolePosition(guildId: string, roles: DiscordRoleOption[
  * the cached list is five minutes old. A role at or above the bot's own highest role is refused
  * too, since Discord answers 403 to every grant; that refusal is confirmed against a live read
  * first, so moving the bot's role up does not leave saves refused for the length of the cache.
+ *
+ * `elevated` also refuses a role with a moderation power, for the role the bot gives to every
+ * member who verifies. The held `current` role is exempt, as it is from the checks above.
  */
 export async function requireRoleInGuild(
   userId: string,
   venueId: string,
   roleId: string,
-  current: string | null = null
+  current: string | null = null,
+  { elevated = false }: { elevated?: boolean } = {}
 ): Promise<RoleCheck> {
   const guild = await requireVenueGuild(userId, venueId)
   if (!guild.ok) return guild
@@ -208,6 +213,18 @@ export async function requireRoleInGuild(
         if (!rolesAreLive) await setCache(key, live.data, cacheTTL.discordGuild)
         const liveRole = live.data.find((r) => r.id === roleId)
         if (liveRole) unsafe = unsafeRoleReason(liveRole, guild.guildId, await botRolePosition(guild.guildId, live.data, true))
+      }
+    }
+  }
+  if (!unsafe && elevated && roleId !== current) {
+    const power = elevatedRoleReason(role)
+    if (power) {
+      return {
+        ok: false,
+        response: NextResponse.json(
+          { error: "role_unsafe", message: `That role can't be the verified role: ${power}.` },
+          { status: 400 }
+        ),
       }
     }
   }

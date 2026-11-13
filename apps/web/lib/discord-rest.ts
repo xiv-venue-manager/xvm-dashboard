@@ -200,6 +200,33 @@ export function unsafeRoleReason(role: DiscordRoleOption, guildId: string, botRo
   return null
 }
 
+const ELEVATED_POWERS: [string, number][] = [
+  ["Administrator", 3],
+  ["Manage Server", 5],
+  ["Manage Roles", 28],
+  ["Manage Channels", 4],
+  ["Manage Webhooks", 29],
+  ["Kick Members", 1],
+  ["Ban Members", 2],
+  ["Mention Everyone", 17],
+  ["Timeout Members", 40],
+  ["Manage Messages", 13],
+  ["Manage Threads", 34],
+  ["Manage Emojis and Stickers", 30],
+  ["Manage Nicknames", 27],
+  ["Manage Events", 33],
+  ["Mute Members", 22],
+  ["Deafen Members", 23],
+  ["Move Members", 24],
+  ["View Audit Log", 7],
+]
+
+export function elevatedRoleReason(role: DiscordRoleOption): string | null {
+  const held = BigInt(role.permissions)
+  const power = ELEVATED_POWERS.find(([, bit]) => (held >> BigInt(bit)) & BigInt(1))
+  return power ? `it has ${power[0]}` : null
+}
+
 // The first three checks of unsafeRoleReason, applied proactively to a role list rather than reactively
 // to one already-picked role - the standard for every role picker, so an admin never sees
 // @everyone/managed/Administrator roles as options to begin with. Server-side submit handlers

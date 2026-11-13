@@ -858,6 +858,10 @@ export interface DiscordSettings {
   honeypot_channel_id: string | null
   events_channel_id: string | null
   rooms_channel_id: string | null
+  verified_role_id: string | null
+  verification_captcha: boolean
+  verification_lodestone: "off" | "exists" | "code"
+  verification_nickname: boolean
 }
 
 export async function getDiscordSettings(personToken: string, venueId: string): Promise<DiscordSettings> {

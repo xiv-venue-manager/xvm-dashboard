@@ -42,8 +42,7 @@ jobs:
           # `pnpm audit` locally, but does NOT affect this script's own
           # --json parsing, so the actual enforcement has to live here too).
           # All DoS-class (glob/URI parsing complexity), only reachable
-          # through @sentry/nextjs's own bundler/webpack-plugin chain or
-          # eorzea-bot's Prisma config chain
+          # through @sentry/nextjs's own bundler/webpack-plugin chain
           # - never fed attacker-controlled input in production. No fix
           # available without forcing an incompatible major version several
           # levels down a transitive chain we don't control.
@@ -51,7 +50,6 @@ jobs:
               "GHSA-3jxr-9vmj-r5cp",  # brace-expansion, via @sentry/nextjs bundler chain
               "GHSA-mh99-v99m-4gvg",  # brace-expansion, via @sentry/nextjs bundler chain
               "GHSA-rgw5-rvv9-x895",  # brace-expansion, via @sentry/nextjs bundler chain
-              "GHSA-ggr8-5vv4-36mx",  # deepmerge-ts, via eorzea-bot's prisma config chain (DoS only, no attacker-controlled input)
           }
 
           failures = []

@@ -2987,6 +2987,100 @@ export async function listActivity(personToken: string, venueId: string, query: 
   return xvmFetch<ActivityRow[]>(`/venues/${venueId}/activity${qs ? `?${qs}` : ""}`, {}, personToken)
 }
 
+export interface EmbedFieldRow {
+  id: number
+  name: string
+  value: string
+  inline: boolean
+  sort_order: number
+}
+
+export interface EmbedRow {
+  id: number
+  name: string
+  title: string | null
+  description: string | null
+  color: number | null
+  url: string | null
+  timestamp_at: string | null
+  header_text: string | null
+  header_icon_url: string | null
+  header_url: string | null
+  footer_text: string | null
+  footer_icon_url: string | null
+  thumbnail_url: string | null
+  image_url: string | null
+  fields: EmbedFieldRow[]
+  created_at: string
+  updated_at: string
+}
+
+export interface EmbedWrite {
+  name: string
+  title: string | null
+  description: string | null
+  color: number | null
+  url: string | null
+  timestamp_at: string | null
+  header_text: string | null
+  header_icon_url: string | null
+  header_url: string | null
+  footer_text: string | null
+  footer_icon_url: string | null
+  thumbnail_url: string | null
+  image_url: string | null
+  fields: { name: string; value: string; inline: boolean }[]
+}
+
+export interface EmbedPostRow {
+  channel_id: string
+  message_id: string | null
+  posted_at: string | null
+}
+
+export async function createEmbed(personToken: string, venueId: string, data: EmbedWrite): Promise<EmbedRow> {
+  if (!process.env.XVM_API_BASE_URL) throw new Error("XVM_API_BASE_URL is not set")
+  return xvmFetch<EmbedRow>(`/venues/${venueId}/embeds`, { method: "POST", body: JSON.stringify(data) }, personToken)
+}
+
+export async function updateEmbed(
+  personToken: string,
+  venueId: string,
+  embedId: number,
+  data: EmbedWrite
+): Promise<EmbedRow> {
+  if (!process.env.XVM_API_BASE_URL) throw new Error("XVM_API_BASE_URL is not set")
+  return xvmFetch<EmbedRow>(
+    `/venues/${venueId}/embeds/${embedId}`,
+    { method: "PATCH", body: JSON.stringify(data) },
+    personToken
+  )
+}
+
+export async function deleteEmbed(personToken: string, venueId: string, embedId: number): Promise<void> {
+  if (!process.env.XVM_API_BASE_URL) throw new Error("XVM_API_BASE_URL is not set")
+  return xvmFetch<void>(`/venues/${venueId}/embeds/${embedId}`, { method: "DELETE" }, personToken)
+}
+
+export async function listEmbeds(personToken: string, venueId: string): Promise<EmbedRow[]> {
+  if (!process.env.XVM_API_BASE_URL) throw new Error("XVM_API_BASE_URL is not set")
+  return xvmFetch<EmbedRow[]>(`/venues/${venueId}/embeds`, {}, personToken)
+}
+
+export async function listEmbedPosts(personToken: string, venueId: string, embedId: number): Promise<EmbedPostRow[]> {
+  if (!process.env.XVM_API_BASE_URL) throw new Error("XVM_API_BASE_URL is not set")
+  return xvmFetch<EmbedPostRow[]>(`/venues/${venueId}/embeds/${embedId}/posts`, {}, personToken)
+}
+
+export async function postEmbed(personToken: string, venueId: string, embedId: number, channelId: string): Promise<void> {
+  if (!process.env.XVM_API_BASE_URL) throw new Error("XVM_API_BASE_URL is not set")
+  return xvmFetch<void>(
+    `/venues/${venueId}/embeds/${embedId}/posts`,
+    { method: "POST", body: JSON.stringify({ channel_id: channelId }) },
+    personToken
+  )
+}
+
 export async function listModules(personToken: string, venueId: string): Promise<ModuleRow[]> {
   if (!process.env.XVM_API_BASE_URL) throw new Error("XVM_API_BASE_URL is not set")
   return xvmFetch<ModuleRow[]>(`/venues/${venueId}/modules`, {}, personToken)

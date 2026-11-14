@@ -34,6 +34,7 @@ import {
   ScrollText,
   Quote,
   Activity,
+  MessageSquareText,
   type LucideIcon,
 } from "lucide-react"
 
@@ -302,6 +303,7 @@ export function VenueSidebar({
           roles: ["OWNER", "MANAGER"],
         },
         { href: `/dashboard/${venueSlug}/quote-board`, label: "Quote Board", icon: Quote },
+        { href: `/dashboard/${venueSlug}/embeds`, label: "Embeds", icon: MessageSquareText },
       ],
     },
     {

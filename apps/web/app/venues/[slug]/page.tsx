@@ -33,6 +33,7 @@ import { MapPin, Calendar, Clock, Image as ImageIcon, ChevronLeft, Scroll, Heart
 import { LocalTime } from "@/components/server-time"
 import { formatVenueAddress, formatLifestreamCommand } from "@/lib/venue-location"
 import { VenueFollowButton } from "@/components/venue-follow-button"
+import { VenueGallery } from "@/components/venue-gallery"
 import { CopyAddressButton, CopyAddressInline } from "@/components/copy-address-button"
 import { SiteFooter } from "@/components/site-footer"
 import { VenueScheduleDisplay } from "@/components/venue-schedule-display"
@@ -305,18 +306,7 @@ export default async function VenueProfilePage({ params }: { params: Promise<{ s
                         <div className="block-title">
                           <ImageIcon /> Gallery
                         </div>
-                        <div className="gallery">
-                          {displayImages.map((url, i) => (
-                            <a key={url} href={url} target="_blank" rel="noopener noreferrer" className="gtile">
-                              {/* eslint-disable-next-line @next/next/no-img-element */}
-                              <img
-                                src={url}
-                                alt={`${displayName} gallery ${i + 1}`}
-                                className="absolute inset-0 w-full h-full object-cover"
-                              />
-                            </a>
-                          ))}
-                        </div>
+                        <VenueGallery images={displayImages} name={displayName} />
                       </div>
                     )}
                   </div>

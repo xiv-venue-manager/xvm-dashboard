@@ -32,6 +32,7 @@ import {
   Smile,
   Zap,
   ScrollText,
+  Quote,
   type LucideIcon,
 } from "lucide-react"
 
@@ -299,6 +300,7 @@ export function VenueSidebar({
           icon: ScrollText,
           roles: ["OWNER", "MANAGER"],
         },
+        { href: `/dashboard/${venueSlug}/quote-board`, label: "Quote Board", icon: Quote },
       ],
     },
     {

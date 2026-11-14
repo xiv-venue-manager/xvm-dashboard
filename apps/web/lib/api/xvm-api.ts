@@ -2889,6 +2889,70 @@ export async function stopAuditLogEvent(personToken: string, venueId: string, ev
   return xvmFetch<void>(`/venues/${venueId}/audit-log/events/${eventKey}`, { method: "DELETE" }, personToken)
 }
 
+export interface QuoteBoardSettingsRow {
+  board_channel_id: string | null
+  emoji: string
+  reaction_threshold: number
+  allow_nsfw_sources: boolean
+  blacklisted_channel_ids: string[]
+}
+
+export interface QuoteBoardSettingsUpdate {
+  board_channel_id?: string | null
+  emoji?: string
+  reaction_threshold?: number
+  allow_nsfw_sources?: boolean
+  blacklisted_channel_ids?: string[]
+}
+
+export interface QuoteRow {
+  id: number
+  source_channel_id: string
+  source_message_id: string
+  author_id: string
+  quoted_by: string
+  content: string
+  attachment_url: string | null
+  attachment_spoiler: boolean
+  created_at: string
+}
+
+export async function getQuoteBoardSettings(personToken: string, venueId: string): Promise<QuoteBoardSettingsRow> {
+  if (!process.env.XVM_API_BASE_URL) throw new Error("XVM_API_BASE_URL is not set")
+  return xvmFetch<QuoteBoardSettingsRow>(`/venues/${venueId}/quote-board/settings`, {}, personToken)
+}
+
+export async function updateQuoteBoardSettings(
+  personToken: string,
+  venueId: string,
+  data: QuoteBoardSettingsUpdate
+): Promise<QuoteBoardSettingsRow> {
+  if (!process.env.XVM_API_BASE_URL) throw new Error("XVM_API_BASE_URL is not set")
+  return xvmFetch<QuoteBoardSettingsRow>(
+    `/venues/${venueId}/quote-board/settings`,
+    { method: "PUT", body: JSON.stringify(data) },
+    personToken
+  )
+}
+
+export async function listQuotes(
+  personToken: string,
+  venueId: string,
+  options: { limit?: number; beforeId?: number } = {}
+): Promise<QuoteRow[]> {
+  if (!process.env.XVM_API_BASE_URL) throw new Error("XVM_API_BASE_URL is not set")
+  const query = new URLSearchParams()
+  if (options.limit !== undefined) query.set("limit", String(options.limit))
+  if (options.beforeId !== undefined) query.set("before_id", String(options.beforeId))
+  const qs = query.toString()
+  return xvmFetch<QuoteRow[]>(`/venues/${venueId}/quote-board/quotes${qs ? `?${qs}` : ""}`, {}, personToken)
+}
+
+export async function deleteQuote(personToken: string, venueId: string, quoteId: number): Promise<void> {
+  if (!process.env.XVM_API_BASE_URL) throw new Error("XVM_API_BASE_URL is not set")
+  return xvmFetch<void>(`/venues/${venueId}/quote-board/quotes/${quoteId}`, { method: "DELETE" }, personToken)
+}
+
 export async function listModules(personToken: string, venueId: string): Promise<ModuleRow[]> {
   if (!process.env.XVM_API_BASE_URL) throw new Error("XVM_API_BASE_URL is not set")
   return xvmFetch<ModuleRow[]>(`/venues/${venueId}/modules`, {}, personToken)

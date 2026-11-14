@@ -40,7 +40,14 @@ jobs:
 
       - name: Build dev image
         run: |
+          set -euo pipefail
           cd /home/server/xiv-app
+          env_file=/home/server/xiv-app-dev/.env.dev
+          for key in NEXT_PUBLIC_DISCORD_APPLICATION_ID NEXT_PUBLIC_SENTRY_DSN SENTRY_AUTH_TOKEN; do
+            value="$(sed -n "s/^${key}=//p" "$env_file" | tail -n 1 | tr -d "\"'\r")"
+            [[ -n "$value" ]] || { echo "Missing $key in $env_file"; exit 1; }
+            export "$key=$value"
+          done
           docker compose --profile dev build venue-manager-dev
 
       - name: Restart dev container

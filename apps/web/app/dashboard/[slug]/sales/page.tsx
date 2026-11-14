@@ -12,6 +12,7 @@ import { TransactionsList, type Transaction } from "@/components/transactions-li
 import { Alert, AlertDescription } from "@/components/ui/alert"
 import { PageLoading } from "@/components/ui/loading-spinner"
 import { minorUnitsToGil } from "@/lib/api/position-convert"
+import { canManageVenue } from "@/lib/roles"
 
 interface FinanceTransactionRow {
   id: number
@@ -71,6 +72,7 @@ export default function SalesPage({ params }: { params: Promise<{ slug: string }
   const [slug, setSlug] = useState("")
   const [transactions, setTransactions] = useState<Transaction[]>([])
   const [services, setServices] = useState<Service[]>([])
+  const [canPickEvent, setCanPickEvent] = useState(false)
   const [staffNamesByPersonId, setStaffNamesByPersonId] = useState<Map<number, string>>(new Map())
   const [isLoading, setIsLoading] = useState(true)
   const [error, setError] = useState("")
@@ -82,6 +84,17 @@ export default function SalesPage({ params }: { params: Promise<{ slug: string }
   useEffect(() => {
     params.then((p) => setSlug(p.slug))
   }, [params])
+
+  useEffect(() => {
+    if (!slug) return
+    fetch(`/api/venues?slug=${slug}`)
+      .then((response) => (response.ok ? response.json() : []))
+      .then((venues: { slug: string; memberships: { role: string }[] }[]) => {
+        const venue = venues.find((v) => v.slug === slug)
+        setCanPickEvent(canManageVenue(venue?.memberships?.[0]?.role))
+      })
+      .catch(() => setCanPickEvent(false))
+  }, [slug])
 
   useEffect(() => {
     if (!slug) return
@@ -207,6 +220,7 @@ export default function SalesPage({ params }: { params: Promise<{ slug: string }
               <SalesLogDialog
                 venueId={slug}
                 services={services}
+                canPickEvent={canPickEvent}
                 onLogged={(t) => setTransactions((prev) => [t, ...prev])}
               />
             )}

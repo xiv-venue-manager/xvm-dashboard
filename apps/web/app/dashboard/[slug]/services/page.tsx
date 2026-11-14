@@ -45,6 +45,7 @@ import { PageLoading } from "@/components/ui/loading-spinner"
 import { ItemSearchCombobox } from "@/components/item-search-combobox"
 import { canManageVenue, isVenueOwner } from "@/lib/roles"
 import { minorUnitsToGil } from "@/lib/api/position-convert"
+import { sortByName } from "@/lib/sort-by-name"
 import { toast } from "sonner"
 
 const NO_CATEGORY = "none"
@@ -671,7 +672,7 @@ export default function ServicesPage({ params }: { params: Promise<{ slug: strin
 
             {/* Service catalogue — auto-fill 3-col grid matching prototype svc-grid */}
             <div className="grid gap-4" style={{ gridTemplateColumns: "repeat(auto-fill, minmax(264px, 1fr))" }}>
-              {services
+              {sortByName(services)
                 .filter((s) => roleFilter === "All" || s.position_ids.includes(roleFilter))
                 .filter((s) => categoryFilter === "All" || s.category_id === categoryFilter)
                 .filter(

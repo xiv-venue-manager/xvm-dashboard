@@ -51,6 +51,7 @@ House-specific:
 | `use-mounted` | `useMounted` | Hydration-safe client check |
 | `validation` | `SNOWFLAKE_PATTERN`, `validators` | zod validators. Use these for any Discord id. A snowflake is a string, never a number |
 | `format` | `formatGil`, `formatGilCompact` | Gil amounts |
+| `sort-by-name` | `sortByName` | A copy of a list sorted by `name`: case-insensitive, numbers in order (Room 2 before Room 10), and equal names keep their order. The services catalogue uses it |
 | `server-time` | `getServerTimeLabel`, `formatServerTime`, `formatServerTimeRange`, `formatLocalTimeRange`, `getServerTimeIntlOptions` | |
 | `local-day` | `localDayKey`, `localHourLabel`, `browserTimeZone`, `localTimeInput`, `endOfLocalDayUtc` | Calendar days in a given timezone |
 | `shift-format` | `fmtHour`, `statusBadgeClass`, `toShiftRow`, `staffNameOf`, ... | Shift display |

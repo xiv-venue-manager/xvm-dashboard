@@ -51,6 +51,7 @@ House-specific:
 | `use-mounted` | `useMounted` | Hydration-safe client check |
 | `validation` | `SNOWFLAKE_PATTERN`, `validators` | zod validators. Use these for any Discord id. A snowflake is a string, never a number |
 | `format` | `formatGil`, `formatGilCompact` | Gil amounts |
+| `sale-events` | `pickSaleEvents`, `RECENT_SALE_EVENT_LIMIT` | Which events the Log Sale form offers: the live one (the latest-starting `ACTIVE` event that has an id, the same rule the server uses to attach a sale) and up to 10 recent completed ones |
 | `server-time` | `getServerTimeLabel`, `formatServerTime`, `formatServerTimeRange`, `formatLocalTimeRange`, `getServerTimeIntlOptions` | |
 | `local-day` | `localDayKey`, `localHourLabel`, `browserTimeZone`, `localTimeInput`, `endOfLocalDayUtc` | Calendar days in a given timezone |
 | `shift-format` | `fmtHour`, `statusBadgeClass`, `toShiftRow`, `staffNameOf`, ... | Shift display |

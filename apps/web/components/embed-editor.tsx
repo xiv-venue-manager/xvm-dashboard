@@ -34,7 +34,7 @@ interface TextBoxProps {
   placeholder?: string
 }
 
-function TextBox({ id, label, value, max, onChange, disabled, multiline, placeholder }: TextBoxProps) {
+export function TextBox({ id, label, value, max, onChange, disabled, multiline, placeholder }: TextBoxProps) {
   return (
     <div className="space-y-1.5">
       <div className="flex items-center justify-between">

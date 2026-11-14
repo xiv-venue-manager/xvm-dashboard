@@ -3081,6 +3081,106 @@ export async function postEmbed(personToken: string, venueId: string, embedId: n
   )
 }
 
+export type StickyImageSlot = "header_icon" | "footer_icon" | "thumbnail" | "image"
+
+export interface StickyRow {
+  id: number
+  channel_id: string
+  enabled: boolean
+  title: string | null
+  description: string | null
+  color: number | null
+  url: string | null
+  timestamp_at: string | null
+  header_text: string | null
+  header_url: string | null
+  footer_text: string | null
+  header_icon_url: string | null
+  footer_icon_url: string | null
+  thumbnail_url: string | null
+  image_url: string | null
+  created_at: string
+  updated_at: string
+}
+
+export interface StickyCreateData {
+  channel_id: string
+  enabled?: boolean
+  title?: string | null
+  description?: string | null
+  color?: number | null
+  url?: string | null
+  timestamp_at?: string | null
+  header_text?: string | null
+  header_url?: string | null
+  footer_text?: string | null
+}
+
+export interface StickyUpdateData {
+  channel_id?: string | null
+  enabled?: boolean | null
+  title?: string | null
+  description?: string | null
+  color?: number | null
+  url?: string | null
+  timestamp_at?: string | null
+  header_text?: string | null
+  header_url?: string | null
+  footer_text?: string | null
+}
+
+export async function listStickies(personToken: string, venueId: string): Promise<StickyRow[]> {
+  if (!process.env.XVM_API_BASE_URL) throw new Error("XVM_API_BASE_URL is not set")
+  return xvmFetch<StickyRow[]>(`/venues/${venueId}/sticky-messages`, {}, personToken)
+}
+
+export async function createSticky(personToken: string, venueId: string, data: StickyCreateData): Promise<StickyRow> {
+  if (!process.env.XVM_API_BASE_URL) throw new Error("XVM_API_BASE_URL is not set")
+  return xvmFetch<StickyRow>(`/venues/${venueId}/sticky-messages`, { method: "POST", body: JSON.stringify(data) }, personToken)
+}
+
+export async function updateSticky(
+  personToken: string,
+  venueId: string,
+  stickyId: number,
+  data: StickyUpdateData
+): Promise<StickyRow> {
+  if (!process.env.XVM_API_BASE_URL) throw new Error("XVM_API_BASE_URL is not set")
+  return xvmFetch<StickyRow>(
+    `/venues/${venueId}/sticky-messages/${stickyId}`,
+    { method: "PATCH", body: JSON.stringify(data) },
+    personToken
+  )
+}
+
+export async function deleteSticky(personToken: string, venueId: string, stickyId: number): Promise<void> {
+  if (!process.env.XVM_API_BASE_URL) throw new Error("XVM_API_BASE_URL is not set")
+  return xvmFetch<void>(`/venues/${venueId}/sticky-messages/${stickyId}`, { method: "DELETE" }, personToken)
+}
+
+export async function setStickyImage(
+  personToken: string,
+  venueId: string,
+  stickyId: number,
+  image: StickyImageSlot,
+  file: File | Blob
+): Promise<StickyRow> {
+  if (!process.env.XVM_API_BASE_URL) throw new Error("XVM_API_BASE_URL is not set")
+  const form = new FormData()
+  form.append("file", file)
+  return xvmFetch<StickyRow>(`/venues/${venueId}/sticky-messages/${stickyId}/images/${image}`, { method: "PUT", body: form }, personToken)
+}
+
+export async function clearStickyImage(
+  personToken: string,
+  venueId: string,
+  stickyId: number,
+  image: StickyImageSlot
+): Promise<void> {
+  if (!process.env.XVM_API_BASE_URL) throw new Error("XVM_API_BASE_URL is not set")
+  return xvmFetch<void>(`/venues/${venueId}/sticky-messages/${stickyId}/images/${image}`, { method: "DELETE" }, personToken)
+}
+
 export async function listModules(personToken: string, venueId: string): Promise<ModuleRow[]> {
   if (!process.env.XVM_API_BASE_URL) throw new Error("XVM_API_BASE_URL is not set")
   return xvmFetch<ModuleRow[]>(`/venues/${venueId}/modules`, {}, personToken)

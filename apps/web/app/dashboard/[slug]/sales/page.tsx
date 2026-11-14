@@ -28,6 +28,7 @@ interface Service {
   id: number
   name: string
   price: number
+  stockCount: number | null
 }
 
 interface StaffMember {
@@ -123,14 +124,24 @@ export default function SalesPage({ params }: { params: Promise<{ slug: string }
             .flat()
             .sort((a, b) => b.created_at.localeCompare(a.created_at)),
         }
-        const servicesData: Array<{ id: number; name: string; price_minor: number | null; is_active: boolean }> =
-          await servicesResponse.json()
+        const servicesData: Array<{
+          id: number
+          name: string
+          price_minor: number | null
+          is_active: boolean
+          inventory: { stock_count: number | null } | null
+        }> = await servicesResponse.json()
 
         setTransactions(transactionsData.transactions.map(toUiTransaction))
         setServices(
           servicesData
             .filter((s) => s.is_active)
-            .map((s) => ({ id: s.id, name: s.name, price: minorUnitsToGil(s.price_minor) ?? 0 }))
+            .map((s) => ({
+              id: s.id,
+              name: s.name,
+              price: minorUnitsToGil(s.price_minor) ?? 0,
+              stockCount: s.inventory?.stock_count ?? null,
+            }))
         )
 
         // Top-earners resolution: staff route already exposes person id +
@@ -207,7 +218,14 @@ export default function SalesPage({ params }: { params: Promise<{ slug: string }
               <SalesLogDialog
                 venueId={slug}
                 services={services}
-                onLogged={(t) => setTransactions((prev) => [t, ...prev])}
+                onLogged={(t) => {
+                  setTransactions((prev) => [t, ...prev])
+                  setServices((prev) =>
+                    prev.map((s) =>
+                      s.id === t.serviceId && s.stockCount != null ? { ...s, stockCount: s.stockCount - 1 } : s
+                    )
+                  )
+                }}
               />
             )}
           </div>

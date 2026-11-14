@@ -2837,6 +2837,58 @@ export async function deleteTrackedStream(personToken: string, venueId: string, 
   return xvmFetch<void>(`/venues/${venueId}/tracked-streams/${streamId}`, { method: "DELETE" }, personToken)
 }
 
+export interface AuditLogSettingsRow {
+  channel_id: string | null
+}
+
+export interface AuditLogEventRow {
+  event_key: string
+  enabled: boolean
+  color: number | null
+}
+
+export async function getAuditLogSettings(personToken: string, venueId: string): Promise<AuditLogSettingsRow> {
+  if (!process.env.XVM_API_BASE_URL) throw new Error("XVM_API_BASE_URL is not set")
+  return xvmFetch<AuditLogSettingsRow>(`/venues/${venueId}/audit-log/settings`, {}, personToken)
+}
+
+export async function setAuditLogChannel(
+  personToken: string,
+  venueId: string,
+  channelId: string | null
+): Promise<AuditLogSettingsRow> {
+  if (!process.env.XVM_API_BASE_URL) throw new Error("XVM_API_BASE_URL is not set")
+  return xvmFetch<AuditLogSettingsRow>(
+    `/venues/${venueId}/audit-log/settings`,
+    { method: "PUT", body: JSON.stringify({ channel_id: channelId }) },
+    personToken
+  )
+}
+
+export async function listAuditLogEvents(personToken: string, venueId: string): Promise<AuditLogEventRow[]> {
+  if (!process.env.XVM_API_BASE_URL) throw new Error("XVM_API_BASE_URL is not set")
+  return xvmFetch<AuditLogEventRow[]>(`/venues/${venueId}/audit-log/events`, {}, personToken)
+}
+
+export async function configureAuditLogEvent(
+  personToken: string,
+  venueId: string,
+  eventKey: string,
+  color: number | null
+): Promise<AuditLogEventRow> {
+  if (!process.env.XVM_API_BASE_URL) throw new Error("XVM_API_BASE_URL is not set")
+  return xvmFetch<AuditLogEventRow>(
+    `/venues/${venueId}/audit-log/events/${eventKey}`,
+    { method: "PUT", body: JSON.stringify({ enabled: true, color }) },
+    personToken
+  )
+}
+
+export async function stopAuditLogEvent(personToken: string, venueId: string, eventKey: string): Promise<void> {
+  if (!process.env.XVM_API_BASE_URL) throw new Error("XVM_API_BASE_URL is not set")
+  return xvmFetch<void>(`/venues/${venueId}/audit-log/events/${eventKey}`, { method: "DELETE" }, personToken)
+}
+
 export async function listModules(personToken: string, venueId: string): Promise<ModuleRow[]> {
   if (!process.env.XVM_API_BASE_URL) throw new Error("XVM_API_BASE_URL is not set")
   return xvmFetch<ModuleRow[]>(`/venues/${venueId}/modules`, {}, personToken)

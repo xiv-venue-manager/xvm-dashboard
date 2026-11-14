@@ -54,6 +54,7 @@ const ALIASES: Record<string, string> = {
   FeedbackData: "FeedbackCreate",
   FeedbackTriageData: "FeedbackTriage",
   MyCharacterRow: "CharacterRow",
+  AuditLogSettingsRow: "AuditLogSettings",
 }
 
 // Interfaces with no contract schema of their own. A new interface that is not mapped above has to be

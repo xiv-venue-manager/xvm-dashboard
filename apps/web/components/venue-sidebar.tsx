@@ -31,6 +31,7 @@ import {
   DoorOpen,
   Smile,
   Zap,
+  ScrollText,
   type LucideIcon,
 } from "lucide-react"
 
@@ -290,6 +291,12 @@ export function VenueSidebar({
           href: `/dashboard/${venueSlug}/stream-alerts`,
           label: "Stream Alerts",
           icon: Radio,
+          roles: ["OWNER", "MANAGER"],
+        },
+        {
+          href: `/dashboard/${venueSlug}/audit-log`,
+          label: "Audit Log",
+          icon: ScrollText,
           roles: ["OWNER", "MANAGER"],
         },
       ],

@@ -269,6 +269,11 @@ export function VenueSidebar({
           icon: Radio,
           badge: livePatronCount,
         },
+      ],
+    },
+    {
+      label: "Discord",
+      items: [
         {
           href: `/dashboard/${venueSlug}/reaction-roles`,
           label: "Reaction Roles",

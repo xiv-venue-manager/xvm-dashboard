@@ -16,7 +16,17 @@ import {
   AlertDialogTitle,
 } from "@/components/ui/alert-dialog"
 import type { Room } from "@/lib/api/xvm-api"
-import { canRelease, canReserve, roomStatusBadge } from "@/lib/room-status"
+import { Lock, LockOpen, Pencil, Power, PowerOff, Trash2 } from "lucide-react"
+import { PillToggle } from "@/components/pill-toggle"
+import { Tooltip, TooltipContent, TooltipTrigger } from "@/components/ui/tooltip"
+import {
+  canRelease,
+  canReserve,
+  filterRooms,
+  ROOM_FILTERS,
+  roomStatusBadge,
+  type RoomFilter,
+} from "@/lib/room-status"
 
 export type RoomItem = Room
 
@@ -41,6 +51,41 @@ function reserverLabel(room: Room, names: RoomPeopleNames): string {
   }
   if (room.owner_membership_id != null) return names.byMembershipId[room.owner_membership_id] ?? `Member #${room.owner_membership_id}`
   return "—"
+}
+
+function RoomIconButton({
+  label,
+  onClick,
+  disabled,
+  active,
+  destructive,
+  children,
+}: {
+  label: string
+  onClick: () => void
+  disabled?: boolean
+  active?: boolean
+  destructive?: boolean
+  children: React.ReactNode
+}) {
+  return (
+    <Tooltip>
+      <TooltipTrigger asChild>
+        <Button
+          type="button"
+          size="icon-sm"
+          variant={active ? "outline" : "ghost"}
+          aria-label={label}
+          disabled={disabled}
+          onClick={onClick}
+          className={destructive ? "text-destructive hover:text-destructive" : undefined}
+        >
+          {children}
+        </Button>
+      </TooltipTrigger>
+      <TooltipContent>{label}</TooltipContent>
+    </Tooltip>
+  )
 }
 
 export function RoomsBoard({
@@ -68,6 +113,8 @@ export function RoomsBoard({
   const [error, setError] = useState<string | null>(null)
   const [success, setSuccess] = useState<string | null>(null)
   const [deleteTarget, setDeleteTarget] = useState<RoomItem | null>(null)
+  const [filter, setFilter] = useState<RoomFilter>("all")
+  const visibleRooms = filterRooms(localRooms, filter)
 
   useEffect(() => {
     const es = new EventSource("/api/stream/" + venueSlug)
@@ -283,6 +330,11 @@ export function RoomsBoard({
     }
   }
 
+  async function applyServerStatus(roomId: number, res: Response) {
+    const updated: Room | null = await res.json().catch(() => null)
+    if (updated) setLocalRooms((prev) => prev.map((r) => (r.id === roomId ? { ...r, status: updated.status } : r)))
+  }
+
   async function toggleLocked(room: RoomItem) {
     if (pendingIds.has(room.id)) return
     const nextLocked = !room.locked
@@ -299,6 +351,7 @@ export function RoomsBoard({
         setError(await describeError(res, "Failed to update lock status"))
         return
       }
+      await applyServerStatus(room.id, res)
     } catch {
       setLocalRooms((prev) => prev.map((r) => (r.id === room.id ? { ...r, locked: room.locked } : r)))
       setError("Failed to update lock status")
@@ -327,6 +380,7 @@ export function RoomsBoard({
         setError(await describeError(res, "Failed to update disabled status"))
         return
       }
+      await applyServerStatus(room.id, res)
     } catch {
       setLocalRooms((prev) => prev.map((r) => (r.id === room.id ? { ...r, disabled: room.disabled } : r)))
       setError("Failed to update disabled status")
@@ -372,22 +426,28 @@ export function RoomsBoard({
         </Alert>
       )}
 
+      {localRooms.length > 1 && (
+        <div className="mb-3">
+          <PillToggle label="Filter rooms by status" options={ROOM_FILTERS} value={filter} onChange={setFilter} />
+        </div>
+      )}
+
       <div className="panel rooms-table-scroll" style={{ overflowX: "auto" }}>
         <DataTable
           columns={[
             { label: "Image", hideOnMobile: true },
-            { label: "Room" },
             { label: "Room #", hideOnMobile: true },
+            { label: "Room" },
             { label: "Status" },
             { label: "Owner" },
             { label: "Note" },
             { label: "Last updated by", hideOnMobile: true },
             { label: "" },
           ]}
-          isEmpty={localRooms.length === 0}
-          emptyMessage="No rooms yet."
+          isEmpty={visibleRooms.length === 0}
+          emptyMessage={localRooms.length === 0 ? "No rooms yet." : "No rooms match this filter."}
         >
-          {localRooms.map((room) => {
+          {visibleRooms.map((room) => {
             const status = roomStatusBadge(room.status)
             const image = room.images?.[0]?.image_url ?? null
             return (
@@ -400,42 +460,6 @@ export function RoomsBoard({
                       style={{ width: 48, height: 48, objectFit: "cover", borderRadius: 4 }}
                     />
                   ) : null}
-                </td>
-                <td className="t-name">
-                  {renamingId === room.id ? (
-                    <div style={{ display: "flex", gap: 4 }}>
-                      <Input
-                        type="text"
-                        value={renameInput}
-                        onChange={(e) => setRenameInput(e.target.value)}
-                        style={{ width: 140 }}
-                        autoFocus
-                      />
-                      <Button type="button" size="sm" variant="outline" onClick={() => saveRename(room)}>
-                        Save
-                      </Button>
-                      <Button
-                        type="button"
-                        size="sm"
-                        variant="ghost"
-                        onClick={() => {
-                          setRenamingId(null)
-                          setRenameInput("")
-                        }}
-                      >
-                        Cancel
-                      </Button>
-                    </div>
-                  ) : (
-                    <>
-                      {room.name ?? "Unnamed room"}
-                      {room.room_number != null && (
-                        <span className="t-muted sm:hidden" style={{ marginLeft: 6, fontSize: "0.75rem" }}>
-                          #{room.room_number}
-                        </span>
-                      )}
-                    </>
-                  )}
                 </td>
                 <td className="hide">
                   {canManage ? (
@@ -480,6 +504,42 @@ export function RoomsBoard({
                     )
                   ) : (
                     <span className="t-muted">{room.room_number != null ? `#${room.room_number}` : "—"}</span>
+                  )}
+                </td>
+                <td className="t-name">
+                  {renamingId === room.id ? (
+                    <div style={{ display: "flex", gap: 4 }}>
+                      <Input
+                        type="text"
+                        value={renameInput}
+                        onChange={(e) => setRenameInput(e.target.value)}
+                        style={{ width: 140 }}
+                        autoFocus
+                      />
+                      <Button type="button" size="sm" variant="outline" onClick={() => saveRename(room)}>
+                        Save
+                      </Button>
+                      <Button
+                        type="button"
+                        size="sm"
+                        variant="ghost"
+                        onClick={() => {
+                          setRenamingId(null)
+                          setRenameInput("")
+                        }}
+                      >
+                        Cancel
+                      </Button>
+                    </div>
+                  ) : (
+                    <>
+                      {room.name ?? "Unnamed room"}
+                      {room.room_number != null && (
+                        <span className="t-muted sm:hidden" style={{ marginLeft: 6, fontSize: "0.75rem" }}>
+                          #{room.room_number}
+                        </span>
+                      )}
+                    </>
                   )}
                 </td>
                 <td>
@@ -535,6 +595,7 @@ export function RoomsBoard({
                 </td>
                 <td>
                   <div style={{ display: "flex", gap: 6 }}>
+                    <div className={canManage ? "w-[72px]" : undefined}>
                     {canRelease(room.status) && (
                       <Button
                         type="button"
@@ -557,45 +618,37 @@ export function RoomsBoard({
                         Reserve
                       </Button>
                     )}
+                    </div>
                     {canManage && (
                       <>
-                        <Button
-                          type="button"
-                          size="sm"
-                          variant={room.locked ? "outline" : "ghost"}
+                        <RoomIconButton
+                          label={room.locked ? "Unlock room" : "Lock room"}
+                          active={room.locked}
                           disabled={pendingIds.has(room.id)}
                           onClick={() => toggleLocked(room)}
                         >
-                          {room.locked ? "Unlock" : "Lock"}
-                        </Button>
-                        <Button
-                          type="button"
-                          size="sm"
-                          variant={room.disabled ? "outline" : "ghost"}
+                          {room.locked ? <LockOpen /> : <Lock />}
+                        </RoomIconButton>
+                        <RoomIconButton
+                          label={room.disabled ? "Enable room" : "Disable room"}
+                          active={room.disabled}
                           disabled={pendingIds.has(room.id)}
                           onClick={() => toggleDisabled(room)}
                         >
-                          {room.disabled ? "Enable" : "Disable"}
-                        </Button>
-                        <Button
-                          type="button"
-                          size="sm"
-                          variant="ghost"
+                          {room.disabled ? <Power /> : <PowerOff />}
+                        </RoomIconButton>
+                        <RoomIconButton
+                          label="Rename room"
                           onClick={() => {
                             setRenamingId(room.id)
                             setRenameInput(room.name ?? "")
                           }}
                         >
-                          Rename
-                        </Button>
-                        <Button
-                          type="button"
-                          size="sm"
-                          variant="destructive"
-                          onClick={() => setDeleteTarget(room)}
-                        >
-                          Delete
-                        </Button>
+                          <Pencil />
+                        </RoomIconButton>
+                        <RoomIconButton label="Delete room" destructive onClick={() => setDeleteTarget(room)}>
+                          <Trash2 />
+                        </RoomIconButton>
                       </>
                     )}
                   </div>

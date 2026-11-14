@@ -12,6 +12,7 @@ import {
   assignTask,
   startTask,
   completeTask,
+  reopenTask,
   cancelTask,
   listPositions,
   listTaskCategories,
@@ -36,7 +37,7 @@ const updateTaskSchema = z.object({
 
 // Both null unassigns, matching xvm-api's TaskAssign contract.
 const transitionSchema = z.object({
-  action: z.enum(["start", "complete", "cancel"]),
+  action: z.enum(["start", "complete", "cancel", "reopen"]),
   reason: z.string().optional(), // only meaningful for "cancel"
 })
 
@@ -263,7 +264,9 @@ export const POST = withRateLimit<{ params: Promise<{ venueId: string; taskId: s
           ? await startTask(token, xvmApiVenueId, id)
           : data.action === "complete"
             ? await completeTask(token, xvmApiVenueId, id)
-            : await cancelTask(token, xvmApiVenueId, id, data.reason ?? null)
+            : data.action === "reopen"
+              ? await reopenTask(token, xvmApiVenueId, id)
+              : await cancelTask(token, xvmApiVenueId, id, data.reason ?? null)
 
       return NextResponse.json(await shapeAfterFetch(token, xvmApiVenueId, task))
     } catch (err) {

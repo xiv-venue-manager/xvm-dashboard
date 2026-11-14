@@ -1905,6 +1905,11 @@ export async function completeTask(personToken: string, venueId: string, taskId:
   return xvmFetch<TaskRow>(`/venues/${venueId}/tasks/${taskId}/complete`, { method: "POST" }, personToken)
 }
 
+export async function reopenTask(personToken: string, venueId: string, taskId: number): Promise<TaskRow> {
+  if (!process.env.XVM_API_BASE_URL) throw new Error("XVM_API_BASE_URL is not set")
+  return xvmFetch<TaskRow>(`/venues/${venueId}/tasks/${taskId}/reopen`, { method: "POST" }, personToken)
+}
+
 export async function cancelTask(personToken: string, venueId: string, taskId: number, reason?: string | null): Promise<TaskRow> {
   if (!process.env.XVM_API_BASE_URL) throw new Error("XVM_API_BASE_URL is not set")
   return xvmFetch<TaskRow>(

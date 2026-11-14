@@ -33,6 +33,7 @@ import {
   Zap,
   ScrollText,
   Quote,
+  Activity,
   type LucideIcon,
 } from "lucide-react"
 
@@ -326,6 +327,12 @@ export function VenueSidebar({
           roles: ["OWNER", "MANAGER"],
         },
         { href: `/dashboard/${venueSlug}/timeline`, label: "Timeline", icon: Scroll },
+        {
+          href: `/dashboard/${venueSlug}/activity`,
+          label: "Activity Log",
+          icon: Activity,
+          roles: ["OWNER", "MANAGER"],
+        },
         {
           href: `/dashboard/${venueSlug}/patron-logs`,
           label: "Patron Logs",

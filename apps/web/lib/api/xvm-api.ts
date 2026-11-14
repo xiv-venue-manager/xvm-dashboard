@@ -2953,6 +2953,40 @@ export async function deleteQuote(personToken: string, venueId: string, quoteId:
   return xvmFetch<void>(`/venues/${venueId}/quote-board/quotes/${quoteId}`, { method: "DELETE" }, personToken)
 }
 
+export interface ActivityRow {
+  id: number
+  actor_person_id: number | null
+  actor_name: string | null
+  module: string
+  action: string
+  target_type: string | null
+  target_id: number | null
+  target_label: string | null
+  summary: string | null
+  source: string
+  created_at: string
+}
+
+export interface ActivityQuery {
+  module?: string
+  actorPersonId?: number
+  from?: string
+  to?: string
+  limit?: number
+}
+
+export async function listActivity(personToken: string, venueId: string, query: ActivityQuery = {}): Promise<ActivityRow[]> {
+  if (!process.env.XVM_API_BASE_URL) throw new Error("XVM_API_BASE_URL is not set")
+  const search = new URLSearchParams()
+  if (query.module !== undefined) search.set("module", query.module)
+  if (query.actorPersonId !== undefined) search.set("actor_person_id", String(query.actorPersonId))
+  if (query.from !== undefined) search.set("from", query.from)
+  if (query.to !== undefined) search.set("to", query.to)
+  if (query.limit !== undefined) search.set("limit", String(query.limit))
+  const qs = search.toString()
+  return xvmFetch<ActivityRow[]>(`/venues/${venueId}/activity${qs ? `?${qs}` : ""}`, {}, personToken)
+}
+
 export async function listModules(personToken: string, venueId: string): Promise<ModuleRow[]> {
   if (!process.env.XVM_API_BASE_URL) throw new Error("XVM_API_BASE_URL is not set")
   return xvmFetch<ModuleRow[]>(`/venues/${venueId}/modules`, {}, personToken)

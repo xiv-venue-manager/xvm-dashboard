@@ -981,7 +981,14 @@ export default function PayrollPage() {
                   </Button>
                   <Button
                     onClick={handleCreatePayroll}
-                    disabled={!selectedStaff || !baseRate || !periodStart || !periodEnd || isCreating}
+                    disabled={
+                      !selectedStaff ||
+                      !baseRate ||
+                      (paymentType === "HOURLY" && !hoursWorked) ||
+                      !periodStart ||
+                      !periodEnd ||
+                      isCreating
+                    }
                   >
                     {isCreating ? "Creating..." : "Create Entry"}
                   </Button>

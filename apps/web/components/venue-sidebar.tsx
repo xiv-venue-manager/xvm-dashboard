@@ -286,6 +286,12 @@ export function VenueSidebar({
           icon: Zap,
           roles: ["OWNER", "MANAGER"],
         },
+        {
+          href: `/dashboard/${venueSlug}/stream-alerts`,
+          label: "Stream Alerts",
+          icon: Radio,
+          roles: ["OWNER", "MANAGER"],
+        },
       ],
     },
     {

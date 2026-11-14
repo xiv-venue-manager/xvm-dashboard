@@ -2776,6 +2776,67 @@ export async function deleteAutoReactorRule(personToken: string, venueId: string
   return xvmFetch<void>(`/venues/${venueId}/auto-reactor-rules/${ruleId}`, { method: "DELETE" }, personToken)
 }
 
+export interface TrackedStreamRow {
+  id: number
+  twitch_username: string
+  twitch_user_id: string | null
+  channel_id: string
+  role_id: string | null
+  live_since: string | null
+  resolution_failed_at: string | null
+  is_live: boolean
+  created_at: string
+  updated_at: string
+}
+
+export interface TrackedStreamCreate {
+  twitch_username: string
+  channel_id: string
+  role_id?: string | null
+}
+
+export interface TrackedStreamUpdate {
+  channel_id?: string
+  role_id?: string | null
+}
+
+export async function listTrackedStreams(personToken: string, venueId: string): Promise<TrackedStreamRow[]> {
+  if (!process.env.XVM_API_BASE_URL) throw new Error("XVM_API_BASE_URL is not set")
+  return xvmFetch<TrackedStreamRow[]>(`/venues/${venueId}/tracked-streams`, {}, personToken)
+}
+
+export async function createTrackedStream(
+  personToken: string,
+  venueId: string,
+  data: TrackedStreamCreate
+): Promise<TrackedStreamRow> {
+  if (!process.env.XVM_API_BASE_URL) throw new Error("XVM_API_BASE_URL is not set")
+  return xvmFetch<TrackedStreamRow>(
+    `/venues/${venueId}/tracked-streams`,
+    { method: "POST", body: JSON.stringify(data) },
+    personToken
+  )
+}
+
+export async function updateTrackedStream(
+  personToken: string,
+  venueId: string,
+  streamId: number,
+  data: TrackedStreamUpdate
+): Promise<TrackedStreamRow> {
+  if (!process.env.XVM_API_BASE_URL) throw new Error("XVM_API_BASE_URL is not set")
+  return xvmFetch<TrackedStreamRow>(
+    `/venues/${venueId}/tracked-streams/${streamId}`,
+    { method: "PATCH", body: JSON.stringify(data) },
+    personToken
+  )
+}
+
+export async function deleteTrackedStream(personToken: string, venueId: string, streamId: number): Promise<void> {
+  if (!process.env.XVM_API_BASE_URL) throw new Error("XVM_API_BASE_URL is not set")
+  return xvmFetch<void>(`/venues/${venueId}/tracked-streams/${streamId}`, { method: "DELETE" }, personToken)
+}
+
 export async function listModules(personToken: string, venueId: string): Promise<ModuleRow[]> {
   if (!process.env.XVM_API_BASE_URL) throw new Error("XVM_API_BASE_URL is not set")
   return xvmFetch<ModuleRow[]>(`/venues/${venueId}/modules`, {}, personToken)

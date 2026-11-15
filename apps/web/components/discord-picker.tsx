@@ -255,7 +255,7 @@ export function RolePicker({
 }) {
   const { options, loading, problem, refresh } = useDiscordOptions(venueId, "roles", !disabled)
   const offered = offeredRoles(options, value, grants, forVerification).map((option) =>
-    grants ? { ...option, note: option.note ?? option.hierarchy } : option
+    grants ? { ...option, note: option.note ?? option.hierarchy ?? (forVerification ? option.elevated : null) } : option
   )
 
   return (

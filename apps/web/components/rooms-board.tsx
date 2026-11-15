@@ -426,7 +426,7 @@ export function RoomsBoard({
         </Alert>
       )}
 
-      {localRooms.length > 1 && (
+      {(localRooms.length > 1 || filter !== "all") && (
         <div className="mb-3">
           <PillToggle label="Filter rooms by status" options={ROOM_FILTERS} value={filter} onChange={setFilter} />
         </div>

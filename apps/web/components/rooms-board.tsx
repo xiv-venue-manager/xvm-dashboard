@@ -16,6 +16,7 @@ import {
   AlertDialogTitle,
 } from "@/components/ui/alert-dialog"
 import type { Room } from "@/lib/api/xvm-api"
+import { canRelease, canReserve, roomStatusBadge } from "@/lib/room-status"
 
 export type RoomItem = Room
 
@@ -25,21 +26,6 @@ async function describeError(res: Response, fallback: string): Promise<string> {
   const body = await res.json().catch(() => ({}))
   if (body?.error === "not_connected") return NOT_CONNECTED_MESSAGE
   return body?.error || body?.detail || fallback
-}
-
-function statusBadge(status: string): { label: string; className: string } {
-  switch (status) {
-    case "disabled":
-      return { label: "Disabled", className: "neutral" }
-    case "locked":
-      return { label: "Locked", className: "warning" }
-    case "occupied":
-      return { label: "Occupied", className: "danger" }
-    case "available":
-      return { label: "Available", className: "vip" }
-    default:
-      return { label: status, className: "neutral" }
-  }
 }
 
 export type RoomPeopleNames = { byPersonId: Record<number, string>; byMembershipId: Record<number, string> }
@@ -402,7 +388,7 @@ export function RoomsBoard({
           emptyMessage="No rooms yet."
         >
           {localRooms.map((room) => {
-            const status = statusBadge(room.status)
+            const status = roomStatusBadge(room.status)
             const image = room.images?.[0]?.image_url ?? null
             return (
               <tr key={room.id}>
@@ -549,7 +535,7 @@ export function RoomsBoard({
                 </td>
                 <td>
                   <div style={{ display: "flex", gap: 6 }}>
-                    {room.status === "occupied" && (
+                    {canRelease(room.status) && (
                       <Button
                         type="button"
                         size="sm"
@@ -560,7 +546,7 @@ export function RoomsBoard({
                         Release
                       </Button>
                     )}
-                    {room.status === "available" && (
+                    {canReserve(room.status) && (
                       <Button
                         type="button"
                         size="sm"

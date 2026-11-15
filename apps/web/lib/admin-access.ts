@@ -9,6 +9,20 @@ const PLATFORM_ADMIN_SCOPE = "platform_admin"
 type AdminGate = { error: NextResponse } | { error: null; userId: string; token: string }
 
 /**
+ * Whether to offer a person the admin link. Best effort: a missing credential or an xvm-api that cannot be
+ * reached reads as not an admin, because a menu item is not worth failing a page over.
+ */
+export async function isPlatformAdmin(userId: string): Promise<boolean> {
+  const token = await getValidXvmApiToken(userId).catch(() => null)
+  if (!token) return false
+  try {
+    return (await getMe(token)).scopes.includes(PLATFORM_ADMIN_SCOPE)
+  } catch {
+    return false
+  }
+}
+
+/**
  * Session, platform_admin scope and a usable xvm-api token, or the response to return. xvm-api fixes the
  * scope when it mints the credential, so a change to a person's admin flag applies from their next sign-in.
  */

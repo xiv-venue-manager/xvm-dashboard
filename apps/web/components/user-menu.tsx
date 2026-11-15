@@ -11,7 +11,7 @@ import {
 } from "@/components/ui/dropdown-menu"
 import { Tooltip, TooltipContent, TooltipTrigger } from "@/components/ui/tooltip"
 import { Avatar, AvatarFallback, AvatarImage } from "@/components/ui/avatar"
-import { ChevronDown, User, Settings, Heart, ArrowLeftRight, HelpCircle, LogOut } from "lucide-react"
+import { ChevronDown, User, Settings, Heart, ArrowLeftRight, HelpCircle, LogOut, ShieldCheck } from "lucide-react"
 
 interface UserMenuProps {
   user: {
@@ -21,9 +21,10 @@ interface UserMenuProps {
   }
   currentVenueName?: string
   currentVenueRole?: string
+  isPlatformAdmin?: boolean
 }
 
-export function UserMenu({ user, currentVenueName, currentVenueRole }: UserMenuProps) {
+export function UserMenu({ user, currentVenueName, currentVenueRole, isPlatformAdmin = false }: UserMenuProps) {
   const initials = user.name
     ? user.name
         .split(" ")
@@ -96,6 +97,14 @@ export function UserMenu({ user, currentVenueName, currentVenueRole }: UserMenuP
               Switch venue
             </Link>
           </DropdownMenuItem>
+          {isPlatformAdmin && (
+            <DropdownMenuItem asChild className="user-menu-item">
+              <Link href="/admin">
+                <ShieldCheck className="h-[15px] w-[15px]" />
+                Platform admin
+              </Link>
+            </DropdownMenuItem>
+          )}
         </div>
 
         <DropdownMenuSeparator className="bg-[var(--blue-008)] my-0" />

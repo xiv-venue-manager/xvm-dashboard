@@ -17,9 +17,10 @@ import type { Session } from "next-auth"
 interface NavbarClientProps {
   session: Session | null
   venues: Array<{ id: string; name: string; slug: string; role: string }>
+  isPlatformAdmin?: boolean
 }
 
-export function NavbarClient({ session, venues }: NavbarClientProps) {
+export function NavbarClient({ session, venues, isPlatformAdmin = false }: NavbarClientProps) {
   const { toggle } = useSidebar()
   const pathname = usePathname()
   const [notifications, setNotifications] = useState<
@@ -257,6 +258,7 @@ export function NavbarClient({ session, venues }: NavbarClientProps) {
                 user={session.user}
                 currentVenueName={currentVenue?.name}
                 currentVenueRole={currentVenue?.role}
+                isPlatformAdmin={isPlatformAdmin}
               />
             </>
           ) : (

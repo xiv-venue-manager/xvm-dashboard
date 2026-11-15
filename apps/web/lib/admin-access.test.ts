@@ -15,7 +15,7 @@ vi.mock("@/lib/api/xvm-api-store", () => ({
   xvmApiErrorResponse: m.errorResponse,
 }))
 
-import { requirePlatformAdmin } from "./admin-access"
+import { isPlatformAdmin, requirePlatformAdmin } from "./admin-access"
 
 beforeEach(() => {
   vi.clearAllMocks()
@@ -59,5 +59,31 @@ describe("requirePlatformAdmin", () => {
     const gate = await requirePlatformAdmin()
     expect(gate.error?.status).toBe(503)
     expect(m.errorResponse).toHaveBeenCalledWith(err, "user-1", "[admin access] /me read error")
+  })
+})
+
+describe("isPlatformAdmin", () => {
+  it("is true when the credential carries platform_admin", async () => {
+    expect(await isPlatformAdmin("user-1")).toBe(true)
+    expect(m.getMe).toHaveBeenCalledWith("tok")
+  })
+
+  it("is false without the scope", async () => {
+    m.getMe.mockResolvedValue({ scopes: ["venue_member"] })
+    expect(await isPlatformAdmin("user-1")).toBe(false)
+  })
+
+  it("is false, without asking xvm-api, when there is no credential", async () => {
+    m.token.mockResolvedValue(null)
+    expect(await isPlatformAdmin("user-1")).toBe(false)
+    expect(m.getMe).not.toHaveBeenCalled()
+  })
+
+  it("is false when the credential lookup or xvm-api fails, instead of throwing", async () => {
+    m.token.mockRejectedValue(new Error("no credential"))
+    expect(await isPlatformAdmin("user-1")).toBe(false)
+    m.token.mockResolvedValue("tok")
+    m.getMe.mockRejectedValue(new Error("xvm-api down"))
+    expect(await isPlatformAdmin("user-1")).toBe(false)
   })
 })

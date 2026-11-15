@@ -1,8 +1,8 @@
 # XIV Venue Manager
 
-> Free venue management for FFXIV roleplay venues. Track events, manage staff, log sales, and go live from the web or inside the game via a Dalamud plugin.
+> Free venue management for FFXIV roleplay venues. Track events, manage staff, log sales, and go live from the web, inside the game via a Dalamud plugin, or in your Discord server with the XVM Bot.
 
-XIV Venue Manager is a web application and Dalamud plugin for Final Fantasy XIV roleplay venue hosts. It provides event scheduling, staff shift management, sales tracking, patron visit logging, and a live dashboard visible in-game.
+XIV Venue Manager is a web application, Dalamud plugin and Discord bot for Final Fantasy XIV roleplay venue hosts. It provides event scheduling, staff shift management, sales tracking, patron visit logging, and a live dashboard visible in-game.
 
 ## Getting Started
 

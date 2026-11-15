@@ -38,6 +38,7 @@ import {
   Pin,
   TrendingUp,
   ClipboardList,
+  UserRound,
   type LucideIcon,
 } from "lucide-react"
 
@@ -310,6 +311,7 @@ export function VenueSidebar({
         { href: `/dashboard/${venueSlug}/sticky-messages`, label: "Sticky Messages", icon: Pin },
         { href: `/dashboard/${venueSlug}/leveling`, label: "Leveling", icon: TrendingUp },
         { href: `/dashboard/${venueSlug}/forms`, label: "Forms", icon: ClipboardList, roles: ["OWNER", "MANAGER"] },
+        { href: `/dashboard/${venueSlug}/profiles`, label: "Profiles", icon: UserRound },
       ],
     },
     {

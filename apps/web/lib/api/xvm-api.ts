@@ -3546,6 +3546,198 @@ export async function listFormResponses(
   return xvmFetch<FormResponseRow[]>(`/venues/${venueId}/forms/${formId}/responses${qs}`, {}, personToken)
 }
 
+export type ProfileStatus = "draft" | "pending" | "approved" | "rejected"
+
+export interface ProfileImageRow {
+  id: number
+  image_url: string
+  caption: string | null
+  sort_order: number
+}
+
+export interface ProfileRow {
+  id: number
+  person_id: number
+  owner_discord_id?: string | null
+  character_name: string
+  status: ProfileStatus
+  is_primary: boolean
+  color: number | null
+  jobs: string | null
+  rates: string | null
+  data_center: string | null
+  world: string | null
+  gender: string | null
+  gender_custom: string | null
+  pronouns: string | null
+  pronouns_custom: string | null
+  race: string | null
+  race_custom: string | null
+  clan: string | null
+  clan_custom: string | null
+  orientation: string | null
+  orientation_custom: string | null
+  height: string | null
+  age: string | null
+  pairing_code: string | null
+  pairing_code_type: string | null
+  pairing_code_type_custom: string | null
+  likes: string | null
+  dislikes: string | null
+  personality: string | null
+  about_me: string | null
+  thumbnail_url: string | null
+  main_image_url: string | null
+  images: ProfileImageRow[]
+  submitted_at: string | null
+  reviewed_at: string | null
+  reviewed_by_person_id: number | null
+  rejection_reason: string | null
+  created_at: string
+  updated_at: string
+}
+
+export interface ProfileCreate {
+  character_name: string
+}
+
+export type ProfileUpdate = Partial<Omit<ProfileRow, "id" | "person_id" | "owner_discord_id" | "status" | "is_primary" | "thumbnail_url" | "main_image_url" | "images" | "submitted_at" | "reviewed_at" | "reviewed_by_person_id" | "rejection_reason" | "created_at" | "updated_at">>
+
+export interface ProfileReject {
+  reason: string
+}
+
+export interface ProfileImageUpdate {
+  caption?: string | null
+  sort_order?: number | null
+}
+
+export interface ProfilePostRow {
+  channel_id: string
+  message_id: string | null
+  posted_at: string | null
+}
+
+export interface ProfileSettings {
+  approval_required: boolean
+}
+
+export async function listProfiles(
+  personToken: string,
+  venueId: string,
+  filter: { mine?: boolean; pending?: boolean } = {}
+): Promise<ProfileRow[]> {
+  if (!process.env.XVM_API_BASE_URL) throw new Error("XVM_API_BASE_URL is not set")
+  const query = new URLSearchParams()
+  if (filter.mine) query.set("mine", "true")
+  if (filter.pending) query.set("pending", "true")
+  const qs = query.size > 0 ? `?${query}` : ""
+  return xvmFetch<ProfileRow[]>(`/venues/${venueId}/profiles${qs}`, {}, personToken)
+}
+
+export async function createProfile(personToken: string, venueId: string, data: ProfileCreate): Promise<ProfileRow> {
+  if (!process.env.XVM_API_BASE_URL) throw new Error("XVM_API_BASE_URL is not set")
+  return xvmFetch<ProfileRow>(`/venues/${venueId}/profiles`, { method: "POST", body: JSON.stringify(data) }, personToken)
+}
+
+export async function updateProfile(personToken: string, venueId: string, profileId: number, data: ProfileUpdate): Promise<ProfileRow> {
+  if (!process.env.XVM_API_BASE_URL) throw new Error("XVM_API_BASE_URL is not set")
+  return xvmFetch<ProfileRow>(`/venues/${venueId}/profiles/${profileId}`, { method: "PATCH", body: JSON.stringify(data) }, personToken)
+}
+
+export async function deleteProfile(personToken: string, venueId: string, profileId: number): Promise<void> {
+  if (!process.env.XVM_API_BASE_URL) throw new Error("XVM_API_BASE_URL is not set")
+  return xvmFetch<void>(`/venues/${venueId}/profiles/${profileId}`, { method: "DELETE" }, personToken)
+}
+
+export type ProfileAction = "primary" | "submit" | "approve"
+
+export async function profileAction(personToken: string, venueId: string, profileId: number, action: ProfileAction): Promise<ProfileRow> {
+  if (!process.env.XVM_API_BASE_URL) throw new Error("XVM_API_BASE_URL is not set")
+  return xvmFetch<ProfileRow>(
+    `/venues/${venueId}/profiles/${profileId}/${action}`,
+    { method: action === "primary" ? "PUT" : "POST" },
+    personToken
+  )
+}
+
+export async function rejectProfile(personToken: string, venueId: string, profileId: number, data: ProfileReject): Promise<ProfileRow> {
+  if (!process.env.XVM_API_BASE_URL) throw new Error("XVM_API_BASE_URL is not set")
+  return xvmFetch<ProfileRow>(`/venues/${venueId}/profiles/${profileId}/reject`, { method: "POST", body: JSON.stringify(data) }, personToken)
+}
+
+export type ProfileImageSlot = "thumbnail" | "main-image"
+
+export async function setProfileImage(
+  personToken: string,
+  venueId: string,
+  profileId: number,
+  slot: ProfileImageSlot,
+  file: File | Blob
+): Promise<ProfileRow> {
+  if (!process.env.XVM_API_BASE_URL) throw new Error("XVM_API_BASE_URL is not set")
+  const form = new FormData()
+  form.append("file", file)
+  return xvmFetch<ProfileRow>(`/venues/${venueId}/profiles/${profileId}/${slot}`, { method: "PUT", body: form }, personToken)
+}
+
+export async function clearProfileImage(personToken: string, venueId: string, profileId: number, slot: ProfileImageSlot): Promise<void> {
+  if (!process.env.XVM_API_BASE_URL) throw new Error("XVM_API_BASE_URL is not set")
+  return xvmFetch<void>(`/venues/${venueId}/profiles/${profileId}/${slot}`, { method: "DELETE" }, personToken)
+}
+
+export async function addProfileGalleryImage(personToken: string, venueId: string, profileId: number, file: File | Blob): Promise<ProfileImageRow> {
+  if (!process.env.XVM_API_BASE_URL) throw new Error("XVM_API_BASE_URL is not set")
+  const form = new FormData()
+  form.append("file", file)
+  return xvmFetch<ProfileImageRow>(`/venues/${venueId}/profiles/${profileId}/images`, { method: "POST", body: form }, personToken)
+}
+
+export async function updateProfileGalleryImage(
+  personToken: string,
+  venueId: string,
+  profileId: number,
+  imageId: number,
+  data: ProfileImageUpdate
+): Promise<ProfileImageRow> {
+  if (!process.env.XVM_API_BASE_URL) throw new Error("XVM_API_BASE_URL is not set")
+  return xvmFetch<ProfileImageRow>(
+    `/venues/${venueId}/profiles/${profileId}/images/${imageId}`,
+    { method: "PATCH", body: JSON.stringify(data) },
+    personToken
+  )
+}
+
+export async function deleteProfileGalleryImage(personToken: string, venueId: string, profileId: number, imageId: number): Promise<void> {
+  if (!process.env.XVM_API_BASE_URL) throw new Error("XVM_API_BASE_URL is not set")
+  return xvmFetch<void>(`/venues/${venueId}/profiles/${profileId}/images/${imageId}`, { method: "DELETE" }, personToken)
+}
+
+export async function listProfilePosts(personToken: string, venueId: string, profileId: number): Promise<ProfilePostRow[]> {
+  if (!process.env.XVM_API_BASE_URL) throw new Error("XVM_API_BASE_URL is not set")
+  return xvmFetch<ProfilePostRow[]>(`/venues/${venueId}/profiles/${profileId}/posts`, {}, personToken)
+}
+
+export async function postProfile(personToken: string, venueId: string, profileId: number, data: { channel_id: string }): Promise<void> {
+  if (!process.env.XVM_API_BASE_URL) throw new Error("XVM_API_BASE_URL is not set")
+  return xvmFetch<void>(`/venues/${venueId}/profiles/${profileId}/posts`, { method: "POST", body: JSON.stringify(data) }, personToken)
+}
+
+export async function takeDownProfile(personToken: string, venueId: string, profileId: number): Promise<void> {
+  if (!process.env.XVM_API_BASE_URL) throw new Error("XVM_API_BASE_URL is not set")
+  return xvmFetch<void>(`/venues/${venueId}/profiles/${profileId}/posts`, { method: "DELETE" }, personToken)
+}
+
+export async function getProfileSettings(personToken: string, venueId: string): Promise<ProfileSettings> {
+  if (!process.env.XVM_API_BASE_URL) throw new Error("XVM_API_BASE_URL is not set")
+  return xvmFetch<ProfileSettings>(`/venues/${venueId}/profile-settings`, {}, personToken)
+}
+
+export async function updateProfileSettings(personToken: string, venueId: string, data: ProfileSettings): Promise<ProfileSettings> {
+  if (!process.env.XVM_API_BASE_URL) throw new Error("XVM_API_BASE_URL is not set")
+  return xvmFetch<ProfileSettings>(`/venues/${venueId}/profile-settings`, { method: "PUT", body: JSON.stringify(data) }, personToken)
+}
+
 export async function listModules(personToken: string, venueId: string): Promise<ModuleRow[]> {
   if (!process.env.XVM_API_BASE_URL) throw new Error("XVM_API_BASE_URL is not set")
   return xvmFetch<ModuleRow[]>(`/venues/${venueId}/modules`, {}, personToken)

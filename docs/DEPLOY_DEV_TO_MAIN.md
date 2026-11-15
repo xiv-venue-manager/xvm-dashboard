@@ -50,8 +50,13 @@ Do the API first. The dashboard on `dev` calls API routes that prod does not hav
 - **Code:** do not force-push `main`. Revert the change on `dev`, promote the revert and redeploy. In an emergency, revert on `main` and merge `main` back into `dev` afterwards.
 - **Database:** additive migrations need no rollback, because the old code ignores new columns and tables. If a migration did something that must be undone, restore the dump the deploy script took, right away, because it loses everything written since:
 
+  The dump is plain SQL (`pg_dump` with no `-Fc`), so `pg_restore` cannot read it. It also has no `--clean`, so restore into a freshly recreated database:
+
   ```
-  docker exec -i postgres pg_restore -U postgres -d xvm_api --clean --if-exists < <dump file>
+  docker stop xvm-api
+  docker exec postgres psql -U postgres -c 'DROP DATABASE xvm_api' -c 'CREATE DATABASE xvm_api'
+  docker exec -i postgres psql -U postgres -d xvm_api < <dump file>
+  docker start xvm-api
   ```
 
 ## Do not

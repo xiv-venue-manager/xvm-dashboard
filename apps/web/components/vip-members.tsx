@@ -130,12 +130,14 @@ function Manage({
   vip,
   tiers,
   onSaved,
+  onReassigned,
   onEnd,
 }: {
   venueId: string
   vip: VipRow
   tiers: VipTierRow[]
   onSaved: (vip: VipRow) => void
+  onReassigned: (successor: VipRow) => void
   onEnd: () => void
 }) {
   const [day, setDay] = useState(isoToDay(vip.expires_at))
@@ -171,7 +173,7 @@ function Manage({
   async function moveTier() {
     setBusy(true)
     try {
-      onSaved(
+      onReassigned(
         await apiRoute<VipRow>("/api/venues/[venueId]/vips/[vipId]/reassign", {
           params,
           method: "POST",
@@ -246,6 +248,17 @@ export function VipMembers({ venueId, canManage, vips, tiers, onChange }: VipMem
 
   const replace = (saved: VipRow) => onChange(vips.map((v) => (v.id === saved.id ? saved : v)))
 
+  // A tier change ends the membership and starts a new one with a new id, and the reply is the new one.
+  function reassigned(oldId: number, successor: VipRow) {
+    onChange([
+      successor,
+      ...vips.map((v) =>
+        v.id === oldId ? { ...v, ended_at: successor.started_at, ended_reason: "reassigned", is_active: false } : v
+      ),
+    ])
+    setOpen(null)
+  }
+
   async function confirmEnd() {
     if (!endTarget) return
     setEnding(true)
@@ -298,7 +311,7 @@ export function VipMembers({ venueId, canManage, vips, tiers, onChange }: VipMem
                   )}
                 </div>
                 {canManage && open === vip.id && vip.ended_at === null && (
-                  <Manage key={`${vip.id}-${vip.expires_at}-${vip.tier_id}`} venueId={venueId} vip={vip} tiers={tiers} onSaved={replace} onEnd={() => setEndTarget(vip)} />
+                  <Manage key={`${vip.id}-${vip.expires_at}-${vip.tier_id}`} venueId={venueId} vip={vip} tiers={tiers} onSaved={replace} onReassigned={(successor) => reassigned(vip.id, successor)} onEnd={() => setEndTarget(vip)} />
                 )}
               </CardContent>
             </Card>

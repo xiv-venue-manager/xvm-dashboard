@@ -2,6 +2,7 @@
 
 import Link from "next/link"
 import Image from "next/image"
+import { useEffect } from "react"
 import { usePathname } from "next/navigation"
 import { Button } from "@/components/ui/button"
 import { VenueSwitcher } from "./venue-switcher"
@@ -9,6 +10,7 @@ import { FeedbackDialog } from "./feedback-dialog"
 import { useSidebar } from "./sidebar-context"
 import { cn } from "@/lib/utils"
 import { useMounted } from "@/lib/use-mounted"
+import { ensureOpen, isGroupOpen, useGroupChoices } from "@/lib/sidebar-groups"
 import {
   Heart,
   Home,
@@ -40,6 +42,7 @@ import {
   ClipboardList,
   UserRound,
   Crown,
+  ChevronDown,
   type LucideIcon,
 } from "lucide-react"
 
@@ -102,6 +105,14 @@ function NavContent({ venueSlug, venues, navGroups, pathname, userRole, onNaviga
   }
 
   const activeHref = computeActiveHref()
+  const activeGroupLabel =
+    navGroups.find((group) => filterItems(group.items, userRole).some((item) => item.href === activeHref))?.label ??
+    null
+  const { choices, setOpen } = useGroupChoices()
+
+  useEffect(() => {
+    if (activeGroupLabel) ensureOpen(activeGroupLabel)
+  }, [activeGroupLabel, pathname])
 
   return (
     <div className="flex flex-col h-full">
@@ -117,47 +128,60 @@ function NavContent({ venueSlug, venues, navGroups, pathname, userRole, onNaviga
           {navGroups.map((group) => {
             const filtered = filterItems(group.items, userRole)
             if (!filtered.length) return null
+            const open = isGroupOpen(choices, group.label, group.label === activeGroupLabel)
+            const listId = `nav-group-${group.label.toLowerCase().replace(/\W+/g, "-")}`
             return (
               <div key={group.label}>
-                <p className="grp-label px-3 mb-[8px]">{group.label}</p>
-                <div className="space-y-0.5">
-                  {filtered.map((item) => {
-                    const active = item.href === activeHref
-                    return (
-                      <Link
-                        key={item.href}
-                        href={item.href}
-                        onClick={onNavigate}
-                        className={cn(
-                          "flex items-center gap-3 px-3 py-[9px] rounded-lg text-[0.875rem] font-medium transition-colors border-l-2",
-                          active
-                            ? "bg-[var(--xiv-blue)] text-[var(--xiv-navy)] font-semibold border-[var(--xiv-blue)] shadow-[var(--glow-cta-soft)]"
-                            : "text-foreground hover:bg-[var(--blue-007)] border-transparent"
-                        )}
-                      >
-                        <item.icon
+                <button
+                  type="button"
+                  aria-expanded={open}
+                  aria-controls={listId}
+                  onClick={() => setOpen(group.label, !open)}
+                  className="grp-label mb-[8px] flex w-full items-center justify-between rounded px-3 text-left transition-colors hover:text-foreground"
+                >
+                  <span>{group.label}</span>
+                  <ChevronDown className={cn("h-3.5 w-3.5 shrink-0 transition-transform", !open && "-rotate-90")} />
+                </button>
+                {open && (
+                  <div id={listId} className="space-y-0.5">
+                    {filtered.map((item) => {
+                      const active = item.href === activeHref
+                      return (
+                        <Link
+                          key={item.href}
+                          href={item.href}
+                          onClick={onNavigate}
                           className={cn(
-                            "h-[18px] w-[18px] shrink-0 transition-colors",
-                            active ? "text-[var(--xiv-navy)]" : "text-muted-foreground"
+                            "flex items-center gap-3 px-3 py-[9px] rounded-lg text-[0.875rem] font-medium transition-colors border-l-2",
+                            active
+                              ? "bg-[var(--xiv-blue)] text-[var(--xiv-navy)] font-semibold border-[var(--xiv-blue)] shadow-[var(--glow-cta-soft)]"
+                              : "text-foreground hover:bg-[var(--blue-007)] border-transparent"
                           )}
-                        />
-                        <span className="flex-1">{item.label}</span>
-                        {item.badge !== undefined && item.badge !== null && (
-                          <span
+                        >
+                          <item.icon
                             className={cn(
-                              "text-[0.7rem] font-semibold px-2 py-px rounded-full min-w-[1.25rem] text-center",
-                              active
-                                ? "bg-[rgba(7,11,20,0.25)] text-[var(--xiv-navy)]"
-                                : "bg-[var(--blue-012)] text-[var(--xiv-blue)]"
+                              "h-[18px] w-[18px] shrink-0 transition-colors",
+                              active ? "text-[var(--xiv-navy)]" : "text-muted-foreground"
                             )}
-                          >
-                            {item.badge}
-                          </span>
-                        )}
-                      </Link>
-                    )
-                  })}
-                </div>
+                          />
+                          <span className="flex-1">{item.label}</span>
+                          {item.badge !== undefined && item.badge !== null && (
+                            <span
+                              className={cn(
+                                "text-[0.7rem] font-semibold px-2 py-px rounded-full min-w-[1.25rem] text-center",
+                                active
+                                  ? "bg-[rgba(7,11,20,0.25)] text-[var(--xiv-navy)]"
+                                  : "bg-[var(--blue-012)] text-[var(--xiv-blue)]"
+                              )}
+                            >
+                              {item.badge}
+                            </span>
+                          )}
+                        </Link>
+                      )
+                    })}
+                  </div>
+                )}
               </div>
             )
           })}

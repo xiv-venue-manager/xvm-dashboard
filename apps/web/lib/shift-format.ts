@@ -111,9 +111,9 @@ export function isClaimableOpenShift(shift: Pick<BoardShift, "ends_at">, now: Da
   return Number.isFinite(endsAt) && endsAt > now.getTime()
 }
 
-/** A scheduled seat whose time passed without a clock-in adds nothing to history. */
+/** A scheduled seat whose time passed without a clock-in adds nothing to history. Missed seats stay: they are the no-show record. */
 export function isStaleUnclockedShift(shift: Pick<ShiftRow, "scheduledEnd" | "status">, now: Date): boolean {
-  if (shift.status !== "SCHEDULED" && shift.status !== "MISSED") return false
+  if (shift.status !== "SCHEDULED") return false
   const endsAt = new Date(shift.scheduledEnd).getTime()
   return Number.isFinite(endsAt) && endsAt <= now.getTime()
 }

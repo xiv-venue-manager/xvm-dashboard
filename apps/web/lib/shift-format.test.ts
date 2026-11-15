@@ -64,12 +64,12 @@ describe("isStaleUnclockedShift", () => {
 
   it("drops past seats that were never clocked in", () => {
     expect(isStaleUnclockedShift({ scheduledEnd: "2026-10-11T22:59:59Z", status: "SCHEDULED" }, now)).toBe(true)
-    expect(isStaleUnclockedShift({ scheduledEnd: "2026-10-11T22:59:59Z", status: "MISSED" }, now)).toBe(true)
   })
 
   it("keeps scheduled seats that have not ended and every clocked seat", () => {
     expect(isStaleUnclockedShift({ scheduledEnd: "2026-10-11T23:00:01Z", status: "SCHEDULED" }, now)).toBe(false)
     expect(isStaleUnclockedShift({ scheduledEnd: "2026-10-11T22:59:59Z", status: "ACTIVE" }, now)).toBe(false)
+    expect(isStaleUnclockedShift({ scheduledEnd: "2026-10-11T22:59:59Z", status: "MISSED" }, now)).toBe(false)
     expect(isStaleUnclockedShift({ scheduledEnd: "2026-10-11T22:59:59Z", status: "COMPLETED" }, now)).toBe(false)
   })
 

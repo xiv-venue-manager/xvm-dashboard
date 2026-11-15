@@ -88,83 +88,87 @@ export function BanListManager({
 
 
   return (
-    <div className="panel">
-      <form
-        className="flex flex-wrap items-center gap-2 mb-4"
-        onSubmit={(e) => {
-          e.preventDefault()
-          void banByName()
-        }}
-      >
-        <Input
-          type="text"
-          value={characterName}
-          onChange={(e) => setCharacterName(e.target.value)}
-          placeholder="Character name"
-          maxLength={40}
-          className="flex-1 min-w-[10rem]"
-        />
-        <Input
-          type="text"
-          value={world}
-          onChange={(e) => setWorld(e.target.value)}
-          placeholder="World"
-          maxLength={32}
-          className="w-36"
-        />
-        <Input
-          type="text"
-          value={reason}
-          onChange={(e) => setReason(e.target.value)}
-          placeholder="Reason"
-          maxLength={500}
-          className="flex-1 min-w-[10rem]"
-        />
-        <Button type="submit" size="sm" disabled={isBanning || !characterName.trim() || !world.trim() || !reason.trim()}>
-          Ban
-        </Button>
-      </form>
-      {banError && (
-        <Alert className="mb-4">
-          <AlertDescription>{banError}</AlertDescription>
-        </Alert>
-      )}
-      <DataTable
-        columns={[
-          { label: "Patron" },
-          { label: "World", hideOnMobile: true },
-          { label: "Reason" },
-          { label: "Banned by", hideOnMobile: true },
-          { label: "Banned at", hideOnMobile: true },
-          { label: "" },
-        ]}
-        isEmpty={localPatrons.length === 0}
-        emptyMessage="No patrons currently banned."
-      >
-        {localPatrons.map((p) => (
-          <tr key={p.id}>
-            <td className="t-name">{p.characterName}</td>
-            <td className="hide t-muted">{p.world || "—"}</td>
-            <td>{p.banReason || <span className="t-muted">—</span>}</td>
-            <td className="hide t-muted">{p.bannedBy?.name ?? "—"}</td>
-            <td className="hide t-muted">{p.bannedAt ? formatLocalTime(p.bannedAt, "datetime") : "—"}</td>
-            <td>
-              <button
-                type="button"
-                onClick={() => unban(p)}
-                disabled={pendingIds.has(p.id)}
-                className="tag neutral"
-                style={{
-                  cursor: pendingIds.has(p.id) ? "default" : "pointer",
-                  opacity: pendingIds.has(p.id) ? 0.6 : 1,
-                }}
-              >
-                Unban
-              </button>
-            </td>
-          </tr>
-        ))}
-      </DataTable>
+    <div>
+      <div className="panel mb-4 p-4">
+        <form
+          className="flex flex-wrap items-center gap-2"
+          onSubmit={(e) => {
+            e.preventDefault()
+            void banByName()
+          }}
+        >
+          <Input
+            type="text"
+            value={characterName}
+            onChange={(e) => setCharacterName(e.target.value)}
+            placeholder="Character name"
+            maxLength={40}
+            className="flex-1 min-w-[10rem]"
+          />
+          <Input
+            type="text"
+            value={world}
+            onChange={(e) => setWorld(e.target.value)}
+            placeholder="World"
+            maxLength={32}
+            className="w-36"
+          />
+          <Input
+            type="text"
+            value={reason}
+            onChange={(e) => setReason(e.target.value)}
+            placeholder="Reason"
+            maxLength={500}
+            className="flex-1 min-w-[10rem]"
+          />
+          <Button type="submit" size="sm" disabled={isBanning || !characterName.trim() || !world.trim() || !reason.trim()}>
+            Ban
+          </Button>
+        </form>
+        {banError && (
+          <Alert className="mt-3">
+            <AlertDescription>{banError}</AlertDescription>
+          </Alert>
+        )}
+      </div>
+      <div className="panel">
+        <DataTable
+          columns={[
+            { label: "Patron" },
+            { label: "World", hideOnMobile: true },
+            { label: "Reason" },
+            { label: "Banned by", hideOnMobile: true },
+            { label: "Banned at", hideOnMobile: true },
+            { label: "" },
+          ]}
+          isEmpty={localPatrons.length === 0}
+          emptyMessage="No patrons currently banned."
+        >
+          {localPatrons.map((p) => (
+            <tr key={p.id}>
+              <td className="t-name">{p.characterName}</td>
+              <td className="hide t-muted">{p.world || "—"}</td>
+              <td>{p.banReason || <span className="t-muted">—</span>}</td>
+              <td className="hide t-muted">{p.bannedBy?.name ?? "—"}</td>
+              <td className="hide t-muted">{p.bannedAt ? formatLocalTime(p.bannedAt, "datetime") : "—"}</td>
+              <td>
+                <button
+                  type="button"
+                  onClick={() => unban(p)}
+                  disabled={pendingIds.has(p.id)}
+                  className="tag neutral"
+                  style={{
+                    cursor: pendingIds.has(p.id) ? "default" : "pointer",
+                    opacity: pendingIds.has(p.id) ? 0.6 : 1,
+                  }}
+                >
+                  Unban
+                </button>
+              </td>
+            </tr>
+          ))}
+        </DataTable>
+      </div>
     </div>
   )
 }

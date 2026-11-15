@@ -11,6 +11,7 @@ const m = vi.hoisted(() => ({
   listMemberships: vi.fn(),
   createTask: vi.fn(),
   completeTask: vi.fn(),
+  reopenTask: vi.fn(),
 }))
 
 vi.mock("next-auth", () => ({ getServerSession: m.session }))
@@ -28,6 +29,7 @@ vi.mock("@/lib/api/xvm-api", () => ({
   listMemberships: m.listMemberships,
   createTask: m.createTask,
   completeTask: m.completeTask,
+  reopenTask: m.reopenTask,
   updateTask: vi.fn(),
   assignTask: vi.fn(),
   startTask: vi.fn(),
@@ -110,5 +112,19 @@ describe("single task", () => {
     m.completeTask.mockResolvedValue({ ...taskRow, completed_at: "2026-10-25T11:00:00Z" })
     const res = await POST_ONE(request({ action: "complete" }), oneContext("7"))
     expect(res.status).toBe(200)
+  })
+
+  it("reopens a completed task under the xvm-api venue id", async () => {
+    m.reopenTask.mockResolvedValue({ ...taskRow, completed_at: null })
+    const res = await POST_ONE(request({ action: "reopen" }), oneContext("7"))
+    expect(res.status).toBe(200)
+    expect(m.reopenTask).toHaveBeenCalledWith("tok", "ven_1", 7)
+    expect((await res.json()).status).toBe("PENDING")
+  })
+
+  it("rejects an action it does not know", async () => {
+    const res = await POST_ONE(request({ action: "resurrect" }), oneContext("7"))
+    expect(res.status).toBe(400)
+    expect(m.reopenTask).not.toHaveBeenCalled()
   })
 })

@@ -206,13 +206,15 @@ export default function TasksPage({ params }: { params: Promise<{ slug: string }
   }
 
   const handleStatusUpdate = async (taskId: number, newStatus: Task["status"]) => {
-    if (newStatus === "PENDING") {
-      toast.error("Reopening a completed or cancelled task isn't supported - create a new task instead.")
-      return
-    }
-
     try {
-      const action = newStatus === "IN_PROGRESS" ? "start" : newStatus === "COMPLETED" ? "complete" : "cancel"
+      const action =
+        newStatus === "PENDING"
+          ? "reopen"
+          : newStatus === "IN_PROGRESS"
+            ? "start"
+            : newStatus === "COMPLETED"
+              ? "complete"
+              : "cancel"
       const response = await fetch(`/api/venues/${slug}/tasks/${taskId}`, {
         method: "POST",
         headers: { "Content-Type": "application/json" },
@@ -491,6 +493,29 @@ export default function TasksPage({ params }: { params: Promise<{ slug: string }
                               {task.assignedRole.name}
                             </span>
                           ) : null}
+                          {key === "COMPLETED" && canManageVenue(userRole) && (
+                            <button
+                              className="text-[var(--fg-faint)] hover:text-foreground transition-colors p-0.5 rounded"
+                              onClick={(e) => {
+                                e.stopPropagation()
+                                handleStatusUpdate(task.id, "PENDING")
+                              }}
+                              title="Reopen"
+                              aria-label="Reopen task"
+                            >
+                              <svg
+                                className="w-3.5 h-3.5"
+                                xmlns="http://www.w3.org/2000/svg"
+                                viewBox="0 0 24 24"
+                                fill="none"
+                                stroke="currentColor"
+                                strokeWidth="2"
+                              >
+                                <polyline points="1 4 1 10 7 10" />
+                                <path d="M3.51 15a9 9 0 1 0 2.13-9.36L1 10" />
+                              </svg>
+                            </button>
+                          )}
                           {/* Edit / delete */}
                           <button
                             className="text-[var(--fg-faint)] hover:text-foreground transition-colors p-0.5 rounded"

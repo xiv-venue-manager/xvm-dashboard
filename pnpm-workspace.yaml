@@ -3,12 +3,9 @@ packages:
   - "packages/*"
 
 allowBuilds:
-  "@prisma/client": true
-  "@prisma/engines": true
   "@sentry/cli": true
   "@swc/core": true
   esbuild: true
-  prisma: true
   sharp: true
   unrs-resolver: true
 
@@ -49,9 +46,8 @@ overrides:
 auditConfig:
   ignoreCves:
     # brace-expansion / fast-uri, 2026-08-05: only reachable through
-    # @sentry/nextjs's own bundler/webpack-plugin chain and eorzea-bot's
-    # Prisma config chain - both DoS-class
-    # (glob/URI parsing complexity), neither ever fed attacker-controlled
+    # @sentry/nextjs's own bundler/webpack-plugin chain - DoS-class
+    # (glob/URI parsing complexity), never fed attacker-controlled
     # input in production. No fix available that doesn't force an
     # incompatible major version on transitive deps several levels deep.
     # Revisit if a patched release becomes resolvable normally.

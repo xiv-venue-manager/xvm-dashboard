@@ -16,20 +16,27 @@ import {
 import { Select, SelectContent, SelectItem, SelectTrigger, SelectValue } from "@/components/ui/select"
 import { Alert, AlertDescription } from "@/components/ui/alert"
 import type { Transaction } from "@/components/transactions-list"
+import { format } from "date-fns"
+import { pickSaleEvents, type SaleEventOption } from "@/lib/sale-events"
+import { stockLabel } from "@/lib/stock-label"
 
 interface Service {
   id: number
   name: string
   price: number
+  stockCount: number | null
 }
 
 interface SalesLogDialogProps {
   venueId: string
   services: Service[]
+  canPickEvent: boolean
   onLogged: (transaction: Transaction) => void
 }
 
-export function SalesLogDialog({ venueId, services, onLogged }: SalesLogDialogProps) {
+const eventLabel = (event: SaleEventOption) => `${event.title}, ${format(new Date(event.startTime), "d MMM")}`
+
+export function SalesLogDialog({ venueId, services, canPickEvent, onLogged }: SalesLogDialogProps) {
   const [isOpen, setIsOpen] = useState(false)
   const [formData, setFormData] = useState({
     serviceId: "",
@@ -40,6 +47,10 @@ export function SalesLogDialog({ venueId, services, onLogged }: SalesLogDialogPr
   })
   const [formError, setFormError] = useState("")
   const [isSubmitting, setIsSubmitting] = useState(false)
+  const [liveEvent, setLiveEvent] = useState<SaleEventOption | null>(null)
+  const [recentEvents, setRecentEvents] = useState<SaleEventOption[]>([])
+  const [eventsLoaded, setEventsLoaded] = useState(false)
+  const [eventChoice, setEventChoice] = useState("auto")
 
   const handleServiceSelect = (serviceId: string) => {
     if (serviceId === "manual") {
@@ -75,6 +86,7 @@ export function SalesLogDialog({ venueId, services, onLogged }: SalesLogDialogPr
           amount: parseFloat(formData.amount),
           customerName: formData.customerName || undefined,
           notes: formData.notes || undefined,
+          eventId: canPickEvent && eventChoice !== "auto" ? eventChoice : undefined,
         }),
       })
 
@@ -112,10 +124,32 @@ export function SalesLogDialog({ venueId, services, onLogged }: SalesLogDialogPr
     }
   }
 
+  const loadEvents = async () => {
+    setEventsLoaded(false)
+    setLiveEvent(null)
+    setRecentEvents([])
+    try {
+      const now = Date.now()
+      const from = new Date(now - 14 * 24 * 60 * 60 * 1000).toISOString()
+      const to = new Date(now + 24 * 60 * 60 * 1000).toISOString()
+      const response = await fetch(`/api/venues/${venueId}/events?startDate=${from}&endDate=${to}`)
+      if (!response.ok) return
+      const picked = pickSaleEvents(await response.json())
+      setLiveEvent(picked.live)
+      setRecentEvents(picked.recent)
+    } catch {
+      setLiveEvent(null)
+    } finally {
+      setEventsLoaded(true)
+    }
+  }
+
   const openDialog = () => {
     setFormData({ serviceId: "", type: "SALE", amount: "", customerName: "", notes: "" })
     setFormError("")
+    setEventChoice("auto")
     setIsOpen(true)
+    void loadEvents()
   }
 
   return (
@@ -137,6 +171,38 @@ export function SalesLogDialog({ venueId, services, onLogged }: SalesLogDialogPr
                 <AlertDescription className="text-destructive">{formError}</AlertDescription>
               </Alert>
             )}
+            {canPickEvent ? (
+              <div className="space-y-2">
+                <Label htmlFor="event">Event</Label>
+                <Select value={eventChoice} onValueChange={setEventChoice} disabled={isSubmitting || !eventsLoaded}>
+                  <SelectTrigger id="event">
+                    <SelectValue />
+                  </SelectTrigger>
+                  <SelectContent>
+                    <SelectItem value="auto">
+                      {liveEvent ? `${liveEvent.title} (running now)` : "No event running"}
+                    </SelectItem>
+                    {recentEvents.map((event) => (
+                      <SelectItem key={event.id} value={event.id}>
+                        {eventLabel(event)}
+                      </SelectItem>
+                    ))}
+                  </SelectContent>
+                </Select>
+              </div>
+            ) : (
+              eventsLoaded && (
+                <p className="text-sm text-muted-foreground">
+                  {liveEvent ? (
+                    <>
+                      Logging to <span className="font-medium text-foreground">{liveEvent.title}</span>
+                    </>
+                  ) : (
+                    "No event is running, so this sale will not be tied to an event."
+                  )}
+                </p>
+              )
+            )}
             <div className="space-y-2">
               <Label htmlFor="service">Service (Optional)</Label>
               <Select
@@ -152,6 +218,7 @@ export function SalesLogDialog({ venueId, services, onLogged }: SalesLogDialogPr
                   {services.map((service) => (
                     <SelectItem key={service.id} value={String(service.id)}>
                       {service.name} - {service.price} gil
+                      {stockLabel(service.stockCount) && ` (${stockLabel(service.stockCount)})`}
                     </SelectItem>
                   ))}
                 </SelectContent>

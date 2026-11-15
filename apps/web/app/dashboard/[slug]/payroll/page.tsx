@@ -543,7 +543,7 @@ export default function PayrollPage() {
                 <div className="space-y-4">
                   <div className="grid grid-cols-2 gap-4">
                     <div className="space-y-2">
-                      <Label>Period Start</Label>
+                      <Label>Period Start *</Label>
                       <Input
                         type="date"
                         value={genAllStart}
@@ -554,7 +554,7 @@ export default function PayrollPage() {
                       />
                     </div>
                     <div className="space-y-2">
-                      <Label>Period End</Label>
+                      <Label>Period End *</Label>
                       <Input
                         type="date"
                         value={genAllEnd}
@@ -674,7 +674,7 @@ export default function PayrollPage() {
                 <div className="space-y-4">
                   {/* Staff Selection */}
                   <div className="space-y-2">
-                    <Label>Staff Member</Label>
+                    <Label>Staff Member *</Label>
                     <Select
                       value={genStaff}
                       onValueChange={(v) => {
@@ -704,7 +704,7 @@ export default function PayrollPage() {
                   {/* Date Range */}
                   <div className="grid grid-cols-2 gap-4">
                     <div className="space-y-2">
-                      <Label>Period Start</Label>
+                      <Label>Period Start *</Label>
                       <Input
                         type="date"
                         value={genPeriodStart}
@@ -715,7 +715,7 @@ export default function PayrollPage() {
                       />
                     </div>
                     <div className="space-y-2">
-                      <Label>Period End</Label>
+                      <Label>Period End *</Label>
                       <Input
                         type="date"
                         value={genPeriodEnd}
@@ -869,7 +869,7 @@ export default function PayrollPage() {
                 <div className="space-y-4">
                   {/* Staff Selection */}
                   <div className="space-y-2">
-                    <Label>Staff Member</Label>
+                    <Label>Staff Member *</Label>
                     <Select value={selectedStaff} onValueChange={setSelectedStaff}>
                       <SelectTrigger>
                         <SelectValue placeholder="Select staff member" />
@@ -908,7 +908,7 @@ export default function PayrollPage() {
 
                   {/* Base Rate */}
                   <div className="space-y-2">
-                    <Label>{paymentType === "HOURLY" ? "Hourly Rate" : "Fixed Amount"}</Label>
+                    <Label>{paymentType === "HOURLY" ? "Hourly Rate *" : "Fixed Amount *"}</Label>
                     <Input
                       type="number"
                       step="0.01"
@@ -921,7 +921,7 @@ export default function PayrollPage() {
                   {/* Hours Worked (Hourly only) */}
                   {paymentType === "HOURLY" && (
                     <div className="space-y-2">
-                      <Label>Hours Worked</Label>
+                      <Label>Hours Worked *</Label>
                       <Input
                         type="number"
                         step="0.25"
@@ -947,11 +947,11 @@ export default function PayrollPage() {
                   {/* Period */}
                   <div className="grid grid-cols-2 gap-4">
                     <div className="space-y-2">
-                      <Label>Period Start</Label>
+                      <Label>Period Start *</Label>
                       <Input type="date" value={periodStart} onChange={(e) => setPeriodStart(e.target.value)} />
                     </div>
                     <div className="space-y-2">
-                      <Label>Period End</Label>
+                      <Label>Period End *</Label>
                       <Input type="date" value={periodEnd} onChange={(e) => setPeriodEnd(e.target.value)} />
                     </div>
                   </div>
@@ -981,7 +981,14 @@ export default function PayrollPage() {
                   </Button>
                   <Button
                     onClick={handleCreatePayroll}
-                    disabled={!selectedStaff || !baseRate || !periodStart || !periodEnd || isCreating}
+                    disabled={
+                      !selectedStaff ||
+                      !baseRate ||
+                      (paymentType === "HOURLY" && !hoursWorked) ||
+                      !periodStart ||
+                      !periodEnd ||
+                      isCreating
+                    }
                   >
                     {isCreating ? "Creating..." : "Create Entry"}
                   </Button>

@@ -16,11 +16,13 @@ import {
 import { Select, SelectContent, SelectItem, SelectTrigger, SelectValue } from "@/components/ui/select"
 import { Alert, AlertDescription } from "@/components/ui/alert"
 import type { Transaction } from "@/components/transactions-list"
+import { stockLabel } from "@/lib/stock-label"
 
 interface Service {
   id: number
   name: string
   price: number
+  stockCount: number | null
 }
 
 interface SalesLogDialogProps {
@@ -152,6 +154,7 @@ export function SalesLogDialog({ venueId, services, onLogged }: SalesLogDialogPr
                   {services.map((service) => (
                     <SelectItem key={service.id} value={String(service.id)}>
                       {service.name} - {service.price} gil
+                      {stockLabel(service.stockCount) && ` (${stockLabel(service.stockCount)})`}
                     </SelectItem>
                   ))}
                 </SelectContent>

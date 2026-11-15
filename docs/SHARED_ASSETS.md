@@ -53,6 +53,8 @@ House-specific:
 | `validation` | `SNOWFLAKE_PATTERN`, `validators` | zod validators. Use these for any Discord id. A snowflake is a string, never a number |
 | `format` | `formatGil`, `formatGilCompact` | Gil amounts |
 | `gallery-nav` | `stepIndex` | Previous and next with wrap-around, for the venue gallery slider |
+| `stock-label` | `stockLabel` | "N left" or "Out of stock" for a service's stock count, null when it is not tracked. The Log Sale dropdown uses it |
+| `room-status` | `roomStatusBadge`, `canReserve`, `canRelease` | What the rooms board shows and offers for each status xvm-api sends: `available`, `reserved`, `locked`, `disabled`. A reserved room is `reserved`, never `occupied` |
 | `server-time` | `getServerTimeLabel`, `formatServerTime`, `formatServerTimeRange`, `formatLocalTimeRange`, `getServerTimeIntlOptions` | |
 | `local-day` | `localDayKey`, `localHourLabel`, `browserTimeZone`, `localTimeInput`, `endOfLocalDayUtc` | Calendar days in a given timezone |
 | `shift-format` | `fmtHour`, `statusBadgeClass`, `toShiftRow`, `staffNameOf`, ... | Shift display |

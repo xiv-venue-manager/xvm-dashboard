@@ -9,7 +9,6 @@ import { getValidXvmApiToken, xvmApiErrorResponse } from "@/lib/api/xvm-api-stor
 import { createVenue, updateVenue, type VenueUpdate } from "@/lib/api/xvm-api"
 import { sendEmail } from "@/lib/email"
 import { venueWelcomeEmail, newVenueAlertEmail } from "@/lib/email-templates"
-import { postNewVenue } from "@/lib/discord-feed"
 import { addressProblem } from "@/lib/venue-location"
 import { asMembership, myVenues, VenueAccessUnavailable } from "@/lib/api/venue-access"
 
@@ -103,8 +102,6 @@ export const POST = withRateLimit(
         ward: validatedData.ward ?? null,
         plot: validatedData.plot ?? null,
       }
-
-      postNewVenue(venue)
 
       const ownerEmail = session.user.email
       if (ownerEmail) {

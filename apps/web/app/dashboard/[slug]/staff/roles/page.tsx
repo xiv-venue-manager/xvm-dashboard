@@ -1,7 +1,6 @@
 "use client"
 
 import { useEffect, useState } from "react"
-import Link from "next/link"
 import { Button } from "@/components/ui/button"
 import { Input } from "@/components/ui/input"
 import { Label } from "@/components/ui/label"
@@ -29,6 +28,7 @@ import { VenueLayoutClient } from "@/components/venue-layout-client"
 import { canManageVenue, isVenueOwner } from "@/lib/roles"
 import { toast } from "sonner"
 
+import { BackLink } from "@/components/back-link"
 // Preset colors for quick selection
 const PRESET_COLORS = [
   "#6366f1", // Indigo (default)
@@ -274,9 +274,7 @@ export default function RolesPage({ params }: { params: Promise<{ slug: string }
             <h1 className="page-h1">Custom Roles</h1>
           </div>
           <div className="flex flex-wrap gap-2 sm:gap-4">
-            <Button variant="outline" asChild>
-              <Link href={`/dashboard/${slug}/staff`}>← Back to Staff</Link>
-            </Button>
+            <BackLink href={`/dashboard/${slug}/staff`} to="Staff" variant="button" />
             {canManageVenue(userRole) && <Button onClick={openCreateDialog}>Create Role</Button>}
           </div>
         </div>

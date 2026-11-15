@@ -3,7 +3,6 @@
 import { useEffect, useState } from "react"
 import { useSession } from "next-auth/react"
 import { useRouter } from "next/navigation"
-import Link from "next/link"
 import { Button } from "@/components/ui/button"
 import { Input } from "@/components/ui/input"
 import { Label } from "@/components/ui/label"
@@ -16,6 +15,7 @@ import { TEAM_BIO_MAX } from "@/lib/team-groups"
 import { clampFrame, DEFAULT_PHOTO_FRAME, type PhotoFrame } from "@/lib/team-photo"
 import type { TeamProfile } from "@/lib/api/xvm-api"
 
+import { BackLink } from "@/components/back-link"
 const frameOf = (card: TeamProfile): PhotoFrame => clampFrame({ x: card.photo_x, y: card.photo_y, zoom: card.photo_zoom })
 const round3 = (n: number) => Math.round(n * 1000) / 1000
 
@@ -117,9 +117,7 @@ export default function EditTeamCardPage() {
       <div className="mx-auto max-w-[640px] px-4 pb-20 pt-16 sm:px-6">
         <h1 className="font-cinzel text-2xl font-bold tracking-wide">You are not on the team page</h1>
         <p className="mt-3 text-muted-foreground">An admin adds people to the team. Ask one to add you, then come back here.</p>
-        <Link href="/team" className="mt-6 inline-block text-sm text-[var(--xiv-blue)]">
-          Back to the team page
-        </Link>
+        <BackLink href="/team" to="Team" className="mt-6" />
       </div>
     )
   }
@@ -134,9 +132,7 @@ export default function EditTeamCardPage() {
 
   return (
     <div className="mx-auto max-w-[760px] px-4 pb-20 pt-16 sm:px-6">
-      <Link href="/team" className="text-sm text-muted-foreground transition-colors hover:text-[var(--xiv-blue)]">
-        ← Back to the team page
-      </Link>
+      <BackLink href="/team" to="Team" />
       <h1 className="mt-4 font-cinzel text-2xl font-bold tracking-wide">Edit my card</h1>
       <p className="mt-1 text-sm text-muted-foreground">
         Your {profile.roles.length === 1 ? "role is" : "roles are"}{" "}

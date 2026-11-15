@@ -2,7 +2,6 @@
 
 import { useEffect, useState } from "react"
 import { useRouter } from "next/navigation"
-import Link from "next/link"
 import { Button } from "@/components/ui/button"
 import { Label } from "@/components/ui/label"
 import { Input } from "@/components/ui/input"
@@ -28,6 +27,7 @@ import { PageLoading } from "@/components/ui/loading-spinner"
 import { VenueLayoutClient } from "@/components/venue-layout-client"
 import { LocalTime } from "@/components/server-time"
 
+import { BackLink } from "@/components/back-link"
 // xvm-api's Position model has no primary/secondary distinction the way
 // Prisma's customRole vs additionalRoles did - every assigned position is
 // one flat, equally-weighted set (see Position Management below).
@@ -311,9 +311,7 @@ export default function ManageStaffMemberPage({ params }: { params: Promise<{ sl
           <Alert className="bg-destructive/10 border-destructive/20">
             <AlertDescription className="text-destructive">Staff member not found</AlertDescription>
           </Alert>
-          <Button asChild className="mt-4">
-            <Link href={`/dashboard/${slug}/staff`}>← Back to Staff</Link>
-          </Button>
+          <BackLink href={`/dashboard/${slug}/staff`} to="Staff" variant="button" className="mt-4" />
         </div>
       </VenueLayoutClient>
     )
@@ -577,9 +575,7 @@ export default function ManageStaffMemberPage({ params }: { params: Promise<{ sl
 
         {/* Back Button */}
         <div className="mt-6">
-          <Button variant="outline" asChild>
-            <Link href={`/dashboard/${slug}/staff`}>← Back to Staff</Link>
-          </Button>
+          <BackLink href={`/dashboard/${slug}/staff`} to="Staff" variant="button" />
         </div>
       </div>
     </VenueLayoutClient>

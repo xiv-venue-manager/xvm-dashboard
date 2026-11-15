@@ -3,6 +3,7 @@
 import { useEffect, useRef, useState } from "react"
 import { format } from "date-fns"
 import { Button } from "@/components/ui/button"
+import { EditorHeader } from "@/components/editor-header"
 import { Card, CardContent } from "@/components/ui/card"
 import { Input } from "@/components/ui/input"
 import { Label } from "@/components/ui/label"
@@ -316,12 +317,7 @@ export function FormEditor({ venueId, form, onChange, onClose }: FormEditorProps
 
   return (
     <div className="space-y-4">
-      <div className="flex flex-wrap items-center justify-between gap-3">
-        <h2 className="text-lg font-semibold">{form.name}</h2>
-        <Button variant="outline" size="sm" onClick={onClose}>
-          Back to forms
-        </Button>
-      </div>
+      <EditorHeader backLabel="Back to forms" onBack={onClose} title={form.name} />
       <PillToggle label="Form section" options={SECTIONS} value={section} onChange={setSection} />
       {section === "details" && <Details venueId={venueId} form={form} onChange={onChange} />}
       {section === "questions" && (

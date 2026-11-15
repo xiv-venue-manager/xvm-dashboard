@@ -3,6 +3,7 @@
 import { useEffect, useState } from "react"
 import { format } from "date-fns"
 import { Button } from "@/components/ui/button"
+import { EditorHeader } from "@/components/editor-header"
 import { Card, CardContent } from "@/components/ui/card"
 import { Badge } from "@/components/ui/badge"
 import { Input } from "@/components/ui/input"
@@ -413,12 +414,7 @@ export function ProfileEditor({ venueId, profile, approvalRequired, onChange, on
 
   return (
     <div className="space-y-4">
-      <div className="flex flex-wrap items-center justify-between gap-3">
-        <h2 className="text-lg font-semibold">{profile.character_name}</h2>
-        <Button variant="outline" size="sm" onClick={onClose}>
-          Back to sheets
-        </Button>
-      </div>
+      <EditorHeader backLabel="Back to sheets" onBack={onClose} title={profile.character_name} />
       <PillToggle label="Sheet section" options={SECTIONS} value={section} onChange={setSection} />
       {section === "basics" && <Basics venueId={venueId} profile={profile} onChange={onChange} />}
       {section === "glance" && <Glance venueId={venueId} profile={profile} onChange={onChange} />}

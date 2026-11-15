@@ -2,6 +2,7 @@
 
 import { useEffect, useRef, useState } from "react"
 import { Button } from "@/components/ui/button"
+import { EditorHeader } from "@/components/editor-header"
 import { Card, CardContent } from "@/components/ui/card"
 import { DateTimePicker } from "@/components/ui/date-time-picker"
 import { Label } from "@/components/ui/label"
@@ -108,16 +109,13 @@ export function StickyEditor({ venueId, sticky, canManage, onSaved, onClose }: S
 
   return (
     <div className="space-y-4">
-      <div className="flex items-center justify-between gap-3">
-        <Button variant="outline" size="sm" onClick={onClose}>
-          Back to sticky messages
-        </Button>
+      <EditorHeader backLabel="Back to sticky messages" onBack={onClose}>
         {canManage && (
           <Button onClick={save} disabled={saving || problems.length > 0}>
             {saving ? "Saving..." : "Save sticky"}
           </Button>
         )}
-      </div>
+      </EditorHeader>
 
       {canManage && problems.length > 0 && (
         <ul className="list-disc space-y-0.5 pl-5 text-sm text-muted-foreground">

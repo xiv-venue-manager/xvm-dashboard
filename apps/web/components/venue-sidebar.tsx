@@ -39,6 +39,7 @@ import {
   TrendingUp,
   ClipboardList,
   UserRound,
+  Crown,
   type LucideIcon,
 } from "lucide-react"
 
@@ -312,6 +313,7 @@ export function VenueSidebar({
         { href: `/dashboard/${venueSlug}/leveling`, label: "Leveling", icon: TrendingUp },
         { href: `/dashboard/${venueSlug}/forms`, label: "Forms", icon: ClipboardList, roles: ["OWNER", "MANAGER"] },
         { href: `/dashboard/${venueSlug}/profiles`, label: "Profiles", icon: UserRound },
+        { href: `/dashboard/${venueSlug}/vips`, label: "VIPs", icon: Crown },
       ],
     },
     {

@@ -3738,6 +3738,243 @@ export async function updateProfileSettings(personToken: string, venueId: string
   return xvmFetch<ProfileSettings>(`/venues/${venueId}/profile-settings`, { method: "PUT", body: JSON.stringify(data) }, personToken)
 }
 
+export type PerkRepeatability = "once" | "weekly" | "monthly" | "unlimited"
+export type VipPostKind = "perks" | "roster"
+
+export interface PersonRow {
+  id: number
+  display_name: string
+}
+
+export interface DiscordPersonResolve {
+  discord_user_id: string
+  display_name: string
+}
+
+export interface VipPerkRow {
+  id: number
+  tier_id: number
+  name: string
+  description: string | null
+  repeatability: PerkRepeatability
+  sort_order: number
+}
+
+export interface VipTierRow {
+  id: number
+  name: string
+  description: string | null
+  cost: number
+  color: number | null
+  discord_role_id: string | null
+  sort_order: number
+  perks: VipPerkRow[]
+}
+
+export interface VipTierCreate {
+  name: string
+  description?: string | null
+  cost?: number
+  color?: number | null
+  discord_role_id?: string | null
+  sort_order?: number
+}
+
+export type VipTierUpdate = Partial<VipTierCreate>
+
+export interface VipPerkCreate {
+  name: string
+  description?: string | null
+  repeatability?: PerkRepeatability
+  sort_order?: number
+}
+
+export type VipPerkUpdate = Partial<VipPerkCreate>
+
+export interface VipRow {
+  id: number
+  person_id: number
+  person_name: string
+  tier_id: number | null
+  tier_name: string
+  started_at: string
+  expires_at: string | null
+  ended_at: string | null
+  ended_reason: string | null
+  granted_by_person_id: number | null
+  notes: string | null
+  is_active: boolean
+}
+
+export interface VipGrant {
+  person_id: number
+  tier_id: number
+  expires_at?: string | null
+  notes?: string | null
+}
+
+export interface VipUpdate {
+  expires_at?: string | null
+  notes?: string | null
+}
+
+export interface VipReassign {
+  tier_id: number
+}
+
+export interface VipPerkStanding {
+  perk: VipPerkRow
+  redeemable: boolean
+  free_at: string | null
+}
+
+export interface VipRedemptionRow {
+  id: number
+  membership_id: number
+  perk_id: number | null
+  perk_name: string
+  note: string | null
+  redeemed_at: string
+  fulfilled_at: string | null
+  fulfilled_by_person_id: number | null
+}
+
+export interface VipRedeemCreate {
+  perk_id: number
+  note?: string | null
+}
+
+export interface VipSettings {
+  warning_days?: number | null
+}
+
+export interface VipSettingsUpdate {
+  warning_days?: number | null
+}
+
+export interface VipPostRow {
+  kind: VipPostKind
+  channel_id: string
+  message_id: string | null
+  posted_at: string | null
+}
+
+export interface VipPostCreate {
+  kind: VipPostKind
+  channel_id: string
+}
+
+export async function resolveDiscordPerson(personToken: string, venueId: string, data: DiscordPersonResolve): Promise<PersonRow> {
+  if (!process.env.XVM_API_BASE_URL) throw new Error("XVM_API_BASE_URL is not set")
+  return xvmFetch<PersonRow>(`/venues/${venueId}/people/resolve`, { method: "POST", body: JSON.stringify(data) }, personToken)
+}
+
+export async function listVipTiers(personToken: string, venueId: string): Promise<VipTierRow[]> {
+  if (!process.env.XVM_API_BASE_URL) throw new Error("XVM_API_BASE_URL is not set")
+  return xvmFetch<VipTierRow[]>(`/venues/${venueId}/vips/tiers`, {}, personToken)
+}
+
+export async function createVipTier(personToken: string, venueId: string, data: VipTierCreate): Promise<VipTierRow> {
+  if (!process.env.XVM_API_BASE_URL) throw new Error("XVM_API_BASE_URL is not set")
+  return xvmFetch<VipTierRow>(`/venues/${venueId}/vips/tiers`, { method: "POST", body: JSON.stringify(data) }, personToken)
+}
+
+export async function updateVipTier(personToken: string, venueId: string, tierId: number, data: VipTierUpdate): Promise<VipTierRow> {
+  if (!process.env.XVM_API_BASE_URL) throw new Error("XVM_API_BASE_URL is not set")
+  return xvmFetch<VipTierRow>(`/venues/${venueId}/vips/tiers/${tierId}`, { method: "PATCH", body: JSON.stringify(data) }, personToken)
+}
+
+export async function deleteVipTier(personToken: string, venueId: string, tierId: number): Promise<void> {
+  if (!process.env.XVM_API_BASE_URL) throw new Error("XVM_API_BASE_URL is not set")
+  return xvmFetch<void>(`/venues/${venueId}/vips/tiers/${tierId}`, { method: "DELETE" }, personToken)
+}
+
+export async function createVipPerk(personToken: string, venueId: string, tierId: number, data: VipPerkCreate): Promise<VipPerkRow> {
+  if (!process.env.XVM_API_BASE_URL) throw new Error("XVM_API_BASE_URL is not set")
+  return xvmFetch<VipPerkRow>(`/venues/${venueId}/vips/tiers/${tierId}/perks`, { method: "POST", body: JSON.stringify(data) }, personToken)
+}
+
+export async function updateVipPerk(personToken: string, venueId: string, perkId: number, data: VipPerkUpdate): Promise<VipPerkRow> {
+  if (!process.env.XVM_API_BASE_URL) throw new Error("XVM_API_BASE_URL is not set")
+  return xvmFetch<VipPerkRow>(`/venues/${venueId}/vips/perks/${perkId}`, { method: "PATCH", body: JSON.stringify(data) }, personToken)
+}
+
+export async function deleteVipPerk(personToken: string, venueId: string, perkId: number): Promise<void> {
+  if (!process.env.XVM_API_BASE_URL) throw new Error("XVM_API_BASE_URL is not set")
+  return xvmFetch<void>(`/venues/${venueId}/vips/perks/${perkId}`, { method: "DELETE" }, personToken)
+}
+
+export async function listVips(personToken: string, venueId: string, options: { includeEnded?: boolean } = {}): Promise<VipRow[]> {
+  if (!process.env.XVM_API_BASE_URL) throw new Error("XVM_API_BASE_URL is not set")
+  const qs = options.includeEnded ? "?include_ended=true" : ""
+  return xvmFetch<VipRow[]>(`/venues/${venueId}/vips${qs}`, {}, personToken)
+}
+
+export async function grantVip(personToken: string, venueId: string, data: VipGrant): Promise<VipRow> {
+  if (!process.env.XVM_API_BASE_URL) throw new Error("XVM_API_BASE_URL is not set")
+  return xvmFetch<VipRow>(`/venues/${venueId}/vips`, { method: "POST", body: JSON.stringify(data) }, personToken)
+}
+
+export async function updateVip(personToken: string, venueId: string, vipId: number, data: VipUpdate): Promise<VipRow> {
+  if (!process.env.XVM_API_BASE_URL) throw new Error("XVM_API_BASE_URL is not set")
+  return xvmFetch<VipRow>(`/venues/${venueId}/vips/${vipId}`, { method: "PATCH", body: JSON.stringify(data) }, personToken)
+}
+
+export async function reassignVip(personToken: string, venueId: string, vipId: number, data: VipReassign): Promise<VipRow> {
+  if (!process.env.XVM_API_BASE_URL) throw new Error("XVM_API_BASE_URL is not set")
+  return xvmFetch<VipRow>(`/venues/${venueId}/vips/${vipId}/reassign`, { method: "POST", body: JSON.stringify(data) }, personToken)
+}
+
+export async function endVip(personToken: string, venueId: string, vipId: number): Promise<VipRow> {
+  if (!process.env.XVM_API_BASE_URL) throw new Error("XVM_API_BASE_URL is not set")
+  return xvmFetch<VipRow>(`/venues/${venueId}/vips/${vipId}/end`, { method: "POST" }, personToken)
+}
+
+export async function listVipPerks(personToken: string, venueId: string, vipId: number): Promise<VipPerkStanding[]> {
+  if (!process.env.XVM_API_BASE_URL) throw new Error("XVM_API_BASE_URL is not set")
+  return xvmFetch<VipPerkStanding[]>(`/venues/${venueId}/vips/${vipId}/perks`, {}, personToken)
+}
+
+export async function listVipRedemptions(personToken: string, venueId: string, vipId: number): Promise<VipRedemptionRow[]> {
+  if (!process.env.XVM_API_BASE_URL) throw new Error("XVM_API_BASE_URL is not set")
+  return xvmFetch<VipRedemptionRow[]>(`/venues/${venueId}/vips/${vipId}/redemptions`, {}, personToken)
+}
+
+export async function redeemVipPerk(personToken: string, venueId: string, vipId: number, data: VipRedeemCreate): Promise<VipRedemptionRow> {
+  if (!process.env.XVM_API_BASE_URL) throw new Error("XVM_API_BASE_URL is not set")
+  return xvmFetch<VipRedemptionRow>(`/venues/${venueId}/vips/${vipId}/redeem`, { method: "POST", body: JSON.stringify(data) }, personToken)
+}
+
+export async function fulfillVipRedemption(personToken: string, venueId: string, redemptionId: number): Promise<VipRedemptionRow> {
+  if (!process.env.XVM_API_BASE_URL) throw new Error("XVM_API_BASE_URL is not set")
+  return xvmFetch<VipRedemptionRow>(`/venues/${venueId}/vips/redemptions/${redemptionId}/fulfill`, { method: "POST" }, personToken)
+}
+
+export async function getVipSettings(personToken: string, venueId: string): Promise<VipSettings> {
+  if (!process.env.XVM_API_BASE_URL) throw new Error("XVM_API_BASE_URL is not set")
+  return xvmFetch<VipSettings>(`/venues/${venueId}/vips/settings`, {}, personToken)
+}
+
+export async function updateVipSettings(personToken: string, venueId: string, data: VipSettingsUpdate): Promise<VipSettings> {
+  if (!process.env.XVM_API_BASE_URL) throw new Error("XVM_API_BASE_URL is not set")
+  return xvmFetch<VipSettings>(`/venues/${venueId}/vips/settings`, { method: "PUT", body: JSON.stringify(data) }, personToken)
+}
+
+export async function listVipPosts(personToken: string, venueId: string): Promise<VipPostRow[]> {
+  if (!process.env.XVM_API_BASE_URL) throw new Error("XVM_API_BASE_URL is not set")
+  return xvmFetch<VipPostRow[]>(`/venues/${venueId}/vips/posts`, {}, personToken)
+}
+
+export async function createVipPost(personToken: string, venueId: string, data: VipPostCreate): Promise<void> {
+  if (!process.env.XVM_API_BASE_URL) throw new Error("XVM_API_BASE_URL is not set")
+  return xvmFetch<void>(`/venues/${venueId}/vips/posts`, { method: "POST", body: JSON.stringify(data) }, personToken)
+}
+
+export async function deleteVipPost(personToken: string, venueId: string, kind: VipPostKind, channelId: string): Promise<void> {
+  if (!process.env.XVM_API_BASE_URL) throw new Error("XVM_API_BASE_URL is not set")
+  return xvmFetch<void>(`/venues/${venueId}/vips/posts/${kind}/${channelId}`, { method: "DELETE" }, personToken)
+}
+
 export async function listModules(personToken: string, venueId: string): Promise<ModuleRow[]> {
   if (!process.env.XVM_API_BASE_URL) throw new Error("XVM_API_BASE_URL is not set")
   return xvmFetch<ModuleRow[]>(`/venues/${venueId}/modules`, {}, personToken)

@@ -68,6 +68,23 @@ const ALIASES: Record<string, string> = {
   LevelingAwardRow: "AwardRow",
   FormQuestionRow: "QuestionRow",
   FormResponseRow: "ResponseRow",
+  VipPerkRow: "PerkRow",
+  VipPerkCreate: "PerkCreate",
+  VipPerkUpdate: "PerkUpdate",
+  VipTierRow: "api__schemas__vips__TierRow",
+  VipTierCreate: "api__schemas__vips__TierCreate",
+  VipTierUpdate: "api__schemas__vips__TierUpdate",
+  VipRow: "VIPRow",
+  VipGrant: "VIPGrant",
+  VipUpdate: "VIPUpdate",
+  VipReassign: "VIPReassign",
+  VipPerkStanding: "PerkStanding",
+  VipRedemptionRow: "RedemptionRow",
+  VipRedeemCreate: "RedeemCreate",
+  VipSettings: "VIPSettings",
+  VipSettingsUpdate: "VIPSettingsUpdate",
+  VipPostRow: "VIPPostRow",
+  VipPostCreate: "VIPPostCreate",
 }
 
 // Interfaces with no contract schema of their own. A new interface that is not mapped above has to be

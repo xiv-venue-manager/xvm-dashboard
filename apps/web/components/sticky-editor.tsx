@@ -109,7 +109,7 @@ export function StickyEditor({ venueId, sticky, canManage, onSaved, onClose }: S
 
   return (
     <div className="space-y-4">
-      <EditorHeader backLabel="Back to sticky messages" onBack={onClose}>
+      <EditorHeader backTo="Sticky Messages" onBack={onClose}>
         {canManage && (
           <Button onClick={save} disabled={saving || problems.length > 0}>
             {saving ? "Saving..." : "Save sticky"}

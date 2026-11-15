@@ -317,7 +317,7 @@ export function FormEditor({ venueId, form, onChange, onClose }: FormEditorProps
 
   return (
     <div className="space-y-4">
-      <EditorHeader backLabel="Back to forms" onBack={onClose} title={form.name} />
+      <EditorHeader backTo="Forms" onBack={onClose} title={form.name} />
       <PillToggle label="Form section" options={SECTIONS} value={section} onChange={setSection} />
       {section === "details" && <Details venueId={venueId} form={form} onChange={onChange} />}
       {section === "questions" && (

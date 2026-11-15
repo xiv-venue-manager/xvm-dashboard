@@ -108,7 +108,7 @@ export function EmbedEditor({ venueId, embed, canManage, onSaved, onClose }: Emb
 
   return (
     <div className="space-y-4">
-      <EditorHeader backLabel="Back to embeds" onBack={onClose}>
+      <EditorHeader backTo="Embeds" onBack={onClose}>
         {canManage && (
           <Button onClick={save} disabled={saving || problems.length > 0}>
             {saving ? "Saving..." : "Save embed"}

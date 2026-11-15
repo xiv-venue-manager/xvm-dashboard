@@ -414,7 +414,7 @@ export function ProfileEditor({ venueId, profile, approvalRequired, onChange, on
 
   return (
     <div className="space-y-4">
-      <EditorHeader backLabel="Back to sheets" onBack={onClose} title={profile.character_name} />
+      <EditorHeader backTo="Profiles" onBack={onClose} title={profile.character_name} />
       <PillToggle label="Sheet section" options={SECTIONS} value={section} onChange={setSection} />
       {section === "basics" && <Basics venueId={venueId} profile={profile} onChange={onChange} />}
       {section === "glance" && <Glance venueId={venueId} profile={profile} onChange={onChange} />}

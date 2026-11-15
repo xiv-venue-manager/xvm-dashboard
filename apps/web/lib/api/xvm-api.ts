@@ -3267,6 +3267,25 @@ export interface LevelingAwardRow {
   awarded_at: string
 }
 
+export interface LevelingManualAward {
+  person_id: number
+  amount: number
+  note?: string | null
+}
+
+export interface LevelingAwardResult {
+  granted: boolean
+  leveled_up: boolean
+  previous_level: number
+  xp_amount: number
+  standing: LevelingStanding
+}
+
+export async function grantLevelingXp(personToken: string, venueId: string, data: LevelingManualAward): Promise<LevelingAwardResult> {
+  if (!process.env.XVM_API_BASE_URL) throw new Error("XVM_API_BASE_URL is not set")
+  return xvmFetch<LevelingAwardResult>(`/venues/${venueId}/leveling/awards`, { method: "POST", body: JSON.stringify(data) }, personToken)
+}
+
 export async function getLevelingSettings(personToken: string, venueId: string): Promise<LevelingSettings> {
   if (!process.env.XVM_API_BASE_URL) throw new Error("XVM_API_BASE_URL is not set")
   return xvmFetch<LevelingSettings>(`/venues/${venueId}/leveling/settings`, {}, personToken)

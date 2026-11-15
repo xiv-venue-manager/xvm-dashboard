@@ -1,5 +1,6 @@
 import { describe, it, expect } from "vitest"
 import {
+  awardSchema,
   formatCooldown,
   ruleCreateSchema,
   ruleUpdateSchema,
@@ -7,6 +8,7 @@ import {
   sourceLabel,
   tierCreateSchema,
   tierUpdateSchema,
+  withStanding,
   xpForLevel,
 } from "./leveling"
 
@@ -89,5 +91,36 @@ describe("tier schemas", () => {
   it("updates one field at a time and clears with null", () => {
     expect(tierUpdateSchema.safeParse({ icon: null }).success).toBe(true)
     expect(tierUpdateSchema.safeParse({}).success).toBe(false)
+  })
+})
+
+describe("awardSchema", () => {
+  const ok = { discordUserId: "1509616350337962099", displayName: "Lily", amount: 50 }
+
+  it("needs a Discord user, a name and an amount from 1 to 1,000,000", () => {
+    expect(awardSchema.safeParse(ok).success).toBe(true)
+    expect(awardSchema.safeParse({ ...ok, amount: 0 }).success).toBe(false)
+    expect(awardSchema.safeParse({ ...ok, amount: 1_000_001 }).success).toBe(false)
+    expect(awardSchema.safeParse({ ...ok, discordUserId: "lily" }).success).toBe(false)
+  })
+
+  it("clears a blank note and caps one at 200 characters", () => {
+    expect(awardSchema.parse({ ...ok, note: "  " }).note).toBeNull()
+    expect(awardSchema.safeParse({ ...ok, note: "x".repeat(201) }).success).toBe(false)
+  })
+})
+
+describe("withStanding", () => {
+  const standing = (person_id: number, total_xp: number) =>
+    ({ person_id, total_xp, name: `P${person_id}`, discord_user_id: null, level: 0, xp_into_level: 0, xp_for_next_level: 1, tier: null, updated_at: "" }) as never
+
+  it("replaces a person's row and keeps the board highest first", () => {
+    const next = withStanding([standing(1, 100), standing(2, 50)], standing(2, 200))
+    expect(next.map((s: { person_id: number }) => s.person_id)).toEqual([2, 1])
+  })
+
+  it("adds someone new, breaking ties by person id", () => {
+    const next = withStanding([standing(5, 10)], standing(3, 10))
+    expect(next.map((s: { person_id: number }) => s.person_id)).toEqual([3, 5])
   })
 })

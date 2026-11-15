@@ -66,6 +66,8 @@ const ALIASES: Record<string, string> = {
   LevelingTierUpdate: "api__schemas__leveling__TierUpdate",
   LevelingStanding: "Standing",
   LevelingAwardRow: "AwardRow",
+  LevelingManualAward: "ManualAward",
+  LevelingAwardResult: "AwardResult",
   FormQuestionRow: "QuestionRow",
   FormResponseRow: "ResponseRow",
   VipPerkRow: "PerkRow",

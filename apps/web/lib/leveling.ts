@@ -1,6 +1,6 @@
 import { z } from "zod"
 import { validators } from "@/lib/validation"
-import type { LevelingSettings, LevelingSource } from "@/lib/api/xvm-api"
+import type { LevelingSettings, LevelingSource, LevelingStanding } from "@/lib/api/xvm-api"
 
 export const RULE_SOURCES = [
   "discord.message",
@@ -84,3 +84,22 @@ export const tierUpdateSchema = z
   .object(tierFields)
   .partial()
   .refine((data) => Object.values(data).some((value) => value !== undefined), { message: "Nothing to save" })
+
+export const awardSchema = z.object({
+  discordUserId: validators.snowflake,
+  displayName: z.string().trim().min(1).max(100),
+  amount: z.number().int().min(1).max(1_000_000),
+  note: z
+    .string()
+    .trim()
+    .max(200)
+    .transform((value) => (value === "" ? null : value))
+    .nullable()
+    .optional(),
+})
+
+/** A standing after a grant joins or replaces its person's row, and the board stays highest first. */
+export function withStanding(standings: LevelingStanding[], next: LevelingStanding): LevelingStanding[] {
+  const others = standings.filter((standing) => standing.person_id !== next.person_id)
+  return [...others, next].sort((a, b) => b.total_xp - a.total_xp || a.person_id - b.person_id)
+}

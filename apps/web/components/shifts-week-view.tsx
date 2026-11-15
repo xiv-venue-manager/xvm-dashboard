@@ -318,7 +318,7 @@ export function ShiftsWeekView(props: ShiftsWeekViewProps) {
           {staffRows.length === 0 && !hasOpenShifts && (
             <div className="col-span-8 py-12 text-center text-sm text-muted-foreground">
               No shifts scheduled for this week.
-              {props.canManage && " Use the button above to add shifts."}
+              {props.canManage && " Add shifts from an event's roster."}
             </div>
           )}
         </div>

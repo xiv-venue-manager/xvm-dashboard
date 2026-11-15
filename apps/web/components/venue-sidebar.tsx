@@ -36,6 +36,7 @@ import {
   Activity,
   MessageSquareText,
   Pin,
+  TrendingUp,
   type LucideIcon,
 } from "lucide-react"
 
@@ -306,6 +307,7 @@ export function VenueSidebar({
         { href: `/dashboard/${venueSlug}/quote-board`, label: "Quote Board", icon: Quote },
         { href: `/dashboard/${venueSlug}/embeds`, label: "Embeds", icon: MessageSquareText },
         { href: `/dashboard/${venueSlug}/sticky-messages`, label: "Sticky Messages", icon: Pin },
+        { href: `/dashboard/${venueSlug}/leveling`, label: "Leveling", icon: TrendingUp },
       ],
     },
     {

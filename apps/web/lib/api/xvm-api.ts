@@ -3186,6 +3186,202 @@ export async function clearStickyImage(
   return xvmFetch<void>(`/venues/${venueId}/sticky-messages/${stickyId}/images/${image}`, { method: "DELETE" }, personToken)
 }
 
+export type LevelingSource =
+  | "patron.visit"
+  | "shift.completed"
+  | "transaction.logged"
+  | "event.attended"
+  | "discord.message"
+  | "discord.voice"
+  | "manual"
+
+export interface LevelingSettings {
+  xp_name: string
+  curve_quadratic: number
+  curve_linear: number
+  announcement_channel_id: string | null
+  excluded_channel_ids: string[]
+  excluded_role_ids: string[]
+  voice_needs_company: boolean
+}
+
+export type LevelingSettingsUpdate = Partial<LevelingSettings>
+
+export interface LevelingRuleRow {
+  id: number
+  source_key: LevelingSource
+  xp_amount: number
+  cooldown_seconds: number
+  enabled: boolean
+}
+
+export interface LevelingRuleCreate {
+  source_key: LevelingSource
+  xp_amount: number
+  cooldown_seconds?: number
+  enabled?: boolean
+}
+
+export interface LevelingRuleUpdate {
+  xp_amount?: number
+  cooldown_seconds?: number
+  enabled?: boolean
+}
+
+export interface LevelingTierRow {
+  id: number
+  name: string
+  min_level: number
+  color: number | null
+  icon: string | null
+  discord_role_id: string | null
+}
+
+export interface LevelingTierCreate {
+  name: string
+  min_level: number
+  color?: number | null
+  icon?: string | null
+  discord_role_id?: string | null
+}
+
+export type LevelingTierUpdate = Partial<LevelingTierCreate>
+
+export interface LevelingStanding {
+  person_id: number
+  name: string
+  discord_user_id: string | null
+  total_xp: number
+  level: number
+  xp_into_level: number
+  xp_for_next_level: number
+  tier: LevelingTierRow | null
+  updated_at: string
+}
+
+export interface LevelingAwardRow {
+  id: number
+  source_key: LevelingSource
+  xp_amount: number
+  note: string | null
+  awarded_at: string
+}
+
+export async function getLevelingSettings(personToken: string, venueId: string): Promise<LevelingSettings> {
+  if (!process.env.XVM_API_BASE_URL) throw new Error("XVM_API_BASE_URL is not set")
+  return xvmFetch<LevelingSettings>(`/venues/${venueId}/leveling/settings`, {}, personToken)
+}
+
+export async function updateLevelingSettings(
+  personToken: string,
+  venueId: string,
+  data: LevelingSettingsUpdate
+): Promise<LevelingSettings> {
+  if (!process.env.XVM_API_BASE_URL) throw new Error("XVM_API_BASE_URL is not set")
+  return xvmFetch<LevelingSettings>(
+    `/venues/${venueId}/leveling/settings`,
+    { method: "PUT", body: JSON.stringify(data) },
+    personToken
+  )
+}
+
+export async function listLevelingRules(personToken: string, venueId: string): Promise<LevelingRuleRow[]> {
+  if (!process.env.XVM_API_BASE_URL) throw new Error("XVM_API_BASE_URL is not set")
+  return xvmFetch<LevelingRuleRow[]>(`/venues/${venueId}/leveling/rules`, {}, personToken)
+}
+
+export async function createLevelingRule(
+  personToken: string,
+  venueId: string,
+  data: LevelingRuleCreate
+): Promise<LevelingRuleRow> {
+  if (!process.env.XVM_API_BASE_URL) throw new Error("XVM_API_BASE_URL is not set")
+  return xvmFetch<LevelingRuleRow>(
+    `/venues/${venueId}/leveling/rules`,
+    { method: "POST", body: JSON.stringify(data) },
+    personToken
+  )
+}
+
+export async function updateLevelingRule(
+  personToken: string,
+  venueId: string,
+  ruleId: number,
+  data: LevelingRuleUpdate
+): Promise<LevelingRuleRow> {
+  if (!process.env.XVM_API_BASE_URL) throw new Error("XVM_API_BASE_URL is not set")
+  return xvmFetch<LevelingRuleRow>(
+    `/venues/${venueId}/leveling/rules/${ruleId}`,
+    { method: "PATCH", body: JSON.stringify(data) },
+    personToken
+  )
+}
+
+export async function deleteLevelingRule(personToken: string, venueId: string, ruleId: number): Promise<void> {
+  if (!process.env.XVM_API_BASE_URL) throw new Error("XVM_API_BASE_URL is not set")
+  return xvmFetch<void>(`/venues/${venueId}/leveling/rules/${ruleId}`, { method: "DELETE" }, personToken)
+}
+
+export async function listLevelingTiers(personToken: string, venueId: string): Promise<LevelingTierRow[]> {
+  if (!process.env.XVM_API_BASE_URL) throw new Error("XVM_API_BASE_URL is not set")
+  return xvmFetch<LevelingTierRow[]>(`/venues/${venueId}/leveling/tiers`, {}, personToken)
+}
+
+export async function createLevelingTier(
+  personToken: string,
+  venueId: string,
+  data: LevelingTierCreate
+): Promise<LevelingTierRow> {
+  if (!process.env.XVM_API_BASE_URL) throw new Error("XVM_API_BASE_URL is not set")
+  return xvmFetch<LevelingTierRow>(
+    `/venues/${venueId}/leveling/tiers`,
+    { method: "POST", body: JSON.stringify(data) },
+    personToken
+  )
+}
+
+export async function updateLevelingTier(
+  personToken: string,
+  venueId: string,
+  tierId: number,
+  data: LevelingTierUpdate
+): Promise<LevelingTierRow> {
+  if (!process.env.XVM_API_BASE_URL) throw new Error("XVM_API_BASE_URL is not set")
+  return xvmFetch<LevelingTierRow>(
+    `/venues/${venueId}/leveling/tiers/${tierId}`,
+    { method: "PATCH", body: JSON.stringify(data) },
+    personToken
+  )
+}
+
+export async function deleteLevelingTier(personToken: string, venueId: string, tierId: number): Promise<void> {
+  if (!process.env.XVM_API_BASE_URL) throw new Error("XVM_API_BASE_URL is not set")
+  return xvmFetch<void>(`/venues/${venueId}/leveling/tiers/${tierId}`, { method: "DELETE" }, personToken)
+}
+
+export async function getLevelingLeaderboard(
+  personToken: string,
+  venueId: string,
+  limit = 200
+): Promise<LevelingStanding[]> {
+  if (!process.env.XVM_API_BASE_URL) throw new Error("XVM_API_BASE_URL is not set")
+  return xvmFetch<LevelingStanding[]>(`/venues/${venueId}/leveling/leaderboard?limit=${limit}`, {}, personToken)
+}
+
+export async function listLevelingAwards(
+  personToken: string,
+  venueId: string,
+  personId: number,
+  limit = 50
+): Promise<LevelingAwardRow[]> {
+  if (!process.env.XVM_API_BASE_URL) throw new Error("XVM_API_BASE_URL is not set")
+  return xvmFetch<LevelingAwardRow[]>(
+    `/venues/${venueId}/leveling/members/${personId}/awards?limit=${limit}`,
+    {},
+    personToken
+  )
+}
+
 export async function listModules(personToken: string, venueId: string): Promise<ModuleRow[]> {
   if (!process.env.XVM_API_BASE_URL) throw new Error("XVM_API_BASE_URL is not set")
   return xvmFetch<ModuleRow[]>(`/venues/${venueId}/modules`, {}, personToken)

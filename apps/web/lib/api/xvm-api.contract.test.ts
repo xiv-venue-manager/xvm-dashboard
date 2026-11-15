@@ -58,6 +58,14 @@ const ALIASES: Record<string, string> = {
   QuoteBoardSettingsRow: "QuoteBoardSettings",
   StickyCreateData: "StickyCreate",
   StickyUpdateData: "StickyUpdate",
+  LevelingRuleRow: "api__schemas__leveling__RuleRow",
+  LevelingRuleCreate: "RuleCreate",
+  LevelingRuleUpdate: "RuleUpdate",
+  LevelingTierRow: "api__schemas__leveling__TierRow",
+  LevelingTierCreate: "api__schemas__leveling__TierCreate",
+  LevelingTierUpdate: "api__schemas__leveling__TierUpdate",
+  LevelingStanding: "Standing",
+  LevelingAwardRow: "AwardRow",
 }
 
 // Interfaces with no contract schema of their own. A new interface that is not mapped above has to be

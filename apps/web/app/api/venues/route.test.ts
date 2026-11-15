@@ -10,7 +10,6 @@ const m = vi.hoisted(() => ({
   getOrSet: vi.fn(),
   venues: vi.fn(),
   invalidate: vi.fn(),
-  postNewVenue: vi.fn(),
   sendEmail: vi.fn(),
 }))
 
@@ -26,7 +25,6 @@ vi.mock("@/lib/redis-cache", () => ({
 vi.mock("@/lib/api/xvm-api-store", () => ({ getValidXvmApiToken: m.token, xvmApiErrorResponse: m.errorResponse }))
 vi.mock("@/lib/api/xvm-api", () => ({ createVenue: m.createVenue, updateVenue: m.updateVenue }))
 vi.mock("@/lib/api/venue-access", async (orig) => ({ ...(await orig<object>()), myVenues: m.venues }))
-vi.mock("@/lib/discord-feed", () => ({ postNewVenue: m.postNewVenue }))
 vi.mock("@/lib/email", () => ({ sendEmail: m.sendEmail }))
 vi.mock("@/lib/email-templates", () => ({ venueWelcomeEmail: () => ({}), newVenueAlertEmail: () => ({}) }))
 
@@ -187,10 +185,9 @@ describe("POST /api/venues", () => {
     expect((await res.json()).error).toContain("slug")
   })
 
-  it("refreshes the person's venue list and fires the Discord feed", async () => {
+  it("refreshes the person's venue list", async () => {
     await post(valid)
     expect(m.invalidate).toHaveBeenCalledWith("user:u1:venues")
-    expect(m.postNewVenue).toHaveBeenCalled()
   })
 })
 

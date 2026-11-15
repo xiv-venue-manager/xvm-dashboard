@@ -18,11 +18,13 @@ import { Alert, AlertDescription } from "@/components/ui/alert"
 import type { Transaction } from "@/components/transactions-list"
 import { format } from "date-fns"
 import { pickSaleEvents, type SaleEventOption } from "@/lib/sale-events"
+import { stockLabel } from "@/lib/stock-label"
 
 interface Service {
   id: number
   name: string
   price: number
+  stockCount: number | null
 }
 
 interface SalesLogDialogProps {
@@ -216,6 +218,7 @@ export function SalesLogDialog({ venueId, services, canPickEvent, onLogged }: Sa
                   {services.map((service) => (
                     <SelectItem key={service.id} value={String(service.id)}>
                       {service.name} - {service.price} gil
+                      {stockLabel(service.stockCount) && ` (${stockLabel(service.stockCount)})`}
                     </SelectItem>
                   ))}
                 </SelectContent>

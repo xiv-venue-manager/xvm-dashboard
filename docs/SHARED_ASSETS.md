@@ -36,6 +36,7 @@ House-specific:
 | `discord-members` | `MemberChip`, `useResolvedMembers`: put names and avatars on Discord ids a page already holds. `useResolvedMembers` asks the members route once per id, in as many requests as its cap needs; `MemberChip` renders whatever label the caller decided on. This is for a table of saved ids — `user-picker` is for choosing a new one |
 | `emoji-picker` | `EmojiPicker`: an emoji field — a text input that still takes a typed or pasted value, with a picker beside it. `source="venue"` offers that venue's custom emoji, `source="application"` the bot's own, for a platform surface with no venue to scope to. Unicode either way |
 | `emoji-glyph` | `EmojiGlyph`: render a stored emoji value. A custom emoji is `<:name:id>` markup, which shows as literal text anywhere it is not passed through this |
+| `venue-gallery` (`VenueGallery`) | The public venue gallery: a grid of tiles that opens a large slider with previous, next and arrow keys. The slider image links to the file in a new tab |
 | `role-badge`, `breadcrumb`, `venue-eyebrow`, `copy-address-button` | Small display pieces |
 | `analytics/` | Charts |
 
@@ -52,6 +53,10 @@ House-specific:
 | `validation` | `SNOWFLAKE_PATTERN`, `validators` | zod validators. Use these for any Discord id. A snowflake is a string, never a number |
 | `format` | `formatGil`, `formatGilCompact` | Gil amounts |
 | `sale-events` | `pickSaleEvents`, `RECENT_SALE_EVENT_LIMIT` | Which events the Log Sale form offers: the live one (the latest-starting `ACTIVE` event that has an id, the same rule the server uses to attach a sale) and up to 10 recent completed ones |
+| `sort-by-name` | `sortByName` | A copy of a list sorted by `name`: case-insensitive, numbers in order (Room 2 before Room 10), and equal names keep their order. The services catalogue uses it |
+| `gallery-nav` | `stepIndex` | Previous and next with wrap-around, for the venue gallery slider |
+| `stock-label` | `stockLabel` | "N left" or "Out of stock" for a service's stock count, null when it is not tracked. The Log Sale dropdown uses it |
+| `room-status` | `roomStatusBadge`, `canReserve`, `canRelease` | What the rooms board shows and offers for each status xvm-api sends: `available`, `reserved`, `locked`, `disabled`. A reserved room is `reserved`, never `occupied` |
 | `server-time` | `getServerTimeLabel`, `formatServerTime`, `formatServerTimeRange`, `formatLocalTimeRange`, `getServerTimeIntlOptions` | |
 | `local-day` | `localDayKey`, `localHourLabel`, `browserTimeZone`, `localTimeInput`, `endOfLocalDayUtc` | Calendar days in a given timezone |
 | `shift-format` | `fmtHour`, `statusBadgeClass`, `toShiftRow`, `staffNameOf`, ... | Shift display |

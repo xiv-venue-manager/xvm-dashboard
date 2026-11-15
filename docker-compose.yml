@@ -119,57 +119,6 @@ services:
     networks:
       - app-network
 
-  eorzea-bot:
-    build:
-      context: ./apps/eorzea-bot
-    container_name: eorzea-bot
-    environment:
-      DATABASE_URL: ${DATABASE_URL}
-      DISCORD_TOKEN: ${EORZEA_BOT_TOKEN}
-      CLIENT_ID: ${EORZEA_BOT_CLIENT_ID}
-      GUILD_ID: ${EORZEA_BOT_GUILD_ID}
-      WEBHOOK_PORT: "4567"
-      WEBHOOK_HOST: "0.0.0.0"
-      WEBHOOK_SECRET: ${EORZEA_BOT_WEBHOOK_SECRET}
-      API_SECRET: ${EORZEA_BOT_API_SECRET}
-      WEB_APP_URL: "http://venue-manager:3000"
-      ACTIVITY_FEED_CHANNEL_ID: ${EORZEA_BOT_ACTIVITY_FEED_CHANNEL_ID}
-      EVENTS_FEED_CHANNEL_ID: ${EORZEA_BOT_EVENTS_FEED_CHANNEL_ID}
-      TONIGHT_CHANNEL_ID: ${EORZEA_BOT_TONIGHT_CHANNEL_ID}
-      MOD_LOG_CHANNEL_ID: ${EORZEA_BOT_MOD_LOG_CHANNEL_ID}
-      WELCOME_CHANNEL_ID: ${EORZEA_BOT_WELCOME_CHANNEL_ID}
-      RULES_CHANNEL_ID: ${EORZEA_BOT_RULES_CHANNEL_ID}
-      AUTO_ROLE_ID: ${EORZEA_BOT_AUTO_ROLE_ID}
-      GC_ROLE_MAELSTROM: ${EORZEA_BOT_GC_ROLE_MAELSTROM}
-      GC_ROLE_TWIN_ADDER: ${EORZEA_BOT_GC_ROLE_TWIN_ADDER}
-      GC_ROLE_IMMORTAL_FLAMES: ${EORZEA_BOT_GC_ROLE_IMMORTAL_FLAMES}
-      SUGGESTIONS_CHANNEL_ID: ${EORZEA_BOT_SUGGESTIONS_CHANNEL_ID}
-      LOYALTY_BRONZE_ROLE: ${EORZEA_BOT_LOYALTY_BRONZE_ROLE}
-      LOYALTY_SILVER_ROLE: ${EORZEA_BOT_LOYALTY_SILVER_ROLE}
-      LOYALTY_GOLD_ROLE: ${EORZEA_BOT_LOYALTY_GOLD_ROLE}
-      WHATS_HAPPENING_NA_CHANNEL_ID: ${EORZEA_BOT_WHATS_HAPPENING_NA_CHANNEL_ID}
-      WHATS_HAPPENING_EU_CHANNEL_ID: ${EORZEA_BOT_WHATS_HAPPENING_EU_CHANNEL_ID}
-      WHATS_HAPPENING_JP_CHANNEL_ID: ${EORZEA_BOT_WHATS_HAPPENING_JP_CHANNEL_ID}
-      WHATS_HAPPENING_OCE_CHANNEL_ID: ${EORZEA_BOT_WHATS_HAPPENING_OCE_CHANNEL_ID}
-    depends_on:
-      postgres:
-        condition: service_healthy
-    restart: unless-stopped
-    networks:
-      - app-network
-
-  discord-bot:
-    build:
-      context: ./apps/discord-bot
-    container_name: discord-bot
-    env_file: .env
-    depends_on:
-      postgres:
-        condition: service_healthy
-    restart: unless-stopped
-    networks:
-      - app-network
-
   venue-manager-next:
     build:
       context: .

@@ -1,7 +1,6 @@
 "use client"
 
 import { useEffect, useRef, useState } from "react"
-import Link from "next/link"
 import { Breadcrumb } from "@/components/breadcrumb"
 import { Button } from "@/components/ui/button"
 import { Card, CardContent, CardDescription, CardHeader, CardTitle } from "@/components/ui/card"
@@ -20,6 +19,7 @@ import {
 import { Alert, AlertDescription } from "@/components/ui/alert"
 import { LocalTime } from "@/components/server-time"
 
+import { BackLink } from "@/components/back-link"
 interface Credential {
   id: number
   name: string
@@ -181,9 +181,7 @@ export default function XvmCredentialsPage() {
       </Card>
 
       <div className="mt-6">
-        <Link href="/dashboard" className="text-sm text-muted-foreground hover:underline">
-          &larr; Back to Dashboard
-        </Link>
+        <BackLink href="/dashboard" to="Dashboard" />
       </div>
     </div>
   )

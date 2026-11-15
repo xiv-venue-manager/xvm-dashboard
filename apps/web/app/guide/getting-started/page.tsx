@@ -4,6 +4,7 @@ import { SiteFooter } from "@/components/site-footer"
 import { Button } from "@/components/ui/button"
 import { ArrowRight, Users, Calendar, BarChart2, Zap } from "lucide-react"
 
+import { BackLink } from "@/components/back-link"
 export const metadata: Metadata = {
   title: "How to Run a Venue in FFXIV",
   description:
@@ -55,12 +56,7 @@ export default function GettingStartedPage() {
       {/* Hero */}
       <div className="xiv-hero-bg overflow-hidden border-b border-[var(--blue-008)]">
         <div className="container mx-auto px-4 py-14 max-w-3xl">
-          <Link
-            href="/"
-            className="inline-flex items-center gap-1.5 text-sm text-muted-foreground hover:text-[var(--xiv-blue)] transition-colors mb-6"
-          >
-            &#8592; Back to Home
-          </Link>
+          <BackLink href="/" to="Home" className="mb-6" />
           <div className="flex items-center gap-2 mb-3">
             <span className="w-[7px] h-[7px] bg-[rgba(0,180,255,0.7)] rotate-45 shadow-[0_0_10px_rgba(0,180,255,0.5)]" />
             <span className="text-[0.72rem] font-semibold uppercase tracking-[0.14em] text-[var(--xiv-blue)]">

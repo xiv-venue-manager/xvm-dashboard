@@ -31,6 +31,7 @@ import { eventRevenueGil } from "@/lib/api/event-revenue"
 import { creatorNameOf } from "@/lib/api/event-creator"
 import { toDashboardEventShape } from "@/lib/api/event-shape"
 
+import { BackLink } from "@/components/back-link"
 const statusColors = {
   DRAFT: "bg-zinc-500",
   PUBLISHED: "bg-[rgba(0,180,255,0.15)] text-[var(--xiv-blue)] border-[rgba(0,180,255,0.35)]",
@@ -145,9 +146,7 @@ export default async function EventDetailsPage({ params }: { params: Promise<{ s
             </p>
           </div>
           <div className="flex flex-wrap gap-2 shrink-0">
-            <Button variant="outline" size="sm" asChild>
-              <Link href={`/dashboard/${slug}/events`}>← Back</Link>
-            </Button>
+            <BackLink href={`/dashboard/${slug}/events`} to="Events" variant="button" />
             {canEdit && (
               <>
                 <Button size="sm" asChild>

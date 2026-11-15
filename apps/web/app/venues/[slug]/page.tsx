@@ -29,7 +29,7 @@ export async function generateMetadata({ params }: { params: Promise<{ slug: str
   }
 }
 import { format } from "date-fns"
-import { MapPin, Calendar, Clock, Image as ImageIcon, ChevronLeft, Scroll, Heart } from "lucide-react"
+import { MapPin, Calendar, Clock, Image as ImageIcon, Scroll, Heart } from "lucide-react"
 import { LocalTime } from "@/components/server-time"
 import { formatVenueAddress, formatLifestreamCommand } from "@/lib/venue-location"
 import { VenueFollowButton } from "@/components/venue-follow-button"
@@ -50,6 +50,7 @@ import {
 } from "@/lib/api/xvm-api"
 import { xvmPersonReader } from "@/lib/api/xvm-page-read"
 
+import { BackLink } from "@/components/back-link"
 export default async function VenueProfilePage({ params }: { params: Promise<{ slug: string }> }) {
   const session = await getServerSession(authOptions)
   const { slug } = await params
@@ -151,12 +152,7 @@ export default async function VenueProfilePage({ params }: { params: Promise<{ s
 
         {/* Back link — top left */}
         <div className="absolute top-5 left-6 z-10">
-          <Link
-            href="/discover"
-            className="inline-flex items-center gap-1.5 text-[0.88rem] font-medium text-foreground hover:bg-[var(--blue-007)] px-3 py-2 rounded-[var(--radius-md)] transition-colors"
-          >
-            <ChevronLeft className="w-4 h-4" /> Discover
-          </Link>
+          <BackLink href="/discover" to="Discover" variant="button" />
         </div>
 
         {/* Hero content — anchored bottom */}

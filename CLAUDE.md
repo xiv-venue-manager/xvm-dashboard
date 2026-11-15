@@ -22,7 +22,7 @@ One worktree per logical change. Don't bundle an unrelated fix into an in-progre
 
 - **Multi-step, multi-file, or anything touching shared/security-relevant code** (auth, rate-limiting, payment-adjacent logic): write a full plan first (`superpowers:writing-plans`), execute via `superpowers:subagent-driven-development` — fresh subagent per task, spec-compliance review, then code-quality review, before moving to the next task.
 - **Single-file, single-purpose fixes** (a bug fix confined to one component, a one-line dependency removal): implement directly, then get one independent review pass covering both spec and quality together — full two-stage ceremony is overkill for a diff a reviewer can hold in their head.
-- Either way: verify with `tsc --noEmit` + `vitest run` + a live check against the running local dev server before calling something done. Static checks alone aren't enough — this project has repeatedly found real bugs (Decimal serialization, stale client state) that only a live click-through surfaced.
+- Either way: verify with `pnpm typecheck` + `vitest run` + a live check against the running local dev server before calling something done. Static checks alone aren't enough — this project has repeatedly found real bugs (Decimal serialization, stale client state) that only a live click-through surfaced.
 
 ## Ponytail
 

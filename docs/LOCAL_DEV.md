@@ -40,16 +40,17 @@ prod, so no special naming convention is required (unlike the
 ## Type-checking in a fresh worktree
 
 `lib/api-fetch.ts` imports its route types from `.next/types/routes`, a
-folder Next generates and git ignores. A new worktree does not have it, so
-`tsc --noEmit` reports about seven errors (`Cannot find module
+folder Next generates and git ignores. A new worktree does not have it, so a
+bare `tsc --noEmit` reports about seven errors (`Cannot find module
 '../.next/types/routes'`, then `ApiRouteInit` mismatches in
 `banner-upload`, `feedback-dialog` and `logo-upload`, and unused
 `@ts-expect-error` lines in `lib/api-route.test.ts`). They are not real
-defects. Generate the types first:
+defects. `pnpm typecheck` runs `next typegen && tsc --noEmit`, so use it
+instead; it is also what CI runs.
 
 ```bash
 pnpm install
-cd apps/web && npx next typegen && npx tsc --noEmit
+pnpm typecheck
 ```
 
 That should report no errors. `vitest run` and `pnpm run lint` do not need

@@ -37,6 +37,7 @@ import {
   MessageSquareText,
   Pin,
   TrendingUp,
+  ClipboardList,
   type LucideIcon,
 } from "lucide-react"
 
@@ -308,6 +309,7 @@ export function VenueSidebar({
         { href: `/dashboard/${venueSlug}/embeds`, label: "Embeds", icon: MessageSquareText },
         { href: `/dashboard/${venueSlug}/sticky-messages`, label: "Sticky Messages", icon: Pin },
         { href: `/dashboard/${venueSlug}/leveling`, label: "Leveling", icon: TrendingUp },
+        { href: `/dashboard/${venueSlug}/forms`, label: "Forms", icon: ClipboardList, roles: ["OWNER", "MANAGER"] },
       ],
     },
     {

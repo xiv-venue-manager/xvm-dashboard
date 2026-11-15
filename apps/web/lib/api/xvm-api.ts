@@ -3382,6 +3382,170 @@ export async function listLevelingAwards(
   )
 }
 
+export type FormQuestionType = "short_text" | "long_text" | "single_select" | "multi_select"
+
+export interface FormQuestionRow {
+  id: number
+  prompt: string
+  question_type: FormQuestionType
+  required: boolean
+  sort_order: number
+  options: string[]
+}
+
+export interface FormRow {
+  id: number
+  name: string
+  description: string | null
+  pre_prompt: string | null
+  post_prompt: string | null
+  color: number | null
+  button_label: string
+  button_emoji: string | null
+  allow_multiple_responses: boolean
+  response_channel_id: string | null
+  thumbnail_url?: string | null
+  questions: FormQuestionRow[]
+  created_at: string
+  updated_at: string
+}
+
+export interface FormCreate {
+  name: string
+}
+
+export interface FormUpdate {
+  name?: string | null
+  description?: string | null
+  pre_prompt?: string | null
+  post_prompt?: string | null
+  color?: number | null
+  button_label?: string | null
+  button_emoji?: string | null
+  allow_multiple_responses?: boolean | null
+  response_channel_id?: string | null
+}
+
+export interface QuestionCreate {
+  prompt: string
+  question_type?: FormQuestionType
+  required?: boolean
+}
+
+export interface QuestionUpdate {
+  prompt?: string | null
+  question_type?: FormQuestionType | null
+  required?: boolean | null
+  sort_order?: number | null
+  options?: string[] | null
+}
+
+export interface FormPostRow {
+  channel_id: string
+  message_id: string | null
+  posted_at: string | null
+}
+
+export interface FormResponseRow {
+  id: number
+  form_id: number
+  discord_user_id: string
+  submitted_at: string | null
+  answers: Array<Record<string, unknown>>
+  created_at: string
+  updated_at: string
+}
+
+export async function listForms(personToken: string, venueId: string): Promise<FormRow[]> {
+  if (!process.env.XVM_API_BASE_URL) throw new Error("XVM_API_BASE_URL is not set")
+  return xvmFetch<FormRow[]>(`/venues/${venueId}/forms`, {}, personToken)
+}
+
+export async function createForm(personToken: string, venueId: string, data: FormCreate): Promise<FormRow> {
+  if (!process.env.XVM_API_BASE_URL) throw new Error("XVM_API_BASE_URL is not set")
+  return xvmFetch<FormRow>(`/venues/${venueId}/forms`, { method: "POST", body: JSON.stringify(data) }, personToken)
+}
+
+export async function updateForm(personToken: string, venueId: string, formId: number, data: FormUpdate): Promise<FormRow> {
+  if (!process.env.XVM_API_BASE_URL) throw new Error("XVM_API_BASE_URL is not set")
+  return xvmFetch<FormRow>(`/venues/${venueId}/forms/${formId}`, { method: "PATCH", body: JSON.stringify(data) }, personToken)
+}
+
+export async function deleteForm(personToken: string, venueId: string, formId: number): Promise<void> {
+  if (!process.env.XVM_API_BASE_URL) throw new Error("XVM_API_BASE_URL is not set")
+  return xvmFetch<void>(`/venues/${venueId}/forms/${formId}`, { method: "DELETE" }, personToken)
+}
+
+export async function setFormThumbnail(personToken: string, venueId: string, formId: number, file: File | Blob): Promise<FormRow> {
+  if (!process.env.XVM_API_BASE_URL) throw new Error("XVM_API_BASE_URL is not set")
+  const form = new FormData()
+  form.append("file", file)
+  return xvmFetch<FormRow>(`/venues/${venueId}/forms/${formId}/thumbnail`, { method: "PUT", body: form }, personToken)
+}
+
+export async function clearFormThumbnail(personToken: string, venueId: string, formId: number): Promise<void> {
+  if (!process.env.XVM_API_BASE_URL) throw new Error("XVM_API_BASE_URL is not set")
+  return xvmFetch<void>(`/venues/${venueId}/forms/${formId}/thumbnail`, { method: "DELETE" }, personToken)
+}
+
+export async function createFormQuestion(
+  personToken: string,
+  venueId: string,
+  formId: number,
+  data: QuestionCreate
+): Promise<FormQuestionRow> {
+  if (!process.env.XVM_API_BASE_URL) throw new Error("XVM_API_BASE_URL is not set")
+  return xvmFetch<FormQuestionRow>(
+    `/venues/${venueId}/forms/${formId}/questions`,
+    { method: "POST", body: JSON.stringify(data) },
+    personToken
+  )
+}
+
+export async function updateFormQuestion(
+  personToken: string,
+  venueId: string,
+  formId: number,
+  questionId: number,
+  data: QuestionUpdate
+): Promise<FormQuestionRow> {
+  if (!process.env.XVM_API_BASE_URL) throw new Error("XVM_API_BASE_URL is not set")
+  return xvmFetch<FormQuestionRow>(
+    `/venues/${venueId}/forms/${formId}/questions/${questionId}`,
+    { method: "PATCH", body: JSON.stringify(data) },
+    personToken
+  )
+}
+
+export async function deleteFormQuestion(personToken: string, venueId: string, formId: number, questionId: number): Promise<void> {
+  if (!process.env.XVM_API_BASE_URL) throw new Error("XVM_API_BASE_URL is not set")
+  return xvmFetch<void>(`/venues/${venueId}/forms/${formId}/questions/${questionId}`, { method: "DELETE" }, personToken)
+}
+
+export async function listFormPosts(personToken: string, venueId: string, formId: number): Promise<FormPostRow[]> {
+  if (!process.env.XVM_API_BASE_URL) throw new Error("XVM_API_BASE_URL is not set")
+  return xvmFetch<FormPostRow[]>(`/venues/${venueId}/forms/${formId}/posts`, {}, personToken)
+}
+
+export async function postForm(personToken: string, venueId: string, formId: number, data: { channel_id: string }): Promise<void> {
+  if (!process.env.XVM_API_BASE_URL) throw new Error("XVM_API_BASE_URL is not set")
+  return xvmFetch<void>(`/venues/${venueId}/forms/${formId}/posts`, { method: "POST", body: JSON.stringify(data) }, personToken)
+}
+
+export async function listFormResponses(
+  personToken: string,
+  venueId: string,
+  formId: number,
+  options: { limit?: number; beforeId?: number } = {}
+): Promise<FormResponseRow[]> {
+  if (!process.env.XVM_API_BASE_URL) throw new Error("XVM_API_BASE_URL is not set")
+  const query = new URLSearchParams()
+  if (options.limit !== undefined) query.set("limit", String(options.limit))
+  if (options.beforeId !== undefined) query.set("before_id", String(options.beforeId))
+  const qs = query.size > 0 ? `?${query}` : ""
+  return xvmFetch<FormResponseRow[]>(`/venues/${venueId}/forms/${formId}/responses${qs}`, {}, personToken)
+}
+
 export async function listModules(personToken: string, venueId: string): Promise<ModuleRow[]> {
   if (!process.env.XVM_API_BASE_URL) throw new Error("XVM_API_BASE_URL is not set")
   return xvmFetch<ModuleRow[]>(`/venues/${venueId}/modules`, {}, personToken)

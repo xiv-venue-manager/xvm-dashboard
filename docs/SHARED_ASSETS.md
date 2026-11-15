@@ -56,6 +56,7 @@ House-specific:
 | `sort-by-name` | `sortByName` | A copy of a list sorted by `name`: case-insensitive, numbers in order (Room 2 before Room 10), and equal names keep their order. The services catalogue uses it |
 | `gallery-nav` | `stepIndex` | Previous and next with wrap-around, for the venue gallery slider |
 | `leveling` | `RULE_SOURCES`, `sourceLabel`, `xpForLevel`, `formatCooldown`, `settingsBodySchema`, `ruleCreateSchema`, `ruleUpdateSchema`, `tierCreateSchema`, `tierUpdateSchema` | The Leveling page: names for each XP source, the level curve, and the zod bodies its routes accept |
+| `forms` | `QUESTION_TYPES`, `QUESTION_TYPE_LABELS`, `parseOptions`, `optionsProblem`, `orderedQuestions`, `readAnswers`, `answersInQuestionOrder`, `formUpdateSchema`, `questionCreateSchema`, `questionUpdateSchema` | The Forms page: question types and limits, options parsing, reading the bot's untyped stored answers in question order, and the zod bodies its routes accept |
 | `stock-label` | `stockLabel` | "N left" or "Out of stock" for a service's stock count, null when it is not tracked. The Log Sale dropdown uses it |
 | `room-status` | `roomStatusBadge`, `canReserve`, `canRelease`, `ROOM_FILTERS`, `filterRooms` | What the rooms board shows, offers and filters by for each status xvm-api sends: `available`, `reserved`, `locked`, `disabled`. A reserved room is `reserved`, never `occupied` |
 | `server-time` | `getServerTimeLabel`, `formatServerTime`, `formatServerTimeRange`, `formatLocalTimeRange`, `getServerTimeIntlOptions` | |

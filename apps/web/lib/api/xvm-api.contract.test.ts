@@ -66,6 +66,8 @@ const ALIASES: Record<string, string> = {
   LevelingTierUpdate: "api__schemas__leveling__TierUpdate",
   LevelingStanding: "Standing",
   LevelingAwardRow: "AwardRow",
+  FormQuestionRow: "QuestionRow",
+  FormResponseRow: "ResponseRow",
 }
 
 // Interfaces with no contract schema of their own. A new interface that is not mapped above has to be

@@ -56,7 +56,7 @@ House-specific:
 | `sort-by-name` | `sortByName` | A copy of a list sorted by `name`: case-insensitive, numbers in order (Room 2 before Room 10), and equal names keep their order. The services catalogue uses it |
 | `gallery-nav` | `stepIndex` | Previous and next with wrap-around, for the venue gallery slider |
 | `stock-label` | `stockLabel` | "N left" or "Out of stock" for a service's stock count, null when it is not tracked. The Log Sale dropdown uses it |
-| `room-status` | `roomStatusBadge`, `canReserve`, `canRelease` | What the rooms board shows and offers for each status xvm-api sends: `available`, `reserved`, `locked`, `disabled`. A reserved room is `reserved`, never `occupied` |
+| `room-status` | `roomStatusBadge`, `canReserve`, `canRelease`, `ROOM_FILTERS`, `filterRooms` | What the rooms board shows, offers and filters by for each status xvm-api sends: `available`, `reserved`, `locked`, `disabled`. A reserved room is `reserved`, never `occupied` |
 | `server-time` | `getServerTimeLabel`, `formatServerTime`, `formatServerTimeRange`, `formatLocalTimeRange`, `getServerTimeIntlOptions` | |
 | `local-day` | `localDayKey`, `localHourLabel`, `browserTimeZone`, `localTimeInput`, `endOfLocalDayUtc` | Calendar days in a given timezone |
 | `shift-format` | `fmtHour`, `statusBadgeClass`, `toShiftRow`, `staffNameOf`, ... | Shift display |

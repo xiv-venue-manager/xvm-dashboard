@@ -145,6 +145,22 @@ describe("GET discord/roles", () => {
     expect(body.roles.every((r: { unsafeReason: string | null }) => r.unsafeReason === null)).toBe(true)
   })
 
+  it("names the elevated power on a role, and never returns the raw permissions", async () => {
+    m.fetchDiscord.mockResolvedValue({
+      ok: true,
+      data: [
+        role({ id: "100", name: "Plain", permissions: "0" }),
+        role({ id: "200", name: "Mod", permissions: "4" }),
+      ],
+    })
+    const body = await (await call()).json()
+    expect(body.roles.map((r: { name: string; elevatedReason: string | null }) => [r.name, r.elevatedReason])).toEqual([
+      ["Plain", null],
+      ["Mod", "it has Ban Members"],
+    ])
+    expect(JSON.stringify(body)).not.toContain("permissions")
+  })
+
   it("marks nothing as above the bot when its position cannot be read", async () => {
     m.botPosition.mockResolvedValue(null)
     m.fetchDiscord.mockResolvedValue({ ok: true, data: [role({ position: 99 })] })

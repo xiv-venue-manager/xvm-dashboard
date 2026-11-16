@@ -68,6 +68,53 @@ describe("unsafeRoleReason", () => {
   })
 })
 
+describe("elevatedRoleReason", () => {
+  const powers: [string, number][] = [
+    ["Administrator", 3],
+    ["Manage Server", 5],
+    ["Manage Roles", 28],
+    ["Manage Channels", 4],
+    ["Manage Webhooks", 29],
+    ["Kick Members", 1],
+    ["Ban Members", 2],
+    ["Mention Everyone", 17],
+    ["Timeout Members", 40],
+    ["Manage Messages", 13],
+    ["Manage Threads", 34],
+    ["Manage Emojis and Stickers", 30],
+    ["Manage Nicknames", 27],
+    ["Manage Events", 33],
+    ["Mute Members", 22],
+    ["Deafen Members", 23],
+    ["Move Members", 24],
+    ["View Audit Log", 7],
+  ]
+
+  it.each(powers)("names %s", async (name, bit) => {
+    const { elevatedRoleReason } = await load()
+    const permissions = (BigInt(1) << BigInt(bit)).toString()
+    expect(elevatedRoleReason(role({ permissions }))).toBe(`it has ${name}`)
+  })
+
+  it("allows a role with only everyday permissions", async () => {
+    const { elevatedRoleReason } = await load()
+    const everyday = (BigInt(1) << BigInt(10)) | (BigInt(1) << BigInt(11)) | (BigInt(1) << BigInt(20))
+    expect(elevatedRoleReason(role({ permissions: everyday.toString() }))).toBeNull()
+    expect(elevatedRoleReason(role({ permissions: "0" }))).toBeNull()
+  })
+
+  it("names the first power in the list when a role has several", async () => {
+    const { elevatedRoleReason } = await load()
+    const both = (BigInt(1) << BigInt(2)) | (BigInt(1) << BigInt(40))
+    expect(elevatedRoleReason(role({ permissions: both.toString() }))).toBe("it has Ban Members")
+  })
+
+  it("reads a bitfield above the safe integer range", async () => {
+    const { elevatedRoleReason } = await load()
+    expect(elevatedRoleReason(role({ permissions: (BigInt(1) << BigInt(40)).toString() }))).toBe("it has Timeout Members")
+  })
+})
+
 describe("getGuildRoles", () => {
   it("keeps each role's position, highest first", async () => {
     const { getGuildRoles } = await load()

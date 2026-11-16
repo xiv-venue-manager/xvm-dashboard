@@ -82,6 +82,16 @@ describe("offeredRoles", () => {
     expect(offeredRoles(roles, "", false).map((r) => r.label)).toEqual(["Below", "Above"])
   })
 
+  it("drops an elevated role only for a picker that asks, keeping the row's own value", () => {
+    const roles = [
+      role({ value: "1", label: "Plain" }),
+      role({ value: "2", label: "Mod", elevated: "it has Ban Members" }),
+    ]
+    expect(offeredRoles(roles, "").map((r) => r.label)).toEqual(["Plain", "Mod"])
+    expect(offeredRoles(roles, "", true, true).map((r) => r.label)).toEqual(["Plain"])
+    expect(offeredRoles(roles, "2", true, true).map((r) => r.label)).toEqual(["Plain", "Mod"])
+  })
+
   it("still drops an Administrator role when the bot only matches on it", () => {
     const roles = [role({ value: "2", label: "Admin", note: "it has Administrator permission" })]
     expect(offeredRoles(roles, "", false)).toEqual([])

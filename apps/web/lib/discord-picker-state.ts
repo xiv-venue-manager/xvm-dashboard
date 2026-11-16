@@ -7,6 +7,8 @@ export interface DiscordOption {
   note?: string | null
   /** Set when the bot cannot give this role out. Only a picker whose role the bot grants acts on it. */
   hierarchy?: string | null
+  /** Set when the role carries a moderation power. Only the verified role picker acts on it. */
+  elevated?: string | null
 }
 
 /** Why the list is not available, and whether trying again could help. */
@@ -72,9 +74,16 @@ export function channelProblem(
  * unrelated field on the same form silently rewrites the role. `discord-rest.ts:183` is the same
  * reasoning behind `filterAssignableRoles`'s `alwaysInclude`.
  */
-export function offeredRoles(options: DiscordOption[], value: string, grants = true): DiscordOption[] {
+export function offeredRoles(
+  options: DiscordOption[],
+  value: string,
+  grants = true,
+  forVerification = false
+): DiscordOption[] {
   return options.filter(
-    (option) => option.value === value || (!option.note && !(grants && option.hierarchy))
+    (option) =>
+      option.value === value ||
+      (!option.note && !(grants && option.hierarchy) && !(forVerification && option.elevated))
   )
 }
 

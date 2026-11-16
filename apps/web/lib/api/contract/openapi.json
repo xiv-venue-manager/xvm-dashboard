@@ -1524,6 +1524,20 @@
         "title": "Body_attach_image_venues__venue_id__quote_board_quotes__quote_id__attachment_put",
         "type": "object"
       },
+      "Body_set_bot_profile_image_venues__venue_id__discord_bot_profile__image__put": {
+        "properties": {
+          "file": {
+            "contentMediaType": "application/octet-stream",
+            "title": "File",
+            "type": "string"
+          }
+        },
+        "required": [
+          "file"
+        ],
+        "title": "Body_set_bot_profile_image_venues__venue_id__discord_bot_profile__image__put",
+        "type": "object"
+      },
       "Body_set_form_thumbnail_venues__venue_id__forms__form_id__thumbnail_put": {
         "properties": {
           "file": {
@@ -1621,6 +1635,15 @@
         ],
         "title": "Body_set_thumbnail_venues__venue_id__profiles__profile_id__thumbnail_put",
         "type": "object"
+      },
+      "BotProfileImage": {
+        "description": "An image of the bot's profile in a server, each in its own `bot_{image}_key` column.",
+        "enum": [
+          "avatar",
+          "banner"
+        ],
+        "title": "BotProfileImage",
+        "type": "string"
       },
       "BotRequestAck": {
         "additionalProperties": false,
@@ -1918,6 +1941,103 @@
         "title": "CategoryUpdate",
         "type": "object"
       },
+      "Challenge": {
+        "additionalProperties": false,
+        "description": "The code to put in the character's Lodestone profile, and when it stops counting.",
+        "properties": {
+          "character_name": {
+            "title": "Character Name",
+            "type": "string"
+          },
+          "code": {
+            "title": "Code",
+            "type": "string"
+          },
+          "expires_at": {
+            "format": "date-time",
+            "title": "Expires At",
+            "type": "string"
+          },
+          "id": {
+            "title": "Id",
+            "type": "integer"
+          },
+          "world": {
+            "title": "World",
+            "type": "string"
+          }
+        },
+        "required": [
+          "id",
+          "code",
+          "expires_at",
+          "character_name",
+          "world"
+        ],
+        "title": "Challenge",
+        "type": "object"
+      },
+      "ChallengeCheck": {
+        "additionalProperties": false,
+        "properties": {
+          "discord_user_id": {
+            "maximum": 9.223372036854776e+18,
+            "minimum": 0.0,
+            "title": "Discord User Id",
+            "type": "integer"
+          }
+        },
+        "required": [
+          "discord_user_id"
+        ],
+        "title": "ChallengeCheck",
+        "type": "object"
+      },
+      "ChallengeRequest": {
+        "additionalProperties": false,
+        "description": "A character the lookup found, which a member means to prove is theirs.",
+        "properties": {
+          "character_name": {
+            "maxLength": 32,
+            "minLength": 1,
+            "title": "Character Name",
+            "type": "string"
+          },
+          "discord_user_id": {
+            "maximum": 9.223372036854776e+18,
+            "minimum": 0.0,
+            "title": "Discord User Id",
+            "type": "integer"
+          },
+          "display_name": {
+            "maxLength": 100,
+            "minLength": 1,
+            "title": "Display Name",
+            "type": "string"
+          },
+          "lodestone_id": {
+            "maximum": 9.223372036854776e+18,
+            "minimum": 1.0,
+            "title": "Lodestone Id",
+            "type": "integer"
+          },
+          "world": {
+            "maxLength": 32,
+            "minLength": 1,
+            "title": "World",
+            "type": "string"
+          }
+        },
+        "required": [
+          "discord_user_id",
+          "display_name",
+          "lodestone_id",
+          "character_name",
+          "world"
+        ],
+        "title": "ChallengeRequest",
+        "type": "object"
+      },
       "CharacterLink": {
         "additionalProperties": false,
         "description": "A character the caller plays. A (name, world) pair belongs to one person.",
@@ -1940,6 +2060,37 @@
           "world"
         ],
         "title": "CharacterLink",
+        "type": "object"
+      },
+      "CharacterLookup": {
+        "additionalProperties": false,
+        "description": "A character a member names, for the Lodestone to confirm.",
+        "properties": {
+          "character_name": {
+            "maxLength": 32,
+            "minLength": 1,
+            "title": "Character Name",
+            "type": "string"
+          },
+          "discord_user_id": {
+            "maximum": 9.223372036854776e+18,
+            "minimum": 0.0,
+            "title": "Discord User Id",
+            "type": "integer"
+          },
+          "world": {
+            "maxLength": 32,
+            "minLength": 1,
+            "title": "World",
+            "type": "string"
+          }
+        },
+        "required": [
+          "discord_user_id",
+          "character_name",
+          "world"
+        ],
+        "title": "CharacterLookup",
         "type": "object"
       },
       "CharacterName": {
@@ -2020,7 +2171,11 @@
           "already_tracked",
           "answer_shape",
           "below_seats_taken",
+          "challenge_expired",
           "changed_meanwhile",
+          "character_changed",
+          "character_taken",
+          "code_not_found",
           "deletion_pending",
           "event_cancelled",
           "event_not_ended",
@@ -2050,6 +2205,7 @@
           "number_needed",
           "number_taken",
           "on_the_clock",
+          "out_of_checks",
           "out_of_stock",
           "paid",
           "pairing_expired",
@@ -2316,6 +2472,50 @@
         "additionalProperties": false,
         "description": "Per-server switches the bot reads.",
         "properties": {
+          "bot_avatar_url": {
+            "anyOf": [
+              {
+                "type": "string"
+              },
+              {
+                "type": "null"
+              }
+            ],
+            "title": "Bot Avatar Url"
+          },
+          "bot_banner_url": {
+            "anyOf": [
+              {
+                "type": "string"
+              },
+              {
+                "type": "null"
+              }
+            ],
+            "title": "Bot Banner Url"
+          },
+          "bot_bio": {
+            "anyOf": [
+              {
+                "type": "string"
+              },
+              {
+                "type": "null"
+              }
+            ],
+            "title": "Bot Bio"
+          },
+          "bot_nickname": {
+            "anyOf": [
+              {
+                "type": "string"
+              },
+              {
+                "type": "null"
+              }
+            ],
+            "title": "Bot Nickname"
+          },
           "events_channel_id": {
             "anyOf": [
               {
@@ -2408,6 +2608,31 @@
               }
             ],
             "title": "Staff Role Id"
+          },
+          "verification_captcha": {
+            "default": false,
+            "title": "Verification Captcha",
+            "type": "boolean"
+          },
+          "verification_lodestone": {
+            "$ref": "#/components/schemas/LodestoneCheck",
+            "default": "off"
+          },
+          "verification_nickname": {
+            "default": false,
+            "title": "Verification Nickname",
+            "type": "boolean"
+          },
+          "verified_role_id": {
+            "anyOf": [
+              {
+                "type": "string"
+              },
+              {
+                "type": "null"
+              }
+            ],
+            "title": "Verified Role Id"
           }
         },
         "title": "DiscordSettings",
@@ -2416,6 +2641,32 @@
       "DiscordSettingsUpdate": {
         "additionalProperties": false,
         "properties": {
+          "bot_bio": {
+            "anyOf": [
+              {
+                "maxLength": 190,
+                "minLength": 1,
+                "type": "string"
+              },
+              {
+                "type": "null"
+              }
+            ],
+            "title": "Bot Bio"
+          },
+          "bot_nickname": {
+            "anyOf": [
+              {
+                "maxLength": 32,
+                "minLength": 1,
+                "type": "string"
+              },
+              {
+                "type": "null"
+              }
+            ],
+            "title": "Bot Nickname"
+          },
           "events_channel_id": {
             "anyOf": [
               {
@@ -2530,6 +2781,51 @@
               }
             ],
             "title": "Staff Role Id"
+          },
+          "verification_captcha": {
+            "anyOf": [
+              {
+                "type": "boolean"
+              },
+              {
+                "type": "null"
+              }
+            ],
+            "title": "Verification Captcha"
+          },
+          "verification_lodestone": {
+            "anyOf": [
+              {
+                "$ref": "#/components/schemas/LodestoneCheck"
+              },
+              {
+                "type": "null"
+              }
+            ]
+          },
+          "verification_nickname": {
+            "anyOf": [
+              {
+                "type": "boolean"
+              },
+              {
+                "type": "null"
+              }
+            ],
+            "title": "Verification Nickname"
+          },
+          "verified_role_id": {
+            "anyOf": [
+              {
+                "maximum": 9.223372036854776e+18,
+                "minimum": 0.0,
+                "type": "integer"
+              },
+              {
+                "type": "null"
+              }
+            ],
+            "title": "Verified Role Id"
           }
         },
         "title": "DiscordSettingsUpdate",
@@ -7348,6 +7644,60 @@
         "title": "ListingSummary",
         "type": "object"
       },
+      "LodestoneCheck": {
+        "description": "What a venue's verification asks of the Lodestone.",
+        "enum": [
+          "off",
+          "exists",
+          "code"
+        ],
+        "title": "LodestoneCheck",
+        "type": "string"
+      },
+      "LodestoneMatch": {
+        "additionalProperties": false,
+        "description": "The character as the Lodestone spells it, and who has verified it, if anyone.",
+        "properties": {
+          "character_name": {
+            "title": "Character Name",
+            "type": "string"
+          },
+          "lodestone_id": {
+            "title": "Lodestone Id",
+            "type": "integer"
+          },
+          "verified": {
+            "anyOf": [
+              {
+                "$ref": "#/components/schemas/LodestoneVerified"
+              },
+              {
+                "type": "null"
+              }
+            ]
+          },
+          "world": {
+            "title": "World",
+            "type": "string"
+          }
+        },
+        "required": [
+          "lodestone_id",
+          "character_name",
+          "world"
+        ],
+        "title": "LodestoneMatch",
+        "type": "object"
+      },
+      "LodestoneVerified": {
+        "description": "Who has verified a Lodestone character, as the member asking sees it.",
+        "enum": [
+          "yours",
+          "another_account"
+        ],
+        "title": "LodestoneVerified",
+        "type": "string"
+      },
       "LogEventKey": {
         "description": "A venue event a log route can post to a Discord channel.",
         "enum": [
@@ -8339,7 +8689,8 @@
           "shift.claim_approved",
           "shift.claim_rejected",
           "venue.opened",
-          "event.reminder"
+          "event.reminder",
+          "character.reassigned"
         ],
         "title": "NotificationKind",
         "type": "string"
@@ -30664,6 +31015,215 @@
         ]
       }
     },
+    "/venues/{venue_id}/discord/bot-profile/{image}": {
+      "delete": {
+        "description": "Manager tier.",
+        "operationId": "clear_bot_profile_image_venues__venue_id__discord_bot_profile__image__delete",
+        "parameters": [
+          {
+            "in": "path",
+            "name": "image",
+            "required": true,
+            "schema": {
+              "$ref": "#/components/schemas/BotProfileImage"
+            }
+          },
+          {
+            "in": "path",
+            "name": "venue_id",
+            "required": true,
+            "schema": {
+              "title": "Venue Id",
+              "type": "string"
+            }
+          },
+          {
+            "in": "header",
+            "name": "X-Actor-Discord-Id",
+            "required": false,
+            "schema": {
+              "anyOf": [
+                {
+                  "maximum": 9223372036854775807,
+                  "minimum": 0,
+                  "type": "integer"
+                },
+                {
+                  "type": "null"
+                }
+              ],
+              "title": "X-Actor-Discord-Id"
+            }
+          }
+        ],
+        "responses": {
+          "204": {
+            "description": "Successful Response"
+          },
+          "401": {
+            "content": {
+              "application/json": {
+                "schema": {
+                  "$ref": "#/components/schemas/ErrorDetail"
+                }
+              }
+            },
+            "description": "Missing, unknown, revoked, or expired credential."
+          },
+          "403": {
+            "content": {
+              "application/json": {
+                "schema": {
+                  "$ref": "#/components/schemas/ErrorDetail"
+                }
+              }
+            },
+            "description": "Token narrowed to another venue, not a member of this venue, or insufficient tier for this action."
+          },
+          "422": {
+            "content": {
+              "application/json": {
+                "schema": {
+                  "$ref": "#/components/schemas/HTTPValidationError"
+                }
+              }
+            },
+            "description": "Validation Error"
+          }
+        },
+        "security": [
+          {
+            "HTTPBearer": []
+          }
+        ],
+        "summary": "Clear Bot Profile Image",
+        "tags": [
+          "Discord"
+        ]
+      },
+      "put": {
+        "description": "Replaces the one there, and drops the old object. Manager tier. Multipart.",
+        "operationId": "set_bot_profile_image_venues__venue_id__discord_bot_profile__image__put",
+        "parameters": [
+          {
+            "in": "path",
+            "name": "image",
+            "required": true,
+            "schema": {
+              "$ref": "#/components/schemas/BotProfileImage"
+            }
+          },
+          {
+            "in": "path",
+            "name": "venue_id",
+            "required": true,
+            "schema": {
+              "title": "Venue Id",
+              "type": "string"
+            }
+          },
+          {
+            "in": "header",
+            "name": "X-Actor-Discord-Id",
+            "required": false,
+            "schema": {
+              "anyOf": [
+                {
+                  "maximum": 9223372036854775807,
+                  "minimum": 0,
+                  "type": "integer"
+                },
+                {
+                  "type": "null"
+                }
+              ],
+              "title": "X-Actor-Discord-Id"
+            }
+          }
+        ],
+        "requestBody": {
+          "content": {
+            "multipart/form-data": {
+              "schema": {
+                "$ref": "#/components/schemas/Body_set_bot_profile_image_venues__venue_id__discord_bot_profile__image__put"
+              }
+            }
+          },
+          "required": true
+        },
+        "responses": {
+          "200": {
+            "content": {
+              "application/json": {
+                "schema": {
+                  "$ref": "#/components/schemas/DiscordSettings"
+                }
+              }
+            },
+            "description": "Successful Response"
+          },
+          "400": {
+            "content": {
+              "application/json": {
+                "schema": {
+                  "$ref": "#/components/schemas/ErrorDetail"
+                }
+              }
+            },
+            "description": "Not an image type we accept."
+          },
+          "401": {
+            "content": {
+              "application/json": {
+                "schema": {
+                  "$ref": "#/components/schemas/ErrorDetail"
+                }
+              }
+            },
+            "description": "Missing, unknown, revoked, or expired credential."
+          },
+          "403": {
+            "content": {
+              "application/json": {
+                "schema": {
+                  "$ref": "#/components/schemas/ErrorDetail"
+                }
+              }
+            },
+            "description": "Token narrowed to another venue, not a member of this venue, or insufficient tier for this action."
+          },
+          "413": {
+            "content": {
+              "application/json": {
+                "schema": {
+                  "$ref": "#/components/schemas/ErrorDetail"
+                }
+              }
+            },
+            "description": "File exceeds the upload cap."
+          },
+          "422": {
+            "content": {
+              "application/json": {
+                "schema": {
+                  "$ref": "#/components/schemas/HTTPValidationError"
+                }
+              }
+            },
+            "description": "Validation Error"
+          }
+        },
+        "security": [
+          {
+            "HTTPBearer": []
+          }
+        ],
+        "summary": "Set Bot Profile Image",
+        "tags": [
+          "Discord"
+        ]
+      }
+    },
     "/venues/{venue_id}/discord/log-routes": {
       "get": {
         "description": "Where each kind of event posts. An event with no route posts nowhere.\n\nAny member, or the bot as itself.",
@@ -31039,7 +31599,7 @@
         ]
       },
       "put": {
-        "description": "Only the fields sent change; null clears one.\n\nManager tier.",
+        "description": "Only the fields sent change; null clears one. Change Nickname needs the Lodestone check.\n\nManager tier.",
         "operationId": "write_settings_venues__venue_id__discord_settings_put",
         "parameters": [
           {
@@ -31110,6 +31670,16 @@
               }
             },
             "description": "Token narrowed to another venue, not a member of this venue, or insufficient tier for this action."
+          },
+          "409": {
+            "content": {
+              "application/json": {
+                "schema": {
+                  "$ref": "#/components/schemas/ErrorDetail"
+                }
+              }
+            },
+            "description": "Change Nickname would be on without the Lodestone check."
           },
           "422": {
             "content": {
@@ -66076,6 +66646,407 @@
         "summary": "Update Tracked Stream",
         "tags": [
           "Stream Alerts"
+        ]
+      }
+    },
+    "/venues/{venue_id}/verification/challenges": {
+      "post": {
+        "description": "A code to put in the character's Lodestone profile, for a character the lookup found.\nAsking again returns the live one. A newcomer becomes a person.\n\nThe bot only.",
+        "operationId": "ask_for_code_venues__venue_id__verification_challenges_post",
+        "parameters": [
+          {
+            "in": "path",
+            "name": "venue_id",
+            "required": true,
+            "schema": {
+              "title": "Venue Id",
+              "type": "string"
+            }
+          },
+          {
+            "in": "header",
+            "name": "X-Actor-Discord-Id",
+            "required": false,
+            "schema": {
+              "anyOf": [
+                {
+                  "maximum": 9223372036854775807,
+                  "minimum": 0,
+                  "type": "integer"
+                },
+                {
+                  "type": "null"
+                }
+              ],
+              "title": "X-Actor-Discord-Id"
+            }
+          }
+        ],
+        "requestBody": {
+          "content": {
+            "application/json": {
+              "schema": {
+                "$ref": "#/components/schemas/ChallengeRequest"
+              }
+            }
+          },
+          "required": true
+        },
+        "responses": {
+          "200": {
+            "content": {
+              "application/json": {
+                "schema": {
+                  "$ref": "#/components/schemas/Challenge"
+                }
+              }
+            },
+            "description": "The live code for that character."
+          },
+          "201": {
+            "content": {
+              "application/json": {
+                "schema": {
+                  "$ref": "#/components/schemas/Challenge"
+                }
+              }
+            },
+            "description": "A new code."
+          },
+          "401": {
+            "content": {
+              "application/json": {
+                "schema": {
+                  "$ref": "#/components/schemas/ErrorDetail"
+                }
+              }
+            },
+            "description": "Missing, unknown, revoked, or expired credential."
+          },
+          "403": {
+            "content": {
+              "application/json": {
+                "schema": {
+                  "$ref": "#/components/schemas/ErrorDetail"
+                }
+              }
+            },
+            "description": "This endpoint is for the bot."
+          },
+          "409": {
+            "content": {
+              "application/json": {
+                "schema": {
+                  "$ref": "#/components/schemas/ConflictDetail"
+                }
+              }
+            },
+            "description": "The character is already verified, by the member or by another account, or a code for it was asked for twice at once.",
+            "x-codes": [
+              "already_linked",
+              "character_taken",
+              "changed_meanwhile"
+            ]
+          },
+          "422": {
+            "content": {
+              "application/json": {
+                "schema": {
+                  "$ref": "#/components/schemas/HTTPValidationError"
+                }
+              }
+            },
+            "description": "Validation Error"
+          }
+        },
+        "security": [
+          {
+            "HTTPBearer": []
+          }
+        ],
+        "summary": "Ask For Code",
+        "tags": [
+          "Verification"
+        ]
+      }
+    },
+    "/venues/{venue_id}/verification/challenges/{challenge_id}/check": {
+      "post": {
+        "description": "Reads the character's Lodestone profile and, with the code in it, links the character to\nthe member as verified. A check counts whatever the Lodestone says, and toward the venue's\nLodestone reads, as a lookup does. Checking a used code again answers as its first check did.\n\nThe bot only.",
+        "operationId": "check_code_venues__venue_id__verification_challenges__challenge_id__check_post",
+        "parameters": [
+          {
+            "in": "path",
+            "name": "challenge_id",
+            "required": true,
+            "schema": {
+              "maximum": 2147483647,
+              "minimum": 1,
+              "title": "Challenge Id",
+              "type": "integer"
+            }
+          },
+          {
+            "in": "path",
+            "name": "venue_id",
+            "required": true,
+            "schema": {
+              "title": "Venue Id",
+              "type": "string"
+            }
+          },
+          {
+            "in": "header",
+            "name": "X-Actor-Discord-Id",
+            "required": false,
+            "schema": {
+              "anyOf": [
+                {
+                  "maximum": 9223372036854775807,
+                  "minimum": 0,
+                  "type": "integer"
+                },
+                {
+                  "type": "null"
+                }
+              ],
+              "title": "X-Actor-Discord-Id"
+            }
+          }
+        ],
+        "requestBody": {
+          "content": {
+            "application/json": {
+              "schema": {
+                "$ref": "#/components/schemas/ChallengeCheck"
+              }
+            }
+          },
+          "required": true
+        },
+        "responses": {
+          "200": {
+            "content": {
+              "application/json": {
+                "schema": {
+                  "$ref": "#/components/schemas/CharacterRow"
+                }
+              }
+            },
+            "description": "Successful Response"
+          },
+          "401": {
+            "content": {
+              "application/json": {
+                "schema": {
+                  "$ref": "#/components/schemas/ErrorDetail"
+                }
+              }
+            },
+            "description": "Missing, unknown, revoked, or expired credential."
+          },
+          "403": {
+            "content": {
+              "application/json": {
+                "schema": {
+                  "$ref": "#/components/schemas/ErrorDetail"
+                }
+              }
+            },
+            "description": "This endpoint is for the bot."
+          },
+          "404": {
+            "content": {
+              "application/json": {
+                "schema": {
+                  "$ref": "#/components/schemas/ErrorDetail"
+                }
+              }
+            },
+            "description": "No such code for this member."
+          },
+          "409": {
+            "content": {
+              "application/json": {
+                "schema": {
+                  "$ref": "#/components/schemas/ConflictDetail"
+                }
+              }
+            },
+            "description": "The code isn't in the profile yet, the character changed or was verified by another account, or the code expired or ran out of checks.",
+            "x-codes": [
+              "code_not_found",
+              "character_changed",
+              "character_taken",
+              "challenge_expired",
+              "out_of_checks"
+            ]
+          },
+          "422": {
+            "content": {
+              "application/json": {
+                "schema": {
+                  "$ref": "#/components/schemas/HTTPValidationError"
+                }
+              }
+            },
+            "description": "Validation Error"
+          },
+          "429": {
+            "content": {
+              "application/json": {
+                "schema": {
+                  "$ref": "#/components/schemas/ErrorDetail"
+                }
+              }
+            },
+            "description": "Checked again within ten seconds, or the venue has read the Lodestone too often this minute."
+          },
+          "503": {
+            "content": {
+              "application/json": {
+                "schema": {
+                  "$ref": "#/components/schemas/ErrorDetail"
+                }
+              }
+            },
+            "description": "The Lodestone isn't answering."
+          }
+        },
+        "security": [
+          {
+            "HTTPBearer": []
+          }
+        ],
+        "summary": "Check Code",
+        "tags": [
+          "Verification"
+        ]
+      }
+    },
+    "/venues/{venue_id}/verification/lookups": {
+      "post": {
+        "description": "The character as the Lodestone spells it, and whether it's verified, by another account or by\nthe member. The member's link under an old name doesn't count, so a code can bring it up to date.\nLinks nothing, and makes nobody a person.\n\nThe bot only.",
+        "operationId": "look_up_character_venues__venue_id__verification_lookups_post",
+        "parameters": [
+          {
+            "in": "path",
+            "name": "venue_id",
+            "required": true,
+            "schema": {
+              "title": "Venue Id",
+              "type": "string"
+            }
+          },
+          {
+            "in": "header",
+            "name": "X-Actor-Discord-Id",
+            "required": false,
+            "schema": {
+              "anyOf": [
+                {
+                  "maximum": 9223372036854775807,
+                  "minimum": 0,
+                  "type": "integer"
+                },
+                {
+                  "type": "null"
+                }
+              ],
+              "title": "X-Actor-Discord-Id"
+            }
+          }
+        ],
+        "requestBody": {
+          "content": {
+            "application/json": {
+              "schema": {
+                "$ref": "#/components/schemas/CharacterLookup"
+              }
+            }
+          },
+          "required": true
+        },
+        "responses": {
+          "200": {
+            "content": {
+              "application/json": {
+                "schema": {
+                  "$ref": "#/components/schemas/LodestoneMatch"
+                }
+              }
+            },
+            "description": "Successful Response"
+          },
+          "401": {
+            "content": {
+              "application/json": {
+                "schema": {
+                  "$ref": "#/components/schemas/ErrorDetail"
+                }
+              }
+            },
+            "description": "Missing, unknown, revoked, or expired credential."
+          },
+          "403": {
+            "content": {
+              "application/json": {
+                "schema": {
+                  "$ref": "#/components/schemas/ErrorDetail"
+                }
+              }
+            },
+            "description": "This endpoint is for the bot."
+          },
+          "404": {
+            "content": {
+              "application/json": {
+                "schema": {
+                  "$ref": "#/components/schemas/ErrorDetail"
+                }
+              }
+            },
+            "description": "No character by that name on that world, or its profile is private."
+          },
+          "422": {
+            "content": {
+              "application/json": {
+                "schema": {
+                  "$ref": "#/components/schemas/HTTPValidationError"
+                }
+              }
+            },
+            "description": "Validation Error"
+          },
+          "429": {
+            "content": {
+              "application/json": {
+                "schema": {
+                  "$ref": "#/components/schemas/ErrorDetail"
+                }
+              }
+            },
+            "description": "This venue has looked up too many characters in the last minute."
+          },
+          "503": {
+            "content": {
+              "application/json": {
+                "schema": {
+                  "$ref": "#/components/schemas/ErrorDetail"
+                }
+              }
+            },
+            "description": "The Lodestone isn't answering."
+          }
+        },
+        "security": [
+          {
+            "HTTPBearer": []
+          }
+        ],
+        "summary": "Look Up Character",
+        "tags": [
+          "Verification"
         ]
       }
     },

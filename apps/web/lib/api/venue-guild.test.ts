@@ -298,6 +298,33 @@ describe("requireRoleInGuild", () => {
     expect(await refusal(await check(GUILD))).toMatchObject({ status: 400, body: { error: "role_unsafe" } })
   })
 
+  it("refuses an elevated role only when asked to, naming the power", async () => {
+    m.roles.mockResolvedValue({
+      ok: true,
+      data: [{ id: ROLE, name: "Mod", color: 0, permissions: "4", managed: false }],
+    })
+    expect(await check()).toEqual({ ok: true })
+    const result = await requireRoleInGuild("user-1", "vn_1", ROLE, null, { elevated: true })
+    expect(await refusal(result)).toEqual({
+      status: 400,
+      body: { error: "role_unsafe", message: "That role can't be the verified role: it has Ban Members." },
+    })
+  })
+
+  it("accepts a plain role and an unchanged elevated role when elevated is asked for", async () => {
+    m.roles.mockResolvedValue({
+      ok: true,
+      data: [
+        { id: ROLE, name: "Plain", color: 0, permissions: "0", managed: false },
+        { id: "1509616350337962103", name: "Mod", color: 0, permissions: "1099511627776", managed: false },
+      ],
+    })
+    expect(await requireRoleInGuild("user-1", "vn_1", ROLE, null, { elevated: true })).toEqual({ ok: true })
+    expect(
+      await requireRoleInGuild("user-1", "vn_1", "1509616350337962103", "1509616350337962103", { elevated: true })
+    ).toEqual({ ok: true })
+  })
+
   it("keeps an unsafe role the row already holds, so an unrelated edit is not refused", async () => {
     expect(await check(ADMIN_ROLE, ADMIN_ROLE)).toEqual({ ok: true })
   })

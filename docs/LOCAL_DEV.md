@@ -37,6 +37,25 @@ disposable local venue for testing — this is a throwaway local DB, not
 prod, so no special naming convention is required (unlike the
 `TEST_VENUE`/"Velvet Rift" discipline used against the shared prod DB).
 
+## Type-checking in a fresh worktree
+
+`lib/api-fetch.ts` imports its route types from `.next/types/routes`, a
+folder Next generates and git ignores. A new worktree does not have it, so a
+bare `tsc --noEmit` reports about seven errors (`Cannot find module
+'../.next/types/routes'`, then `ApiRouteInit` mismatches in
+`banner-upload`, `feedback-dialog` and `logo-upload`, and unused
+`@ts-expect-error` lines in `lib/api-route.test.ts`). They are not real
+defects. `pnpm typecheck` runs `next typegen && tsc --noEmit`, so use it
+instead; it is also what CI runs.
+
+```bash
+pnpm install
+pnpm typecheck
+```
+
+That should report no errors. `vitest run` and `pnpm run lint` do not need
+the generated types.
+
 ## Plugin against local
 
 The plugin is never loaded via dev-plugin injection for this project — it

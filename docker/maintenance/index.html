@@ -228,6 +228,9 @@
         font-size: 0.85rem;
         font-weight: 500;
       }
+      .eta[hidden] {
+        display: none;
+      }
       .eta-local {
         color: var(--muted);
         font-weight: 400;
@@ -334,9 +337,8 @@
         padding-top: 22px;
         border-top: 1px solid var(--line);
         display: flex;
-        align-items: center;
-        justify-content: space-between;
-        flex-wrap: wrap;
+        flex-direction: column;
+        align-items: flex-start;
         gap: 16px;
       }
       .foot-note {
@@ -587,8 +589,9 @@
         var text = document.getElementById("eta-text")
         var local = document.getElementById("eta-local")
         local.textContent = ""
+        text.parentNode.hidden = !eta
         if (!eta) {
-          text.textContent = "We’ll post updates in Discord"
+          text.textContent = ""
         } else if (eta.getTime() <= Date.now()) {
           text.textContent = "Taking longer than expected. Check Discord for updates."
         } else {

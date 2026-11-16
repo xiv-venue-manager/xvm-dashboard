@@ -50,7 +50,7 @@ export function DeleteEventButton({ venueId, eventId, venueSlug }: DeleteEventBu
   return (
     <AlertDialog>
       <AlertDialogTrigger asChild>
-        <Button variant="destructive">Delete</Button>
+        <Button variant="destructive" size="sm">Delete</Button>
       </AlertDialogTrigger>
       <AlertDialogContent>
         <AlertDialogHeader>

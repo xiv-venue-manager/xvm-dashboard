@@ -447,7 +447,7 @@ export default async function Home() {
                 sub: "Runs in your Discord server",
                 items: [
                   "VIP tiers and perks your patrons can redeem",
-                  "Giveaways, raffles and contests",
+                  "Contests and giveaways",
                   "Assign and complete staff tasks from Discord",
                   "Lodestone character verification and role sync",
                 ],
@@ -547,7 +547,7 @@ export default async function Home() {
               {
                 n: "02",
                 title: "Add the XVM Bot to your server",
-                desc: "Connect your Discord server to your venue to bring tasks, VIP perks, giveaways, verification and much more into the place your staff and patrons already are.",
+                desc: "Connect your Discord server to your venue to bring tasks, VIP perks, contests and giveaways, verification and much more into the place your staff and patrons already are.",
               },
               {
                 n: "03",

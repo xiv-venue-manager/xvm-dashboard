@@ -15,6 +15,7 @@ const row: EventRow = {
   published_at: "2026-09-30T00:00:00Z",
   cancelled_at: null,
   cancel_reason: null,
+  archived_at: null,
   recurrence_rule_id: 3,
   partake_event_id: 55,
   created_by_person_id: 9,
@@ -44,6 +45,12 @@ describe("toDashboardEventShape", () => {
     expect(shape.attendanceCount).toBeNull()
     expect(shape.revenue).toBeNull()
     expect(shape.status).toBe("PUBLISHED")
+  })
+
+  it("flags an archived row, and never a calendar item", () => {
+    const now = new Date("2026-10-01T00:00:00Z")
+    expect(toDashboardEventShape(row, { now }).archived).toBe(false)
+    expect(toDashboardEventShape({ ...row, archived_at: "2026-10-02T00:00:00Z" }, { now }).archived).toBe(true)
   })
 
   it("keeps a virtual occurrence's null id and falls back to OTHER for a missing type", () => {

@@ -2005,6 +2005,7 @@ export interface EventRow {
   published_at: string | null
   cancelled_at: string | null
   cancel_reason: string | null
+  archived_at: string | null
   recurrence_rule_id: number | null
   partake_event_id: number | null
   created_by_person_id: number | null

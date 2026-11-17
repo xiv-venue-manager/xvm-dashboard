@@ -94,3 +94,6 @@ docs/superpowers/brainstorm/
 .superpowers/
 docker/minio/data/
 docs/superpowers/templates/architecture-notes-template.html
+
+# Written on the server by maintenance.sh while a maintenance window is open
+docker/maintenance/status.json

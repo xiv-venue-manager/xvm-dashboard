@@ -3,8 +3,44 @@
   <head>
     <meta charset="UTF-8" />
     <meta name="viewport" content="width=device-width, initial-scale=1.0" />
-    <title>Maintenance — XIV Venue Manager</title>
+    <meta name="robots" content="noindex" />
+    <meta name="theme-color" content="#070b14" />
+    <title>Maintenance | XIV Venue Manager</title>
+    <link rel="icon" type="image/png" href="/assets/xiv-icon.png" />
     <style>
+      @font-face {
+        font-family: "Cinzel";
+        src: url("/assets/fonts/cinzel.woff2") format("woff2");
+        font-weight: 400 900;
+        font-display: swap;
+      }
+      @font-face {
+        font-family: "Outfit";
+        src: url("/assets/fonts/outfit.woff2") format("woff2");
+        font-weight: 100 900;
+        font-display: swap;
+      }
+      @font-face {
+        font-family: "Inter";
+        src: url("/assets/fonts/inter.woff2") format("woff2");
+        font-weight: 100 900;
+        font-display: swap;
+      }
+
+      :root {
+        --bg: #070b14;
+        --card: #0a0f1e;
+        --blue: #00b4ff;
+        --text: #cdd6f4;
+        --subtle: #bac2de;
+        --muted: #9399b2;
+        --faint: #7f849c;
+        --good: #34d399;
+        --bad: #f38ba8;
+        --line: rgba(0, 180, 255, 0.08);
+        --border: rgba(0, 180, 255, 0.18);
+      }
+
       *,
       *::before,
       *::after {
@@ -14,286 +50,587 @@
       }
 
       body {
-        background: #030508;
-        color: #cdd6f4;
-        font-family:
-          "Segoe UI",
-          system-ui,
-          -apple-system,
-          sans-serif;
+        background: var(--bg);
+        color: var(--text);
+        font-family: "Inter", system-ui, sans-serif;
         min-height: 100vh;
+        min-height: 100dvh;
+        display: grid;
+        place-items: center;
+        padding: 32px 20px;
+        position: relative;
+        overflow-x: hidden;
+        -webkit-font-smoothing: antialiased;
+      }
+
+      body::before {
+        content: "";
+        position: fixed;
+        inset: -10%;
+        background: url("/assets/starfield.webp") center / cover;
+        opacity: 0.22;
+        pointer-events: none;
+        animation: drift 20s ease-in-out infinite;
+      }
+
+      body::after {
+        content: "";
+        position: fixed;
+        inset: 0;
+        background: radial-gradient(ellipse at 50% 28%, rgba(0, 180, 255, 0.1), transparent 62%);
+        pointer-events: none;
+      }
+
+      @keyframes drift {
+        0%,
+        100% {
+          transform: scale(1.08) translate(0, 0);
+        }
+        50% {
+          transform: scale(1.12) translate(-1%, -0.5%);
+        }
+      }
+
+      @media (prefers-reduced-motion: reduce) {
+        body::before {
+          animation: none;
+        }
+      }
+
+      .wrap {
+        position: relative;
+        z-index: 1;
+        width: 100%;
+        max-width: 620px;
+      }
+
+      .brand {
         display: flex;
         align-items: center;
         justify-content: center;
-        padding: 24px;
+        gap: 10px;
+        margin-bottom: 26px;
+        font-family: "Cinzel", Georgia, serif;
+        letter-spacing: 0.04em;
       }
-
-      .container {
-        width: 100%;
-        max-width: 560px;
+      .brand img {
+        width: 34px;
+        height: 34px;
+        object-fit: contain;
       }
-
-      .wordmark {
-        text-align: center;
-        margin-bottom: 28px;
+      .brand-xiv {
+        color: var(--blue);
+        font-weight: 700;
+        font-size: 1.15rem;
       }
-      .wordmark-text {
-        font-size: 12px;
-        letter-spacing: 5px;
-        text-transform: uppercase;
-        color: #00b4ff;
-        opacity: 0.85;
-      }
-      .wordmark-rule {
-        width: 48px;
-        height: 1px;
-        background: linear-gradient(90deg, transparent, rgba(0, 180, 255, 0.5), transparent);
-        margin: 10px auto 0;
+      .brand-name {
+        color: rgba(205, 214, 244, 0.8);
+        font-weight: 500;
+        font-size: 0.95rem;
       }
 
       .card {
-        background: #0a0f1e;
-        border: 1px solid rgba(0, 180, 255, 0.18);
-        border-radius: 12px;
-        padding: 32px;
-        box-shadow: 0 0 40px rgba(0, 180, 255, 0.05);
+        background: var(--card);
+        border: 1px solid var(--border);
+        border-radius: 16px;
+        padding: 40px 34px 30px;
+        box-shadow:
+          0 30px 80px rgba(0, 0, 0, 0.5),
+          0 0 60px rgba(0, 180, 255, 0.08);
       }
 
-      .card-head {
+      .head {
         text-align: center;
-        margin-bottom: 24px;
       }
 
-      .icon {
-        width: 46px;
-        height: 46px;
-        border-radius: 50%;
-        background: rgba(0, 180, 255, 0.08);
-        border: 1px solid rgba(0, 180, 255, 0.2);
+      .divider {
         display: flex;
         align-items: center;
         justify-content: center;
-        font-size: 20px;
-        margin: 0 auto 14px;
+        gap: 12px;
+        margin-bottom: 20px;
+      }
+      .divider::before,
+      .divider::after {
+        content: "";
+        width: 56px;
+        height: 1px;
+        background: linear-gradient(to right, transparent, rgba(0, 180, 255, 0.5));
+      }
+      .divider::after {
+        background: linear-gradient(to left, transparent, rgba(0, 180, 255, 0.5));
+      }
+      .diamond {
+        width: 8px;
+        height: 8px;
+        transform: rotate(45deg);
+        background: rgba(0, 180, 255, 0.7);
+        box-shadow: 0 0 12px rgba(0, 180, 255, 0.5);
+      }
+
+      .eyebrow {
+        font-size: 0.74rem;
+        font-weight: 600;
+        letter-spacing: 0.16em;
+        text-transform: uppercase;
+        color: var(--blue);
       }
 
       h1 {
-        font-size: 20px;
-        font-weight: 600;
-        color: #e2e8f0;
-        letter-spacing: 0.5px;
-        margin-bottom: 6px;
+        font-family: "Cinzel", Georgia, serif;
+        font-weight: 700;
+        font-size: clamp(1.75rem, 5vw, 2.4rem);
+        line-height: 1.12;
+        letter-spacing: 0.01em;
+        color: #e2e8f4;
+        margin: 12px 0 14px;
+        text-wrap: balance;
       }
 
-      .subtitle {
-        color: #8897a8;
-        font-size: 13px;
+      .lede {
+        color: var(--muted);
+        font-size: 1rem;
+        line-height: 1.6;
+        max-width: 44ch;
+        margin: 0 auto;
+      }
+
+      .eyebrow[data-kind="emergency"] {
+        color: #f9e2af;
+      }
+
+      .reason {
+        max-width: 44ch;
+        margin: 14px auto 0;
+        padding: 10px 14px;
+        border: 1px solid rgba(249, 226, 175, 0.25);
+        border-radius: 10px;
+        background: rgba(249, 226, 175, 0.05);
+        color: var(--subtle);
+        font-size: 0.9rem;
         line-height: 1.5;
+      }
+      .reason[hidden] {
+        display: none;
       }
 
       .eta {
-        display: inline-block;
-        margin-top: 10px;
-        padding: 4px 14px;
+        display: inline-flex;
+        flex-wrap: wrap;
+        justify-content: center;
+        gap: 4px 6px;
+        margin-top: 18px;
+        padding: 7px 16px;
         background: rgba(0, 180, 255, 0.07);
-        border: 1px solid rgba(0, 180, 255, 0.18);
-        border-radius: 20px;
-        color: #00b4ff;
-        font-size: 12px;
+        border: 1px solid rgba(0, 180, 255, 0.15);
+        border-radius: 999px;
+        color: var(--blue);
+        font-size: 0.85rem;
+        font-weight: 500;
+      }
+      .eta[hidden] {
+        display: none;
+      }
+      .eta-local {
+        color: var(--muted);
+        font-weight: 400;
       }
 
       .rule {
         height: 1px;
-        background: rgba(0, 180, 255, 0.08);
-        margin: 22px 0;
+        background: var(--line);
+        margin: 28px 0 22px;
       }
 
-      .section-label {
-        font-size: 11px;
-        letter-spacing: 2px;
+      .label {
+        font-size: 0.72rem;
+        font-weight: 600;
+        letter-spacing: 0.16em;
         text-transform: uppercase;
-        color: rgba(0, 180, 255, 0.6);
-        margin-bottom: 12px;
+        color: rgba(0, 180, 255, 0.7);
+        margin-bottom: 14px;
       }
 
-      .status-list {
+      .parts {
+        list-style: none;
         display: flex;
         flex-direction: column;
-        gap: 8px;
+        gap: 10px;
       }
 
-      .row {
-        display: flex;
-        align-items: center;
-        gap: 12px;
-        padding: 10px 14px;
-        background: rgba(0, 180, 255, 0.02);
-        border: 1px solid rgba(0, 180, 255, 0.07);
-        border-radius: 8px;
+      .part {
+        display: grid;
+        grid-template-columns: auto 1fr auto;
+        align-items: start;
+        gap: 14px;
+        padding: 14px 16px;
+        background: rgba(0, 180, 255, 0.025);
+        border: 1px solid var(--line);
+        border-radius: 12px;
       }
 
-      .row-icon {
-        font-size: 13px;
+      .part-icon {
+        width: 38px;
+        height: 38px;
+        display: grid;
+        place-items: center;
+        border-radius: 9px;
+        background: rgba(0, 180, 255, 0.1);
+        border: 1px solid var(--border);
+        color: var(--blue);
+      }
+      .part-icon svg {
         width: 18px;
-        text-align: center;
-        flex-shrink: 0;
+        height: 18px;
       }
 
-      .row-body {
-        flex: 1;
+      .part-name {
+        font-family: "Outfit", system-ui, sans-serif;
+        font-weight: 600;
+        font-size: 1.02rem;
+        color: #e2e8f4;
+        margin-bottom: 3px;
       }
-      .row-name {
-        font-size: 13px;
-        color: #e2e8f0;
-        font-weight: 500;
-        margin-bottom: 2px;
-      }
-      .row-desc {
-        font-size: 11px;
-        color: #475569;
-        line-height: 1.4;
+      .part-desc {
+        font-size: 0.86rem;
+        line-height: 1.5;
+        color: var(--muted);
       }
 
       .badge {
-        font-size: 11px;
-        padding: 2px 8px;
-        border-radius: 10px;
-        font-weight: 500;
-        flex-shrink: 0;
-      }
-      .offline {
-        background: rgba(239, 68, 68, 0.1);
-        color: #f87171;
-        border: 1px solid rgba(239, 68, 68, 0.18);
-      }
-      .stale {
-        background: rgba(245, 158, 11, 0.1);
-        color: #fbbf24;
-        border: 1px solid rgba(245, 158, 11, 0.18);
-      }
-      .restores {
-        background: rgba(34, 197, 94, 0.1);
-        color: #4ade80;
-        border: 1px solid rgba(34, 197, 94, 0.18);
-      }
-
-      .foot {
-        margin-top: 22px;
-        display: flex;
-        align-items: center;
-        justify-content: space-between;
-        flex-wrap: wrap;
-        gap: 14px;
-      }
-
-      .foot-note {
-        font-size: 11px;
-        color: #64748b;
-        line-height: 1.55;
-      }
-      .foot-note strong {
-        color: #475569;
-      }
-
-      .discord-btn:hover,
-      .discord-btn:focus-visible {
-        border-color: rgba(88, 101, 242, 0.5);
-        outline: none;
-      }
-
-      .discord-btn {
         display: inline-flex;
         align-items: center;
         gap: 6px;
-        padding: 7px 14px;
-        background: rgba(88, 101, 242, 0.1);
-        border: 1px solid rgba(88, 101, 242, 0.22);
-        border-radius: 8px;
-        color: #818cf8;
-        font-size: 12px;
+        padding: 3px 11px;
+        border-radius: 999px;
+        font-size: 0.75rem;
+        font-weight: 600;
+        white-space: nowrap;
+        border: 1px solid transparent;
+        margin-top: 2px;
+      }
+      .badge::before {
+        content: "";
+        width: 6px;
+        height: 6px;
+        border-radius: 50%;
+        background: currentColor;
+      }
+      [data-state="working"] .badge {
+        color: var(--good);
+        background: rgba(16, 185, 129, 0.1);
+        border-color: rgba(16, 185, 129, 0.25);
+      }
+      [data-state="offline"] .badge {
+        color: var(--bad);
+        background: rgba(243, 139, 168, 0.1);
+        border-color: rgba(243, 139, 168, 0.25);
+      }
+      [data-state="checking"] .badge {
+        color: var(--faint);
+        background: rgba(127, 132, 156, 0.1);
+        border-color: rgba(127, 132, 156, 0.25);
+      }
+
+      .foot {
+        margin-top: 26px;
+        padding-top: 22px;
+        border-top: 1px solid var(--line);
+        display: flex;
+        flex-direction: column;
+        align-items: flex-start;
+        gap: 16px;
+      }
+      .foot-note {
+        font-size: 0.84rem;
+        line-height: 1.6;
+        color: var(--faint);
+      }
+      .foot-note strong {
+        color: var(--subtle);
+        font-weight: 600;
+      }
+
+      .discord {
+        display: inline-flex;
+        align-items: center;
+        gap: 8px;
+        padding: 10px 18px;
+        border: 1px solid rgba(0, 180, 255, 0.25);
+        border-radius: 10px;
+        color: var(--blue);
+        font-size: 0.9rem;
+        font-weight: 600;
         text-decoration: none;
         white-space: nowrap;
-        flex-shrink: 0;
+        transition:
+          background 0.2s ease,
+          border-color 0.2s ease;
+      }
+      .discord svg {
+        width: 18px;
+        height: 18px;
+      }
+      .discord:hover,
+      .discord:focus-visible {
+        background: rgba(0, 180, 255, 0.15);
+        border-color: var(--blue);
+        outline: none;
+      }
+
+      noscript {
+        display: block;
+        margin-top: 14px;
+        font-size: 0.8rem;
+        color: var(--faint);
+      }
+
+      @media (max-width: 520px) {
+        .card {
+          padding: 30px 20px 24px;
+        }
+        .part {
+          grid-template-columns: auto 1fr;
+          gap: 12px;
+        }
+        .part .badge {
+          grid-column: 2;
+          justify-self: start;
+          margin-top: 4px;
+        }
+        .foot {
+          flex-direction: column;
+          align-items: stretch;
+          text-align: center;
+        }
+        .discord {
+          justify-content: center;
+        }
       }
     </style>
   </head>
   <body>
-    <div class="container">
-      <div class="wordmark">
-        <div class="wordmark-text">XIV Venue Manager</div>
-        <div class="wordmark-rule"></div>
+    <main class="wrap">
+      <div class="brand">
+        <img src="/assets/xiv-icon.png" alt="" width="34" height="34" />
+        <span><span class="brand-xiv">XIV</span> <span class="brand-name">Venue Manager</span></span>
       </div>
 
       <div class="card">
-        <div class="card-head">
-          <div class="icon" aria-hidden="true">&#9881;</div>
-          <h1>Scheduled Maintenance</h1>
-          <p class="subtitle">The site is offline. Back shortly.</p>
-          <span class="eta">Est. return: 11:00 UTC</span>
+        <div class="head">
+          <div class="divider" aria-hidden="true"><span class="diamond"></span></div>
+          <p class="eyebrow" id="eyebrow">Scheduled maintenance</p>
+          <h1>We&rsquo;ll be back shortly</h1>
+          <p class="lede" id="lede">The website is offline while we work on it. Your venue data is not affected.</p>
+          <p class="reason" id="reason" hidden></p>
+          <p class="eta">
+            <span id="eta-text">Back around 11:00 UTC</span>
+            <span class="eta-local" id="eta-local"></span>
+          </p>
         </div>
 
         <div class="rule"></div>
 
-        <div class="section-label">Plugin status during maintenance</div>
-        <div class="status-list">
-          <div class="row">
-            <div class="row-icon" aria-hidden="true">&#x1F534;</div>
-            <div class="row-body">
-              <div class="row-name">Clock-in / Clock-out</div>
-              <div class="row-desc">Fails with an in-game error. Don't start or end shifts now.</div>
+        <h2 class="label">Right now</h2>
+        <ul class="parts" aria-live="polite">
+          <li class="part" data-state="offline">
+            <span class="part-icon" aria-hidden="true">
+              <svg viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2">
+                <path d="M3 9l9-7 9 7v11a2 2 0 0 1-2 2H5a2 2 0 0 1-2-2z M9 22V12h6v10" />
+              </svg>
+            </span>
+            <div>
+              <p class="part-name">Website and dashboard</p>
+              <p class="part-desc">
+                Sign-in, the dashboard, Live Mode, venue pages and Discover are unavailable until we&rsquo;re back.
+              </p>
             </div>
-            <span class="badge offline">Offline</span>
-          </div>
+            <span class="badge">Offline</span>
+          </li>
 
-          <div class="row">
-            <div class="row-icon" aria-hidden="true">&#x1F534;</div>
-            <div class="row-body">
-              <div class="row-name">Patron Visit Logging</div>
-              <div class="row-desc">Visits during this window won't be recorded and can't be recovered.</div>
+          <li class="part" id="plugin" data-state="checking">
+            <span class="part-icon" aria-hidden="true">
+              <svg viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2">
+                <path
+                  d="M9 3H5a2 2 0 0 0-2 2v4m6-6h10a2 2 0 0 1 2 2v4M9 3v11m0 0h10m-10 0H5m14 0v4a2 2 0 0 1-2 2H7a2 2 0 0 1-2-2v-4m14 0H5"
+                />
+              </svg>
+            </span>
+            <div>
+              <p class="part-name">Dalamud plugin</p>
+              <p class="part-desc" data-desc>Checking the connection&hellip;</p>
             </div>
-            <span class="badge offline">Offline</span>
-          </div>
+            <span class="badge" data-badge>Checking</span>
+          </li>
 
-          <div class="row">
-            <div class="row-icon" aria-hidden="true">&#x1F534;</div>
-            <div class="row-body">
-              <div class="row-name">Sale! Logging</div>
-              <div class="row-desc">Sales logged now won't be recorded.</div>
+          <li class="part" id="bot" data-state="checking">
+            <span class="part-icon" aria-hidden="true">
+              <svg viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2">
+                <path d="M21 15a2 2 0 0 1-2 2H7l-4 4V5a2 2 0 0 1 2-2h14a2 2 0 0 1 2 2z" />
+              </svg>
+            </span>
+            <div>
+              <p class="part-name">XVM Bot</p>
+              <p class="part-desc" data-desc>Checking the connection&hellip;</p>
             </div>
-            <span class="badge offline">Offline</span>
-          </div>
-
-          <div class="row">
-            <div class="row-icon" aria-hidden="true">&#x1F7E1;</div>
-            <div class="row-body">
-              <div class="row-name">DTR Bar / Shift Info</div>
-              <div class="row-desc">Shows last-known shift status. Updates when the site returns.</div>
-            </div>
-            <span class="badge stale">Stale</span>
-          </div>
-
-          <div class="row">
-            <div class="row-icon" aria-hidden="true">&#x1F7E2;</div>
-            <div class="row-body">
-              <div class="row-name">Plugin Connection</div>
-              <div class="row-desc">No restart needed. The plugin reconnects when the site comes back.</div>
-            </div>
-            <span class="badge restores">Auto-restores</span>
-          </div>
-        </div>
-
-        <div class="rule"></div>
+            <span class="badge" data-badge>Checking</span>
+          </li>
+        </ul>
+        <noscript>Turn on JavaScript to see live plugin and bot status.</noscript>
 
         <div class="foot">
           <p class="foot-note">
-            Maintenance runs <strong>Tuesdays 09:00&#8211;11:00 UTC</strong>.<br />
-            Check Discord for live updates.
+            <span id="schedule-note"
+              >Planned maintenance runs <strong>Tuesdays, 09:00 to 11:00 UTC</strong>.<br
+            /></span>
+            Updates go out in our Discord.
           </p>
-          <a class="discord-btn" href="https://discord.gg/AN5VDNSe2A" target="_blank" rel="noopener">
-            &#x1F4AC; Discord
+          <a class="discord" href="https://discord.gg/AN5VDNSe2A" target="_blank" rel="noopener noreferrer">
+            <svg viewBox="0 0 24 24" fill="currentColor" aria-hidden="true">
+              <path
+                d="M20.317 4.37a19.791 19.791 0 0 0-4.885-1.515.074.074 0 0 0-.079.037c-.21.375-.444.864-.608 1.25a18.27 18.27 0 0 0-5.487 0 12.64 12.64 0 0 0-.617-1.25.077.077 0 0 0-.079-.037A19.736 19.736 0 0 0 3.677 4.37a.07.07 0 0 0-.032.027C.533 9.046-.32 13.58.099 18.057a.082.082 0 0 0 .031.057 19.9 19.9 0 0 0 5.993 3.03.078.078 0 0 0 .084-.028c.462-.63.874-1.295 1.226-1.994a.076.076 0 0 0-.041-.106 13.107 13.107 0 0 1-1.872-.892.077.077 0 0 1-.008-.128 10.2 10.2 0 0 0 .372-.292.074.074 0 0 1 .077-.01c3.928 1.793 8.18 1.793 12.062 0a.074.074 0 0 1 .078.01c.12.098.246.198.373.292a.077.077 0 0 1-.006.127 12.299 12.299 0 0 1-1.873.892.077.077 0 0 0-.041.107c.36.698.772 1.362 1.225 1.993a.076.076 0 0 0 .084.028 19.839 19.839 0 0 0 6.002-3.03.077.077 0 0 0 .032-.054c.5-5.177-.838-9.674-3.549-13.66a.061.061 0 0 0-.031-.03zM8.02 15.33c-1.183 0-2.157-1.085-2.157-2.419 0-1.333.956-2.419 2.157-2.419 1.21 0 2.176 1.096 2.157 2.42 0 1.333-.956 2.418-2.157 2.418zm7.975 0c-1.183 0-2.157-1.085-2.157-2.419 0-1.333.955-2.419 2.157-2.419 1.21 0 2.176 1.096 2.157 2.42 0 1.333-.946 2.418-2.157 2.418z"
+              />
+            </svg>
+            Join our Discord
           </a>
         </div>
       </div>
-    </div>
+    </main>
+
+    <script>
+      var STATES = {
+        plugin: {
+          working: [
+            "Working",
+            "Clock-ins, sales and patron visits keep working. Pairing and links to the website wait until we’re back.",
+          ],
+          offline: [
+            "Offline",
+            "Clock-ins, sales and patron visits can’t be saved right now. Hold off on shifts and sales until we’re back. Patron visits in this time may not be recorded.",
+          ],
+        },
+        bot: {
+          working: ["Working", "Commands work as usual. Links that open the dashboard wait until we’re back."],
+          offline: ["Offline", "Commands can’t reach the platform and will fail. Try again once we’re back."],
+        },
+      }
+
+      function render(apiUp) {
+        var key = apiUp ? "working" : "offline"
+        ;["plugin", "bot"].forEach(function (id) {
+          var row = document.getElementById(id)
+          row.setAttribute("data-state", key)
+          row.querySelector("[data-badge]").textContent = STATES[id][key][0]
+          row.querySelector("[data-desc]").textContent = STATES[id][key][1]
+        })
+      }
+
+      function checkApi() {
+        var controller = new AbortController()
+        var timer = setTimeout(function () {
+          controller.abort()
+        }, 4000)
+        fetch("/_status", { cache: "no-store", signal: controller.signal })
+          .then(function (res) {
+            return res.ok ? res.json() : null
+          })
+          .then(function (body) {
+            return !!body && body.status === "ok"
+          })
+          .catch(function () {
+            return false
+          })
+          .then(function (ok) {
+            clearTimeout(timer)
+            render(ok)
+          })
+      }
+
+      function reloadWhenBack() {
+        if (document.hidden) return
+        fetch("/", { method: "HEAD", cache: "no-store" })
+          .then(function (res) {
+            if (res.status !== 503) location.reload()
+          })
+          .catch(function () {})
+      }
+
+      function pad(n) {
+        return n < 10 ? "0" + n : "" + n
+      }
+
+      function applyStatus(status) {
+        var emergency = !!status && status.kind === "emergency"
+        var reason = status && typeof status.reason === "string" ? status.reason.trim().slice(0, 200) : ""
+
+        var eta = status && typeof status.eta === "string" ? new Date(status.eta) : null
+        if (eta && isNaN(eta.getTime())) eta = null
+        if (!eta && !emergency) {
+          var now = new Date()
+          var inWindow = now.getUTCDay() === 2 && now.getUTCHours() >= 9 && now.getUTCHours() < 11
+          if (inWindow) {
+            eta = new Date(now)
+            eta.setUTCHours(11, 0, 0, 0)
+          }
+        }
+
+        var eyebrow = document.getElementById("eyebrow")
+        eyebrow.textContent = emergency ? "Unplanned maintenance" : "Scheduled maintenance"
+        eyebrow.setAttribute("data-kind", emergency ? "emergency" : "scheduled")
+
+        document.getElementById("lede").textContent = emergency
+          ? "We took the website offline to fix an urgent problem. We’ll post updates in our Discord."
+          : "The website is offline while we work on it. Your venue data is not affected."
+
+        var reasonEl = document.getElementById("reason")
+        reasonEl.textContent = reason ? "Reason: " + reason : ""
+        reasonEl.hidden = !reason
+
+        var text = document.getElementById("eta-text")
+        var local = document.getElementById("eta-local")
+        local.textContent = ""
+        text.parentNode.hidden = !eta
+        if (!eta) {
+          text.textContent = ""
+        } else if (eta.getTime() <= Date.now()) {
+          text.textContent = "Taking longer than expected. Check Discord for updates."
+        } else {
+          text.textContent =
+            (emergency ? "Expected back around " : "Back around ") +
+            pad(eta.getUTCHours()) +
+            ":" +
+            pad(eta.getUTCMinutes()) +
+            " UTC"
+          try {
+            if (eta.getTimezoneOffset() !== 0) {
+              var time = eta.toLocaleTimeString([], { hour: "numeric", minute: "2-digit", timeZoneName: "short" })
+              local.textContent = "(" + time + " for you)"
+            }
+          } catch (e) {}
+        }
+
+        document.getElementById("schedule-note").hidden = emergency
+      }
+
+      function checkStatus() {
+        fetch("/_maintenance.json", { cache: "no-store" })
+          .then(function (res) {
+            return res.ok ? res.json() : null
+          })
+          .catch(function () {
+            return null
+          })
+          .then(applyStatus)
+      }
+
+      function refresh() {
+        checkStatus()
+        checkApi()
+      }
+
+      refresh()
+      setInterval(refresh, 30000)
+      setInterval(reloadWhenBack, 30000)
+    </script>
   </body>
 </html>

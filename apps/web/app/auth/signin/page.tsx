@@ -38,8 +38,8 @@ export default function SignInPage() {
         {/* Card */}
         <div className="xiv-card rounded-2xl w-full p-8 space-y-6">
           <div className="text-center space-y-1">
-            <h1 className="font-cinzel text-2xl font-bold tracking-wide">Welcome Back</h1>
-            <p className="text-muted-foreground text-sm">Sign in to access your venue dashboard</p>
+            <h1 className="font-cinzel text-2xl font-bold tracking-wide">Sign In</h1>
+            <p className="text-muted-foreground text-sm">Continue with your Discord account.</p>
           </div>
 
           <Suspense fallback={null}>
@@ -65,7 +65,7 @@ export default function SignInPage() {
             Sign in with Discord
           </Button>
 
-          <p className="text-center text-xs text-muted-foreground">No account? One will be created automatically.</p>
+          <p className="text-center text-xs text-muted-foreground">New here? Signing in creates your account.</p>
         </div>
       </div>
     </div>

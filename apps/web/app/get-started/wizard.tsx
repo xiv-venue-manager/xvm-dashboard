@@ -57,6 +57,7 @@ export function GetStartedWizard({ server }: { server: ConnectServer | null }) {
   const [error, setError] = useState("")
   const [createdSlug, setCreatedSlug] = useState("")
   const [serverProblem, setServerProblem] = useState<string | null>(null)
+  const [profileSaved, setProfileSaved] = useState(true)
 
   // Step 1
   const [name, setName] = useState("")
@@ -151,12 +152,14 @@ export function GetStartedWizard({ server }: { server: ConnectServer | null }) {
             }
             const v2 = await res2.json()
             created = v2.slug
+            setProfileSaved(v2.profileSaved !== false)
           } else {
             throw new Error(d.error || "Failed to create venue")
           }
         } else {
           const v = await res.json()
           created = v.slug
+          setProfileSaved(v.profileSaved !== false)
         }
         setCreatedSlug(created)
         if (server) setServerProblem(await connectServer(created, server.id))
@@ -204,6 +207,7 @@ export function GetStartedWizard({ server }: { server: ConnectServer | null }) {
                 }}
               >
                 Your venue is ready. Open the dashboard to schedule events and manage your staff.
+                {!profileSaved && <> Its location and tags did not save, so add them in Settings.</>}
                 {server &&
                   (serverProblem ? (
                     <>
@@ -216,7 +220,7 @@ export function GetStartedWizard({ server }: { server: ConnectServer | null }) {
                   ))}
               </p>
               <button
-                onClick={() => router.push(`/dashboard/${createdSlug}`)}
+                onClick={() => router.push(profileSaved ? `/dashboard/${createdSlug}` : `/dashboard/${createdSlug}/settings`)}
                 className="xiv-btn-shimmer xiv-cta"
                 style={{
                   width: "100%",

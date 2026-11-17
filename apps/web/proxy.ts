@@ -19,6 +19,7 @@ function buildCsp(nonce: string): string {
     `img-src 'self' data: blob: https://cdn.discordapp.com https://raw.githubusercontent.com https://cdn.partake.gg https://*.frogge.gg https://cdn.jsdelivr.net https://images.ffxivvenues.com${process.env.MINIO_PUBLIC_URL ? ` ${process.env.MINIO_PUBLIC_URL}` : ""}`,
     "font-src 'self' data:",
     `connect-src 'self' https://discord.com https://api.github.com https://qstash.upstash.io https://errors.xivvenuemanager.com${process.env.MINIO_PUBLIC_URL ? ` ${process.env.MINIO_PUBLIC_URL}` : ""}`,
+    "frame-src https://discord.com",
     "frame-ancestors 'none'",
     "base-uri 'self'",
     "form-action 'self'",

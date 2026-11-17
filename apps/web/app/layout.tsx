@@ -35,7 +35,7 @@ export const dynamic = "force-dynamic"
 
 const SITE_URL = "https://xivvenuemanager.com"
 const SITE_DESC =
-  "Free venue management for FFXIV roleplay venues. Track events, manage staff, log sales and go live from the web or inside the game."
+  "Free venue management for FFXIV roleplay venues. Track events, manage staff, log sales and go live from the web, inside the game or in your Discord server."
 
 export const metadata: Metadata = {
   title: { default: "XIV Venue Manager - Free FFXIV Venue Management", template: "%s | XIV Venue Manager" },

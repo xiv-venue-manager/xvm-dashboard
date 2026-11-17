@@ -38,6 +38,15 @@ describe("proxy", () => {
     expect(imgSrc).toContain("https://images.ffxivvenues.com")
   })
 
+  it("lets the landing page embed the Discord server widget", async () => {
+    m.getToken.mockResolvedValue({ id: "user-1" })
+
+    const res = await proxy(new NextRequest(deepLink))
+
+    const frameSrc = res.headers.get("content-security-policy")!.split("; ").find((d) => d.startsWith("frame-src"))!
+    expect(frameSrc).toBe("frame-src https://discord.com")
+  })
+
   it("lets a signed-in request through", async () => {
     m.getToken.mockResolvedValue({ id: "user-1" })
 

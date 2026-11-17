@@ -26,7 +26,18 @@ function relTime(iso: string | null): string {
   return `${d}d ago`
 }
 import { Button } from "@/components/ui/button"
-import { ShoppingBag, Banknote, Building2, Lock, Smartphone, Bell, Link2, CheckCircle2, ArrowRight } from "lucide-react"
+import {
+  ShoppingBag,
+  Building2,
+  CalendarDays,
+  DoorOpen,
+  Users,
+  Ban,
+  Bot,
+  Globe,
+  ArrowRight,
+  ArrowDown,
+} from "lucide-react"
 
 function IconBadge({
   children,
@@ -58,7 +69,7 @@ export default async function Home() {
     operatingSystem: "Web Browser, Windows (Dalamud plugin)",
     offers: { "@type": "Offer", price: "0", priceCurrency: "USD" },
     description:
-      "Free venue management for FFXIV roleplay venues. Track events, manage staff, log sales and go live from the web or inside the game.",
+      "Free venue management for FFXIV roleplay venues. Track events, manage staff, log sales and go live from the web, inside the game or in your Discord server.",
     url: "https://xivvenuemanager.com",
     screenshot: "https://xivvenuemanager.com/og-image.png",
   }
@@ -97,7 +108,7 @@ export default async function Home() {
             </a>
 
             <p className="xiv-fade-up-delay-1 text-xl md:text-2xl text-muted-foreground max-w-2xl">
-              Track events, log sales, and manage staff from a web dashboard or inside FFXIV via Dalamud.
+              Track events, log sales and manage staff from the web, inside FFXIV or in your Discord server.
             </p>
 
             <div className="xiv-fade-up-delay-2 flex flex-col sm:flex-row gap-4 mt-4">
@@ -117,7 +128,7 @@ export default async function Home() {
               </Button>
             </div>
 
-            <p className="xiv-fade-up-delay-2 text-sm text-muted-foreground">Sign in with Discord to get started.</p>
+            <p className="xiv-fade-up-delay-2 text-sm text-muted-foreground">Free to use. Sign in with Discord.</p>
           </div>
 
           {/* Product preview frame */}
@@ -247,7 +258,7 @@ export default async function Home() {
                   <span className="font-semibold text-[var(--xiv-blue)] tabular-nums">
                     {fmtCompact(stats.gilTracked)} gil
                   </span>{" "}
-                  flowing through the economy
+                  tracked
                 </span>
                 <span className="hidden sm:inline mx-4 text-[rgba(0,180,255,0.3)]">|</span>
                 <span>
@@ -276,10 +287,11 @@ export default async function Home() {
               <rect x="6" y="0" width="8.485" height="8.485" transform="rotate(45 6 0)" fill="rgba(0,180,255,0.7)" />
             </svg>
           </div>
-          <h2 className="font-cinzel text-section font-bold tracking-wide mt-4">Everything your venue needs</h2>
+          <h2 className="font-cinzel text-section font-bold tracking-wide mt-4 text-balance">
+            Staff, sales, patrons and events in one place
+          </h2>
           <p className="text-muted-foreground mt-4 max-w-[52ch] mx-auto leading-relaxed">
-            Replace the tangle of spreadsheets, Discord bots and calendars with one platform made for FFXIV roleplay
-            venues.
+            Replace spreadsheets, scattered bots and calendars with one platform made for FFXIV venues.
           </p>
         </div>
 
@@ -295,7 +307,7 @@ export default async function Home() {
               ),
               color: "em",
               title: "Live patron tracking",
-              desc: "See who's in your venue in real time. Arrivals, departures, and headcount stream in as the night unfolds.",
+              desc: "See who is in your venue right now. Arrivals, departures and headcount update as the night unfolds.",
             },
             {
               icon: (
@@ -306,7 +318,7 @@ export default async function Home() {
               ),
               color: "",
               title: "Dalamud plugin sync",
-              desc: "Log sales and clock shifts without leaving the game. /xvm sale 500 syncs to your dashboard instantly.",
+              desc: "Log sales and clock in without leaving the game. /xvm sale 500 appears on your dashboard.",
             },
             {
               icon: (
@@ -319,7 +331,7 @@ export default async function Home() {
               ),
               color: "",
               title: "Partner integrations",
-              desc: "Pull live events and attendee counts from Partake.gg. Sync your schedule from ffxivvenues.com and show live Open Now status.",
+              desc: "Pull live events and attendee counts from Partake.gg. Sync your schedule from ffxivvenues.com and show Open Now status.",
             },
             {
               icon: (
@@ -343,7 +355,7 @@ export default async function Home() {
               ),
               color: "",
               title: "Sales & payroll",
-              desc: "Tally gil, pool tips, and run payroll by the hour. Every sale is tied to the staff member who logged it.",
+              desc: "Tally gil, pool tips and run payroll by the hour. Each sale is tied to the staff member who logged it.",
             },
             {
               icon: (
@@ -353,7 +365,7 @@ export default async function Home() {
               ),
               color: "pink",
               title: "Free & community-built",
-              desc: "Made by venue owners, for venue owners. No paid tiers, no upsells. Support it on Ko-fi if it helps.",
+              desc: "Built with people who have experience in the venue scene. No paid tiers, no upsells. Support it on Ko-fi if it helps.",
             },
           ].map(({ icon, color, title, desc }) => (
             <div
@@ -387,7 +399,7 @@ export default async function Home() {
         </div>
       </section>
 
-      {/* How it works — two halves + steps matching prototype */}
+      {/* How it works — three parts + steps matching prototype */}
       <section id="how" className="border-y border-[var(--blue-008)] bg-[#060b16] py-20 md:py-24">
         <div className="container mx-auto px-4">
           <div className="text-center mb-14 xiv-scroll-reveal">
@@ -396,23 +408,23 @@ export default async function Home() {
               <div className="w-2 h-2 rotate-45 bg-[rgba(0,180,255,0.7)] shadow-[0_0_12px_rgba(0,180,255,0.5)]" />
               <div className="h-px w-14 bg-gradient-to-l from-transparent to-[var(--xiv-blue)]" />
             </div>
-            <h2 className="font-cinzel text-section font-bold tracking-wide">Two halves that sync in real time</h2>
+            <h2 className="font-cinzel text-section font-bold tracking-wide">Three parts that sync in real time</h2>
             <p className="text-muted-foreground mt-4 max-w-[52ch] mx-auto leading-relaxed">
-              The web dashboard and the in-game plugin talk to each other constantly, so what happens in Eorzea shows up
-              on your screen.
+              The web dashboard, the in-game plugin and the Discord bot share the same data. What happens in Eorzea or
+              in your server shows up on your dashboard.
             </p>
           </div>
 
-          {/* Halves */}
-          <div className="grid grid-cols-1 md:grid-cols-2 gap-[18px] mb-10">
+          {/* Parts */}
+          <div className="grid grid-cols-1 md:grid-cols-3 gap-[18px] mb-10">
             {[
               {
                 iconPath: "M3 9l9-7 9 7v11a2 2 0 0 1-2 2H5a2 2 0 0 1-2-2z M9 22V12h6v10",
                 title: "Web dashboard",
-                sub: "Next.js · any browser",
+                sub: "Any browser",
                 items: [
                   "Plan events, manage staff & shifts",
-                  "Live mode: watch the room in real time",
+                  "Live Mode: watch the room as it happens",
                   "Sales, tips, payroll & patron history",
                   "Analytics on your busiest nights",
                 ],
@@ -426,10 +438,22 @@ export default async function Home() {
                   "Captures patrons as they enter & leave",
                   "Log a sale with /xvm sale 500",
                   "Clock in and out of shifts in-game",
-                  "Everything syncs to the dashboard live",
+                  "Syncs to the dashboard live",
                 ],
               },
-            ].map(({ iconPath, title, sub, items }) => (
+              {
+                iconPath: "M21 15a2 2 0 0 1-2 2H7l-4 4V5a2 2 0 0 1 2-2h14a2 2 0 0 1 2 2z",
+                title: "XVM Bot",
+                sub: "Runs in your Discord server",
+                items: [
+                  "VIP tiers and perks your patrons can redeem",
+                  "Contests and giveaways",
+                  "Assign and complete staff tasks from Discord",
+                  "Lodestone character verification and role sync",
+                ],
+                link: { href: "#community", label: "See it running in our Discord" },
+              },
+            ].map(({ iconPath, title, sub, items, link }) => (
               <div
                 key={title}
                 className="rounded-xl border border-[var(--blue-018)] bg-[var(--card)] p-7 xiv-scroll-reveal"
@@ -481,6 +505,15 @@ export default async function Home() {
                     </li>
                   ))}
                 </ul>
+                {link && (
+                  <Link
+                    href={link.href}
+                    className="mt-5 inline-flex items-center gap-1.5 text-[0.85rem] text-[var(--xiv-blue)] hover:underline"
+                  >
+                    {link.label}
+                    <ArrowDown className="h-3.5 w-3.5" aria-hidden="true" />
+                  </Link>
+                )}
               </div>
             ))}
           </div>
@@ -500,7 +533,7 @@ export default async function Home() {
               <path d="M3.51 9a9 9 0 0 1 14.85-3.36L23 10" />
               <path d="M1 14l4.64 4.36A9 9 0 0 0 20.49 15" />
             </svg>
-            Changes sync both ways, instantly.
+            Log it in any one and it shows up in all three.
           </p>
 
           {/* Steps */}
@@ -509,17 +542,22 @@ export default async function Home() {
               {
                 n: "01",
                 title: "Sign in with Discord",
-                desc: "Create your venue in 30 seconds. No forms, no credit card. Your Discord account is all you need.",
+                desc: "Create your venue in 30 seconds with your Discord account. No forms.",
               },
               {
                 n: "02",
+                title: "Add the XVM Bot to your server",
+                desc: "Connect your Discord server to your venue to bring tasks, VIP perks, contests and giveaways, verification and much more into the place your staff and patrons already are.",
+              },
+              {
+                n: "03",
                 title: "Install the Dalamud plugin",
                 desc: "Add the plugin from inside FFXIV to start capturing patrons and logging sales with slash commands.",
               },
               {
-                n: "03",
-                title: "Run your venue from the dashboard",
-                desc: "Open Live Mode on event night. Watch sales, patrons, and shifts in real time and manage everything from one place.",
+                n: "04",
+                title: "Run your venue on event night",
+                desc: "Open Live Mode and watch sales, patrons and shifts come in from the plugin and your Discord server in real time, all managed from one place.",
               },
             ].map(({ n, title, desc }) => (
               <div
@@ -556,14 +594,14 @@ export default async function Home() {
 
           <div className="grid grid-cols-2 md:grid-cols-4 gap-6 text-center">
             {[
-              { icon: ShoppingBag, title: "Service Catalog", blurb: "Define your offerings with prices" },
-              { icon: Banknote, title: "Payroll Tracking", blurb: "Track staff earnings and tips" },
-              { icon: Building2, title: "Multi-Venue", blurb: "Manage multiple venues" },
-              { icon: Lock, title: "Privacy Controls", blurb: "Control what staff can see" },
-              { icon: Smartphone, title: "Mobile Friendly", blurb: "Works on any device" },
-              { icon: Bell, title: "Discord Webhooks", blurb: "Auto-post events, sales, tasks" },
-              { icon: Link2, title: "Partner Integrations", blurb: "Sync with Partake.gg & ffxivvenues.com" },
-              { icon: CheckCircle2, title: "Task Management", blurb: "Assign, prioritize, track" },
+              { icon: CalendarDays, title: "Event Scheduling", blurb: "Plan events and reuse templates" },
+              { icon: DoorOpen, title: "Rooms & Hours", blurb: "Set opening hours and manage rooms" },
+              { icon: Users, title: "Staff Roles", blurb: "Invite staff and set what each role sees" },
+              { icon: ShoppingBag, title: "Service Catalog", blurb: "Set prices for your offerings" },
+              { icon: Ban, title: "Ban List", blurb: "Keep a ban list for your venue" },
+              { icon: Bot, title: "Discord Automation", blurb: "Reaction roles, auto-reactions and contests" },
+              { icon: Globe, title: "Venue Page", blurb: "Get listed on Discover and let patrons follow you" },
+              { icon: Building2, title: "Multi-Venue", blurb: "Manage more than one venue" },
             ].map(({ icon: Icon, title, blurb }) => (
               <div key={title} className="space-y-2 flex flex-col items-center xiv-scroll-reveal">
                 <IconBadge>
@@ -617,7 +655,7 @@ export default async function Home() {
               </div>
               <p className="text-[0.88rem] text-muted-foreground leading-[1.6]">
                 The community event calendar for FFXIV. XIV Venue Manager pulls your events and attendee counts from
-                Partake so venue profiles stay current automatically.
+                Partake so venue profiles stay current.
               </p>
               <div className="mt-auto">
                 <div className="text-[0.78rem] text-[var(--fg-faint)] font-medium uppercase tracking-wide mb-2">
@@ -672,8 +710,8 @@ export default async function Home() {
                 </div>
               </div>
               <p className="text-[0.88rem] text-muted-foreground leading-[1.6]">
-                The definitive venue listing site for FFXIV. Link your listing to sync your opening schedule directly to
-                your XIV Venue Manager profile.
+                A venue directory for FFXIV. Link your listing to sync your opening schedule to your XIV Venue Manager
+                profile.
               </p>
               <div className="mt-auto">
                 <div className="text-[0.78rem] text-[var(--fg-faint)] font-medium uppercase tracking-wide mb-2">
@@ -728,8 +766,7 @@ export default async function Home() {
                 </div>
               </div>
               <p className="text-[0.88rem] text-muted-foreground leading-[1.6]">
-                A comprehensive Discord application for managing all FFXIV venue-related needs in the comfort of your
-                own server.
+                A Discord application for managing your FFXIV venue from your own server.
               </p>
               <div className="mt-auto">
                 <div className="text-[0.78rem] text-[var(--fg-faint)] font-medium uppercase tracking-wide mb-2">
@@ -765,37 +802,59 @@ export default async function Home() {
       </section>
 
       {/* Free band — matches reference exactly */}
-      <section className="container mx-auto px-4 py-20 md:py-24">
-        <div className="text-center xiv-scroll-reveal">
-          <div className="flex items-center justify-center gap-3 mb-5">
-            <div className="h-px w-14 bg-gradient-to-r from-transparent to-[var(--xiv-blue)]" />
-            <div className="w-2 h-2 rotate-45 bg-[rgba(0,180,255,0.7)] crystal-glow" />
-            <div className="h-px w-14 bg-gradient-to-l from-transparent to-[var(--xiv-blue)]" />
-          </div>
-          <h2 className="font-cinzel text-section font-bold tracking-wide mt-4">Free for the whole community</h2>
-          <p className="text-muted-foreground text-[1.05rem] leading-relaxed max-w-[50ch] mx-auto mt-4 mb-6">
-            XIV Venue Manager is built and maintained by venue owners. It&apos;s free to use, with no paid tiers. If it
-            helps your venue, you can support the project on Ko-fi.
-          </p>
-          <div className="flex gap-3 justify-center flex-wrap">
-            <Button asChild size="lg" className="xiv-btn-shimmer xiv-cta text-lg px-8 py-6 group">
-              <Link href="/get-started">
-                Start Managing Your Venue
-                <ArrowRight className="ml-2 h-5 w-5 transition-transform group-hover:translate-x-1" />
+      <section id="community" className="container mx-auto px-4 py-20 md:py-24">
+        <div className="flex flex-col items-center gap-10">
+          <div className="text-center xiv-scroll-reveal">
+            <div className="flex items-center justify-center gap-3 mb-5">
+              <div className="h-px w-14 bg-gradient-to-r from-transparent to-[var(--xiv-blue)]" />
+              <div className="w-2 h-2 rotate-45 bg-[rgba(0,180,255,0.7)] crystal-glow" />
+              <div className="h-px w-14 bg-gradient-to-l from-transparent to-[var(--xiv-blue)]" />
+            </div>
+            <h2 className="font-cinzel text-section font-bold tracking-wide mt-4">Free for the whole community</h2>
+            <p className="text-muted-foreground text-[1.05rem] leading-relaxed max-w-[50ch] mx-auto mt-4 mb-6">
+              XIV Venue Manager is built and maintained with people who have experience in the venue scene. It&apos;s
+              free, with no paid tiers. If it helps your venue, you can support the project on Ko-fi.
+            </p>
+            <div className="flex gap-3 justify-center flex-wrap">
+              <Button asChild size="lg" className="xiv-btn-shimmer xiv-cta text-lg px-8 py-6 group">
+                <Link href="/get-started">
+                  Start Managing Your Venue
+                  <ArrowRight className="ml-2 h-5 w-5 transition-transform group-hover:translate-x-1" />
+                </Link>
+              </Button>
+              <Link
+                href="https://ko-fi.com/ehnocure"
+                target="_blank"
+                rel="noopener noreferrer"
+                className="inline-flex items-center gap-2 text-[var(--support-pink)] hover:text-pink-300 border border-[rgba(243,139,168,0.28)] bg-[rgba(243,139,168,0.08)] hover:bg-[rgba(243,139,168,0.16)] hover:border-[rgba(243,139,168,0.5)] transition-colors rounded-lg px-6 py-3 text-[1rem] font-semibold"
+              >
+                <svg className="w-4 h-4 fill-current" viewBox="0 0 24 24" aria-hidden="true">
+                  <path d="M12 21s-7.5-4.6-10-9.3C.4 8.4 1.9 5 5.2 5c2 0 3.3 1.2 3.8 2.2C9.5 6.2 10.8 5 12.8 5 16.1 5 17.6 8.4 16 11.7 13.5 16.4 12 21 12 21z" />
+                </svg>
+                Support on Ko-fi
               </Link>
-            </Button>
-            <Link
-              href="https://ko-fi.com/ehnocure"
-              target="_blank"
-              rel="noopener noreferrer"
-              className="inline-flex items-center gap-2 text-[var(--support-pink)] hover:text-pink-300 border border-[rgba(243,139,168,0.28)] bg-[rgba(243,139,168,0.08)] hover:bg-[rgba(243,139,168,0.16)] hover:border-[rgba(243,139,168,0.5)] transition-colors rounded-lg px-6 py-3 text-[1rem] font-semibold"
-            >
-              <svg className="w-4 h-4 fill-current" viewBox="0 0 24 24" aria-hidden="true">
-                <path d="M12 21s-7.5-4.6-10-9.3C.4 8.4 1.9 5 5.2 5c2 0 3.3 1.2 3.8 2.2C9.5 6.2 10.8 5 12.8 5 16.1 5 17.6 8.4 16 11.7 13.5 16.4 12 21 12 21z" />
-              </svg>
-              Support on Ko-fi
-            </Link>
+            </div>
+            <p className="mt-5 text-sm text-muted-foreground">
+              Questions or feedback?{" "}
+              <Link
+                href="https://discord.gg/AN5VDNSe2A"
+                target="_blank"
+                rel="noopener noreferrer"
+                className="text-[var(--xiv-blue)] hover:underline"
+              >
+                Join our Discord
+              </Link>
+            </p>
           </div>
+          <iframe
+            src="https://discord.com/widget?id=1509616350337962024&theme=dark"
+            title="XIV Venue Manager Discord server"
+            width="350"
+            height="500"
+            loading="lazy"
+            className="mx-auto max-w-full rounded-lg"
+            sandbox="allow-popups allow-popups-to-escape-sandbox allow-same-origin allow-scripts"
+          />
         </div>
       </section>
 
@@ -813,7 +872,7 @@ export default async function Home() {
                 </span>
               </Link>
               <p className="text-sm text-muted-foreground leading-relaxed max-w-[240px]">
-                The all-in-one toolset for running roleplay venues in Final Fantasy XIV.
+                Tools for running venues in Final Fantasy XIV.
               </p>
               <Link
                 href="https://ko-fi.com/ehnocure"

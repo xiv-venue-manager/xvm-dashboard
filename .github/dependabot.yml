@@ -1,0 +1,12 @@
+version: 2
+updates:
+  - package-ecosystem: npm
+    directory: /
+    target-branch: dev
+    open-pull-requests-limit: 0
+    schedule:
+      interval: weekly
+    groups:
+      security:
+        applies-to: security-updates
+        patterns: ["*"]

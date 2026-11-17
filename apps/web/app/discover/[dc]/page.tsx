@@ -3,11 +3,12 @@ import { notFound } from "next/navigation"
 import Link from "next/link"
 import { SiteFooter } from "@/components/site-footer"
 import { Button } from "@/components/ui/button"
-import { MapPin, ArrowRight, ChevronLeft } from "lucide-react"
+import { MapPin, ArrowRight } from "lucide-react"
 import { formatVenueLocationShort } from "@/lib/venue-location"
 import { tonightEvents } from "@/lib/api/public-events"
 import { getPublicEventsForIds, listPublicDirectory } from "@/lib/api/xvm-api"
 
+import { BackLink } from "@/components/back-link"
 export const dynamic = "force-dynamic"
 
 export const DATA_CENTRES = [
@@ -80,12 +81,7 @@ export default async function DataCentrePage({ params }: { params: Promise<{ dc:
       {/* Hero */}
       <div className="xiv-hero-bg overflow-hidden border-b border-[var(--blue-008)]">
         <div className="container mx-auto px-4 py-14 max-w-4xl">
-          <Link
-            href="/discover"
-            className="inline-flex items-center gap-1.5 text-sm text-muted-foreground hover:text-[var(--xiv-blue)] transition-colors mb-6"
-          >
-            <ChevronLeft className="w-4 h-4" /> All data centres
-          </Link>
+          <BackLink href="/discover" to="Discover" className="mb-6" />
           <div className="flex items-center gap-2 mb-3">
             <span className="w-[7px] h-[7px] bg-[rgba(0,180,255,0.7)] rotate-45 shadow-[0_0_10px_rgba(0,180,255,0.5)]" />
             <span className="text-[0.72rem] font-semibold uppercase tracking-[0.14em] text-[var(--xiv-blue)]">

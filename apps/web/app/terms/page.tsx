@@ -1,6 +1,6 @@
 import type { Metadata } from "next"
-import Link from "next/link"
 
+import { BackLink } from "@/components/back-link"
 export const metadata: Metadata = {
   title: "Terms of Use",
   description: "Terms of use for XIV Venue Manager.",
@@ -10,12 +10,7 @@ export default function TermsPage() {
   return (
     <div className="min-h-screen bg-[var(--background)]">
       <div className="max-w-[760px] mx-auto px-6 py-16">
-        <Link
-          href="/"
-          className="inline-flex items-center gap-1.5 text-sm text-muted-foreground hover:text-[var(--xiv-blue)] transition-colors mb-8"
-        >
-          ← Back to home
-        </Link>
+        <BackLink href="/" to="Home" className="mb-8" />
 
         <h1 className="font-cinzel text-3xl font-bold tracking-wide mb-2">Terms of Use</h1>
         <p className="text-sm text-muted-foreground mb-10">Last updated: June 2026</p>

@@ -3,7 +3,7 @@
 import { useEffect, useState } from "react"
 import { useSession, signOut } from "next-auth/react"
 import Link from "next/link"
-import { ArrowLeft, Save, Trash2, Key } from "lucide-react"
+import { Save, Trash2, Key } from "lucide-react"
 import {
   AlertDialog,
   AlertDialogAction,
@@ -19,6 +19,7 @@ import { DELETION_FAILED, deletionOutcome, type DeletionOutcome } from "@/lib/ac
 import { DELETION_SIGN_IN_URL } from "@/lib/sign-in-reason"
 import { Input } from "@/components/ui/input"
 
+import { BackLink } from "@/components/back-link"
 export default function AccountSettingsPage() {
   const { data: session } = useSession()
 
@@ -108,12 +109,7 @@ export default function AccountSettingsPage() {
         <div>
           <div className="flex items-center gap-2 mb-1.5">
             <span className="w-[7px] h-[7px] bg-[rgba(0,180,255,0.7)] rotate-45 shadow-[0_0_10px_rgba(0,180,255,0.5)] flex-shrink-0" />
-            <Link
-              href="/dashboard/account"
-              className="text-[0.72rem] font-semibold uppercase tracking-[0.14em] text-[var(--xiv-blue)] hover:underline flex items-center gap-1"
-            >
-              <ArrowLeft className="w-3 h-3" /> Account
-            </Link>
+            <BackLink href="/dashboard/account" to="Account" />
           </div>
           <h1 className="page-h1">Account Settings</h1>
         </div>

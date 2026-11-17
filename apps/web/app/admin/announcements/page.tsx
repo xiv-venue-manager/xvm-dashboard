@@ -3,7 +3,6 @@
 import { useEffect, useState } from "react"
 import { useSession } from "next-auth/react"
 import { useRouter } from "next/navigation"
-import Link from "next/link"
 import { Button } from "@/components/ui/button"
 import { Input } from "@/components/ui/input"
 import { Textarea } from "@/components/ui/textarea"
@@ -24,6 +23,7 @@ import { Megaphone, Trash2, Plus, X } from "lucide-react"
 import { format } from "date-fns"
 import { adminLoadErrorMessage } from "@/lib/admin-load-error"
 
+import { BackLink } from "@/components/back-link"
 interface Announcement {
   id: string
   title: string
@@ -104,9 +104,7 @@ export default function AdminAnnouncementsPage() {
       <div className="page-inner max-w-3xl mx-auto">
         <div className="xiv-card rounded-xl p-8 text-center space-y-4">
           <p className="text-sm text-muted-foreground">{loadError}</p>
-          <Button asChild variant="outline">
-            <Link href="/dashboard">Back to the dashboard</Link>
-          </Button>
+          <BackLink href="/dashboard" to="Dashboard" variant="button" />
         </div>
       </div>
     )

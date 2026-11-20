@@ -50,7 +50,7 @@ Add `getShiftSettings` and `updateShiftSettings` to `apps/web/lib/api/xvm-api.ts
 
 ## UI
 
-Add a small client component, `apps/web/components/shift-approval-settings.tsx`, rendered as an Operations row in `apps/web/app/dashboard/[slug]/settings/page.tsx`.
+Add a small client component, `apps/web/components/shift-claim-settings.tsx`, rendered as an Operations row in `apps/web/app/dashboard/[slug]/settings/page.tsx`.
 
 - Label: **Auto-approve shift claims**.
 - Description: new claims take their seat immediately; enabling also approves claims already waiting.

@@ -43,10 +43,10 @@ beforeEach(() => {
 })
 
 describe("shift-settings GET", () => {
-  it("maps approval_required to autoApprove", async () => {
+  it("maps the settings row to the dashboard shape", async () => {
     m.getShiftSettings.mockResolvedValue(settings)
     const res = await GET(new NextRequest("http://localhost/x"), context)
-    expect(await res.json()).toEqual({ autoApprove: false })
+    expect(await res.json()).toEqual({ autoApprove: false, qualificationRequired: false })
     expect(m.getShiftSettings).toHaveBeenCalledWith("tok", "ven_1")
   })
 })
@@ -55,7 +55,7 @@ describe("shift-settings PATCH", () => {
   it("turns auto-approval on and clears the backlog", async () => {
     m.updateShiftSettings.mockResolvedValue({ ...settings, approval_required: false })
     const res = await PATCH(patch({ enabled: true }), context)
-    expect(await res.json()).toEqual({ autoApprove: true })
+    expect(await res.json()).toEqual({ autoApprove: true, qualificationRequired: false })
     expect(m.updateShiftSettings).toHaveBeenCalledWith(
       "tok",
       "ven_1",
@@ -67,7 +67,7 @@ describe("shift-settings PATCH", () => {
   it("turns auto-approval off without clearing anything", async () => {
     m.updateShiftSettings.mockResolvedValue(settings)
     const res = await PATCH(patch({ enabled: false }), context)
-    expect(await res.json()).toEqual({ autoApprove: false })
+    expect(await res.json()).toEqual({ autoApprove: false, qualificationRequired: false })
     expect(m.updateShiftSettings).toHaveBeenCalledWith(
       "tok",
       "ven_1",
@@ -76,7 +76,19 @@ describe("shift-settings PATCH", () => {
     )
   })
 
-  it.each([["not json"], [{ enabled: "yes" }], [{}]])("refuses a bad body: %j", async (body) => {
+  it("turns qualification on without touching approval", async () => {
+    m.updateShiftSettings.mockResolvedValue({ ...settings, qualification_required: true })
+    const res = await PATCH(patch({ qualificationRequired: true }), context)
+    expect(await res.json()).toEqual({ autoApprove: false, qualificationRequired: true })
+    expect(m.updateShiftSettings).toHaveBeenCalledWith(
+      "tok",
+      "ven_1",
+      { qualification_required: true },
+      { approvePending: false }
+    )
+  })
+
+  it.each([["not json"], [{ enabled: "yes" }], [{ qualificationRequired: 1 }], [{}]])("refuses a bad body: %j", async (body) => {
     const res = await PATCH(patch(body), context)
     expect(res.status).toBe(400)
     expect(m.updateShiftSettings).not.toHaveBeenCalled()

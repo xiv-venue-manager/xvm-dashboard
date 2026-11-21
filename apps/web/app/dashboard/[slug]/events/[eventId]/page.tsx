@@ -79,7 +79,7 @@ export default async function EventDetailsPage({ params }: { params: Promise<{ s
   if (await eventHiddenFromStaff(session.user.id, userRole, venue.id, event.status === "DRAFT" ? "DRAFT" : "PUBLISHED")) {
     notFound()
   }
-  const canEdit = ["OWNER", "MANAGER"].includes(userRole)
+  const canEdit = ["OWNER", "MANAGER"].includes(userRole) && !event.archived
 
   const revenue = await readXvm("event-detail revenue", null as number | null, (token, xvmApiVenueId) =>
     eventRevenueGil(token, xvmApiVenueId, {
@@ -129,6 +129,7 @@ export default async function EventDetailsPage({ params }: { params: Promise<{ s
             <h1 className="text-2xl md:text-4xl font-bold mb-2 break-words">{event.title}</h1>
             <div className="flex flex-wrap items-center gap-2 mb-2">
               <Badge className={statusColors[event.status as keyof typeof statusColors]}>{event.status}</Badge>
+              {event.archived && <Badge variant="outline">Deleted</Badge>}
               <Badge variant="outline">{typeLabels[event.eventType as keyof typeof typeLabels]}</Badge>
               {event.partakeEventId && (
                 <Badge variant="outline" className="border-[rgba(0,180,255,0.4)] text-[var(--xiv-blue)]">
@@ -155,7 +156,7 @@ export default async function EventDetailsPage({ params }: { params: Promise<{ s
                 {event.recurrenceRuleId !== null && (
                   <CancelSeriesButton venueId={venue.id} eventId={eventId} venueSlug={slug} />
                 )}
-                {event.status === "DRAFT" && <DeleteEventButton venueId={venue.id} eventId={eventId} venueSlug={slug} />}
+                <DeleteEventButton venueId={venue.id} eventId={eventId} venueSlug={slug} />
               </>
             )}
           </div>

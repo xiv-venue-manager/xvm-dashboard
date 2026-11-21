@@ -50,13 +50,13 @@ export function DeleteEventButton({ venueId, eventId, venueSlug }: DeleteEventBu
   return (
     <AlertDialog>
       <AlertDialogTrigger asChild>
-        <Button variant="destructive">Delete</Button>
+        <Button variant="destructive" size="sm">Delete</Button>
       </AlertDialogTrigger>
       <AlertDialogContent>
         <AlertDialogHeader>
           <AlertDialogTitle>Are you sure?</AlertDialogTitle>
           <AlertDialogDescription>
-            This action cannot be undone. This will permanently delete the event.
+            This removes the event from the calendar and cancels its shifts that have not started. Its transactions, attendance and history are kept.
           </AlertDialogDescription>
         </AlertDialogHeader>
         <AlertDialogFooter>

@@ -109,6 +109,7 @@ describe("materializeIfVirtual", () => {
       published_at: "2026-09-01T00:00:00Z",
       cancelled_at: null,
       cancel_reason: null,
+      archived_at: null,
       recurrence_rule_id: 3,
       partake_event_id: null,
       created_by_person_id: null,

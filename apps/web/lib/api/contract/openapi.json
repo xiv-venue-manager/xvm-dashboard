@@ -2177,15 +2177,13 @@
           "character_taken",
           "code_not_found",
           "deletion_pending",
+          "event_archived",
           "event_cancelled",
           "event_not_ended",
-          "event_published",
           "from_pot",
           "giveaway_ended",
-          "has_seat_history",
           "imported_elsewhere",
           "invite_expired",
-          "last_in_series",
           "last_owner",
           "level_taken",
           "limit_reached",
@@ -4085,6 +4083,18 @@
         "additionalProperties": false,
         "description": "A materialized event.",
         "properties": {
+          "archived_at": {
+            "anyOf": [
+              {
+                "format": "date-time",
+                "type": "string"
+              },
+              {
+                "type": "null"
+              }
+            ],
+            "title": "Archived At"
+          },
           "cancel_reason": {
             "anyOf": [
               {
@@ -4263,6 +4273,7 @@
           "published_at",
           "cancelled_at",
           "cancel_reason",
+          "archived_at",
           "recurrence_rule_id",
           "partake_event_id",
           "partake_synced_at",
@@ -25139,9 +25150,10 @@
                 }
               }
             },
-            "description": "The invite has expired, or you are already a member of this venue.",
+            "description": "The invite has expired, you are already a member of this venue, or your account is scheduled for deletion.",
             "x-codes": [
               "already_member",
+              "deletion_pending",
               "invite_expired"
             ]
           },
@@ -28058,7 +28070,7 @@
     },
     "/me/venues": {
       "get": {
-        "description": "The venue switcher: everywhere you currently work, with your rank, membership and jobs at each,\nand each venue's description and how many people work there.",
+        "description": "The venue switcher: everywhere you currently work, with your rank, membership and jobs at each,\nand each venue's description and how many people work there. A credential narrowed to one venue\nsees only that one.",
         "operationId": "my_venues_me_venues_get",
         "parameters": [
           {
@@ -29159,7 +29171,7 @@
                 }
               }
             },
-            "description": "Requires a person credential."
+            "description": "Requires a person credential not narrowed to a venue."
           },
           "409": {
             "content": {
@@ -32472,7 +32484,7 @@
     },
     "/venues/{venue_id}/event-posts/{event_id}": {
       "get": {
-        "description": "What the bot renders for this event. Any member, or the bot as itself; a draft only\nto those the venue lets see drafts.",
+        "description": "What the bot renders for this event. Any member, or the bot as itself; a draft only\nto those the venue lets see drafts. A deleted event has no body.",
         "operationId": "event_post_body_venues__venue_id__event_posts__event_id__get",
         "parameters": [
           {
@@ -34698,7 +34710,7 @@
     },
     "/venues/{venue_id}/events/{event_id}": {
       "delete": {
-        "description": "Drafts only. On a series occurrence this un-materializes: the computed\noccurrence returns to the calendar. To remove the night itself, cancel. Manager tier.",
+        "description": "Archives the event: it leaves every list and its Discord post is taken down, but the row stays, so\ntransactions, awards and visits keep their event. On a series occurrence the night stays gone. Deleting\ntwice is a no-op. Any state; to say the night did not happen instead, cancel. Manager tier.",
         "operationId": "delete_event_venues__venue_id__events__event_id__delete",
         "parameters": [
           {
@@ -34773,21 +34785,6 @@
               }
             },
             "description": "No such event at this venue."
-          },
-          "409": {
-            "content": {
-              "application/json": {
-                "schema": {
-                  "$ref": "#/components/schemas/ConflictDetail"
-                }
-              }
-            },
-            "description": "Published events are cancelled, not deleted.",
-            "x-codes": [
-              "event_published",
-              "has_seat_history",
-              "last_in_series"
-            ]
           },
           "422": {
             "content": {
@@ -35023,11 +35020,15 @@
             "content": {
               "application/json": {
                 "schema": {
-                  "$ref": "#/components/schemas/ErrorDetail"
+                  "$ref": "#/components/schemas/ConflictDetail"
                 }
               }
             },
-            "description": "Cancelled events cannot be edited."
+            "description": "Cancelled or deleted events cannot be edited.",
+            "x-codes": [
+              "event_cancelled",
+              "event_archived"
+            ]
           },
           "422": {
             "content": {
@@ -35150,11 +35151,15 @@
             "content": {
               "application/json": {
                 "schema": {
-                  "$ref": "#/components/schemas/ErrorDetail"
+                  "$ref": "#/components/schemas/ConflictDetail"
                 }
               }
             },
-            "description": "This event is already cancelled."
+            "description": "This event is already cancelled, or was deleted.",
+            "x-codes": [
+              "event_cancelled",
+              "event_archived"
+            ]
           },
           "422": {
             "content": {
@@ -35790,10 +35795,11 @@
                 }
               }
             },
-            "description": "Already published, or cancelled.",
+            "description": "Already published, cancelled, or deleted.",
             "x-codes": [
               "already_published",
-              "event_cancelled"
+              "event_cancelled",
+              "event_archived"
             ]
           },
           "422": {
@@ -47027,7 +47033,7 @@
     },
     "/venues/{venue_id}/links": {
       "post": {
-        "description": "Owner-only. FFXIV Venues has its own link route, which checks the listing's managers and imports it.",
+        "description": "Owner-only. FFXIV Venues has its own link route, which checks the listing's managers and imports it. A Discord\nserver is linked only from the dashboard or the bot, which check that the caller manages it.",
         "operationId": "link_external_venues__venue_id__links_post",
         "parameters": [
           {
@@ -47097,7 +47103,7 @@
                 }
               }
             },
-            "description": "Token narrowed to another venue, not a member, or insufficient authority."
+            "description": "Narrowed to another venue, not an owner, or a Discord server linked from outside the dashboard or the bot."
           },
           "409": {
             "content": {
@@ -47800,7 +47806,7 @@
                 }
               }
             },
-            "description": "This member is already employed."
+            "description": "This member is already employed, or their account is scheduled for deletion."
           },
           "422": {
             "content": {
@@ -58114,6 +58120,16 @@
             },
             "description": "Token narrowed to another venue, not a member of this venue, or insufficient tier for this action."
           },
+          "404": {
+            "content": {
+              "application/json": {
+                "schema": {
+                  "$ref": "#/components/schemas/ErrorDetail"
+                }
+              }
+            },
+            "description": "The owner isn't a member of this venue."
+          },
           "409": {
             "content": {
               "application/json": {
@@ -58446,7 +58462,7 @@
                 }
               }
             },
-            "description": "No such room at this venue - cross-venue existence is never confirmed."
+            "description": "No such room at this venue, or the owner isn't a member of it."
           },
           "409": {
             "content": {
@@ -59061,7 +59077,7 @@
                 }
               }
             },
-            "description": "No such room at this venue - cross-venue existence is never confirmed."
+            "description": "No such room at this venue, or no such person to hold it."
           },
           "409": {
             "content": {

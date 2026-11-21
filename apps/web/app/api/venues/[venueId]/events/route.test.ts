@@ -65,6 +65,7 @@ const eventRow = (): EventRow => ({
   published_at: null,
   cancelled_at: null,
   cancel_reason: null,
+  archived_at: null,
   recurrence_rule_id: null,
   partake_event_id: null,
   created_by_person_id: 9,

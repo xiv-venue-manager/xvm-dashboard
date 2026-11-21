@@ -58,7 +58,7 @@ const ALIASES: Record<string, string> = {
 
 // Interfaces with no contract schema of their own. A new interface that is not mapped above has to be
 // added here on purpose, so the unchecked part of the mirror cannot grow unnoticed.
-const UNMAPPED = ["ShiftStaffOption"]
+const UNMAPPED = ["RosterApplyResult", "ShiftStaffOption"]
 
 // Drift that is understood and not ours to fix here. Each entry must still occur, so a fix upstream
 // makes this test ask for the entry to be removed.

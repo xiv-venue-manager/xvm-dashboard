@@ -15,6 +15,7 @@ import type { RosterPosition, RosterShift, ShiftStaffOption } from "@/lib/api/xv
 interface EventRosterProps {
   venueSlug: string
   eventId: string
+  inSeries: boolean
   canManage: boolean
   currentMembershipId: number | null
   roster: RosterPosition[]
@@ -40,11 +41,12 @@ function toLocalInput(iso: string): string {
 }
 
 export function EventRoster(props: EventRosterProps) {
-  const { venueSlug, eventId, canManage, currentMembershipId, roster, positionOptions, staff } = props
+  const { venueSlug, eventId, inSeries, canManage, currentMembershipId, roster, positionOptions, staff } = props
   const router = useRouter()
   const mounted = useMounted()
   const timeZone = mounted ? browserTimeZone() : null
   const [error, setError] = useState<string | null>(null)
+  const [notice, setNotice] = useState<string | null>(null)
   const [busy, setBusy] = useState(false)
   const [newPosition, setNewPosition] = useState<string>("")
   const [addingShiftFor, setAddingShiftFor] = useState<number | null>(null)
@@ -72,6 +74,28 @@ export function EventRoster(props: EventRosterProps) {
       }
       router.refresh()
       return true
+    } finally {
+      setBusy(false)
+      setConfirming(null)
+    }
+  }
+
+  async function applyToFuture() {
+    setBusy(true)
+    setError(null)
+    setNotice(null)
+    try {
+      const res = await fetch(`${base}/events/${eventId}/roster/apply-to-future`, { method: "POST" })
+      const data = await res.json().catch(() => ({}))
+      if (!res.ok) {
+        setError(data.error ?? "Something went wrong")
+        return
+      }
+      const skipped = data.skipped
+        ? ` ${data.skipped} already had a roster and ${data.skipped === 1 ? "was" : "were"} left alone.`
+        : ""
+      setNotice(`Copied to ${data.copied} future ${data.copied === 1 ? "occurrence" : "occurrences"}.${skipped}`)
+      router.refresh()
     } finally {
       setBusy(false)
       setConfirming(null)
@@ -220,6 +244,7 @@ export function EventRoster(props: EventRosterProps) {
   return (
     <div className="space-y-4">
       {error && <p className="text-sm text-red-400">{error}</p>}
+      {notice && <p className="text-sm text-emerald-400">{notice}</p>}
 
       {roster.length === 0 && <p className="text-sm text-muted-foreground">No positions are working this event yet.</p>}
 
@@ -273,6 +298,15 @@ export function EventRoster(props: EventRosterProps) {
           {position.shifts.map(shiftRow)}
         </div>
       ))}
+
+      {canManage && inSeries && roster.length > 0 && (
+        <div className="flex flex-wrap items-center justify-between gap-2 border-t border-[var(--blue-008)] pt-4">
+          <p className="text-xs text-muted-foreground">
+            Copies these positions and shifts into later occurrences that have no roster. Seats and people stay here.
+          </p>
+          {confirmable("apply-future", "Apply to future occurrences", applyToFuture)}
+        </div>
+      )}
 
       {canManage && positionOptions.length > 0 && (
         <div className="flex items-center gap-2">

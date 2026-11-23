@@ -31,6 +31,7 @@ import { formatGil } from "@/lib/format"
 import { OverviewTasks } from "@/components/overview-tasks"
 import { AnnouncementBanner } from "@/components/announcement-banner"
 import { CharacterLinkNudge } from "@/components/character-link-nudge"
+import { LeaveVenueButton } from "@/components/leave-venue-button"
 import { TodayDateLabel } from "@/components/today-date-label"
 import { listEventsInRange, type PageEvent } from "@/lib/api/event-window"
 import { format, subDays, formatDistanceToNow } from "date-fns"
@@ -543,6 +544,10 @@ export default async function VenueDashboardPage({ params }: { params: Promise<{
             </div>
           </div>
         )}
+
+        <div className="flex justify-end pt-2">
+          <LeaveVenueButton venueSlug={venue.slug} venueName={venue.name} />
+        </div>
       </div>
     </VenueLayout>
   )

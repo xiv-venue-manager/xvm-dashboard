@@ -1,7 +1,6 @@
 "use client"
 
 import { useState } from "react"
-import { useRouter } from "next/navigation"
 import { LogOut } from "lucide-react"
 import { toast } from "sonner"
 import { Button } from "@/components/ui/button"
@@ -23,7 +22,6 @@ interface LeaveVenueButtonProps {
 }
 
 export function LeaveVenueButton({ venueSlug, venueName }: LeaveVenueButtonProps) {
-  const router = useRouter()
   const [leaving, setLeaving] = useState(false)
 
   async function handleLeave() {
@@ -36,8 +34,7 @@ export function LeaveVenueButton({ venueSlug, venueName }: LeaveVenueButtonProps
         return
       }
       toast.success(`You left ${venueName}.`)
-      router.push("/dashboard")
-      router.refresh()
+      window.location.assign("/dashboard")
     } catch {
       toast.error("Network error leaving venue.")
     } finally {

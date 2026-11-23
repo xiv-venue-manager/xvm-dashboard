@@ -5,6 +5,7 @@ import { withRateLimit } from "@/lib/middleware/with-rate-limit"
 import { getValidXvmApiToken, getValidXvmApiPersonId, xvmApiErrorResponse } from "@/lib/api/xvm-api-store"
 import { requireMyVenue } from "@/lib/api/venue-access"
 import { listMemberships, terminateMembership } from "@/lib/api/xvm-api"
+import { invalidateCache, cacheKeys } from "@/lib/redis-cache"
 
 export const DELETE = withRateLimit<{ params: Promise<{ venueId: string }> }>(
   async (request, context) => {
@@ -35,6 +36,7 @@ export const DELETE = withRateLimit<{ params: Promise<{ venueId: string }> }>(
       }
 
       await terminateMembership(token, lookup.venue.id, mine.id)
+      await invalidateCache(cacheKeys.userVenues(session.user.id))
       return NextResponse.json({ success: true })
     } catch (err) {
       return xvmApiErrorResponse(err, session.user.id, "[staff/me] DELETE error")

@@ -29,3 +29,4 @@ All notable changes to the XIV Venue Manager dashboard are listed here, newest f
 - Internal: Prisma, now that every read and write goes through xvm-api. (#327)
 
 [Unreleased]: https://github.com/xiv-venue-manager/xvm-dashboard/compare/main...dev
+[2026-11-17]: https://github.com/xiv-venue-manager/xvm-dashboard/compare/6d4a7a5...933caf0

@@ -4,6 +4,19 @@ All notable changes to the XIV Venue Manager dashboard are listed here, newest f
 
 ## [Unreleased]
 
+## [2026-11-24]
+
+### Added
+- Staff and managers can leave a venue themselves from the venue overview, after a confirmation. The last owner cannot leave. (#411)
+- An Auto-approve shift claims switch in Settings > Operations. It is off by default, and turning it on also approves the claims already waiting. (#382)
+- A "Require the position to claim a shift" switch beside it, so a venue can limit claims to staff who hold the position. (#410)
+
+### Changed
+- Past open and unclocked shifts no longer show on the week and calendar views. Completed and active shifts stay as history. (#381)
+
+### Security
+- Next.js updated from 16.4.2 to 16.4.5, which fixes seven moderate advisories. (#409)
+
 ## [2026-11-17]
 
 ### Added
@@ -29,4 +42,5 @@ All notable changes to the XIV Venue Manager dashboard are listed here, newest f
 - Internal: Prisma, now that every read and write goes through xvm-api. (#327)
 
 [Unreleased]: https://github.com/xiv-venue-manager/xvm-dashboard/compare/main...dev
+[2026-11-24]: https://github.com/xiv-venue-manager/xvm-dashboard/compare/933caf0...e0e1332
 [2026-11-17]: https://github.com/xiv-venue-manager/xvm-dashboard/compare/6d4a7a5...933caf0

@@ -17,7 +17,14 @@ import {
   getMe,
   type ShiftRow as ApiShiftRow,
 } from "@/lib/api/xvm-api"
-import { toOpenSlot, toShiftRow, type ShiftRow, type StaffNameLookup } from "@/lib/shift-format"
+import {
+  isClaimableOpenShift,
+  isStaleUnclockedShift,
+  toOpenSlot,
+  toShiftRow,
+  type ShiftRow,
+  type StaffNameLookup,
+} from "@/lib/shift-format"
 
 // Week start = Monday in UTC (FFXIV server time = UTC)
 function getWeekMonday(base: Date): Date {
@@ -123,8 +130,10 @@ export default async function ShiftsPage({
     new Set(rows.filter((s) => s.membership_id === currentMembershipId && s.cancelled_at === null).map((s) => s.event_shift_id))
   const heldInWeek = seatsHeldBy(weekShiftsRaw)
   const weekShifts: ShiftRow[] = [
-    ...weekShiftsRaw.map((s) => toShiftRow(s, s.position_id ? (roleNameById.get(s.position_id) ?? null) : null)),
-    ...openBoard.map((b) => toOpenSlot(b, heldInWeek.has(b.id))),
+    ...weekShiftsRaw
+      .map((s) => toShiftRow(s, s.position_id ? (roleNameById.get(s.position_id) ?? null) : null))
+      .filter((s) => !isStaleUnclockedShift(s, now)),
+    ...openBoard.filter((b) => isClaimableOpenShift(b, now)).map((b) => toOpenSlot(b, heldInWeek.has(b.id))),
   ]
   const activeCount = nowShifts.filter((s) => s.status === "active").length
 
@@ -143,8 +152,10 @@ export default async function ShiftsPage({
     ])
     const heldInCalendar = seatsHeldBy(calendarRaw)
     calendarShifts = [
-      ...calendarRaw.map((s) => toShiftRow(s, s.position_id ? (roleNameById.get(s.position_id) ?? null) : null)),
-      ...calendarBoard.map((b) => toOpenSlot(b, heldInCalendar.has(b.id))),
+      ...calendarRaw
+        .map((s) => toShiftRow(s, s.position_id ? (roleNameById.get(s.position_id) ?? null) : null))
+        .filter((s) => !isStaleUnclockedShift(s, now)),
+      ...calendarBoard.filter((b) => isClaimableOpenShift(b, now)).map((b) => toOpenSlot(b, heldInCalendar.has(b.id))),
     ]
   }
 
